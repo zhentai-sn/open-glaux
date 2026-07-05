@@ -1,0 +1,35 @@
+<svg viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <!-- input -->
+  <rect x="80" y="18" width="200" height="40" rx="20" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="180" y="43" text-anchor="middle" font-size="14" fill="#9ca3af">Natural language + image</text>
+  <line x1="180" y1="58" x2="180" y2="97" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Web -->
+  <rect x="70" y="100" width="220" height="96" rx="12" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="180" y="133" text-anchor="middle" font-size="16" fill="#8b5cf6" font-weight="600">Web · Next.js</text>
+  <text x="180" y="157" text-anchor="middle" font-size="12.5" fill="#9ca3af">UI · natural-language intent</text>
+  <text x="180" y="177" text-anchor="middle" font-size="12.5" fill="#9ca3af">never touches raw pixels</text>
+
+  <!-- science-core -->
+  <rect x="370" y="100" width="220" height="96" rx="12" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="480" y="133" text-anchor="middle" font-size="15" fill="#8b5cf6" font-weight="600">science-core · FastAPI</text>
+  <text x="480" y="157" text-anchor="middle" font-size="12.5" fill="#9ca3af">stateless service</text>
+  <text x="480" y="177" text-anchor="middle" font-size="12.5" fill="#9ca3af">decode · segment · measure</text>
+
+  <!-- web <-> core -->
+  <line x1="290" y1="138" x2="368" y2="138" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="330" y="129" text-anchor="middle" font-size="11" fill="#9ca3af">proxy</text>
+  <line x1="370" y1="162" x2="292" y2="162" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="330" y="176" text-anchor="middle" font-size="10.5" fill="#9ca3af">masks · metrics</text>
+
+  <!-- output -->
+  <line x1="180" y1="196" x2="180" y2="237" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="80" y="240" width="200" height="40" rx="20" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="180" y="265" text-anchor="middle" font-size="14" fill="#9ca3af">Structured results</text>
+</svg>
