@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# 数据集不入库（CUBS 走下载，见 science-core/README.md）
+data/
+*.tiff
+*.tif
+
+# 模型权重不入库
+*.h5
+*.ckpt
+*.pt
+*.pth
+
+# OS / 编辑器
+.DS_Store
+*.swp
+.idea/
+.vscode/

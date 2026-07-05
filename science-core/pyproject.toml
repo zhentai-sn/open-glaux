@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glaux-imt"
+version = "0.1.0"
+description = "Glaux 首个楔子：CUBS 颈动脉 IMT 分割→测量→验证科学内核"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+# 曲线插值（shape-preserving pchip）；核心测量不强依赖，缺省用 numpy 线性兜底。
+interp = ["scipy>=1.10"]
+# caroSegDeep 适配器的推理后端；重、隔离，避免整包强依赖旧 TF。
+carosegdeep = ["tensorflow>=2.10"]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["glaux_imt*", "eval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
