@@ -1,4 +1,4 @@
-<svg viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg viewBox="0 0 680 558" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
@@ -6,30 +6,37 @@
   </defs>
 
   <!-- input -->
-  <rect x="80" y="18" width="200" height="40" rx="20" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
-  <text x="180" y="43" text-anchor="middle" font-size="14" fill="#9ca3af">Natural language + image</text>
-  <line x1="180" y1="58" x2="180" y2="97" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="180" y="16" width="320" height="38" rx="19" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="340" y="40" text-anchor="middle" font-size="13.5" fill="#9ca3af">Natural-language goal · image — any modality</text>
+  <line x1="340" y1="54" x2="340" y2="84" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
 
-  <!-- Web -->
-  <rect x="70" y="100" width="220" height="96" rx="12" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
-  <text x="180" y="133" text-anchor="middle" font-size="16" fill="#8b5cf6" font-weight="600">Web · Next.js</text>
-  <text x="180" y="157" text-anchor="middle" font-size="12.5" fill="#9ca3af">UI · natural-language intent</text>
-  <text x="180" y="177" text-anchor="middle" font-size="12.5" fill="#9ca3af">never touches raw pixels</text>
+  <!-- agent (engine, swappable) -->
+  <rect x="130" y="88" width="420" height="64" rx="12" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="340" y="114" text-anchor="middle" font-size="15" fill="#6366f1" font-weight="600">Agent — the engine (bring your own · or Glaux's)</text>
+  <text x="340" y="136" text-anchor="middle" font-size="12" fill="#9ca3af">plan → act → verify → iterate · you configure the API / model</text>
+  <line x1="340" y1="152" x2="340" y2="186" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="349" y="172" text-anchor="start" font-size="10.5" fill="#9ca3af">drives</text>
 
-  <!-- science-core -->
-  <rect x="370" y="100" width="220" height="96" rx="12" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
-  <text x="480" y="133" text-anchor="middle" font-size="15" fill="#8b5cf6" font-weight="600">science-core · FastAPI</text>
-  <text x="480" y="157" text-anchor="middle" font-size="12.5" fill="#9ca3af">stateless service</text>
-  <text x="480" y="177" text-anchor="middle" font-size="12.5" fill="#9ca3af">decode · segment · measure</text>
+  <!-- Glaux environment (the substrate) -->
+  <rect x="64" y="190" width="552" height="284" rx="14" fill="none" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="340" y="216" text-anchor="middle" font-size="15" fill="#8b5cf6" font-weight="600">Glaux — the environment agents run inside</text>
+  <text x="340" y="235" text-anchor="middle" font-size="11.5" fill="#9ca3af">served by Web (workspace) + stateless science-core</text>
 
-  <!-- web <-> core -->
-  <line x1="290" y1="138" x2="368" y2="138" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="330" y="129" text-anchor="middle" font-size="11" fill="#9ca3af">proxy</text>
-  <line x1="370" y1="162" x2="292" y2="162" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="330" y="176" text-anchor="middle" font-size="10.5" fill="#9ca3af">masks · metrics</text>
+  <!-- four layers -->
+  <rect x="84" y="248" width="512" height="46" rx="10" fill="none" stroke="#c4b5fd" stroke-width="1.2"/>
+  <text x="100" y="275" font-size="12" fill="#9ca3af"><tspan fill="#8b5cf6" font-weight="600">Representation</tspan> (eyes)  ·  decode any modality → one computable representation</text>
+
+  <rect x="84" y="302" width="512" height="46" rx="10" fill="none" stroke="#c4b5fd" stroke-width="1.2"/>
+  <text x="100" y="329" font-size="12" fill="#9ca3af"><tspan fill="#8b5cf6" font-weight="600">Action</tspan> (hands)  ·  segment · measure · reconstruct — calibrated, guardrails</text>
+
+  <rect x="84" y="356" width="512" height="46" rx="10" fill="none" stroke="#c4b5fd" stroke-width="1.2"/>
+  <text x="100" y="383" font-size="12" fill="#9ca3af"><tspan fill="#8b5cf6" font-weight="600">Verification</tspan> (referee)  ·  provenance · reproducible · audit trail</text>
+
+  <rect x="84" y="410" width="512" height="46" rx="10" fill="none" stroke="#c4b5fd" stroke-width="1.2"/>
+  <text x="100" y="437" font-size="12" fill="#9ca3af"><tspan fill="#8b5cf6" font-weight="600">Memory</tspan> (flywheel)  ·  verified traces · corrections · domain priors</text>
 
   <!-- output -->
-  <line x1="180" y1="196" x2="180" y2="237" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
-  <rect x="80" y="240" width="200" height="40" rx="20" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
-  <text x="180" y="265" text-anchor="middle" font-size="14" fill="#9ca3af">Structured results</text>
+  <line x1="340" y1="474" x2="340" y2="504" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="170" y="508" width="340" height="38" rx="19" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="340" y="532" text-anchor="middle" font-size="13" fill="#9ca3af">Verified, reproducible insight · provenance</text>
 </svg>

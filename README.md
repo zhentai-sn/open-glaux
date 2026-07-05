@@ -3,9 +3,9 @@
 <p align="center"><strong>Biomedical Image Insight Agents</strong></p>
 
 <p align="center">
-  Agent-native AI for biomedical imaging —<br>
-  describe a research goal in natural language; Glaux's agents plan, segment, measure, and verify,<br>
-  turning any biomedical image, in any modality, into computable, reproducible insight.
+  The agent-native environment for biomedical image insight —<br>
+  bring an agent (yours or ours), describe a research goal in natural language, and turn<br>
+  any biomedical image, in any modality, into verified, reproducible insight.
 </p>
 
 <p align="center">
@@ -27,25 +27,28 @@
 
 ## What is Glaux?
 
-Glaux is a system of **agent-native tools for biomedical image insight**. You describe a research goal in
-plain language; Glaux's agents plan the analysis, run segmentation and measurement, verify the result, and
-hand back structured, reproducible insight — across biomedical imaging modalities.
+Glaux is the **agent-native environment for biomedical image insight** — the platform an agent runs *inside*
+to turn any biomedical image, in any modality, into verified, reproducible insight. Bring your own agent
+(configure your API / model) or use Glaux's reference agent; either way the agent is the engine, and Glaux
+is the world it acts in.
 
-The agent is what you talk to; underneath sits a **verified, modality-agnostic substrate** (decoders,
-segmenters, measurement primitives) with provenance and reproducibility built in — not a thin wrapper over a
-model. Think of it as **the ImageJ of the agent-native era, unbound from the microscope**: the scientific
-rigor of quantitative imaging, delivered by agents you direct in plain language, no longer tied to a single
-instrument or modality.
+That world is a **verified, modality-agnostic substrate**: decoders (what the agent sees), calibrated
+segmentation & measurement (what it can *correctly* do), and verification & provenance (what makes the result
+trustworthy science). A general-purpose agent has the reasoning; what it lacks — and a smarter model won't
+hand it for free — is this environment. So **Glaux is not a wrapper over a model; it is the substrate that
+makes any agent a rigorous biomedical image scientist**.
 
 ## Why Glaux?
 
 Quantitative bioimage analysis today means stitching together ImageJ macros, CellProfiler pipelines, and
 one-off scripts — powerful, but slow, brittle, and gated behind expertise. Our bet is not another
-natural-language front door onto that mess — general-purpose agents will commoditize that. It is **agents
-that stand on a verified, modality-agnostic substrate and are accountable for the result**: you give a goal,
-not a script; they plan, act, verify, and iterate; every result carries provenance and can be re-run —
-insight you can defend in peer review, not a screenshot. Structure is structure, whether the pixels came
-from a microscope, an ultrasound probe, or a CT slice.
+natural-language front door onto that mess — general-purpose agents will commoditize that. It is the
+**environment** an agent needs to do the work well and be accountable for it: reasoning is the engine, but
+reasoning without a verified, modality-aware world to act in accomplishes nothing. So the moat is the
+substrate — decoders, calibrated measurement, verification and provenance — that a smarter model makes
+*more* valuable, not less. Every result is reproducible and defensible in peer review, not a screenshot;
+structure is structure, whether the pixels came from a microscope, an ultrasound probe, or a CT slice; and
+the agent is yours to choose — bring your own API / model, or use Glaux's.
 
 ## Scope
 
@@ -65,14 +68,18 @@ regulated clinical diagnosis (FDA / NMPA) is not. The line is **research insight
 ## Architecture
 
 <p align="center">
-  <img src="assets/architecture.svg" alt="Glaux architecture — Web proxies natural-language + image requests to a stateless science-core that decodes, segments, and measures" width="640">
+  <img src="assets/architecture.svg" alt="Glaux architecture — an agent (bring your own or Glaux's) runs inside the Glaux environment, whose four layers (representation, action, verification, memory) turn any-modality images into verified, reproducible insight" width="640">
 </p>
 
-- **Web** — the workspace and natural-language layer; never touches raw pixels, proxies to the science core.
-- **science-core** — a stateless Python service that decodes, segments, and measures. New modalities and
-  segmenters plug in behind a narrow contract (a strategy registry), not a rewrite.
+- **Agent** — the engine, not the product. Bring your own (configure an API / model) or use Glaux's
+  reference agent; it plans, acts, verifies, and iterates *inside* the environment below.
+- **Web** — the workspace and natural-language layer; never touches raw pixels, orchestrates the agent.
+- **science-core** — the stateless substrate the agent acts in: decode → represent, then segment · measure
+  · reconstruct, with verification and provenance on every result. New modalities and segmenters plug in
+  behind a narrow contract (a strategy registry), not a rewrite.
 
-The engine is being ported from a working fluorescence-microscopy prototype; this repo is the clean restart.
+The moat is the environment, not the agent. The engine is being ported from a working
+fluorescence-microscopy prototype; this repo is the clean restart.
 
 ## Status
 
@@ -83,6 +90,14 @@ guarantee — we would rather say that honestly than oversell.
 
 **North star:** Biomedical Image Insight Agents — agents that deliver verified, reproducible insight across
 modalities, built on assets that get *more* valuable as models improve.
+
+1. **Vision & strategy** — positioning and moat (largely done; see the analysis below).
+2. **Preliminary requirements** — target users, use cases, functional & non-functional scope.
+3. **Technical architecture** — reusable core, agent orchestration, verified-artifact contract.
+4. **Validate on 1–2 scenarios** — deliberately non-fluorescence: pathology (WSI) and ultrasound.
+
+🔭 **Far horizon** — platform / MCP distribution, full-modality coverage, and eventually assistive decision
+support (a long-term goal beyond today's research-only line).
 
 The living roadmap and the strategy behind it live under [docs/roadmaps/](docs/roadmaps/) — current:
 [Product Roadmap · 2026-07-05](docs/roadmaps/20260705-product-roadmap.zh-CN.md). The competitive and
