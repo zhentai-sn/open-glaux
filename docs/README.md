@@ -7,14 +7,17 @@
 ```
 docs/
 ├── README.md          # 本文件：文档区导航与命名规约
-├── charter.zh-CN.md   # 纲领：Glaux 的身份与一切决策的组织原则（先读这份）
+├── requirements.zh-CN.md  # 需求清单（初步 v0，活文档）
+├── brainstorms/       # 脑暴 / 需求文档（按任务，right-sized）
 ├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
 └── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
+    └── charter.zh-CN.md  # 纲领：Glaux 的身份与一切决策的组织原则（先读这份）；路线图从纲领派生，故与路线图同属一族
 ```
 
 ## 核心文档
 
-- **[纲领 · Charter](charter.zh-CN.md)** —— Glaux 是什么、发展目标、决策过滤器、边界。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新。
+- **[纲领 · Charter](roadmaps/charter.zh-CN.md)** —— Glaux 是什么、发展目标、决策过滤器、边界。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新——与 roadmaps/ 下按版本日期存档的其余文件不同，但同属路线图一族（路线图由纲领派生）。
+- **[需求清单 · Requirements](requirements.zh-CN.md)** —— 初步需求（v0）：首个用户、场景、按环境四层的功能需求、成功标准与开放问题。活文档，随阶段 2 推进更新。
 
 ## 一、调研 researches/
 
@@ -46,6 +49,7 @@ docs/
 | 文件 | 日期 | 类别 | 主题 |
 | --- | --- | --- | --- |
 | [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河） |
+| [20260705-02-research-ultrasound-benchmarks.zh-CN.md](researches/20260705-02-research-ultrasound-benchmarks.zh-CN.md) | 2026-07-05 | research | 公开超声图像基准调研（数据集 / 许可证 / 短名单推荐） |
 
 ## 二、路线图 roadmaps/
 
@@ -67,12 +71,28 @@ docs/
 
 - 路线图**按版本日期存档**，不覆盖旧版——每次重大更新新建一份，保留演进痕迹。
 - **根目录 README 指向"当前版本"**；每次发布新版路线图，同步更新两个根 README（`README.md` / `README.zh-CN.md`）的路线图段指向，并更新下方索引的"当前"标记。
+- **例外**：`charter.zh-CN.md`（纲领）同属本目录，但不按日期存档、不建新版本——它是路线图的源头，单一活文档，修订即更新原文件。
 
 ### 现有路线图
 
 | 文件 | 日期 | 范围 | 状态 |
 | --- | --- | --- | --- |
+| [charter.zh-CN.md](roadmaps/charter.zh-CN.md) | 活文档 | — | 纲领（路线图之源，不存档） |
 | [20260705-product-roadmap.zh-CN.md](roadmaps/20260705-product-roadmap.zh-CN.md) | 2026-07-05 | product | ✅ 当前 |
+
+## 三、脑暴 brainstorms/
+
+### 命名规约
+
+`<YYYYMMDD>-<NN>-<topic>.<lang>.md` —— 一个任务 / 特性一份，right-sized 需求文档（脑暴产出，供 ce-plan 承接 HOW）。`topic` 用英文 kebab-case。
+
+**示例**：`20260705-01-cubs-imt-first-task.zh-CN.md`
+
+### 现有脑暴
+
+| 文件 | 日期 | 主题 |
+| --- | --- | --- |
+| [20260705-01-cubs-imt-first-task.zh-CN.md](brainstorms/20260705-01-cubs-imt-first-task.zh-CN.md) | 2026-07-05 | 第一个任务：CUBS 颈动脉 IMT 分割→测量 |
 
 ## 通用约定
 
