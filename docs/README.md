@@ -1,0 +1,77 @@
+# Glaux 文档区
+
+> Glaux 的调研、路线图等长期文档统一放在 `docs/` 下，按约定命名，便于检索、排序与引用。
+
+## 目录结构
+
+```
+docs/
+├── README.md          # 本文件：文档区导航与命名规约
+├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
+└── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
+```
+
+## 一、调研 researches/
+
+### 命名规约
+
+```
+<YYYYMMDD>-<NN>-<category>-<topic>.<lang>.md
+```
+
+| 段 | 含义 | 取值 |
+| --- | --- | --- |
+| `YYYYMMDD` | 调研完成日期 | 如 `20260705` |
+| `NN` | 当日序号，2 位补零，从 `01` 起 | `01`、`02`… |
+| `category` | 调研类别 | `product`（产品）· `market`（市场）· `tech`（技术）· `research`（科研） |
+| `topic` | 调研主题，kebab-case，用英文 | 如 `competitive-landscape` |
+| `lang` | 语言，可选；缺省视作 `zh-CN` | `zh-CN` · `en`（双语并存则并列两文件） |
+
+**示例**：`20260705-01-market-competitive-landscape.zh-CN.md`
+
+### 类别对照
+
+- **product 产品** —— 产品形态、功能、定位、用户与需求。
+- **market 市场** —— 竞争格局、竞品、商业模式、行业与监管趋势。
+- **tech 技术** —— 技术选型、架构、模型、工程可行性。
+- **research 科研** —— 学术前沿、论文、方法、科学问题本身。
+
+### 现有调研
+
+| 文件 | 日期 | 类别 | 主题 |
+| --- | --- | --- | --- |
+| [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河） |
+
+## 二、路线图 roadmaps/
+
+### 命名规约
+
+```
+<YYYYMMDD>-<scope>-roadmap.<lang>.md
+```
+
+| 段 | 含义 | 取值 |
+| --- | --- | --- |
+| `YYYYMMDD` | 该版路线图定稿 / 更新日期 | 如 `20260705` |
+| `scope` | 范围 | `product`（产品，默认）· `engineering`（工程）· `gtm` 等 |
+| `lang` | 语言 | `zh-CN` · `en` |
+
+**示例**：`20260705-product-roadmap.zh-CN.md`
+
+### 约定
+
+- 路线图**按版本日期存档**，不覆盖旧版——每次重大更新新建一份，保留演进痕迹。
+- **根目录 README 指向"当前版本"**；每次发布新版路线图，同步更新两个根 README（`README.md` / `README.zh-CN.md`）的路线图段指向，并更新下方索引的"当前"标记。
+
+### 现有路线图
+
+| 文件 | 日期 | 范围 | 状态 |
+| --- | --- | --- | --- |
+| [20260705-product-roadmap.zh-CN.md](roadmaps/20260705-product-roadmap.zh-CN.md) | 2026-07-05 | product | ✅ 当前 |
+
+## 通用约定
+
+- 文件名一律小写，词间用连字符 `-`（kebab-case）；主题用英文 slug，便于跨系统与命令行处理。
+- 文档正文可用中文；语言后缀标识正文语言，双语则并列两文件（`.zh-CN.md` / `.en.md`）。
+- 一经共享 / 引用的文件**不要改名**（会断链）；要修订内容就改内容，要换版本就新建。
+- 每篇文档建议在开头写清：用途、日期、有效期 / 半衰期提醒。

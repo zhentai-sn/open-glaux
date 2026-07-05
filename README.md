@@ -1,10 +1,11 @@
 <h1 align="center">🦉 Glaux</h1>
 
-<p align="center"><strong>Biomedical Image Insight</strong></p>
+<p align="center"><strong>Biomedical Image Insight Agents</strong></p>
 
 <p align="center">
-  An AI-native platform for biomedical image analysis and computation —<br>
-  turn any biomedical image, in any modality, into computable, reusable structure, using natural language.
+  Agent-native AI for biomedical imaging —<br>
+  describe a research goal in natural language; Glaux's agents plan, segment, measure, and verify,<br>
+  turning any biomedical image, in any modality, into computable, reproducible insight.
 </p>
 
 <p align="center">
@@ -26,21 +27,25 @@
 
 ## What is Glaux?
 
-Glaux is an **AI-native platform for biomedical image analysis and computation**. You describe what you
-want in plain language; Glaux turns the image into structured, computable, reusable results — segmentations,
-measurements, reconstructions — across biomedical imaging modalities.
+Glaux is a system of **agent-native tools for biomedical image insight**. You describe a research goal in
+plain language; Glaux's agents plan the analysis, run segmentation and measurement, verify the result, and
+hand back structured, reproducible insight — across biomedical imaging modalities.
 
-Think of it as **the ImageJ of the AI-native era, unbound from the microscope**: the scientific rigor of
-quantitative imaging (reproducible masks, measurements, provenance), driven by natural language, no longer
-tied to a single instrument or modality.
+The agent is what you talk to; underneath sits a **verified, modality-agnostic substrate** (decoders,
+segmenters, measurement primitives) with provenance and reproducibility built in — not a thin wrapper over a
+model. Think of it as **the ImageJ of the agent-native era, unbound from the microscope**: the scientific
+rigor of quantitative imaging, delivered by agents you direct in plain language, no longer tied to a single
+instrument or modality.
 
 ## Why Glaux?
 
 Quantitative bioimage analysis today means stitching together ImageJ macros, CellProfiler pipelines, and
-one-off scripts — powerful, but slow, brittle, and gated behind expertise. Our moat is not another format
-decoder; it is the **natural-language-driven pipeline from image to structured knowledge**, which is largely
-modality-agnostic: structure is structure, whether the pixels came from a microscope, an ultrasound probe,
-or a CT slice. Outputs are computable artifacts downstream tools can build on — not screenshots.
+one-off scripts — powerful, but slow, brittle, and gated behind expertise. Our bet is not another
+natural-language front door onto that mess — general-purpose agents will commoditize that. It is **agents
+that stand on a verified, modality-agnostic substrate and are accountable for the result**: you give a goal,
+not a script; they plan, act, verify, and iterate; every result carries provenance and can be re-run —
+insight you can defend in peer review, not a screenshot. Structure is structure, whether the pixels came
+from a microscope, an ultrasound probe, or a CT slice.
 
 ## Scope
 
@@ -76,10 +81,12 @@ guarantee — we would rather say that honestly than oversell.
 
 ## Roadmap
 
-- [ ] Lock engineering standards for the new repo
-- [ ] Migration plan: port the reusable core (decode · segment · measure) from the prototype
-- [ ] First end-to-end natural-language → segmentation loop
-- [ ] Modality feasibility spikes (beyond fluorescence microscopy)
+**North star:** Biomedical Image Insight Agents — agents that deliver verified, reproducible insight across
+modalities, built on assets that get *more* valuable as models improve.
+
+The living roadmap and the strategy behind it live under [docs/roadmaps/](docs/roadmaps/) — current:
+[Product Roadmap · 2026-07-05](docs/roadmaps/20260705-product-roadmap.zh-CN.md). The competitive and
+positioning analysis that informs it lives under [docs/researches/](docs/researches/).
 
 ## Contributing
 
