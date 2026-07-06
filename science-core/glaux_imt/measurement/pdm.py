@@ -49,15 +49,18 @@ def polyline_distances(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     return np.array([_point_to_polyline(x, y, q) for x, y in p])
 
 
-def imt(li: Boundary, ma: Boundary, cf: float) -> IMTResult:
+def imt(
+    li: Boundary, ma: Boundary, cf: float, *, x_window: tuple[float, float] | None = None
+) -> IMTResult:
     """在 LI/MA 的公共支撑上计算 mean/max IMT（mm）。
 
     ``cf`` = mm/pixel。逐列厚度取 LI 点到 MA 折线的法向距离；
-    ``pdm_mean_mm`` 为对称 polyline distance（LI↔MA）均值。
+    ``pdm_mean_mm`` 为对称 polyline distance（LI↔MA）均值——**跨方法比对的口径**。
+    ``x_window`` 给定时把公共支撑再限制到该 x 区间（跨方法共同支撑，见评测层）。
     """
     if not (cf > 0):
         raise ValueError(f"CF 须为正：{cf}")
-    cs = common_support(li, ma)
+    cs = common_support(li, ma, x_window=x_window)
     li_pts = np.column_stack([cs.x, cs.li_y])
     ma_pts = np.column_stack([cs.x, cs.ma_y])
 

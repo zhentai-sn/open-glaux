@@ -15,8 +15,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.io.boundaries import Boundary, BoundaryPair, to_mask
-from glaux_imt.measurement.pdm import polyline_distances
+from glaux_imt.io.boundaries import Boundary, BoundaryPair, common_support, to_mask
+from glaux_imt.measurement.pdm import imt, polyline_distances
 from glaux_imt.verification.crosscenter import loco_report
 
 # 专家变异参考阈（µm）
@@ -55,6 +55,52 @@ def bland_altman(pred_mm: Sequence[float], ref_mm: Sequence[float]) -> BlandAltm
         abs_bias_mean_um=float(np.abs(diff_um).mean()),
         n=int(diff_um.size),
     )
+
+
+def _support_range(pair: BoundaryPair) -> tuple[float, float]:
+    """一对 LI/MA 的公共支撑 x 区间 [lo, hi]。"""
+    cs = common_support(pair.li, pair.ma)
+    return float(cs.x.min()), float(cs.x.max())
+
+
+def paired_imt(pred: BoundaryPair, ref: BoundaryPair, cf: float) -> tuple[float, float]:
+    """对齐 CUBS 评测口径：两方法在**跨方法共同 x 支撑**上、用**对称 PDM** 各算 IMT(mm)。
+
+    跨方法比 IMT 必须量同一段血管壁，否则支撑失配污染 bias（如 GT-FAMUS 全宽
+    vs 手动局部 ROI）。返回 ``(imt_pred_mm, imt_ref_mm)``，均为对称 polyline
+    distance 均值 × CF。二者无足够重叠 → 抛 :class:`ValueError`。
+    """
+    p_lo, p_hi = _support_range(pred)
+    r_lo, r_hi = _support_range(ref)
+    lo, hi = max(p_lo, r_lo), min(p_hi, r_hi)
+    if hi - lo < 1:
+        raise ValueError(f"两方法共同 x 支撑不足：[{lo}, {hi}]")
+    win = (lo, hi)
+    return (
+        imt(pred.li, pred.ma, cf, x_window=win).pdm_mean_mm,
+        imt(ref.li, ref.ma, cf, x_window=win).pdm_mean_mm,
+    )
+
+
+def agreement(
+    pred: Mapping[str, BoundaryPair],
+    ref: Mapping[str, BoundaryPair],
+    cf: Mapping[str, float],
+) -> BlandAltman:
+    """两方法在共同支撑 + 对称 PDM 口径下的 Bland-Altman（观察者内/间、方法 vs 金标准通用）。
+
+    仅取三者交集的 image_id；单图共同支撑不足则跳过（不静默计 0）。
+    """
+    ids = [i for i in pred if i in ref and i in cf]
+    p_mm, r_mm = [], []
+    for i in ids:
+        try:
+            pi, ri = paired_imt(pred[i], ref[i], cf[i])
+        except ValueError:
+            continue
+        p_mm.append(pi)
+        r_mm.append(ri)
+    return bland_altman(p_mm, r_mm)
 
 
 def dice_score(a: np.ndarray, b: np.ndarray) -> float:

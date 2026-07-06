@@ -77,10 +77,19 @@ def resample_per_column(boundary: Boundary, x_grid: np.ndarray | None = None) ->
     return Boundary(name=boundary.name, x=x_grid.astype(float), y=y)
 
 
-def common_support(li: Boundary, ma: Boundary) -> CommonSupport:
-    """在 LI 与 MA 的**公共 x 区间**上逐整数列对齐——PDM 与掩膜的前置。"""
+def common_support(
+    li: Boundary, ma: Boundary, x_window: tuple[float, float] | None = None
+) -> CommonSupport:
+    """在 LI 与 MA 的**公共 x 区间**上逐整数列对齐——PDM 与掩膜的前置。
+
+    ``x_window`` 给定时再与之求交，用于把测量限制到**跨方法共同支撑**
+    （对齐 CUBS 论文：不同方法量的是同一段血管壁，否则 bias 不可比）。
+    """
     lo = int(np.ceil(max(li.x.min(), ma.x.min())))
     hi = int(np.floor(min(li.x.max(), ma.x.max())))
+    if x_window is not None:
+        lo = max(lo, int(np.ceil(x_window[0])))
+        hi = min(hi, int(np.floor(x_window[1])))
     if hi < lo:
         raise ValueError("LI 与 MA 无公共 x 支撑，无法对齐")
     x = np.arange(lo, hi + 1)

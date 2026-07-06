@@ -5,13 +5,23 @@ import pytest
 
 from eval.harness import (
     INTRA_OBSERVER_UM,
+    agreement,
     bland_altman,
     boundary_dice,
     dice_score,
     evaluate_method,
     hausdorff_distance,
+    paired_imt,
 )
 from glaux_imt.io.boundaries import Boundary, BoundaryPair
+from glaux_imt.measurement.pdm import imt
+
+
+def _pair(x, li_y, ma_y):
+    x = np.asarray(x, float)
+    li = np.full_like(x, li_y) if np.isscalar(li_y) else np.asarray(li_y, float)
+    ma = np.full_like(x, ma_y) if np.isscalar(ma_y) else np.asarray(ma_y, float)
+    return BoundaryPair(li=Boundary("LI", x, li), ma=Boundary("MA", x, ma))
 
 
 def test_bland_altman_perfect_prediction_zero_bias():
@@ -62,6 +72,40 @@ def test_boundary_dice_identical_pair():
         ma=Boundary("MA", x, np.full_like(x, 16.0)),
     )
     assert boundary_dice(pair, pair, shape=(40, 30)) == pytest.approx(1.0)
+
+
+def test_paired_imt_restricts_to_cross_method_common_support():
+    """支撑失配口径校验：GT 全宽（变厚度）vs 局部方法，只在共同 x 窗量同段壁。"""
+    cf = 0.1
+    x_ref = np.arange(0.0, 101.0)
+    ma_ref = np.where(x_ref < 40, 2.0, 10.0)  # 前段薄 2px、后段厚 10px
+    ref = _pair(x_ref, 0.0, ma_ref)
+    pred = _pair(np.arange(40.0, 81.0), 0.0, 10.0)  # 只覆盖后段，厚 10px
+
+    imt_pred, imt_ref = paired_imt(pred, ref, cf)
+    # 共同窗 [40,80]：两者均 10px → 1.0mm，零偏差
+    assert imt_pred == pytest.approx(1.0, abs=1e-6)
+    assert imt_ref == pytest.approx(1.0, abs=1e-6)
+    # 不截支撑则 GT 全宽均值被薄段拉低 → 与局部不可比（证明对齐口径确有必要）
+    full_ref = imt(ref.li, ref.ma, cf).pdm_mean_mm
+    assert full_ref < 0.9
+
+
+def test_agreement_zero_bias_for_identical_method():
+    pairs = {"a": _pair(np.arange(0.0, 50.0), 0.0, 6.0),
+             "b": _pair(np.arange(10.0, 70.0), 1.0, 8.0)}
+    cf = {"a": 0.06, "b": 0.06}
+    ba = agreement(pairs, pairs, cf)
+    assert ba.bias_um == pytest.approx(0.0, abs=1e-6)
+    assert ba.n == 2
+
+
+def test_agreement_recovers_known_thickness_offset():
+    ref = {"a": _pair(np.arange(0.0, 60.0), 0.0, 8.0)}   # 8px
+    pred = {"a": _pair(np.arange(0.0, 60.0), 0.0, 10.0)}  # 10px → +2px
+    cf = {"a": 0.05}  # +2px × 0.05 = +100µm
+    ba = agreement(pred, ref, cf)
+    assert ba.bias_um == pytest.approx(100.0, abs=1e-6)
 
 
 def test_evaluate_method_end_to_end_with_centers():
