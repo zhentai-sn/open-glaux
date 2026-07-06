@@ -38,6 +38,34 @@ CUBS 技术集上产出与已发布数对表的报告。
 > **数据不入库**：CUBS 走下载（见根 `README` 与 `.gitignore`）。复现脚本按上述
 > 口径调用 `cubs.read_dataset` → `agreement`，指向本地技术集解压目录即可。
 
+## 分割动作层真模型验证（caroSegDeep，2026-07-06）
+
+上表比的是数据集**自带**的分割输出；本节把**真模型**接上——完整走通
+`真实图像 → caroSegDeep 推理 → LI/MA → 对齐口径测量 → vs A1`。
+
+- **模型**：[caroSegDeep](https://github.com/nl3769/caroSegDeep)（CUBS 论文 CREATIS 基线，
+  两段式 Dilated U-Net：远壁检测 → IMC 分割；Keras/TF 2.4.1，权重 `.h5` 走 Dropbox）。
+- **环境隔离**：模型跑在独立 uv 环境（Python 3.8 + TF 2.4.1），headless 驱动复用其
+  推理类、绕开 GUI/wandb/集群路径、自动生成全宽 ROI + FW 自动初始化。运行器在
+  science-core **仓库之外**（`ModelAdapter` 隔离，不给内核引入 TF 依赖）。
+- **样本**：GT-FAMUS 覆盖的 100 图（tech_401–500），CPU 推理，100/100 成功。
+
+caroSegDeep vs A1 金标准（共同支撑 + 对称 PDM，µm）：
+
+| 指标 | 结果 | 已发布参考 |
+| --- | --- | --- |
+| IMT 分布 | median 1.044mm、range 0.797–1.426、**100/100 生理区间内** | — |
+| signed bias | **+9.5**（近零系统偏差） | — |
+| **\|bias\|（MAE）** | **66.6** | caroSegDeep/CREATIS ~106±89 |
+| sd | **84.7** | ~89 |
+| 95% LoA | [−157, +176] | 观察者内 160±140 |
+
+signed bias 近零、sd 84.7 ≈ 已发布 89、|bias| 66.6 同量级且优于已发布 ~106，
+亦优于数据集自带 CREATIS 输出 vs A1 的 104.7——分割动作层由真模型真数据证成。
+
+> **口径边界**：单 fold、全宽 ROI + FW 自动初始化；已发布 ~106 的 reference 定义
+> （哪个分析者 / fold / 全集 2176）不完全等同，故为「同量级且更优」，非精确复刻同一数。
+
 ## 成功阈（据 CUBS 调研）
 
 - 测量准确：CIMT 绝对 bias ≤160µm（观察者内 LoA），理想 ≤110µm（CREATIS 级）。
