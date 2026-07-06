@@ -1,0 +1,87 @@
+// 英文字典。键名冻结（= mockup data-i18n 键，见设计稿 §4）。
+// 含 HTML 的值（refuse/clarify/steps…）由 <Rich> 渲染；智能体动态发言也走字典。
+export const en = {
+  // title bar menus
+  m_file: "File",
+  m_edit: "Edit",
+  m_sel: "Selection",
+  m_view: "View",
+  m_run: "Run",
+  m_help: "Help",
+  // activity bar / sidebar titles
+  av_explorer: "Explorer",
+  av_search: "Search",
+  av_scm: "Source Control",
+  av_models: "Models",
+  av_run: "Run & Measure",
+  av_settings: "Settings",
+  // search view
+  search_ph: "Search images / annotations…",
+  search_hint: "Filter the dataset by id, center, method, or confidence.",
+  // source control
+  scm_changes: "Changes · 1",
+  scm_human: "human-corrected",
+  scm_hint: "Corrections are versioned per image and flow to the memory layer with provenance.",
+  // models / extensions
+  ext_installed: "Installed · segmentation adapters",
+  ext_market: "Marketplace",
+  ext_get: "Get",
+  ext_active: "active",
+  ext_enable: "enable",
+  // editor hud / tools
+  hud_mode: "B-mode · <b>far wall CCA</b>",
+  repr: "representative rendering · not patient data",
+  tip_select: "Select / pan",
+  tip_editli: "Edit LI",
+  tip_editma: "Edit MA",
+  tip_roi: "Move ROI",
+  tip_reset: "Reset to model",
+  empty_editor: "Select an image from the Explorer to begin.",
+  // bottom panel
+  p_meas: "Measurements",
+  p_out: "Output",
+  p_prob: "Problems",
+  measure_k1: "Mean IMT",
+  m_vsa1: "vs A1 |bias|",
+  rg_boundary: "boundary",
+  rg_roi: "far-wall segment",
+  src_agent: "agent",
+  src_human: "human",
+  no_problems: "No problems detected. Calibration resolved, IMT within physiological range.",
+  // agent panel
+  agent_name: "Agent",
+  ph: "Instruct the agent…",
+  chip1: "measure far-wall CCA IMT",
+  chip2: "analyze this image",
+  chip3: "compute left-ventricle EF",
+  // status bar tool labels
+  tl_cursor: "Select",
+  tl_editli: "Edit LI",
+  tl_editma: "Edit MA",
+  tl_roi: "Move ROI",
+  tl_reset: "Reset",
+  // agent dynamic speech (interpolates {model} {w} {v})
+  seed: "measure the far-wall CCA intima-media thickness",
+  refuse:
+    'Beyond scope: v0 only measures <b>far-wall CCA IMT</b>. Refused — kernel not triggered.<div class="tagline">scope = out_of_scope · never silently mis-run</div>',
+  clarify:
+    'Measurement intent detected, but no target anatomy. Did you mean <b>carotid far-wall IMT</b>?<div class="tagline">scope = ambiguous · needs clarification</div>',
+  intro: "Recognized as far-wall CCA IMT. Ran the kernel's four steps:",
+  s_interp: '<b>Interpret</b> → TaskSpec(<span class="mono">far_wall_cca_imt</span>)',
+  s_cal: '<b>Calibrate</b> → CUBS CF <span class="mono">0.0559</span>',
+  s_seg: '<b>Segment</b> → {model} · LI/MA',
+  s_meas: '<b>Measure</b> → PDM · common support',
+  conf: "● confident",
+  psub: "vs A1 |bias| 66.6 µm",
+  pmax: "max 1.041 · n 598",
+  accept: "Accept",
+  correct: "Correct boundaries",
+  accepted: "Accepted. Result + provenance written to the cohort queue.",
+  switch_ma: "Switched to <b>Edit MA</b>. Drag the handles; I'll re-measure live.",
+  remeasure:
+    "Correction on {w} boundary detected. Re-measured (common support · symmetric PDM): <b>IMT {v} mm</b>. Saved to memory with provenance.",
+  reset: "Reset to model output. IMT {v} mm.",
+  switched_model: "Segmentation model switched to <b>{model}</b>.",
+} as const;
+
+export type I18nKey = keyof typeof en;

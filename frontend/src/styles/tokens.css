@@ -1,0 +1,56 @@
+/* 设计 Token — 设计稿 §2。结构色借 VS Code Dark+，领域色（智能体/边界/语义）自定。
+   语义色（good/warn/crit）与 accent 严格分离。数值一律等宽 + tabular-nums。 */
+:root {
+  /* 结构底 */
+  --editor: #1e1e1e;
+  --sidebar: #252526;
+  --activity: #2d2d30;
+  --titlebar: #323233;
+  --panel: #1e1e1e;
+
+  /* 描边 · 输入 · 悬停 · 选中 */
+  --input: #3c3c3c;
+  --line: #2b2b2b;
+  --line2: #3c3c3c;
+  --hover: #2a2d2e;
+  --sel: #094771;
+  --sel-line: #0e639c;
+
+  /* 文本层级 */
+  --ink: #cccccc;
+  --mid: #9d9d9d;
+  --faint: #6e7681;
+  --bright: #e7e7e7;
+
+  /* 交互蓝 · 状态栏蓝（VS Code 签名） */
+  --accent: #0e70c0;
+  --accent2: #3794ff;
+  --status: #0e639c;
+
+  /* 智能体专属紫 */
+  --agent: #b58bf2;
+  --agent-dim: rgba(181, 139, 242, 0.14);
+  --agent-line: rgba(181, 139, 242, 0.34);
+
+  /* 边界叠加（沿用 overlay.py 约定） */
+  --li: #4fb0ff;
+  --ma: #ff8a5b;
+  --roi: #2dd4bf;
+
+  /* 语义（置信 / 澄清 / 拒绝·硬拒绝） */
+  --good: #4ec98a;
+  --warn: #e9b44c;
+  --crit: #f76d6d;
+
+  /* 排版 */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* 尺度（设计稿 §2 间距/圆角） */
+  --activity-w: 48px;
+  --sidebar-w: 250px;
+  --agent-w: 340px;
+  --panel-h: 150px;
+  --status-h: 22px;
+  --titlebar-h: 35px;
+}

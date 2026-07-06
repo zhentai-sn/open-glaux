@@ -1,0 +1,9 @@
+# 仓库在 WSL 与 Windows 间混合编辑——统一以 LF 入库，避免 CRLF 抖动。
+* text=auto eol=lf
+
+# 二进制资产不做换行归一
+*.png binary
+*.tiff binary
+*.tif binary
+*.h5 binary
+*.svg text eol=lf

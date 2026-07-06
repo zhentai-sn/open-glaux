@@ -1,0 +1,35 @@
+[project]
+name = "glaux-backend"
+version = "0.1.0"
+description = "Glaux IDE 前端的 FastAPI 外壳——编排/IO/进程隔离的薄 HTTP 层，不含 TF"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6",
+]
+
+# 说明：主进程刻意不依赖 TensorFlow / caroSegDeep。
+# /segment 在 M1 经隔离子进程（uv/py3.8/TF2.4）调用；science-core / orchestration
+# 在 M1 以本地路径依赖接入（当前 F4 为 mock，不引入以保持薄壳可独立起）。
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "httpx>=0.27",  # TestClient
+    "pytest>=8.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

@@ -21,6 +21,13 @@ data/
 *.pt
 *.pth
 
+# Node / 前端
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+npm-debug.log*
+.eslintcache
+
 # OS / 编辑器
 .DS_Store
 *.swp

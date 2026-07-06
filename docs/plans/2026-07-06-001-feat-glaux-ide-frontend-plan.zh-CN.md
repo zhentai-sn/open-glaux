@@ -151,6 +151,21 @@ P2（可延后）：                    F17 · F18(桌面壳)
 | i18n 键后期返工 | 大面积改动 | 键表先冻结(F3)；动态发言也纳入字典 |
 | 真实图像许可与隐私 | 合规 | 研究数据集(CC BY)优先；示意渲染显式标注；真图不入库 |
 
+## 九、实现进度
+
+| 里程碑 | 单元 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| **M0** | F1 双工程脚手架 | ✅ 完成 | `backend/`(FastAPI) + `frontend/`(Vite+React+TS) + 根 `Makefile`；typecheck/lint/build 全绿 |
+| **M0** | F2 八区外壳 + token + 响应式 | ✅ 完成 | 八区组件树 + §2 token(tokens.css) + 1120/820 断点；由 mockup 1:1 迁移 |
+| **M0** | F3 i18n 基座 | ✅ 完成 | en/zh 键表冻结(类型强制对齐)、状态栏一键切换、navigator+localStorage 默认；智能体发言走字典 |
+| **M0** | F4 后端 mock 端点 + OpenAPI | ✅ 完成 | §5 八端点 mock（真实验证数值）+ 规则三态守卫 + stdlib 合成 PNG；主进程无 TF；pytest 9/9 |
+| M1– | F5–F18 | ⏳ 待办 | 下一步：M1 真数据最小闭环（demo 成立线） |
+
+**M0 验证**（2026-07-06）：`uv run pytest` 9/9；前端 `npm run build` 59 模块通过、`lint`/`typecheck` 净；
+`make dev` 两端起，Vite `/api` 反代联通，三态守卫经 `/interpret` 端到端可见（in_scope 带 spec、
+out_of_scope 无 spec 拒绝），`/image` 返回真实 PNG 魔数。
+
 ## 变更记录
 - **2026-07-06**：v1。由[前端设计稿](../designs/2026-07-06-glaux-ide-frontend.zh-CN.md) R1–R14 拆出
   F1–F18 实现单元，定 P0/P1/P2 与 M0–M4 里程碑排序；关键路径 = 真数据最小闭环 + 协同修正。
+- **2026-07-06**：M0（F1–F4）落地并验证——脚手架 + 八区外壳 + i18n + 后端 mock 契约全绿。
