@@ -67,6 +67,7 @@ class TaskResult(IMTResult):
     cf_source: str = "cubs"
     model_version: str = ""
     roi: tuple[int, int] | None = None
+    vs_a1_um: float | None = None  # 与金标准 Manual-A1 的 |bias|（µm）；无 A1 时 None
 
 
 # --- 数据集 / 影像 -----------------------------------------------------------

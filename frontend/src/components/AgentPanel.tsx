@@ -5,7 +5,7 @@ import { Rich } from "./Rich";
 import { useI18n } from "../i18n";
 import { useSession, type Msg } from "../store/session";
 
-function AgentRun({ model, imt }: { model: string; imt: string }) {
+function AgentRun({ model, imt, max, cols, vsA1 }: { model: string; imt: string; max: string; cols: number; vsA1: number | null }) {
   const { t } = useI18n();
   const setTool = useSession((s) => s.setTool);
   const pushAgent = useSession((s) => s.pushAgent);
@@ -29,8 +29,8 @@ function AgentRun({ model, imt }: { model: string; imt: string }) {
           <span className="conf">{t("conf")}</span>
         </div>
         <div className="r" style={{ marginTop: 5, fontSize: 11, color: "var(--faint)" }}>
-          <span>{t("psub")}</span>
-          <span className="mono">{t("pmax")}</span>
+          <span>{t("m_vsa1")} {vsA1 == null ? "—" : `${vsA1.toFixed(1)} µm`}</span>
+          <span className="mono">max {max} · cols {cols}</span>
         </div>
         <div className="act">
           <button
@@ -66,7 +66,7 @@ function AgentTurn({ m }: { m: Extract<Msg, { role: "agent" }> }) {
         {t("agent_name")}
       </div>
       {m.variant === "run" ? (
-        <AgentRun model={m.model} imt={m.imt} />
+        <AgentRun model={m.model} imt={m.imt} max={m.max} cols={m.cols} vsA1={m.vsA1} />
       ) : (
         <Rich as="div" className={"abody " + m.variant} k={m.key} vars={m.vars} />
       )}

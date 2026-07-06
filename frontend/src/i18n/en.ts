@@ -30,7 +30,7 @@ export const en = {
   ext_enable: "enable",
   // editor hud / tools
   hud_mode: "B-mode · <b>far wall CCA</b>",
-  repr: "representative rendering · not patient data",
+  repr: "CUBS-tech · de-identified research data (CC BY)",
   tip_select: "Select / pan",
   tip_editli: "Edit LI",
   tip_editma: "Edit MA",

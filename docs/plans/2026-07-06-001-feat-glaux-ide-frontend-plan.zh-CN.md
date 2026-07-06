@@ -159,13 +159,26 @@ P2（可延后）：                    F17 · F18(桌面壳)
 | **M0** | F2 八区外壳 + token + 响应式 | ✅ 完成 | 八区组件树 + §2 token(tokens.css) + 1120/820 断点；由 mockup 1:1 迁移 |
 | **M0** | F3 i18n 基座 | ✅ 完成 | en/zh 键表冻结(类型强制对齐)、状态栏一键切换、navigator+localStorage 默认；智能体发言走字典 |
 | **M0** | F4 后端 mock 端点 + OpenAPI | ✅ 完成 | §5 八端点 mock（真实验证数值）+ 规则三态守卫 + stdlib 合成 PNG；主进程无 TF；pytest 9/9 |
-| M1– | F5–F18 | ⏳ 待办 | 下一步：M1 真数据最小闭环（demo 成立线） |
+| **M1** | F5 数据集接入 | ✅ 完成 | /images+/image 接 science-core io（tech_401–500 演示队列）；真 tiff→PNG（PIL）；Explorer 真实树、选图开编辑器 |
+| **M1** | F6 画布真图+真边界 | ✅ 完成 | 画布载真 B-mode PNG + 真实 LI/MA/ROI 叠加 + 比例尺由真实 CF 算 |
+| **M1** | F7 分割接入 | ✅ 完成 | /segment 走 caroSegDeep 缓存优先（eval 100 图真实产出）+ .venv-csd 隔离子进程兜底；主进程无 TF |
+| **M1** | F8 测量接入 | ✅ 完成 | /measure 接对齐口径 imt（共同支撑+对称 PDM）；/run 组装标定→分割→测量+vs A1；Measurements 面板落真值 |
+| **M1** | F9 智能体三态闭环 | ✅ 完成 | /interpret 接真实 orchestrator；in_scope 走真实四步跑批出真实提议；amb/oos 澄清/拒绝可见 |
+| M2– | F10–F18 | ⏳ 待办 | 下一步：M2 人机协同修正（拖边界即时重测 + 回流记忆层） |
 
 **M0 验证**（2026-07-06）：`uv run pytest` 9/9；前端 `npm run build` 59 模块通过、`lint`/`typecheck` 净；
 `make dev` 两端起，Vite `/api` 反代联通，三态守卫经 `/interpret` 端到端可见（in_scope 带 spec、
 out_of_scope 无 spec 拒绝），`/image` 返回真实 PNG 魔数。
 
+**M1 验证**（2026-07-06）：后端 `pytest` 12/12（真实数据，主进程 `find_spec("tensorflow") is None`）；
+前端 `typecheck`/`lint`/`build` 全绿；端到端 smoke（经 /api 反代）：/images 100 图带真实 CF、
+/image 真 637×400 灰度 PNG、/segment caroSegDeep 636 真实点（缓存）、/run 真实测量
+（tech_437：caroSegDeep PDM 1.19mm vs Manual-A1 1.31mm → |bias| 128µm）。
+**浏览器实测**：真 B-mode + LI/MA 叠加渲染、Measurements 落真值、Agent 四步提议卡显真实 IMT。
+
 ## 变更记录
 - **2026-07-06**：v1。由[前端设计稿](../designs/2026-07-06-glaux-ide-frontend.zh-CN.md) R1–R14 拆出
   F1–F18 实现单元，定 P0/P1/P2 与 M0–M4 里程碑排序；关键路径 = 真数据最小闭环 + 协同修正。
 - **2026-07-06**：M0（F1–F4）落地并验证——脚手架 + 八区外壳 + i18n + 后端 mock 契约全绿。
+- **2026-07-06**：M1（F5–F9）落地并验证——真数据最小闭环成立（demo 成立线）：真图 + caroSegDeep
+  真实边界（缓存 + 隔离子进程）+ 对齐口径测量 + 三态守卫四步跑批；主进程仍无 TF。

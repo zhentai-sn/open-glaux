@@ -9,7 +9,10 @@ const TABS: { id: PanelTab; key: "p_meas" | "p_out" | "p_prob" }[] = [
 
 function MeasurementsView() {
   const { t } = useI18n();
-  const imt = useSession((s) => s.imt);
+  const m = useSession((s) => s.measurement);
+  const boundaries = useSession((s) => s.boundaries);
+  const src = boundaries?.source ?? "agent";
+  const fmt = (v: number | undefined | null, d = 3) => (v == null ? "—" : v.toFixed(d));
   const cell = (k: string, v: string, unit: string, hi = false) => (
     <div className="mcell">
       <div className="k">{k}</div>
@@ -22,11 +25,11 @@ function MeasurementsView() {
   return (
     <div>
       <div className="mgrid">
-        {cell(t("measure_k1"), imt, "mm")}
-        {cell("Max IMT", "1.041", "mm")}
-        {cell("PDM sym", imt, "mm")}
-        {cell(t("m_vsa1"), "66.6", "µm", true)}
-        {cell("n / cols", "100 / 598", "")}
+        {cell(t("measure_k1"), fmt(m?.mean_mm), "mm")}
+        {cell("Max IMT", fmt(m?.max_mm), "mm")}
+        {cell("PDM sym", fmt(m?.pdm_mean_mm), "mm")}
+        {cell(t("m_vsa1"), m?.vs_a1_um == null ? "—" : m.vs_a1_um.toFixed(1), "µm", true)}
+        {cell("cols", m?.n_columns == null ? "—" : String(m.n_columns), "")}
       </div>
       {[
         { c: "var(--li)", nm: "LI", rk: "rg_boundary" as const },
@@ -36,7 +39,7 @@ function MeasurementsView() {
         <div key={r.nm} className="regionrow">
           <span className="sw" style={{ background: r.c }} />
           <b>{r.nm}</b>&nbsp;<span>{t(r.rk)}</span>
-          <span className="src agent">{t("src_agent")}</span>
+          <span className={"src " + src}>{t(src === "human" ? "src_human" : "src_agent")}</span>
         </div>
       ))}
     </div>
@@ -44,19 +47,22 @@ function MeasurementsView() {
 }
 
 function OutputView() {
-  const model = useSession((s) => s.activeModel);
   const imt = useSession((s) => s.imt);
-  const line = (t: string, body: JSX.Element) => (
-    <div className="logline">
-      <span className="t">{t}</span> {body}
+  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const b = useSession((s) => s.boundaries);
+  const m = useSession((s) => s.measurement);
+  const line = (body: JSX.Element, key: string) => (
+    <div className="logline" key={key}>
+      <span className="t">›</span> {body}
     </div>
   );
+  if (!b || !m) return <div className="stub">— no run yet —</div>;
   return (
     <div>
-      {line("[12:21:04]", <>interpret → <span className="ok">in_scope</span> far_wall_cca_imt</>)}
-      {line("[12:21:04]", <>calibrate → CUBS CF 0.0559 mm/px</>)}
-      {line("[12:21:05]", <>segment → {model} · 598 pts LI/MA</>)}
-      {line("[12:21:05]", <>measure → PDM common-support · <span className="ok">IMT {imt} mm</span></>)}
+      {line(<>interpret → <span className="ok">in_scope</span> far_wall_cca_imt</>, "i")}
+      {line(<>calibrate → CUBS CF {cf ?? "—"} mm/px</>, "c")}
+      {line(<>segment → {b.modelVersion} · {b.li.length} pts LI/MA</>, "s")}
+      {line(<>measure → PDM common-support · <span className="ok">IMT {imt} mm</span> · cols {m.n_columns}</>, "m")}
     </div>
   );
 }

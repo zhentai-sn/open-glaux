@@ -1,92 +1,90 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
+import { reRunActiveModel, selectImage } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
-// ---- 文件树（M0：代表性静态结构，反映真实 CUBS 布局；M1/F5 接 read_dataset） ----
-type Node = {
-  n: string;
-  type: "dir" | "img" | "txt" | "csv" | "muted";
-  open?: boolean;
-  tag?: "gold" | "ours";
-  kids?: Node[];
-};
+// ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割+测量） ----
+const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
 
-const TREE: Node[] = [
-  {
-    n: "images",
-    type: "dir",
-    open: true,
-    kids: [
-      { n: "tech_436.tiff", type: "img" },
-      { n: "tech_437.tiff", type: "img" },
-      { n: "tech_438.tiff", type: "img" },
-      { n: "tech_439.tiff", type: "img" },
-      { n: "…497 more", type: "muted" },
-    ],
-  },
-  { n: "CF", type: "dir", kids: [{ n: "tech_437_CF.txt", type: "txt" }] },
-  {
-    n: "LIMA-Profiles",
-    type: "dir",
-    open: true,
-    kids: [
-      { n: "Manual-A1", type: "dir", tag: "gold" },
-      { n: "Manual-A2", type: "dir" },
-      { n: "GT-FAMUS", type: "dir" },
-      { n: "Computerized-caroSegDeep", type: "dir", tag: "ours" },
-    ],
-  },
-  { n: "Folds", type: "dir", kids: [] },
-  { n: "cohort_gtfamus.csv", type: "csv" },
-];
-
-function TreeRow({ node, depth }: { node: Node; depth: number }) {
-  const [open, setOpen] = useState(!!node.open);
+function ImageLeaf({ id, depth }: { id: string; depth: number }) {
   const activeImage = useSession((s) => s.activeImage);
-  const setActiveImage = useSession((s) => s.setActiveImage);
-  const isDir = node.type === "dir";
-  const isImg = node.type === "img";
-  const selected = isImg && activeImage === node.n.replace(/\.tiff$/, "");
-  const dirty = selected; // 当前选中图标未保存圆点（M0 示意）
+  const selected = activeImage === id;
+  return (
+    <div
+      className={"row" + (selected ? " sel" : "")}
+      style={{ paddingLeft: depth * 12 + 4 }}
+      onClick={() => void selectImage(id)}
+    >
+      <span className="tw" />
+      <span className="ico fico">▤</span>
+      <span className="nm">{id}.tiff</span>
+      {selected && <span className="dot">●</span>}
+    </div>
+  );
+}
 
-  const icon = node.type === "csv" ? "▦" : node.type === "img" || node.type === "txt" ? "▤" : "";
-  const iconCls = node.type === "csv" ? "fico csv" : node.type === "muted" ? "" : "fico";
-
+function Dir({
+  name,
+  depth,
+  defaultOpen,
+  tag,
+  children,
+}: {
+  name: string;
+  depth: number;
+  defaultOpen?: boolean;
+  tag?: "gold" | "agent";
+  children?: ReactNode;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
   return (
     <>
-      <div
-        className={"row" + (selected ? " sel" : "")}
-        style={{ paddingLeft: depth * 12 + 4 }}
-        onClick={() => {
-          if (isDir) setOpen((o) => !o);
-          else if (isImg) setActiveImage(node.n.replace(/\.tiff$/, ""));
-        }}
-      >
-        <span className="tw">{isDir ? (open ? "▾" : "▸") : ""}</span>
-        {!isDir && (
-          <span className={"ico " + iconCls}>{icon}</span>
-        )}
-        <span
-          className={"nm" + (node.tag === "gold" ? " gold" : "")}
-          style={node.type === "muted" ? { color: "var(--faint)" } : undefined}
-        >
-          {node.n}
-        </span>
-        {node.tag === "gold" && <span className="tag">gold</span>}
-        {node.tag === "ours" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
-        {dirty && <span className="dot">●</span>}
+      <div className="row" style={{ paddingLeft: depth * 12 + 4 }} onClick={() => setOpen((o) => !o)}>
+        <span className="tw">{open ? "▾" : "▸"}</span>
+        <span className={"nm" + (tag === "gold" ? " gold" : "")}>{name}</span>
+        {tag === "gold" && <span className="tag">gold</span>}
+        {tag === "agent" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
       </div>
-      {isDir && open && node.kids?.map((k) => <TreeRow key={k.n} node={k} depth={depth + 1} />)}
+      {open && children}
     </>
   );
 }
 
 function ExplorerView() {
+  const images = useSession((s) => s.images);
+  const methods = useSession((s) => s.imageMeta?.methods ?? []);
+  const shown = images.slice(0, IMG_LIMIT);
+  const rest = images.length - shown.length;
+
   return (
     <div className="sb-view">
       <div className="ws">CUBS-tech</div>
-      <div>{TREE.map((n) => <TreeRow key={n.n} node={n} depth={0} />)}</div>
+      <div>
+        <Dir name="images" depth={0} defaultOpen>
+          {shown.map((m) => (
+            <ImageLeaf key={m.id} id={m.id} depth={1} />
+          ))}
+          {rest > 0 && (
+            <div className="row" style={{ paddingLeft: 16 }}>
+              <span className="tw" />
+              <span className="nm" style={{ color: "var(--faint)" }}>…{rest} more</span>
+            </div>
+          )}
+        </Dir>
+        <Dir name="CF" depth={0} />
+        <Dir name="LIMA-Profiles" depth={0} defaultOpen={methods.length > 0}>
+          {methods.map((mth) => (
+            <div key={mth} className="row" style={{ paddingLeft: 16 }}>
+              <span className="tw" />
+              <span className={"nm" + (mth === "Manual-A1" ? " gold" : "")}>{mth}</span>
+              {mth === "Manual-A1" && <span className="tag">gold</span>}
+              {mth === "caroSegDeep" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
+            </div>
+          ))}
+        </Dir>
+        <Dir name="Folds" depth={0} />
+      </div>
     </div>
   );
 }
@@ -139,6 +137,7 @@ function ModelsView() {
                 if (m.active) return;
                 activate(m.id);
                 pushAgent({ variant: "plain", key: "switched_model", vars: { model: m.id } });
+                void reRunActiveModel();
               }}
             >
               <div className="top">

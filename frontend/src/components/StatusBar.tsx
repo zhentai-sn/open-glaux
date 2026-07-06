@@ -18,7 +18,9 @@ export function StatusBar() {
   const imt = useSession((s) => s.imt);
   const model = useSession((s) => s.activeModel);
   const image = useSession((s) => s.activeImage);
+  const images = useSession((s) => s.images);
   const setView = useSession((s) => s.setSidebarView);
+  const idx = image ? images.findIndex((m) => m.id === image) + 1 : 0;
 
   return (
     <div className="status">
@@ -26,7 +28,7 @@ export function StatusBar() {
         <span>⎇</span> main
       </button>
       <button className="item">
-        <span className="mono">{image ?? "—"} · 37/100</span>
+        <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
       </button>
       <span className="item">
         {TOOL_GLYPH[tool]} <span>{t(TOOL_LABEL[tool])}</span>

@@ -10,8 +10,8 @@ dist/
 venv/
 env/
 
-# 数据集不入库（CUBS 走下载，见 science-core/README.md）
-data/
+# 数据集不入库（CUBS 走下载，见 science-core/README.md）——仅锚定仓库根，勿误伤 src/data/
+/data/
 *.tiff
 *.tif
 
@@ -27,6 +27,9 @@ frontend/dist/
 *.tsbuildinfo
 npm-debug.log*
 .eslintcache
+
+# 本地开发配置（含机器相关的 WSL/nvm 绝对路径，不入库）
+.claude/launch.json
 
 # OS / 编辑器
 .DS_Store

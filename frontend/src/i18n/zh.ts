@@ -25,7 +25,7 @@ export const zh: Record<I18nKey, string> = {
   ext_active: "启用中",
   ext_enable: "启用",
   hud_mode: "B 型 · <b>远壁 CCA</b>",
-  repr: "示意渲染 · 非真实患者数据",
+  repr: "CUBS-tech · 去标识研究数据 (CC BY)",
   tip_select: "选择 / 平移",
   tip_editli: "编辑 LI",
   tip_editma: "编辑 MA",

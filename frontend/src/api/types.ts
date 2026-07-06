@@ -31,6 +31,7 @@ export interface TaskResult extends IMTResult {
   cf_source: string;
   model_version: string;
   roi?: [number, number] | null;
+  vs_a1_um?: number | null;
 }
 
 export interface ImageMeta {

@@ -7,11 +7,14 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "pydantic>=2.6",
+    # science-core 的运行期依赖（读边界/测量/tiff→PNG）——纯计算，无 TF。
+    "numpy>=1.24",
+    "Pillow>=10.0",
 ]
 
 # 说明：主进程刻意不依赖 TensorFlow / caroSegDeep。
-# /segment 在 M1 经隔离子进程（uv/py3.8/TF2.4）调用；science-core / orchestration
-# 在 M1 以本地路径依赖接入（当前 F4 为 mock，不引入以保持薄壳可独立起）。
+# /segment 经隔离子进程（.venv-csd, py3.8/TF2.4）调用；science-core / orchestration
+# 经 app/config.py 挂到 sys.path 接入（不改其打包），主进程只用其纯计算部分。
 
 [project.optional-dependencies]
 dev = [

@@ -15,6 +15,8 @@ const TOOLS: { id: Tool; glyph: string; tip: "tip_select" | "tip_editli" | "tip_
 export function Editor() {
   const { t } = useI18n();
   const image = useSession((s) => s.activeImage);
+  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
   const setTool = useSession((s) => s.setTool);
 
@@ -45,7 +47,8 @@ export function Editor() {
             <AnnotationCanvas />
             <div className="hud">
               <Rich k="hud_mode" className="tagpill" />
-              <span className="tagpill mono">CF 0.0559 mm/px</span>
+              <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
+              {loading && <span className="tagpill" style={{ color: "var(--agent)" }}>…</span>}
             </div>
             <div className="etools" role="toolbar">
               {TOOLS.map((tl) => (
@@ -61,6 +64,7 @@ export function Editor() {
               ))}
             </div>
             <span className="repr">{t("repr")}</span>
+            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ segmenting…</span>}
           </>
         ) : (
           <div className="empty">{t("empty_editor")}</div>
