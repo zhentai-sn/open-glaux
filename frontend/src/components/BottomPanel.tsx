@@ -7,29 +7,29 @@ const TABS: { id: PanelTab; key: "p_meas" | "p_out" | "p_prob" }[] = [
   { id: "prob", key: "p_prob" },
 ];
 
-function MeasurementsView() {
+const mcell = (k: string, v: string, unit: string, hi = false) => (
+  <div className="mcell" key={k}>
+    <div className="k">{k}</div>
+    <div className={"v" + (hi ? " hi" : "")}>
+      {v}
+      <small> {unit}</small>
+    </div>
+  </div>
+);
+
+function IMTMeasurements() {
   const { t } = useI18n();
   const m = useSession((s) => s.measurement);
-  const boundaries = useSession((s) => s.boundaries);
-  const src = boundaries?.source ?? "agent";
+  const src = useSession((s) => s.boundaries?.source ?? "agent");
   const fmt = (v: number | undefined | null, d = 3) => (v == null ? "—" : v.toFixed(d));
-  const cell = (k: string, v: string, unit: string, hi = false) => (
-    <div className="mcell">
-      <div className="k">{k}</div>
-      <div className={"v" + (hi ? " hi" : "")}>
-        {v}
-        <small> {unit}</small>
-      </div>
-    </div>
-  );
   return (
     <div>
       <div className="mgrid">
-        {cell(t("measure_k1"), fmt(m?.mean_mm), "mm")}
-        {cell("Max IMT", fmt(m?.max_mm), "mm")}
-        {cell("PDM sym", fmt(m?.pdm_mean_mm), "mm")}
-        {cell(t("m_vsa1"), m?.vs_a1_um == null ? "—" : m.vs_a1_um.toFixed(1), "µm", true)}
-        {cell("cols", m?.n_columns == null ? "—" : String(m.n_columns), "")}
+        {mcell(t("measure_k1"), fmt(m?.mean_mm), "mm")}
+        {mcell("Max IMT", fmt(m?.max_mm), "mm")}
+        {mcell("PDM sym", fmt(m?.pdm_mean_mm), "mm")}
+        {mcell(t("m_vsa1"), m?.vs_a1_um == null ? "—" : m.vs_a1_um.toFixed(1), "µm", true)}
+        {mcell("cols", m?.n_columns == null ? "—" : String(m.n_columns), "")}
       </div>
       {[
         { c: "var(--li)", nm: "LI", rk: "rg_boundary" as const },
@@ -46,23 +46,67 @@ function MeasurementsView() {
   );
 }
 
+function HCMeasurements() {
+  const { t } = useI18n();
+  const m = useSession((s) => s.hcMeasurement);
+  const src = useSession((s) => s.hcContour?.source ?? "agent");
+  const fmt = (v: number | undefined | null, d = 1) => (v == null ? "—" : v.toFixed(d));
+  return (
+    <div>
+      <div className="mgrid">
+        {mcell("HC", fmt(m?.hc_mm), "mm")}
+        {mcell("BPD", fmt(m?.bpd_mm), "mm")}
+        {mcell("OFD", fmt(m?.ofd_mm), "mm")}
+        {mcell(t("m_vsgt"), m?.vs_gt_mm == null ? "—" : m.vs_gt_mm.toFixed(2), "mm", true)}
+        {mcell("area", m?.area_mm2 == null ? "—" : m.area_mm2.toFixed(0), "mm²")}
+      </div>
+      <div className="regionrow">
+        <span className="sw" style={{ background: "#C39BFF" }} />
+        <b>HC</b>&nbsp;<span>{t("rg_skull")}</span>
+        <span className={"src " + src}>{t(src === "human" ? "src_human" : "src_agent")}</span>
+      </div>
+    </div>
+  );
+}
+
+function MeasurementsView() {
+  const isHC = useSession((s) => s.modality === "fetal_hc");
+  return isHC ? <HCMeasurements /> : <IMTMeasurements />;
+}
+
+const logline = (body: JSX.Element, key: string) => (
+  <div className="logline" key={key}>
+    <span className="t">›</span> {body}
+  </div>
+);
+
 function OutputView() {
-  const imt = useSession((s) => s.imt);
+  const modality = useSession((s) => s.modality);
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const b = useSession((s) => s.boundaries);
   const m = useSession((s) => s.measurement);
-  const line = (body: JSX.Element, key: string) => (
-    <div className="logline" key={key}>
-      <span className="t">›</span> {body}
-    </div>
-  );
+  const hcC = useSession((s) => s.hcContour);
+  const hcM = useSession((s) => s.hcMeasurement);
+
+  if (modality === "fetal_hc") {
+    if (!hcC || !hcM) return <div className="stub">— no run yet —</div>;
+    return (
+      <div>
+        {logline(<>interpret → <span className="ok">in_scope</span> fetal_hc</>, "i")}
+        {logline(<>calibrate → {cf ?? "—"} mm/px</>, "c")}
+        {logline(<>detect → {hcC.modelVersion} · {hcC.points.length} ring pts</>, "s")}
+        {logline(<>measure → ellipse-fit · Ramanujan · <span className="ok">HC {hcM.hc_mm.toFixed(1)} mm</span> · vs GT {hcM.vs_gt_mm == null ? "—" : hcM.vs_gt_mm.toFixed(2)} mm</>, "m")}
+      </div>
+    );
+  }
+
   if (!b || !m) return <div className="stub">— no run yet —</div>;
   return (
     <div>
-      {line(<>interpret → <span className="ok">in_scope</span> far_wall_cca_imt</>, "i")}
-      {line(<>calibrate → CUBS CF {cf ?? "—"} mm/px</>, "c")}
-      {line(<>segment → {b.modelVersion} · {b.li.length} pts LI/MA</>, "s")}
-      {line(<>measure → PDM common-support · <span className="ok">IMT {imt} mm</span> · cols {m.n_columns}</>, "m")}
+      {logline(<>interpret → <span className="ok">in_scope</span> far_wall_cca_imt</>, "i")}
+      {logline(<>calibrate → CUBS CF {cf ?? "—"} mm/px</>, "c")}
+      {logline(<>segment → {b.modelVersion} · {b.li.length} pts LI/MA</>, "s")}
+      {logline(<>measure → PDM common-support · <span className="ok">IMT {m.pdm_mean_mm.toFixed(3)} mm</span> · cols {m.n_columns}</>, "m")}
     </div>
   );
 }

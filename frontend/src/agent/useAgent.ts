@@ -1,13 +1,13 @@
 import { useCallback } from "react";
 
 import { ApiError, api } from "../api/client";
-import { segmentAndMeasure } from "../data/actions";
+import { hcDetectAndMeasure, segmentAndMeasure } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
 // 智能体交互的单一入口——ActivityBar(Run) 与 AgentPanel(Composer) 共用。
-// scope 三态由后端 /interpret（真实 orchestrator 规则后端）判定；in_scope 走真实
-// 分割(/segment)+测量(/run) 四步，提议卡显真实对齐口径 IMT（F9）。
+// scope 三态由后端 /interpret（真实 orchestrator）判定；in_scope 时按 spec.task 分派到
+// 当前模态的真实链路：IMT 走 分割+对齐口径测量；HC 走 椭圆检测+Ramanujan 周长（F9 · 多模态）。
 export function useAgent() {
   const { t, lang } = useI18n();
   const pushUser = useSession((s) => s.pushUser);
@@ -36,12 +36,36 @@ export function useAgent() {
           pushAgent({ variant: "clarify", key: "clarify" });
           return;
         }
-        // in_scope：真实四步（标定→分割→对齐口径测量）
+        // in_scope：按任务分派到当前模态的真实链路
         if (!activeImage) {
           pushAgent({ variant: "plain", key: "empty_editor" });
           return;
         }
-        const { activeModel } = useSession.getState();
+        const { modality, activeModel } = useSession.getState();
+        const wantHC = r.spec?.task === "fetal_hc";
+        const isHC = modality === "fetal_hc";
+        // 意图任务与当前模态不符 → 提示切换（不静默跑错模态的数据）
+        if (wantHC !== isHC) {
+          pushAgent({ variant: "note", tone: "plain", text: t(wantHC ? "switch_to_hc" : "switch_to_imt") });
+          return;
+        }
+        if (isHC) {
+          const hc = await hcDetectAndMeasure(activeImage);
+          const st = useSession.getState();
+          if (hc && st.hcMeasurement) {
+            pushAgent({
+              variant: "hcrun",
+              model: st.hcContour?.modelVersion ?? "ellipse-fit",
+              hc,
+              bpd: st.hcMeasurement.bpd_mm.toFixed(1),
+              ofd: st.hcMeasurement.ofd_mm.toFixed(1),
+              vsGt: st.hcMeasurement.vs_gt_mm,
+            });
+          } else {
+            pushAgent({ variant: "plain", key: "empty_editor" });
+          }
+          return;
+        }
         const pdm = await segmentAndMeasure(activeImage, activeModel);
         const st = useSession.getState();
         if (pdm && st.measurement) {
@@ -62,13 +86,27 @@ export function useAgent() {
         pushAgent({ variant: "note", tone: "crit", text: `⚠ ${detail}` });
       }
     },
-    [lang, pushUser, pushAgent, setLastScope],
+    [lang, t, pushUser, pushAgent, setLastScope],
   );
 
-  // 首图载入并测量后，用真实结果种一段四步提议（不清空历史，见 R8）。
+  // 首图载入并测量后，用真实结果种一段提议（不清空历史，见 R8）。按模态种 IMT/HC 卡。
   const seedFromCurrent = useCallback(() => {
     const st = useSession.getState();
-    if (st.messages.length > 0 || !st.measurement || !st.activeImage) return;
+    if (st.messages.length > 0 || !st.activeImage) return;
+    if (st.modality === "fetal_hc") {
+      if (!st.hcMeasurement) return;
+      pushUser(t("seed_hc"));
+      pushAgent({
+        variant: "hcrun",
+        model: st.hcContour?.modelVersion ?? "ellipse-fit",
+        hc: st.hcMeasurement.hc_mm.toFixed(1),
+        bpd: st.hcMeasurement.bpd_mm.toFixed(1),
+        ofd: st.hcMeasurement.ofd_mm.toFixed(1),
+        vsGt: st.hcMeasurement.vs_gt_mm,
+      });
+      return;
+    }
+    if (!st.measurement) return;
     pushUser(t("seed"));
     pushAgent({
       variant: "run",

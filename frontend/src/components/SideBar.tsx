@@ -1,14 +1,39 @@
 import { useState, type ReactNode } from "react";
 
-import { reRunActiveModel, selectImage } from "../data/actions";
+import { reRunActiveModel, selectImage, switchModality } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
+import type { Modality } from "../api/types";
 
-// ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割+测量） ----
+// ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
+
+// 模态切换（颈动脉 IMT ⇄ 胎儿 HC）——换数据集/画布/测量口径。
+function ModalitySwitch() {
+  const { t } = useI18n();
+  const modality = useSession((s) => s.modality);
+  const opts: { id: Modality; key: "mod_carotid" | "mod_fetal" }[] = [
+    { id: "carotid_imt", key: "mod_carotid" },
+    { id: "fetal_hc", key: "mod_fetal" },
+  ];
+  return (
+    <div className="modsw">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          className={"modseg" + (modality === o.id ? " on" : "")}
+          onClick={() => void switchModality(o.id)}
+        >
+          {t(o.key)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function ImageLeaf({ id, depth }: { id: string; depth: number }) {
   const activeImage = useSession((s) => s.activeImage);
+  const ext = useSession((s) => (s.modality === "fetal_hc" ? ".png" : ".tiff"));
   const selected = activeImage === id;
   return (
     <div
@@ -18,7 +43,10 @@ function ImageLeaf({ id, depth }: { id: string; depth: number }) {
     >
       <span className="tw" />
       <span className="ico fico">▤</span>
-      <span className="nm">{id}.tiff</span>
+      <span className="nm">
+        {id}
+        {ext}
+      </span>
       {selected && <span className="dot">●</span>}
     </div>
   );
@@ -52,14 +80,21 @@ function Dir({
 }
 
 function ExplorerView() {
+  const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
   const methods = useSession((s) => s.imageMeta?.methods ?? []);
   const shown = images.slice(0, IMG_LIMIT);
   const rest = images.length - shown.length;
+  const isHC = modality === "fetal_hc";
+  const ws = isHC ? "synthetic-HC" : "CUBS-tech";
+  const methodsDir = isHC ? "ellipse-profiles" : "LIMA-Profiles";
+  const goldMethod = isHC ? "GT-ellipse" : "Manual-A1";
+  const agentMethod = isHC ? "ellipse-fit" : "caroSegDeep";
 
   return (
     <div className="sb-view">
-      <div className="ws">CUBS-tech</div>
+      <ModalitySwitch />
+      <div className="ws">{ws}</div>
       <div>
         <Dir name="images" depth={0} defaultOpen>
           {shown.map((m) => (
@@ -72,18 +107,18 @@ function ExplorerView() {
             </div>
           )}
         </Dir>
-        <Dir name="CF" depth={0} />
-        <Dir name="LIMA-Profiles" depth={0} defaultOpen={methods.length > 0}>
+        <Dir name={methodsDir} depth={0} defaultOpen={methods.length > 0}>
           {methods.map((mth) => (
             <div key={mth} className="row" style={{ paddingLeft: 16 }}>
               <span className="tw" />
-              <span className={"nm" + (mth === "Manual-A1" ? " gold" : "")}>{mth}</span>
-              {mth === "Manual-A1" && <span className="tag">gold</span>}
-              {mth === "caroSegDeep" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
+              <span className={"nm" + (mth === goldMethod ? " gold" : "")}>{mth}</span>
+              {mth === goldMethod && <span className="tag">gold</span>}
+              {mth === agentMethod && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
             </div>
           ))}
         </Dir>
-        <Dir name="Folds" depth={0} />
+        {!isHC && <Dir name="CF" depth={0} />}
+        {!isHC && <Dir name="Folds" depth={0} />}
       </div>
     </div>
   );

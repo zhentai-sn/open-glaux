@@ -95,6 +95,26 @@ export const en = {
     "Correction on {w} boundary detected. Re-measured (common support · symmetric PDM): <b>IMT {v} mm</b>. Saved to memory with provenance.",
   reset: "Reset to model output. IMT {v} mm.",
   switched_model: "Segmentation model switched to <b>{model}</b>.",
+  // --- multimodal / fetal head circumference (HC) ---
+  mod_carotid: "Carotid IMT",
+  mod_fetal: "Fetal HC",
+  hud_mode_hc: "B-mode · <b>fetal head</b>",
+  tip_redetect: "Re-detect skull",
+  repr_hc: "Synthetic fetal-skull demo · real ellipse-fit geometry",
+  segmenting: "segmenting…",
+  hc_detecting: "detecting…",
+  m_vsgt: "vs GT |bias|",
+  rg_skull: "skull ellipse",
+  chip_hc1: "measure fetal head circumference",
+  seed_hc: "measure the fetal head circumference",
+  switch_to_hc: "That's a fetal head-circumference task. Switch the modality to Fetal HC (sidebar) to run it.",
+  switch_to_imt: "That's a carotid IMT task. Switch the modality to Carotid IMT (sidebar) to run it.",
+  intro_hc: "Recognized as fetal head circumference. Ran the kernel's four steps:",
+  hs_interp: '<b>Interpret</b> → TaskSpec(<span class="mono">fetal_hc</span>)',
+  hs_cal: "<b>Calibrate</b> → mm/px",
+  hs_det: "<b>Detect</b> → {model} · skull ring",
+  hs_meas: "<b>Measure</b> → ellipse-fit · Ramanujan perimeter",
+  hc_redetect: "Re-detected the skull ring. HC {v} mm.",
 } as const;
 
 export type I18nKey = keyof typeof en;

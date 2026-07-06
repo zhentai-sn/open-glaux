@@ -1064,3 +1064,31 @@ canvas {
 .status .mono {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- modality switch (sidebar) ---- */
+.modsw {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.modseg {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--mid);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.modseg:hover {
+  color: var(--ink);
+  border-color: var(--agent-line);
+}
+.modseg.on {
+  color: var(--ink);
+  background: var(--agent-dim);
+  border-color: var(--agent-line);
+}

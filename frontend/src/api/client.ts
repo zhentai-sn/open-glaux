@@ -1,10 +1,13 @@
 // 类型化 API 客户端。走同源 /api（dev 由 Vite 反代到 FastAPI:8000，生产同源部署）。
 import type {
   CorrectionResult,
+  HCResult,
+  HCRunResult,
   ImageMeta,
   IMTResult,
   IntentBackendInfo,
   IntentResult,
+  Modality,
   ModelInfo,
   SegmentResult,
   TaskResult,
@@ -77,7 +80,8 @@ export const api = {
   measure: (li: number[][], ma: number[][], cf: number, x_window?: [number, number]) =>
     post<IMTResult>("/measure", { li, ma, cf, x_window }),
 
-  images: (job?: string) => get<ImageMeta[]>(`/images${job ? `?job=${encodeURIComponent(job)}` : ""}`),
+  images: (modality: Modality = "carotid_imt") =>
+    get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
 
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
@@ -85,6 +89,12 @@ export const api = {
 
   segment: (image_id: string, model: string, roi?: [number, number]) =>
     post<SegmentResult>("/segment", { image_id, model, roi }),
+
+  // 胎儿头围（HC）：检测+测量 / 由轮廓点重测
+  hcRun: (image_id: string, cubs_cf?: number) =>
+    post<HCRunResult>("/hc/run", { image_id, cubs_cf: cubs_cf ?? null }),
+
+  hcMeasure: (points: number[][], cf: number) => post<HCResult>("/hc/measure", { points, cf }),
 
   correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
     post<CorrectionResult>("/correction", { image_id, which, points, imt }),

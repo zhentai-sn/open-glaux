@@ -101,6 +101,48 @@ function AgentRun({ model, imt, max, cols, vsA1 }: { model: string; imt: string;
   );
 }
 
+function AgentHCRun({ model, hc, bpd, ofd, vsGt }: { model: string; hc: string; bpd: string; ofd: string; vsGt: number | null }) {
+  const { t } = useI18n();
+  const pushAgent = useSession((s) => s.pushAgent);
+  const setPanelTab = useSession((s) => s.setPanelTab);
+
+  return (
+    <div className="abody">
+      {t("intro_hc")}
+      <ul className="steps">
+        <li><span className="st">✓</span><Rich k="hs_interp" /></li>
+        <li><span className="st">✓</span><Rich k="hs_cal" /></li>
+        <li><span className="st">✓</span><Rich k="hs_det" vars={{ model }} /></li>
+        <li><span className="st">✓</span><Rich k="hs_meas" /></li>
+      </ul>
+      <div className="prop">
+        <div className="r">
+          <div className="val">
+            {hc}
+            <u>mm</u>
+          </div>
+          <span className="conf">{t("conf")}</span>
+        </div>
+        <div className="r" style={{ marginTop: 5, fontSize: 11, color: "var(--faint)" }}>
+          <span>{t("m_vsgt")} {vsGt == null ? "—" : `${vsGt.toFixed(2)} mm`}</span>
+          <span className="mono">BPD {bpd} · OFD {ofd}</span>
+        </div>
+        <div className="act">
+          <button
+            className="accept"
+            onClick={() => {
+              pushAgent({ variant: "plain", key: "accepted" });
+              setPanelTab("meas");
+            }}
+          >
+            {t("accept")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AgentTurn({ m }: { m: Extract<Msg, { role: "agent" }> }) {
   const { t } = useI18n();
   return (
@@ -111,6 +153,8 @@ function AgentTurn({ m }: { m: Extract<Msg, { role: "agent" }> }) {
       </div>
       {m.variant === "run" ? (
         <AgentRun model={m.model} imt={m.imt} max={m.max} cols={m.cols} vsA1={m.vsA1} />
+      ) : m.variant === "hcrun" ? (
+        <AgentHCRun model={m.model} hc={m.hc} bpd={m.bpd} ofd={m.ofd} vsGt={m.vsGt} />
       ) : m.variant === "note" ? (
         <div className={"abody " + (m.tone === "crit" ? "refuse" : "plain")}>{m.text}</div>
       ) : (
@@ -125,6 +169,7 @@ export function AgentPanel() {
   const messages = useSession((s) => s.messages);
   const model = useSession((s) => s.activeModel);
   const backend = useSession((s) => s.intentBackend);
+  const modality = useSession((s) => s.modality);
   const { run } = useAgent();
   const streamRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -187,7 +232,10 @@ export function AgentPanel() {
           </button>
         </div>
         <div className="chips">
-          {(["chip1", "chip2", "chip3"] as const).map((c) => (
+          {(modality === "fetal_hc"
+            ? (["chip_hc1", "chip2", "chip3"] as const)
+            : (["chip1", "chip2", "chip3"] as const)
+          ).map((c) => (
             <button key={c} onClick={() => run(t(c))}>
               {t(c)}
             </button>
