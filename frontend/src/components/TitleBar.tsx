@@ -1,10 +1,7 @@
-import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
-const MENUS = ["m_file", "m_edit", "m_sel", "m_view", "m_run", "m_help"] as const;
-
+// MVP：去掉无行为的顶层菜单与假窗口控件，只留产品标识 + 真实标题（当前图）。
 export function TitleBar() {
-  const { t } = useI18n();
   const image = useSession((s) => s.activeImage);
   return (
     <div className="titlebar">
@@ -17,17 +14,9 @@ export function TitleBar() {
           <path d="M6 16.4c1.6 1.4 4 1.4 6 1.4s4.4 0 6-1.4" stroke="#B58BF2" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
       </span>
-      {MENUS.map((m) => (
-        <button key={m} className="menu">
-          {t(m)}
-        </button>
-      ))}
-      <span className="ttl">{image ? `${image}.tiff` : "—"} — CUBS-tech — Glaux</span>
-      <span className="win">
-        <button aria-label="minimize">—</button>
-        <button aria-label="maximize">▢</button>
-        <button aria-label="close">✕</button>
-      </span>
+      <b style={{ fontSize: 12, color: "var(--bright)", marginRight: 4 }}>Glaux</b>
+      <span style={{ fontSize: 11, color: "var(--faint)" }}>· Agentic IMT · MVP</span>
+      <span className="ttl">{image ? `${image}.tiff — CUBS-tech` : "CUBS-tech"}</span>
     </div>
   );
 }

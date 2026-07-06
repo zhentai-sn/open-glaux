@@ -31,12 +31,14 @@ export const en = {
   // editor hud / tools
   hud_mode: "B-mode · <b>far wall CCA</b>",
   repr: "CUBS-tech · de-identified research data (CC BY)",
-  tip_select: "Select / pan",
+  tip_select: "Pan (drag) · zoom (scroll)",
   tip_editli: "Edit LI",
   tip_editma: "Edit MA",
   tip_roi: "Move ROI",
   tip_reset: "Reset to model",
   empty_editor: "Select an image from the Explorer to begin.",
+  wip: "in development",
+  wip_badge: "WIP",
   // bottom panel
   p_meas: "Measurements",
   p_out: "Output",

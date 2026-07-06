@@ -46,7 +46,6 @@ export function StatusBar() {
       <button className="item" onClick={toggle} title="language">
         {lang === "en" ? "EN" : "中"}
       </button>
-      <span className="item">🔔</span>
     </div>
   );
 }

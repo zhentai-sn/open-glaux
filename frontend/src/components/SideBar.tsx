@@ -89,32 +89,28 @@ function ExplorerView() {
   );
 }
 
-function SearchView() {
+// 未实现的视图统一走诚实的 WIP 占位（不摆假数据/假输入）。
+function WipView({ badge, note }: { badge: string; note: string }) {
   const { t } = useI18n();
   return (
     <div className="sb-view">
       <div className="stub">
-        <input placeholder={t("search_ph")} />
-        <div>{t("search_hint")}</div>
+        <span className="wip">{t("wip_badge")}</span>
+        <div style={{ marginTop: 8, fontWeight: 600, color: "var(--mid)" }}>{badge}</div>
+        <div style={{ marginTop: 6 }}>{note}</div>
       </div>
     </div>
   );
 }
 
+function SearchView() {
+  const { t } = useI18n();
+  return <WipView badge={t("av_search")} note={t("search_hint")} />;
+}
+
 function ScmView() {
   const { t } = useI18n();
-  return (
-    <div className="sb-view">
-      <div className="sec">{t("scm_changes")}</div>
-      <div className="row">
-        <span className="tw" />
-        <span className="ico dot" style={{ color: "var(--ma)" }}>M</span>
-        <span className="nm">tech_437 · MA boundary</span>
-        <span className="tag">{t("scm_human")}</span>
-      </div>
-      <div className="stub" style={{ fontSize: "11.5px" }}>{t("scm_hint")}</div>
-    </div>
-  );
+  return <WipView badge={t("av_scm")} note={t("scm_hint")} />;
 }
 
 function ModelsView() {
@@ -155,22 +151,9 @@ function ModelsView() {
           );
         })}
       </div>
-      <div className="sec">{t("ext_market")}</div>
-      {[
-        { nm: "nnU-Net", pub: "MIC-DKFZ" },
-        { nm: "MedSAM", pub: "bowang-lab" },
-      ].map((x) => (
-        <div key={x.nm} className="ext">
-          <div className="top">
-            <div className="mi">◇</div>
-            <div>
-              <div className="nm">{x.nm}</div>
-              <div className="pub">{x.pub}</div>
-            </div>
-            <span className="st off">{t("ext_get")}</span>
-          </div>
-        </div>
-      ))}
+      <div className="sec">
+        {t("ext_market")} <span className="wip" style={{ marginLeft: 6 }}>{t("wip_badge")}</span>
+      </div>
     </div>
   );
 }
@@ -184,10 +167,6 @@ export function SideBar() {
     <aside className="sidebar">
       <div className="sb-head">
         <span>{t(title[view])}</span>
-        <span className="acts">
-          <button title="new">＋</button>
-          <button title="collapse">⋯</button>
-        </span>
       </div>
       {view === "explorer" && <ExplorerView />}
       {view === "search" && <SearchView />}

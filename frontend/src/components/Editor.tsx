@@ -1,14 +1,15 @@
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import { BottomPanel } from "./BottomPanel";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Rich } from "./Rich";
+import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
 
-const TOOLS: { id: Tool; glyph: string; tip: "tip_select" | "tip_editli" | "tip_editma" | "tip_roi" | "tip_reset"; cls?: string }[] = [
+const TOOLS: { id: Tool; glyph: string; tip: "tip_select" | "tip_editli" | "tip_editma" | "tip_reset"; cls?: string }[] = [
   { id: "cursor", glyph: "▸", tip: "tip_select" },
   { id: "editli", glyph: "◠", tip: "tip_editli", cls: "editli" },
   { id: "editma", glyph: "◡", tip: "tip_editma", cls: "editma" },
-  { id: "roi", glyph: "▭", tip: "tip_roi" },
   { id: "reset", glyph: "⟲", tip: "tip_reset" },
 ];
 
@@ -19,21 +20,29 @@ export function Editor() {
   const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
   const setTool = useSession((s) => s.setTool);
+  const pushAgent = useSession((s) => s.pushAgent);
+
+  const onTool = (id: Tool) => {
+    if (id === "reset") {
+      setTool("cursor");
+      void reRunActiveModel().then(() => {
+        const m = useSession.getState().measurement;
+        if (m) pushAgent({ variant: "plain", key: "reset", vars: { v: m.pdm_mean_mm.toFixed(3) } });
+      });
+      return;
+    }
+    setTool(id);
+  };
 
   return (
     <div className="center">
       <div className="tabs">
-        <div className="tab on">
-          <span className="fico">▤</span>
-          {image ?? "—"}.tiff <span className="dot" title="unsaved">●</span>
-          <button className="x">✕</button>
-        </div>
-        <div className="tab">
-          <span className="fico">▤</span>tech_438.tiff<button className="x">✕</button>
-        </div>
-        <div className="tab">
-          <span className="fico csv">▦</span>cohort_gtfamus.csv<button className="x">✕</button>
-        </div>
+        {image && (
+          <div className="tab on">
+            <span className="fico">▤</span>
+            {image}.tiff
+          </div>
+        )}
       </div>
       <div className="breadcrumb">
         <span>CUBS-tech</span>
@@ -44,7 +53,9 @@ export function Editor() {
       <div className="editor">
         {image ? (
           <>
-            <AnnotationCanvas />
+            <ErrorBoundary label="canvas">
+              <AnnotationCanvas />
+            </ErrorBoundary>
             <div className="hud">
               <Rich k="hud_mode" className="tagpill" />
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
@@ -56,7 +67,7 @@ export function Editor() {
                   key={tl.id}
                   className={"etool" + (tl.cls ? " " + tl.cls : "")}
                   aria-pressed={tool === tl.id}
-                  onClick={() => setTool(tl.id === "reset" ? "cursor" : tl.id)}
+                  onClick={() => onTool(tl.id)}
                 >
                   {tl.glyph}
                   <span className="tip">{t(tl.tip)}</span>

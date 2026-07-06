@@ -374,6 +374,18 @@ button {
   font-size: 13px;
   margin-bottom: 10px;
 }
+.wip {
+  display: inline-block;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: rgba(233, 180, 76, 0.14);
+  border: 1px solid rgba(233, 180, 76, 0.34);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+}
 
 /* ---- center: tabs + editor + panel ---- */
 .center {
