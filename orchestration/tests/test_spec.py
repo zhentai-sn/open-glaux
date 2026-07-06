@@ -4,10 +4,12 @@ import numpy as np
 import pytest
 
 from glaux_imt.errors import HardReject
+from glaux_imt.io.contour import Ellipse
+from glaux_imt.segmentation.contour import EllipseContourStub
 from glaux_imt.segmentation.stub import ConstantThicknessAdapter
 
 from glaux_orchestrator.intent import ClaudeVLMBackend, IntentBackendUnavailable, RuleBasedBackend
-from glaux_orchestrator.run import TaskResult, interpret_and_run, run_spec
+from glaux_orchestrator.run import HCTaskResult, TaskResult, interpret_and_run, run_spec
 from glaux_orchestrator.spec import IntentResult, Scope, TaskSpec, TaskType
 
 
@@ -38,6 +40,13 @@ def test_nl_canonical_in_scope_builds_spec():
     assert r.spec.image_path == "a.tiff" and r.spec.cubs_cf == 0.06
 
 
+def test_nl_hc_in_scope_routes_to_fetal_task():
+    r = RuleBasedBackend().interpret("测这张胎儿颅脑超声的头围", image_path="f.png", cubs_cf=0.12)
+    assert r.scope is Scope.IN_SCOPE
+    assert r.spec.task is TaskType.FETAL_HC
+    assert r.spec.method == "ellipse-fit"  # 取自任务注册表默认方法
+
+
 def test_nl_ambiguous_not_silently_run():
     r = RuleBasedBackend().interpret("分析一下这张图")
     assert r.scope is Scope.AMBIGUOUS and r.spec is None
@@ -61,8 +70,11 @@ _CASES = [
     ("measure this", Scope.AMBIGUOUS),
     ("计算左心室射血分数 EF", Scope.OUT_OF_SCOPE),
     ("分割乳腺肿瘤并测最大径", Scope.OUT_OF_SCOPE),
-    ("estimate fetal head circumference", Scope.OUT_OF_SCOPE),
     ("测甲状腺结节大小", Scope.OUT_OF_SCOPE),
+    # 多模态：胎儿头围现为已注册任务 → in-scope
+    ("estimate fetal head circumference", Scope.IN_SCOPE),
+    ("测这张胎儿颅脑图的头围", Scope.IN_SCOPE),
+    ("measure the HC", Scope.IN_SCOPE),
 ]
 
 
@@ -104,6 +116,32 @@ def test_spec_without_calibration_hard_rejects():
     adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
     with pytest.raises(HardReject):
         run_spec(spec, adapter, _image())
+
+
+# --- 多模态：HC 闭合轮廓任务驱动内核 e2e ------------------------------------
+
+def test_hc_spec_drives_contour_kernel_e2e():
+    ell = Ellipse(cx=100, cy=90, a=80, b=60, theta=0.0)  # cf=0.1 → HC=周长×0.1 mm
+    spec = TaskSpec(task=TaskType.FETAL_HC, cubs_cf=0.1, method="ellipse-fit")
+    res = run_spec(spec, EllipseContourStub(ell), _image())
+    assert isinstance(res, HCTaskResult)
+    assert res.hc_mm == pytest.approx(ell.circumference() * 0.1, rel=1e-6)
+    assert res.bpd_mm == pytest.approx(2 * 60 * 0.1)  # 短轴
+    assert res.ofd_mm == pytest.approx(2 * 80 * 0.1)  # 长轴
+    assert res.cf_source == "cubs"
+
+
+def test_hc_wrong_adapter_type_rejected():
+    spec = TaskSpec(task=TaskType.FETAL_HC, cubs_cf=0.1)
+    with pytest.raises(TypeError):  # HC 需轮廓适配器，给壁线对适配器应显式失败
+        run_spec(spec, ConstantThicknessAdapter(), _image())
+
+
+def test_interpret_and_run_hc_end_to_end():
+    ell = Ellipse(cx=110, cy=95, a=90, b=65, theta=0.2)
+    res = interpret_and_run("测这张胎儿超声的头围", EllipseContourStub(ell), _image(), cubs_cf=0.12)
+    assert isinstance(res, HCTaskResult)
+    assert res.hc_mm == pytest.approx(ell.circumference() * 0.12, rel=1e-6)
 
 
 # --- VLM 后端：可用性探测 + 不可用时显式失败（不臆造、不静默） ---------------

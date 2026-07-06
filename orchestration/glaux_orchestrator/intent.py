@@ -15,22 +15,27 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 
-from glaux_orchestrator.spec import IntentResult, Scope, TaskSpec, TaskType
+from glaux_orchestrator.spec import (
+    TASKS,
+    IntentResult,
+    Scope,
+    TaskSpec,
+    TaskType,
+    task_for_signals,
+)
 
 
 class IntentBackendUnavailable(Exception):
     """意图后端所需的 SDK / 密钥 / 权重不可用——显式失败。"""
 
 
-# 颈动脉 IMT 的信号词（中英）
-_CAROTID = ("imt", "intima", "media", "内中膜", "颈动脉", "cca", "carotid", "far wall", "远壁")
-# 测量/分割动作词
-_MEASURE = ("测", "measure", "分割", "segment", "厚度", "thickness", "量")
-# 明确超出 v0 的解剖/任务（非颈动脉 IMT）
+# 测量/分割动作词（任务无关）
+_MEASURE = ("测", "measure", "分割", "segment", "厚度", "thickness", "量", "circumference", "围")
+# 明确超出当前能力的解剖/任务（既非颈动脉 IMT、也非胎儿头围）
 _OUT_OF_SCOPE = (
     "心脏", "cardiac", "ef", "ejection", "射血", "左心室", "乳腺", "breast", "肿瘤",
-    "tumor", "lesion", "甲状腺", "thyroid", "结节", "nodule", "胎儿", "fetal",
-    "head circumference", "头围", "腹围", "肝", "liver", "肾", "kidney", "斑块", "plaque",
+    "tumor", "lesion", "甲状腺", "thyroid", "结节", "nodule", "腹围", "肝", "liver",
+    "肾", "kidney", "斑块", "plaque", "股骨", "femur", "羊水", "amniotic",
 )
 
 
@@ -54,7 +59,7 @@ class IntentBackend(ABC):
 
 
 class RuleBasedBackend(IntentBackend):
-    """确定性关键词映射（v0）。图像在此不参与判断（纯文本启发式）。"""
+    """确定性关键词映射——按任务注册表的信号词路由。图像不参与（纯文本启发式）。"""
 
     name = "rule-based"
 
@@ -69,32 +74,35 @@ class RuleBasedBackend(IntentBackend):
         image_b64: str | None = None,
     ) -> IntentResult:
         text = (nl or "").lower()
-        has_carotid = any(k in text for k in _CAROTID)
+        task = task_for_signals(text)  # 命中哪个已注册任务（IMT / HC / …）
         has_measure = any(k in text for k in _MEASURE)
         has_oos = any(k in text for k in _OUT_OF_SCOPE)
 
-        # --- 颈动脉 IMT 信号最优先：即便句中另含泛词也算 in-scope
-        if has_carotid:
+        # --- 命中某注册任务的信号词最优先 → in-scope（即便另含泛词）
+        if task is not None:
+            td = TASKS[task]
             spec = TaskSpec(
-                task=TaskType.FAR_WALL_CCA_IMT,
+                task=task,
                 image_path=image_path,
                 cubs_cf=cubs_cf,
                 roi=roi,
+                method=td.default_method,
             )
-            return IntentResult(Scope.IN_SCOPE, spec, "识别为远壁 CCA IMT 测量", self.name)
+            return IntentResult(Scope.IN_SCOPE, spec, f"识别为{td.label_zh}测量", self.name)
 
-        # --- 明确的他解剖/他任务 → 超范围（v0 只做颈动脉 IMT）
+        # --- 明确的他解剖/他任务 → 超范围（当前仅支持已注册任务）
         if has_oos:
+            supported = "、".join(t.label_zh for t in TASKS.values())
             return IntentResult(
                 Scope.OUT_OF_SCOPE, None,
-                "目标非颈动脉 IMT，超出 v0 能力（仅支持远壁 CCA 内中膜厚度）", self.name,
+                f"目标超出当前能力（仅支持：{supported}）", self.name,
             )
 
-        # --- 有测量/分割意图但目标不明 → 歧义，需澄清（不静默默认成 IMT）
+        # --- 有测量/分割意图但目标不明 → 歧义，需澄清（不静默默认成某任务）
         if has_measure:
             return IntentResult(
                 Scope.AMBIGUOUS, None,
-                "识别到测量/分割意图但未指明目标解剖，需澄清是否为颈动脉 IMT", self.name,
+                "识别到测量/分割意图但未指明目标解剖，需澄清测哪一项", self.name,
             )
 
         # --- 无可操作信号 → 歧义
@@ -103,24 +111,31 @@ class RuleBasedBackend(IntentBackend):
         )
 
 
-# VLM 的守卫系统提示：把"意图理解是独立失败面 + 三态显式"写进它的判定契约。
-_VLM_SYSTEM = """你是 Glaux（颈动脉超声 IMT 工作台）的意图分类器。v0 只做一件事：
-从颈动脉 B 型超声图上测「远壁 CCA 内中膜厚度（far-wall CCA IMT）」。
+# VLM 的守卫系统提示：把"意图理解是独立失败面 + 三态显式 + 多任务路由"写进判定契约。
+_VLM_SYSTEM = """你是 Glaux（超声测量工作台）的意图分类器。当前支持两种测量任务：
+- far_wall_cca_imt：颈动脉 B 型超声上测「远壁 CCA 内中膜厚度（IMT）」——两条壁线间厚度。
+- fetal_hc：胎儿颅脑超声上测「头围（HC）」——沿颅骨轮廓拟合椭圆的周长。
 
-给你用户的自然语言指令（可能含一张超声图）。只把意图判成三类之一，经 report_intent 工具返回：
-- in_scope：用户要测远壁颈动脉 IMT（或等价：分割内中膜并给厚度）。
-- ambiguous：有测量/分割意图但目标解剖不明、或信息不足需澄清——不要擅自默认成 IMT。
-- out_of_scope：目标是别的解剖/任务（心脏 EF、乳腺/甲状腺结节、胎儿头围、肝肾、斑块最大径…）。
+给你用户的自然语言指令（可能含一张超声图）。经 report_intent 工具返回三态判定：
+- in_scope：意图落到上面某个任务；此时必须在 task 字段给出对应任务名。
+  若给了图，请让 task 与图像内容一致（颈动脉纵切 vs 胎头横切）——图文冲突时判 ambiguous。
+- ambiguous：有测量/分割意图但目标不明、或指令与图像矛盾、信息不足需澄清——勿擅自默认。
+- out_of_scope：目标是其它解剖/任务（心脏 EF、乳腺/甲状腺结节、肝肾、腹围、股骨长…）。
 
-原则：宁可澄清或拒绝，绝不静默错跑。reason 用简洁中文说明判据（若看了图，可点出图像证据）。"""
+原则：宁可澄清或拒绝，绝不静默错跑。reason 用简洁中文说明判据（若看了图，点出图像证据）。"""
 
 _VLM_TOOL = {
     "name": "report_intent",
-    "description": "返回对用户意图的三态判定。",
+    "description": "返回对用户意图的三态判定与目标任务。",
     "input_schema": {
         "type": "object",
         "properties": {
             "scope": {"type": "string", "enum": ["in_scope", "ambiguous", "out_of_scope"]},
+            "task": {
+                "type": "string",
+                "enum": ["far_wall_cca_imt", "fetal_hc"],
+                "description": "scope=in_scope 时必填：命中的任务名；否则留空。",
+            },
             "reason": {"type": "string", "description": "简洁判据（中文）"},
         },
         "required": ["scope", "reason"],
@@ -128,6 +143,7 @@ _VLM_TOOL = {
 }
 
 _SCOPE_ENUM = {"in_scope": Scope.IN_SCOPE, "ambiguous": Scope.AMBIGUOUS, "out_of_scope": Scope.OUT_OF_SCOPE}
+_TASK_ENUM = {"far_wall_cca_imt": TaskType.FAR_WALL_CCA_IMT, "fetal_hc": TaskType.FETAL_HC}
 
 
 class ClaudeVLMBackend(IntentBackend):
@@ -206,7 +222,14 @@ class ClaudeVLMBackend(IntentBackend):
 
         spec = None
         if scope is Scope.IN_SCOPE:
+            task = _TASK_ENUM.get(str(data.get("task")))
+            if task is None:  # in_scope 却没给合法任务名 → 降级为歧义，不臆造任务
+                return IntentResult(
+                    Scope.AMBIGUOUS, None,
+                    f"{reason}（但未指明目标任务，需澄清）", self.name,
+                )
             spec = TaskSpec(
-                task=TaskType.FAR_WALL_CCA_IMT, image_path=image_path, cubs_cf=cubs_cf, roi=roi,
+                task=task, image_path=image_path, cubs_cf=cubs_cf, roi=roi,
+                method=TASKS[task].default_method,
             )
         return IntentResult(scope, spec, reason, self.name)
