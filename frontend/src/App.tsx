@@ -13,6 +13,7 @@ import { useSession } from "./store/session";
 
 export function App() {
   const setModels = useSession((s) => s.setModels);
+  const setIntentBackends = useSession((s) => s.setIntentBackends);
   const { seedFromCurrent } = useAgent();
 
   useEffect(() => {
@@ -22,6 +23,12 @@ export function App() {
         setModels(await api.models());
       } catch {
         /* 后端未起时不阻塞外壳 */
+      }
+      // 意图后端可用性（VLM 配置面板显示服务端密钥状态）
+      try {
+        setIntentBackends(await api.intentBackends());
+      } catch {
+        /* 忽略 */
       }
       // 载数据集 → 选首图 → 真实分割+测量；就绪后用真实结果种四步提议
       try {

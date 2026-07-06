@@ -1,7 +1,9 @@
 import { create } from "zustand";
 
 import type { I18nKey } from "../i18n";
-import type { ImageMeta, ModelInfo, Scope } from "../api/types";
+import type { ImageMeta, IntentBackendInfo, ModelInfo, Scope } from "../api/types";
+
+export type IntentBackendId = "rule" | "vlm";
 
 // 画布叠加的边界（图像像素坐标）+ 来源（agent/human）+ 产出模型版本。
 export interface Boundaries {
@@ -27,6 +29,7 @@ export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
 export type Msg =
   | { id: number; role: "user"; text: string }
   | { id: number; role: "agent"; variant: "plain" | "refuse" | "clarify"; key: I18nKey; vars?: Record<string, string> }
+  | { id: number; role: "agent"; variant: "note"; text: string; tone: "crit" | "plain" }
   | {
       id: number;
       role: "agent";
@@ -62,6 +65,12 @@ interface SessionState {
   loading: boolean; // 分割/测量进行中
   coords: { x: number; y: number }; // 画布光标坐标（状态栏读出）
 
+  // 意图后端（VLM 配置）
+  intentBackend: IntentBackendId;
+  intentBackends: IntentBackendInfo[]; // 服务端可用性
+  vlmKey: string; // UI 填入的密钥（localStorage）
+  vlmModel: string; // 可选模型覆盖
+
   // 智能体对话
   messages: Msg[];
 
@@ -81,6 +90,10 @@ interface SessionState {
   setLastScope: (s: Scope | null) => void;
   setLoading: (v: boolean) => void;
   setCoords: (x: number, y: number) => void;
+  setIntentBackend: (id: IntentBackendId) => void;
+  setIntentBackends: (b: IntentBackendInfo[]) => void;
+  setVlmKey: (k: string) => void;
+  setVlmModel: (m: string) => void;
   pushUser: (text: string) => void;
   pushAgent: (m: DistributiveOmit<AgentMsg, "id" | "role">) => void;
   resetMessages: () => void;
@@ -107,6 +120,11 @@ export const useSession = create<SessionState>((set) => ({
   loading: false,
   coords: { x: 0, y: 0 },
 
+  intentBackend: "rule",
+  intentBackends: [],
+  vlmKey: (typeof localStorage !== "undefined" && localStorage.getItem("glaux.vlmKey")) || "",
+  vlmModel: (typeof localStorage !== "undefined" && localStorage.getItem("glaux.vlmModel")) || "",
+
   messages: [],
 
   setSidebarView: (v) => set({ sidebarView: v }),
@@ -129,6 +147,24 @@ export const useSession = create<SessionState>((set) => ({
   setLastScope: (s) => set({ lastScope: s }),
   setLoading: (v) => set({ loading: v }),
   setCoords: (x, y) => set({ coords: { x, y } }),
+  setIntentBackend: (id) => set({ intentBackend: id }),
+  setIntentBackends: (b) => set({ intentBackends: b }),
+  setVlmKey: (k) => {
+    try {
+      localStorage.setItem("glaux.vlmKey", k);
+    } catch {
+      /* noop */
+    }
+    set({ vlmKey: k });
+  },
+  setVlmModel: (m) => {
+    try {
+      localStorage.setItem("glaux.vlmModel", m);
+    } catch {
+      /* noop */
+    }
+    set({ vlmModel: m });
+  },
   pushUser: (text) => set((s) => ({ messages: [...s.messages, { id: nextId(), role: "user", text }] })),
   pushAgent: (m) =>
     set((s) => ({ messages: [...s.messages, { ...m, role: "agent", id: nextId() } as AgentMsg] })),

@@ -59,3 +59,10 @@ export interface CorrectionResult {
   ok: boolean;
   provenance: Record<string, unknown>;
 }
+
+export interface IntentBackendInfo {
+  id: "rule" | "vlm";
+  name: string;
+  available: boolean;
+  reason: string;
+}

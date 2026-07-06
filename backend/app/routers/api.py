@@ -23,6 +23,7 @@ from ..schemas import (
     CorrectionResult,
     ImageMeta,
     IMTResult,
+    IntentBackendInfo,
     InterpretRequest,
     IntentResult,
     MeasureRequest,
@@ -38,6 +39,8 @@ router = APIRouter()
 
 # 内核/编排是否可 import（纯 numpy/PIL）；数据端点再叠加 data_available()。
 try:
+    from glaux_orchestrator.intent import IntentBackendUnavailable
+
     from .. import dataset, kernel, segment_proc
 
     KERNEL_OK = True
@@ -45,16 +48,33 @@ except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
     log.warning("内核不可用，端点回退 mock：%s", exc)
     KERNEL_OK = False
 
+    class IntentBackendUnavailable(Exception):  # 降级占位，保证 except 名可解析
+        ...
+
 
 def _has_data() -> bool:
     return KERNEL_OK and config.data_available()
+
+
+@router.get("/intent/backends", response_model=list[IntentBackendInfo], tags=["intent"])
+def intent_backends() -> list[IntentBackendInfo]:
+    """意图后端及可用性（rule 恒可用；vlm 需 anthropic + 密钥）。"""
+    if KERNEL_OK:
+        return [IntentBackendInfo(**b) for b in kernel.intent_backends()]
+    return [IntentBackendInfo(id="rule", name="Rule-based", available=True, reason="mock")]
 
 
 @router.post("/interpret", response_model=IntentResult, tags=["intent"])
 def interpret(req: InterpretRequest) -> IntentResult:
     if KERNEL_OK:
         try:
-            return kernel.interpret(req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf)
+            return kernel.interpret(
+                req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf,
+                backend=req.backend, api_key=req.api_key, model=req.model,
+            )
+        except IntentBackendUnavailable as e:
+            # VLM 被选中但不可用 → 显式 503（不静默退化到规则）
+            raise HTTPException(503, f"意图后端不可用：{e}") from e
         except Exception:  # pragma: no cover
             log.exception("interpret 内核失败，回退 mock")
     return mock.classify(req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf)

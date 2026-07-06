@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import base64
+
 import numpy as np
 
 from . import config, dataset
@@ -14,10 +16,11 @@ from .schemas import IMTResult, IntentResult, ModelInfo, TaskSpec
 # science-core / orchestration（经 config 挂上 sys.path）
 from glaux_imt.io.boundaries import Boundary  # noqa: E402
 from glaux_imt.measurement.pdm import imt as _imt  # noqa: E402
-from glaux_orchestrator.intent import RuleBasedBackend  # noqa: E402
+from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 
-_backend = RuleBasedBackend()
+_rule = RuleBasedBackend()
+_vlm = ClaudeVLMBackend()
 
 _SCOPE_STR = {
     _Scope.IN_SCOPE: "in_scope",
@@ -26,11 +29,43 @@ _SCOPE_STR = {
 }
 
 
-def interpret(nl: str, *, image_id: str | None, cubs_cf: float | None) -> IntentResult:
-    """NL → 三态守卫（真实 orchestrator）。非 in_scope 不带 spec。"""
-    r = _backend.interpret(
-        nl, image_path=image_id, cubs_cf=cubs_cf, has_image=image_id is not None
-    )
+def intent_backends() -> list[dict]:
+    """意图后端注册表（供 UI 选择/显示可用性）。"""
+    vlm_ok, vlm_reason = ClaudeVLMBackend.available()
+    return [
+        {"id": "rule", "name": "Rule-based", "available": True, "reason": "keyword classifier"},
+        {"id": "vlm", "name": "Claude VLM", "available": vlm_ok, "reason": vlm_reason},
+    ]
+
+
+def interpret(
+    nl: str,
+    *,
+    image_id: str | None,
+    cubs_cf: float | None,
+    backend: str = "rule",
+    api_key: str | None = None,
+    model: str | None = None,
+) -> IntentResult:
+    """NL(+图) → 三态守卫（真实 orchestrator）。非 in_scope 不带 spec。
+
+    backend="vlm" 时用 Claude VLM 看图判定（密钥取 UI 传入或服务端 env）；
+    不可用则抛 IntentBackendUnavailable（不静默退化）。
+    """
+    if backend == "vlm":
+        image_b64 = None
+        if image_id and config.data_available():
+            try:
+                image_b64 = base64.b64encode(dataset.image_png(image_id)).decode()
+            except Exception:
+                image_b64 = None
+        r = _vlm.interpret(
+            nl, image_path=image_id, cubs_cf=cubs_cf,
+            has_image=image_b64 is not None, image_b64=image_b64,
+            api_key=api_key, model=model,
+        )
+    else:
+        r = _rule.interpret(nl, image_path=image_id, cubs_cf=cubs_cf, has_image=image_id is not None)
     spec = None
     if r.spec is not None:
         spec = TaskSpec(
@@ -43,7 +78,7 @@ def interpret(nl: str, *, image_id: str | None, cubs_cf: float | None) -> Intent
         scope=_SCOPE_STR[r.scope],
         spec=spec,
         reason=r.reason,
-        backend="rule_based",
+        backend=getattr(r, "backend", None) or backend,
     )
 
 

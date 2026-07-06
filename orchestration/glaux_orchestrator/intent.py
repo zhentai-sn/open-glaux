@@ -48,6 +48,7 @@ class IntentBackend(ABC):
         cubs_cf: float | None = None,
         roi: tuple[int, int] | None = None,
         has_image: bool = False,
+        image_b64: str | None = None,
     ) -> IntentResult:
         raise NotImplementedError
 
@@ -65,6 +66,7 @@ class RuleBasedBackend(IntentBackend):
         cubs_cf: float | None = None,
         roi: tuple[int, int] | None = None,
         has_image: bool = False,
+        image_b64: str | None = None,
     ) -> IntentResult:
         text = (nl or "").lower()
         has_carotid = any(k in text for k in _CAROTID)
@@ -101,18 +103,56 @@ class RuleBasedBackend(IntentBackend):
         )
 
 
-class ClaudeVLMBackend(IntentBackend):
-    """真实 VLM 接缝（Phase B）——看图 + NL 产出结构化规范。
+# VLM 的守卫系统提示：把"意图理解是独立失败面 + 三态显式"写进它的判定契约。
+_VLM_SYSTEM = """你是 Glaux（颈动脉超声 IMT 工作台）的意图分类器。v0 只做一件事：
+从颈动脉 B 型超声图上测「远壁 CCA 内中膜厚度（far-wall CCA IMT）」。
 
-    隔离在接口后：需 ``anthropic`` SDK + ``ANTHROPIC_API_KEY``；真实调用未接线，
-    缺失时抛 :class:`IntentBackendUnavailable`，接线阶段落地（对齐 caroSegDeep 接缝）。
+给你用户的自然语言指令（可能含一张超声图）。只把意图判成三类之一，经 report_intent 工具返回：
+- in_scope：用户要测远壁颈动脉 IMT（或等价：分割内中膜并给厚度）。
+- ambiguous：有测量/分割意图但目标解剖不明、或信息不足需澄清——不要擅自默认成 IMT。
+- out_of_scope：目标是别的解剖/任务（心脏 EF、乳腺/甲状腺结节、胎儿头围、肝肾、斑块最大径…）。
+
+原则：宁可澄清或拒绝，绝不静默错跑。reason 用简洁中文说明判据（若看了图，可点出图像证据）。"""
+
+_VLM_TOOL = {
+    "name": "report_intent",
+    "description": "返回对用户意图的三态判定。",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "scope": {"type": "string", "enum": ["in_scope", "ambiguous", "out_of_scope"]},
+            "reason": {"type": "string", "description": "简洁判据（中文）"},
+        },
+        "required": ["scope", "reason"],
+    },
+}
+
+_SCOPE_ENUM = {"in_scope": Scope.IN_SCOPE, "ambiguous": Scope.AMBIGUOUS, "out_of_scope": Scope.OUT_OF_SCOPE}
+
+
+class ClaudeVLMBackend(IntentBackend):
+    """真实 VLM 意图后端——看图 + NL，经受约束工具调用产出三态判定。
+
+    需 ``anthropic`` SDK + ``ANTHROPIC_API_KEY``；缺任一显式抛 :class:`IntentBackendUnavailable`
+    （不静默退化）。分类用受约束的 tool-use（强制 report_intent），保证输出可校验、无自由文本歧义。
     """
 
     name = "claude-vlm"
 
-    def __init__(self, model: str = "claude-opus-4-8", api_key_env: str = "ANTHROPIC_API_KEY") -> None:
+    def __init__(self, model: str = "claude-haiku-4-5-20251001", api_key_env: str = "ANTHROPIC_API_KEY") -> None:
         self.model = model
         self.api_key_env = api_key_env
+
+    @classmethod
+    def available(cls, api_key_env: str = "ANTHROPIC_API_KEY") -> tuple[bool, str]:
+        """(是否可用, 原因)——供 UI/后端在不触发调用的前提下探测。"""
+        try:
+            import anthropic  # noqa: F401
+        except ImportError:
+            return False, "缺少 anthropic SDK"
+        if not os.getenv(api_key_env):
+            return False, f"缺少 {api_key_env}"
+        return True, "ready"
 
     def interpret(
         self,
@@ -122,17 +162,51 @@ class ClaudeVLMBackend(IntentBackend):
         cubs_cf: float | None = None,
         roi: tuple[int, int] | None = None,
         has_image: bool = False,
+        image_b64: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ) -> IntentResult:
         try:
-            import anthropic  # noqa: F401
+            import anthropic
         except ImportError as exc:  # pragma: no cover - 环境相关
-            raise IntentBackendUnavailable(
-                "ClaudeVLMBackend 需要 anthropic SDK：pip install anthropic"
-            ) from exc
-        if not os.getenv(self.api_key_env):
-            raise IntentBackendUnavailable(f"缺少 {self.api_key_env}")
-        # TODO(接线阶段)：VLM 看图 + NL → 受约束 JSON（task/roi/method）→ 校验成 TaskSpec。
-        # 属执行期未知，需真实 API + 图像跑通后落地；此处不臆造实现。
-        raise NotImplementedError(
-            "真实 VLM 意图解析未接线——见计划 U9 Phase B（需 anthropic + 密钥 + 受约束解码）"
-        )
+            raise IntentBackendUnavailable("ClaudeVLMBackend 需要 anthropic SDK") from exc
+        key = api_key or os.getenv(self.api_key_env)
+        if not key:
+            raise IntentBackendUnavailable(f"缺少密钥（{self.api_key_env} 或 UI 填入）")
+
+        content: list[dict] = []
+        if has_image and image_b64:
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": image_b64},
+            })
+        content.append({"type": "text", "text": f"用户指令：{nl}"})
+
+        try:
+            client = anthropic.Anthropic(api_key=key)
+            resp = client.messages.create(
+                model=model or self.model,
+                max_tokens=512,
+                system=_VLM_SYSTEM,
+                tools=[_VLM_TOOL],
+                tool_choice={"type": "tool", "name": "report_intent"},
+                messages=[{"role": "user", "content": content}],
+            )
+        except Exception as exc:  # 网络/鉴权/额度等——显式失败，不臆造规范
+            raise IntentBackendUnavailable(f"VLM 调用失败：{type(exc).__name__}: {exc}") from exc
+
+        block = next((b for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
+        if block is None:
+            raise IntentBackendUnavailable("VLM 未返回受约束的 report_intent 工具调用")
+        data = block.input
+        scope = _SCOPE_ENUM.get(str(data.get("scope")))
+        if scope is None:
+            raise IntentBackendUnavailable(f"VLM 返回未知 scope：{data.get('scope')!r}")
+        reason = str(data.get("reason", "")).strip() or "（VLM 未给判据）"
+
+        spec = None
+        if scope is Scope.IN_SCOPE:
+            spec = TaskSpec(
+                task=TaskType.FAR_WALL_CCA_IMT, image_path=image_path, cubs_cf=cubs_cf, roi=roi,
+            )
+        return IntentResult(scope, spec, reason, self.name)

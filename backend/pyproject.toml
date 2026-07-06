@@ -10,6 +10,8 @@ dependencies = [
     # science-core 的运行期依赖（读边界/测量/tiff→PNG）——纯计算，无 TF。
     "numpy>=1.24",
     "Pillow>=10.0",
+    # Claude VLM 意图后端（看图+NL→受约束三态判定）；主进程用，无 TF。
+    "anthropic>=0.40",
 ]
 
 # 说明：主进程刻意不依赖 TensorFlow / caroSegDeep。

@@ -106,8 +106,18 @@ def test_spec_without_calibration_hard_rejects():
         run_spec(spec, adapter, _image())
 
 
-# --- VLM 接缝：未接线显式失败，不臆造 --------------------------------------
+# --- VLM 后端：可用性探测 + 不可用时显式失败（不臆造、不静默） ---------------
 
-def test_claude_vlm_backend_is_a_seam():
-    with pytest.raises((IntentBackendUnavailable, NotImplementedError)):
+def test_claude_vlm_backend_available_probe():
+    ok, reason = ClaudeVLMBackend.available()
+    assert isinstance(ok, bool) and isinstance(reason, str) and reason
+
+
+def test_claude_vlm_backend_fails_explicitly_when_unavailable():
+    # SDK 或密钥缺失 → 显式抛 IntentBackendUnavailable（绝不臆造规范）。
+    # 二者都就绪时不在单测里打真实 API，仅验证契约存在。
+    ok, _ = ClaudeVLMBackend.available()
+    if ok:
+        pytest.skip("anthropic + 密钥就绪；真实调用不在单测覆盖")
+    with pytest.raises(IntentBackendUnavailable):
         ClaudeVLMBackend().interpret("测颈动脉 IMT")

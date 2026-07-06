@@ -1,9 +1,53 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAgent } from "../agent/useAgent";
 import { Rich } from "./Rich";
 import { useI18n } from "../i18n";
-import { useSession, type Msg } from "../store/session";
+import { useSession, type IntentBackendId, type Msg } from "../store/session";
+
+function IntentConfig({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  const backend = useSession((s) => s.intentBackend);
+  const setBackend = useSession((s) => s.setIntentBackend);
+  const backends = useSession((s) => s.intentBackends);
+  const vlmKey = useSession((s) => s.vlmKey);
+  const setVlmKey = useSession((s) => s.setVlmKey);
+  const vlmModel = useSession((s) => s.vlmModel);
+  const setVlmModel = useSession((s) => s.setVlmModel);
+  const serverKey = backends.find((b) => b.id === "vlm")?.available ?? false;
+
+  const opt = (id: IntentBackendId, label: string, desc: string) => (
+    <label className={"cfgopt" + (backend === id ? " on" : "")}>
+      <input type="radio" name="ib" checked={backend === id} onChange={() => setBackend(id)} />
+      <div>
+        <div className="cfgnm">{label}</div>
+        <div className="cfgdesc">{desc}</div>
+      </div>
+    </label>
+  );
+
+  return (
+    <div className="cfgpop" onClick={(e) => e.stopPropagation()}>
+      <div className="cfghead">{t("cfg_title")}</div>
+      {opt("rule", t("cfg_rule"), t("cfg_rule_desc"))}
+      {opt("vlm", t("cfg_vlm"), t("cfg_vlm_desc"))}
+      {backend === "vlm" && (
+        <div className="cfgvlm">
+          <div className="cfgrow">
+            <span>{t("cfg_server_key")}</span>
+            <span className={serverKey ? "wip" : ""} style={{ color: serverKey ? "var(--good)" : "var(--faint)", borderColor: serverKey ? "rgba(78,201,138,.4)" : undefined, background: serverKey ? "rgba(78,201,138,.14)" : "transparent" }}>
+              {serverKey ? t("cfg_available") : t("cfg_unavailable")}
+            </span>
+          </div>
+          <input className="cfgin" type="password" placeholder={t("cfg_key_ph")} value={vlmKey} onChange={(e) => setVlmKey(e.target.value)} />
+          <input className="cfgin" type="text" placeholder={"claude-haiku-4-5-20251001"} value={vlmModel} onChange={(e) => setVlmModel(e.target.value)} />
+          <div className="cfgnote">{t("cfg_model")}</div>
+        </div>
+      )}
+      <button className="cfgclose" onClick={onClose}>✕</button>
+    </div>
+  );
+}
 
 function AgentRun({ model, imt, max, cols, vsA1 }: { model: string; imt: string; max: string; cols: number; vsA1: number | null }) {
   const { t } = useI18n();
@@ -67,6 +111,8 @@ function AgentTurn({ m }: { m: Extract<Msg, { role: "agent" }> }) {
       </div>
       {m.variant === "run" ? (
         <AgentRun model={m.model} imt={m.imt} max={m.max} cols={m.cols} vsA1={m.vsA1} />
+      ) : m.variant === "note" ? (
+        <div className={"abody " + (m.tone === "crit" ? "refuse" : "plain")}>{m.text}</div>
       ) : (
         <Rich as="div" className={"abody " + m.variant} k={m.key} vars={m.vars} />
       )}
@@ -78,9 +124,11 @@ export function AgentPanel() {
   const { t } = useI18n();
   const messages = useSession((s) => s.messages);
   const model = useSession((s) => s.activeModel);
+  const backend = useSession((s) => s.intentBackend);
   const { run } = useAgent();
   const streamRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [cfgOpen, setCfgOpen] = useState(false);
 
   useEffect(() => {
     const el = streamRef.current;
@@ -96,12 +144,21 @@ export function AgentPanel() {
 
   return (
     <aside className="agent">
-      <div className="ahead">
+      <div className="ahead" style={{ position: "relative" }}>
         <div className="aicon">✦</div>
         <div>
           <b>{t("agent_name")}</b>
         </div>
+        <button
+          className="amodel"
+          onClick={() => setCfgOpen((o) => !o)}
+          title={t("cfg_title")}
+          style={{ cursor: "pointer", marginLeft: "auto" }}
+        >
+          {backend === "vlm" ? "✦ VLM" : "⚙ rule"}
+        </button>
         <span className="amodel">{model}</span>
+        {cfgOpen && <IntentConfig onClose={() => setCfgOpen(false)} />}
       </div>
       <div className="stream" ref={streamRef}>
         {messages.map((m) =>

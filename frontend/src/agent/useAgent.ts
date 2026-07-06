@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import { segmentAndMeasure } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
@@ -19,9 +19,14 @@ export function useAgent() {
       const text = nl.trim();
       if (!text) return;
       pushUser(text);
-      const { activeImage } = useSession.getState();
+      const { activeImage, intentBackend, vlmKey, vlmModel } = useSession.getState();
       try {
-        const r = await api.interpret(text, lang, { image_id: activeImage ?? undefined });
+        const r = await api.interpret(text, lang, {
+          image_id: activeImage ?? undefined,
+          backend: intentBackend,
+          api_key: intentBackend === "vlm" ? vlmKey || undefined : undefined,
+          model: intentBackend === "vlm" ? vlmModel || undefined : undefined,
+        });
         setLastScope(r.scope);
         if (r.scope === "out_of_scope") {
           pushAgent({ variant: "refuse", key: "refuse" });
@@ -51,8 +56,10 @@ export function useAgent() {
         } else {
           pushAgent({ variant: "plain", key: "empty_editor" });
         }
-      } catch {
-        pushAgent({ variant: "plain", key: "empty_editor" });
+      } catch (e) {
+        // 意图后端不可用（如 VLM 缺密钥/鉴权失败）→ 显式呈现，不静默
+        const detail = e instanceof ApiError ? e.message : String(e);
+        pushAgent({ variant: "note", tone: "crit", text: `⚠ ${detail}` });
       }
     },
     [lang, pushUser, pushAgent, setLastScope],

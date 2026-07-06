@@ -32,6 +32,16 @@ class InterpretRequest(BaseModel):
     has_image: bool = False
     image_id: str | None = None
     cubs_cf: float | None = None
+    backend: Literal["rule", "vlm"] = "rule"  # 意图后端：关键词规则 / Claude VLM
+    api_key: str | None = None  # VLM 密钥（UI 填入；缺省用服务端 env）
+    model: str | None = None  # VLM 模型覆盖
+
+
+class IntentBackendInfo(BaseModel):
+    id: Literal["rule", "vlm"]
+    name: str
+    available: bool
+    reason: str
 
 
 class IntentResult(BaseModel):

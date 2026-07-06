@@ -164,7 +164,10 @@ P2（可延后）：                    F17 · F18(桌面壳)
 | **M1** | F7 分割接入 | ✅ 完成 | /segment 走 caroSegDeep 缓存优先（eval 100 图真实产出）+ .venv-csd 隔离子进程兜底；主进程无 TF |
 | **M1** | F8 测量接入 | ✅ 完成 | /measure 接对齐口径 imt（共同支撑+对称 PDM）；/run 组装标定→分割→测量+vs A1；Measurements 面板落真值 |
 | **M1** | F9 智能体三态闭环 | ✅ 完成 | /interpret 接真实 orchestrator；in_scope 走真实四步跑批出真实提议；amb/oos 澄清/拒绝可见 |
-| M2– | F10–F18 | ⏳ 待办 | 下一步：M2 人机协同修正（拖边界即时重测 + 回流记忆层） |
+| **M2** | F10 拖边界即时重测 | ✅ 完成 | 画布重写：滚轮缩放/平移 + 拖 LI/MA 手柄高斯形变 → 松手 /measure 权威值 + 来源翻 human + 重测回话 |
+| 附 | MVP 收敛空壳感 | ✅ 完成 | 去装饰控件（菜单/假标签/设置/铃/假市场）、未做模块标 WIP、ErrorBoundary 防单组件拖垮全树 |
+| 附 | 接真实 VLM | ✅ 完成 | ClaudeVLMBackend 看图+NL→受约束 tool-use 三态；后端 /intent/backends + 密钥（env 或 UI 填入）；智能体面板配置弹层；不可用显式报错不静默 |
+| M2– | F11–F18 | ⏳ 待办 | 下一步：F11 修正回流记忆层 / F13 Models 重跑 / F18 桌面壳 |
 
 **M0 验证**（2026-07-06）：`uv run pytest` 9/9；前端 `npm run build` 59 模块通过、`lint`/`typecheck` 净；
 `make dev` 两端起，Vite `/api` 反代联通，三态守卫经 `/interpret` 端到端可见（in_scope 带 spec、
