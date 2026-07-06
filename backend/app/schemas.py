@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 # --- 意图 / 规范 -------------------------------------------------------------
 
 Scope = Literal["in_scope", "ambiguous", "out_of_scope"]
-TaskType = Literal["far_wall_cca_imt"]
+TaskType = Literal["far_wall_cca_imt", "fetal_hc"]
+Modality = Literal["carotid_imt", "fetal_hc"]
 
 
 class TaskSpec(BaseModel):
@@ -87,6 +88,48 @@ class ImageMeta(BaseModel):
     center: str
     cf: float | None
     methods: list[str] = Field(default_factory=list)
+    modality: Modality = "carotid_imt"
+
+
+# --- 胎儿头围（HC，闭合轮廓模态） -------------------------------------------
+
+class HCEllipse(BaseModel):
+    """拟合椭圆（像素）——供前端叠加渲染。"""
+
+    cx: float
+    cy: float
+    a: float  # 半长轴
+    b: float  # 半短轴
+    theta: float  # 长轴相对 +x 的旋转（弧度）
+
+
+class HCMeasureRequest(BaseModel):
+    points: list[list[float]] = Field(description="颅骨轮廓逐点 [[x,y],...]，≥5 点")
+    cf: float = Field(gt=0, description="标定系数 mm/px")
+
+
+class HCResult(BaseModel):
+    hc_mm: float  # 头围（椭圆周长）
+    bpd_mm: float  # 双顶径（短轴）
+    ofd_mm: float  # 枕额径（长轴）
+    area_mm2: float
+    ellipse: HCEllipse  # 拟合椭圆（像素）
+    n_points: int = 0
+
+
+class HCRunRequest(BaseModel):
+    image_id: str
+    cubs_cf: float | None = Field(default=None, gt=0)
+    roi: tuple[int, int] | None = None
+
+
+class HCRunResult(HCResult):
+    """HC 规范驱动结果——检测 + 测量 + provenance + 对真值偏差。"""
+
+    cf: float
+    model_version: str = ""
+    contour: list[list[float]] = Field(default_factory=list)  # 检测到的环点（叠加/编辑用）
+    vs_gt_mm: float | None = None  # 与真值椭圆 HC 的 |bias|（mm）；类比 IMT 的 vs_a1
 
 
 # --- 模型（扩展=适配器） -----------------------------------------------------
@@ -97,6 +140,7 @@ class ModelInfo(BaseModel):
     desc: str
     active: bool
     backend: str
+    modality: Modality = "carotid_imt"
 
 
 # --- 分割 --------------------------------------------------------------------

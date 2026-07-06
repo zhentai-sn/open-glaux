@@ -110,3 +110,45 @@ def test_real_run_hard_rejects_without_cf():
     # 缺 image_id → 无法标定 → 硬拒绝（422，不出假 IMT）
     r = client.post("/run", json={"task": "far_wall_cca_imt"})
     assert r.status_code == 422
+
+
+# --- 第二模态：胎儿头围（HC，合成数据；不依赖 CUBS） ------------------------
+
+def test_hc_images_modality_tagged():
+    imgs = client.get("/images", params={"modality": "fetal_hc"}).json()
+    assert len(imgs) == 10
+    assert all(m["modality"] == "fetal_hc" and m["cf"] > 0 for m in imgs)
+    assert imgs[0]["id"].startswith("hc_")
+
+
+def test_hc_image_returns_png():
+    r = client.get("/image/hc_003")
+    assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_hc_run_detects_near_ground_truth():
+    r = client.post("/hc/run", json={"image_id": "hc_004"}).json()
+    assert 100 < r["hc_mm"] < 300  # 生理量级（合成）
+    assert r["ofd_mm"] > r["bpd_mm"]  # 枕额径（长轴）> 双顶径（短轴）
+    assert r["vs_gt_mm"] is not None and r["vs_gt_mm"] < 3.0  # 真检测贴近真值
+    assert len(r["contour"]) >= 5 and "ellipse" in r
+
+
+def test_hc_measure_from_contour_roundtrips():
+    run = client.post("/hc/run", json={"image_id": "hc_006"}).json()
+    m = client.post("/hc/measure", json={"points": run["contour"], "cf": run["cf"]}).json()
+    assert abs(m["hc_mm"] - run["hc_mm"]) < 2.0  # 由检测轮廓重测应一致量级
+
+
+def test_hc_run_rejects_non_hc_id():
+    assert client.post("/hc/run", json={"image_id": "tech_401"}).status_code == 422
+
+
+def test_hc_intent_routes_to_fetal_task():
+    r = client.post("/interpret", json={"nl": "测这张胎儿颅脑图的头围"}).json()
+    assert r["scope"] == "in_scope" and r["spec"]["task"] == "fetal_hc"
+
+
+def test_models_include_both_modalities():
+    ids = {m["id"]: m for m in client.get("/models").json()}
+    assert "ellipse-fit" in ids and ids["ellipse-fit"]["modality"] == "fetal_hc"

@@ -10,11 +10,21 @@ import base64
 
 import numpy as np
 
-from . import config, dataset
-from .schemas import IMTResult, IntentResult, ModelInfo, TaskSpec
+from . import config, dataset, hc_dataset
+from .schemas import (
+    HCEllipse,
+    HCResult,
+    HCRunResult,
+    IMTResult,
+    IntentResult,
+    ModelInfo,
+    TaskSpec,
+)
 
 # science-core / orchestration（经 config 挂上 sys.path）
 from glaux_imt.io.boundaries import Boundary  # noqa: E402
+from glaux_imt.measurement.hc import hc_from_ellipse as _hc_from_ellipse  # noqa: E402
+from glaux_imt.measurement.hc import head_circumference as _hc  # noqa: E402
 from glaux_imt.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
@@ -69,10 +79,11 @@ def interpret(
     spec = None
     if r.spec is not None:
         spec = TaskSpec(
-            task="far_wall_cca_imt",
+            task=r.spec.task.value,  # 多模态：透传路由到的任务（IMT / HC），不硬编码
             image_id=image_id,
             cubs_cf=cubs_cf,
             roi=tuple(r.spec.roi) if r.spec.roi is not None else None,
+            method=r.spec.method,
         )
     return IntentResult(
         scope=_SCOPE_STR[r.scope],
@@ -104,6 +115,41 @@ def measure(
     )
 
 
+def _hc_result(mm, ell, n_points: int) -> HCResult:
+    return HCResult(
+        hc_mm=round(float(mm.hc_mm), 2),
+        bpd_mm=round(float(mm.bpd_mm), 2),
+        ofd_mm=round(float(mm.ofd_mm), 2),
+        area_mm2=round(float(mm.area_mm2), 1),
+        ellipse=HCEllipse(cx=ell.cx, cy=ell.cy, a=ell.a, b=ell.b, theta=ell.theta),
+        n_points=n_points,
+    )
+
+
+def hc_measure(points: list[list[float]], cf: float) -> HCResult:
+    """由轮廓点算头围（椭圆拟合 + Ramanujan 周长）——用户编辑轮廓后即时重测。"""
+    mm = _hc(np.asarray(points, dtype=float), cf)
+    return _hc_result(mm, mm.ellipse_px, len(points))
+
+
+def hc_run(image_id: str, cf: float, roi: tuple[int, int] | None = None) -> HCRunResult:
+    """HC 规范驱动：真椭圆检测 → 周长测量 → 对真值偏差。"""
+    points, ell, model_version = hc_dataset.detect(image_id, roi)
+    mm = _hc_from_ellipse(ell, cf)
+    base = _hc_result(mm, ell, int(points.shape[0]))
+    vs_gt = round(abs(base.hc_mm - hc_dataset.gt_hc_mm(image_id)), 2)
+    # 轮廓点下采样（叠加/编辑够用，避免传回上千点）
+    step = max(1, points.shape[0] // 240)
+    contour = [[float(x), float(y)] for x, y in points[::step]]
+    return HCRunResult(
+        **base.model_dump(),
+        cf=cf,
+        model_version=model_version,
+        contour=contour,
+        vs_gt_mm=vs_gt,
+    )
+
+
 def models() -> list[ModelInfo]:
     """真实模型注册表——caroSegDeep（隔离/缓存）+ 数据集里出现的参考方法。"""
     known = {
@@ -129,4 +175,15 @@ def models() -> list[ModelInfo]:
                 continue
             pub, desc, be = known.get(d.name, (d.name, "CUBS reference method", "reference"))
             out.append(ModelInfo(id=d.name, pub=pub, desc=desc, active=False, backend=be))
+    # 第二模态：HC 亮环椭圆检测器（合成数据；主进程纯 numpy）
+    out.append(
+        ModelInfo(
+            id="ellipse-fit",
+            pub="Bright-ring · direct LSQ ellipse",
+            desc="阈高回声颅骨环 → Halir–Flusser 最小二乘椭圆拟合 → Ramanujan 周长",
+            active=True,
+            backend="local:numpy",
+            modality="fetal_hc",
+        )
+    )
     return out

@@ -21,12 +21,17 @@ from .. import config, mock
 from ..schemas import (
     CorrectionRequest,
     CorrectionResult,
+    HCMeasureRequest,
+    HCResult,
+    HCRunRequest,
+    HCRunResult,
     ImageMeta,
     IMTResult,
     IntentBackendInfo,
     InterpretRequest,
     IntentResult,
     MeasureRequest,
+    Modality,
     ModelInfo,
     SegmentRequest,
     SegmentResult,
@@ -41,7 +46,7 @@ router = APIRouter()
 try:
     from glaux_orchestrator.intent import IntentBackendUnavailable
 
-    from .. import dataset, kernel, segment_proc
+    from .. import dataset, hc_dataset, kernel, segment_proc
 
     KERNEL_OK = True
 except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
@@ -128,7 +133,11 @@ def measure(req: MeasureRequest) -> IMTResult:
 
 
 @router.get("/images", response_model=list[ImageMeta], tags=["dataset"])
-def images(job: str | None = None) -> list[ImageMeta]:
+def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[ImageMeta]:
+    if modality == "fetal_hc":
+        if not KERNEL_OK:
+            raise HTTPException(503, "HC 模态需 science-core（未装配）")
+        return [ImageMeta(**hc_dataset.image_meta(i)) for i in hc_dataset.list_ids()]
     if not _has_data():
         return mock.dataset()
     return [ImageMeta(**dataset.image_meta(i)) for i in dataset.list_ids()]
@@ -136,12 +145,41 @@ def images(job: str | None = None) -> list[ImageMeta]:
 
 @router.get("/image/{image_id}", tags=["dataset"])
 def image(image_id: str) -> Response:
+    if KERNEL_OK and hc_dataset.is_hc(image_id):  # 合成 HC 图（无需外部数据）
+        return Response(content=hc_dataset.image_png(image_id), media_type="image/png")
     if not _has_data():
         return Response(content=mock.synthetic_png(image_id), media_type="image/png")
     try:
         return Response(content=dataset.image_png(image_id), media_type="image/png")
     except FileNotFoundError as e:
         raise HTTPException(404, f"图像不存在：{image_id}") from e
+
+
+# --- 胎儿头围（HC）模态端点 -------------------------------------------------
+
+@router.post("/hc/run", response_model=HCRunResult, tags=["hc"])
+def hc_run(req: HCRunRequest) -> HCRunResult:
+    """HC 规范驱动：合成图 → 真椭圆检测 → Ramanujan 周长 → 对真值偏差。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "HC 模态需 science-core（未装配）")
+    if not hc_dataset.is_hc(req.image_id):
+        raise HTTPException(422, f"非 HC 图像 id：{req.image_id}")
+    cf = req.cubs_cf or hc_dataset.cf_of(req.image_id)
+    try:
+        return kernel.hc_run(req.image_id, cf, roi=tuple(req.roi) if req.roi else None)
+    except Exception as e:  # 检测失败（亮环不足等）→ 显式失败，不出假 HC
+        raise HTTPException(503, f"HC 检测不可用：{e}") from e
+
+
+@router.post("/hc/measure", response_model=HCResult, tags=["hc"])
+def hc_measure(req: HCMeasureRequest) -> HCResult:
+    """由轮廓点算头围——用户编辑颅骨轮廓后即时重测。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "HC 模态需 science-core（未装配）")
+    try:
+        return kernel.hc_measure(req.points, req.cf)
+    except ValueError as e:
+        raise HTTPException(422, f"HC 测量失败：{e}") from e
 
 
 @router.get("/models", response_model=list[ModelInfo], tags=["models"])
