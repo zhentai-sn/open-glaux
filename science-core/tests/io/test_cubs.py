@@ -77,9 +77,18 @@ def test_read_profile_two_rows(tmp_path):
     np.testing.assert_allclose(b.y, [10, 11, 12])
 
 
-def test_read_profile_wrong_row_count_raises(tmp_path):
+def test_read_profile_pointwise(tmp_path):
+    """技术集实测布局：每行一个 ``x y`` 点对，N 行 = N 点。"""
+    p = tmp_path / "tech_401-LI.txt"
+    p.write_text("1.000000 262.800000 \n2.000000 262.545455 \n3.000000 262.250000 \n")
+    b = cubs.read_profile(p, "LI")
+    np.testing.assert_allclose(b.x, [1, 2, 3])
+    np.testing.assert_allclose(b.y, [262.8, 262.545455, 262.25])
+
+
+def test_read_profile_malformed_column_raises(tmp_path):
     p = tmp_path / "bad-LI.txt"
-    p.write_text("1.0 2.0 3.0\n")  # 只有一行
+    p.write_text("1.0\n2.0\n3.0\n")  # 每行仅 1 列，无法构成 x y
     with pytest.raises(ValueError):
         cubs.read_profile(p, "LI")
 

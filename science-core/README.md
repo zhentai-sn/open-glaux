@@ -33,8 +33,9 @@ CUBS 走下载，不进仓库（见 `.gitignore`）。CC BY 4.0：
 - 技术集（`DATASET_CUBS_tech.zip`，7 算法 + `GT-FAMUS` + `Folds`）：
   <https://data.mendeley.com/datasets/m7ndn58sv6/1>
 
-磁盘格式（2026-07-05 核对）：图 `.tiff`、CF `CF/<id>_CF.txt` 标量、
-边界 `LIMA-Profiles/<method>/<id>-{LI,MA}.txt`（两行：x 行 / y 行）。
+磁盘格式（2026-07-06 用技术集实测核对）：图 `.tiff`、CF `CF/<id>_CF.txt` 标量、
+边界 `LIMA-Profiles/<method>/<id>-{LI,MA}.txt`。边界为**逐点** `x y`（每行一个点，
+N 行 = N 点）；reader 同时兼容「两行（x 行 / y 行）」布局。
 
 ## 边界约束
 

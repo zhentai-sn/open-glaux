@@ -4,7 +4,9 @@
 
 - 图像   ``IMAGES/<id>.tiff``（灰度）；主集 ``clin_XXXX_[L|R]``、技术集 ``tech_XXX``
 - CF     ``CF/<id>_CF.txt`` = 单个浮点标量（mm/pixel）
-- 边界   ``<seg_root>/<method>/<id>-{LI,MA}.txt`` = 两行空格分隔浮点（x 行 / y 行）
+- 边界   ``<seg_root>/<method>/<id>-{LI,MA}.txt``，两种磁盘布局都兼容：
+         · 逐点（技术集 LIMA-Profiles 实测）：每行一个 ``x y`` 点对，N 行 = N 点；
+         · 两行：第 1 行全部 x、第 2 行全部 y。
          method ∈ {Manual-A1, Manual-A1', Manual-A2, Manual-A3, Computerized-CNR_IT, …, GT-FAMUS}
 - 中心   临床 CSV（分号分隔 + 逗号小数）首列（"Nicolaides - Cyprus" / Pisa）；无 IMT、无 CF 列
 
@@ -65,14 +67,27 @@ def load_cf(cf_path: Path) -> float:
 
 
 def read_profile(txt_path: Path, name: str) -> Boundary:
-    """读取一条边界的两行文本（第 1 行 x、第 2 行 y）为 :class:`Boundary`。"""
-    lines = [ln for ln in txt_path.read_text().splitlines() if ln.strip()]
-    if len(lines) != 2:
-        raise ValueError(
-            f"边界文件 {txt_path} 应为两行（x / y），实得 {len(lines)} 行"
-        )
-    x = np.fromstring(lines[0], sep=" ")
-    y = np.fromstring(lines[1], sep=" ")
+    """读取一条边界为 :class:`Boundary`，兼容 CUBS 两种磁盘布局。
+
+    - **逐点**（技术集 LIMA-Profiles 实测）：每行一个 ``x y`` 点对，N 行 = N 点；
+    - **两行**：第 1 行全部 x、第 2 行全部 y（两行且等长且列数 > 2 时判为此布局）。
+    """
+    rows = [
+        np.fromstring(ln, sep=" ")
+        for ln in txt_path.read_text().splitlines()
+        if ln.strip()
+    ]
+    if not rows:
+        raise ValueError(f"边界文件为空：{txt_path}")
+    if len(rows) == 2 and rows[0].size == rows[1].size and rows[0].size > 2:
+        x, y = rows[0], rows[1]  # 两行布局：x 行 / y 行
+    else:  # 逐点布局：每行 x y
+        if any(r.size < 2 for r in rows):
+            raise ValueError(
+                f"边界文件 {txt_path} 每行应含 x y 两列，实见列数 {[int(r.size) for r in rows[:3]]}…"
+            )
+        pts = np.vstack([r[:2] for r in rows])
+        x, y = pts[:, 0], pts[:, 1]
     return Boundary(name=name, x=x, y=y)
 
 
