@@ -375,6 +375,32 @@ Capability { id, kind, layer, name, provider, license, status, isolation, proven
 
 > 铁律：**P1 先行且独立收口**——它无新依赖、纯重构，一步就消灭 6/8 个分支，是整个演进的地基。
 
+### 9.0 P1 落地状态（2026-07-07 完成）
+
+分支 `feat/multimodal-arch`，6 个提交，三套件 **144 测试全绿**（science-core 102 / orchestration 22 / backend 20）：
+改名 `glaux_imt→glaux_core` → 三信封 `contracts.py` → 统一适配器 `Adapter.run` → `TaskPlugin`+`REGISTRY`+无分支 `run_spec` → 后端 `GET /tasks`。
+
+**端点塌缩再定标**：后端 `/run` **不走** `run_spec`（重模型跑隔离子进程、结果落盘缓存，后端读盘而非在进程内实例化 adapter），改其响应形状会打断当前前端，其真正消费者是前端。故「统一 `/run`·`/detect`·`/measure` 返回 `TaskOutput`」**并入 P2、与前端迁移同做、端到端可验**；P1 后端只做加法 `GET /tasks`。#1#2#3#4 已消灭，#5#6#7#8 属前端，在 P2 消灭。
+
+### 9.1 P2 详细落地计划（前端注册表驱动 + 端点塌缩 + Cornerstone3D）
+
+前端现状：React18+Vite+TS+Zustand、纯手写 Canvas、**逐模态分支 6 处**（`isHC?画布`、`IMT_TOOLS/HC_TOOLS`、`hcRun/hcMeasure`、`BottomPanel` 字段、`actions.ts` 分派、`SideBar` 硬编码模态）。后端仍留 P1 的旧端点。
+
+| 阶段 | 目标 | 主要文件 | 消灭分支 | 验证 |
+| --- | --- | --- | --- | --- |
+| **P2.0** 后端统一 compute 端点（**crux**） | 桥接"子进程/缓存流"→统一信封 | `kernel.py`(`run_task`/`_detect_for_spec`)、`routers/api.py`(`/task/run`·`/task/detect`·`/task/measure`)、`contracts.py`(反序列化) | 后端形状统一 | pytest |
+| **P2.1** 前端类型 + API 塌缩 | TS 镜像信封；`client.ts` 收成 `tasks/run/detect/measure`；启动拉 `/tasks` 入 store | `api/client.ts`、`store/session.ts`、`types/*` | #7 | 编译 + 应用起（新旧并存） |
+| **P2.2** 注册表驱动 UI | 切换器/工具栏/测量面板全读注册表 | `SideBar.tsx`、`Editor.tsx`、`BottomPanel.tsx`、`actions.ts` | #4·#6·#8 | preview 截图 |
+| **P2.3** `Viewer` 接缝 | `<Viewer>`（imageSource/primitives/activeTool/onEdit），先用现有 canvas 作 raster_2d、泛型画 Primitive | `components/Viewer/*`、`Editor.tsx`、store `primitives:Primitive[]` | #5 | preview：IMT/HC 都经 Viewer |
+| **P2.4** Cornerstone3D 接 raster_2d | StackViewport + web image loader 读 `/image/{id}`，Primitive↔annotation，编辑→`/task/measure` | `Viewer/CornerstoneViewer.tsx`、`package.json` | 兑现"不造轮子" | preview 截图 |
+| **P2.5** 清理 | 删旧端点(`/hc/*`/`/segment`/旧`/run`·`/measure`)与旧前端残留 | 后端 routers、`client.ts`、`Editor.tsx` | 收口 | 全套件 + preview |
+
+**crux（P2.0）**：新写 `kernel.run_task(spec) -> TaskOutput dict`——`_detect_for_spec(spec)` 在**数据入口边界**按 `plugin.adapter_kind` 分派取数（`wall_pair`→`segment_proc.segment` 出 LI/MA，无数据回退 `mock.segment_boundaries`；`contour`→`hc_dataset.detect` 出椭圆），包成 `Detection` → `plugin.measure(det, cal)` → `task_output_to_dict` + **后端增强**金标准对比 metric（IMT vs Manual-A1 µm / HC vs GT mm，内核 measure 不含）。这是唯一保留的 `adapter_kind` 分派点（表征层数据入口，非任务逻辑），localized 且诚实。`/task/detect` 只出 primitives；`/task/measure {task,primitives,cf}` 供拖动重测（泛型替代 `/measure`+`/hc/measure`）。统一端点用 `/task/*` 前缀与旧端点**并存**，P2.5 再删旧。
+
+**Cornerstone3D（P2.4）**：`@cornerstonejs/core`+`tools`；`imageId="web:/api/image/{id}"`；`Polyline→PlanarFreehandROI`、`EllipseShape→EllipticalROI`、`Mask→labelmap`（病理留）；**权衡**：自研"9 手柄高斯形变"先用原生手柄跑通，高斯平滑作可选自定义 tool 后补。
+
+**验证**：P2 浏览器可见，按 preview 工作流（`preview_start` 起 Vite+后端 → `preview_screenshot`/`preview_snapshot`/`preview_console_logs`）直接给证据。
+
 ---
 
 ## 10. 权衡与开放决策
@@ -393,4 +419,5 @@ Capability { id, kind, layer, name, provider, license, status, isolation, proven
 
 ## 变更记录
 
+- **2026-07-07**：v2。P1 落地（分支 `feat/multimodal-arch`，6 提交，144 测试绿）；追加 §9.0 P1 状态与端点塌缩再定标、§9.1 P2 详细落地计划（P2.0–P2.5，crux=`kernel.run_task` 桥接子进程/缓存流→统一信封，`/task/*` 与旧端点并存）。
 - **2026-07-07**：v1。由 `/system-design` 会话导出。诊断「注册表只抽象名字、行为仍 8 处分支」的病根；提出三统一信封（`Detection/Measurement/TaskOutput` + 带类型 `Primitive`）+ `TaskPlugin` 契约 + 无分支 `run_spec` + 统一端点 `GET /tasks`；提出 `Capability` 四层能力模型统一「插件市场」（skill = TaskPlugin）；定 `Viewer` 接缝与 Cornerstone3D/OpenSeadragon/dockview 选型（本轮定 Cornerstone3D 现接）；给出 P1–P6 分阶段落地与权衡。
