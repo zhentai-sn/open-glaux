@@ -182,6 +182,17 @@ def hc_measure(req: HCMeasureRequest) -> HCResult:
         raise HTTPException(422, f"HC 测量失败：{e}") from e
 
 
+@router.get("/tasks", tags=["tasks"])
+def tasks() -> list[dict]:
+    """任务注册表——前端据此渲染模态切换/工具栏/测量字段，不再硬编码 if 模态。
+
+    这是多模态前端的**单一真相源**：viewer 引擎、工具集、度量字段、overlay 画法全从这里来。
+    """
+    if not KERNEL_OK:
+        raise HTTPException(503, "任务注册表需 science-core（未装配）")
+    return kernel.tasks()
+
+
 @router.get("/models", response_model=list[ModelInfo], tags=["models"])
 def models() -> list[ModelInfo]:
     if not _has_data():

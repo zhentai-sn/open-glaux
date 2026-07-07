@@ -47,6 +47,22 @@ def test_interpret_non_in_scope_has_no_spec():
     assert r["scope"] == "out_of_scope" and r["spec"] is None
 
 
+def test_tasks_registry_exposed():
+    """GET /tasks 下发多模态注册表——前端渲染模态/工具/度量的单一真相源。"""
+    r = client.get("/tasks")
+    assert r.status_code == 200
+    by_id = {v["task"]: v for v in r.json()}
+    assert {"far_wall_cca_imt", "fetal_hc"} <= set(by_id)
+    imt = by_id["far_wall_cca_imt"]
+    assert imt["viewer"] == "raster_2d" and imt["adapter_kind"] == "wall_pair"
+    assert any(m["key"] == "IMT_mean" for m in imt["metrics"])
+    assert {t["id"] for t in imt["tools"]} >= {"cursor", "edit_li", "edit_ma"}
+    assert imt["overlays"][0]["role"] == "LI"
+    hc = by_id["fetal_hc"]
+    assert hc["adapter_kind"] == "contour"
+    assert any(m["key"] == "HC" for m in hc["metrics"])
+
+
 def test_measure_matches_imtresult_shape():
     li = [[0, 100], [10, 100], [20, 100]]
     ma = [[0, 116.4], [10, 116.4], [20, 116.4]]

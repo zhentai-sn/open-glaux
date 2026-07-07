@@ -28,6 +28,8 @@ from glaux_core.measurement.hc import head_circumference as _hc  # noqa: E402
 from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
+from glaux_orchestrator.tasks import REGISTRY as _REGISTRY  # noqa: E402
+from glaux_orchestrator.tasks import plugin_to_view as _plugin_to_view  # noqa: E402
 
 _rule = RuleBasedBackend()
 _vlm = ClaudeVLMBackend()
@@ -148,6 +150,15 @@ def hc_run(image_id: str, cf: float, roi: tuple[int, int] | None = None) -> HCRu
         contour=contour,
         vs_gt_mm=vs_gt,
     )
+
+
+def tasks() -> list[dict]:
+    """任务注册表视图——前端 ``GET /tasks`` 的单一真相源（模态/查看器/工具/度量字段）。
+
+    直接下发 :data:`glaux_orchestrator.tasks.REGISTRY` 的可序列化视图（不含 measure 可调用）。
+    前端据此渲染任务切换器 / 工具栏 / 测量面板，**不再硬编码 if 模态**。
+    """
+    return [_plugin_to_view(p) for p in _REGISTRY.values()]
 
 
 def models() -> list[ModelInfo]:
