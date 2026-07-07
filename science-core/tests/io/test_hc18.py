@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from glaux_imt.io.contour import Ellipse
-from glaux_imt.io.hc18 import Hc18Dataset, dice, filled_ellipse_mask
+from glaux_core.io.contour import Ellipse
+from glaux_core.io.hc18 import Hc18Dataset, dice, filled_ellipse_mask
 
 
 def _write_fake(root) -> Ellipse:

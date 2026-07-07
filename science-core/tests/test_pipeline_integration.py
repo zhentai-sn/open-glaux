@@ -10,14 +10,14 @@ import pytest
 from PIL import Image
 
 from eval.harness import bland_altman
-from glaux_imt.artifacts.cohort import write_cohort_csv
-from glaux_imt.artifacts.result import Provenance, SubjectResult
-from glaux_imt.calibration.calibration import resolve_calibration
-from glaux_imt.errors import HardReject
-from glaux_imt.io import cubs
-from glaux_imt.measurement.pdm import imt
-from glaux_imt.segmentation.base import SegmentationRequest
-from glaux_imt.segmentation.stub import ConstantThicknessAdapter
+from glaux_core.artifacts.cohort import write_cohort_csv
+from glaux_core.artifacts.result import Provenance, SubjectResult
+from glaux_core.calibration.calibration import resolve_calibration
+from glaux_core.errors import HardReject
+from glaux_core.io import cubs
+from glaux_core.measurement.pdm import imt
+from glaux_core.segmentation.base import SegmentationRequest
+from glaux_core.segmentation.stub import ConstantThicknessAdapter
 
 
 def _build_cubs(root):

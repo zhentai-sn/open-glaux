@@ -6,7 +6,7 @@ import csv
 from collections.abc import Sequence
 from pathlib import Path
 
-from glaux_imt.artifacts.result import SubjectResult
+from glaux_core.artifacts.result import SubjectResult
 
 COLUMNS = [
     "subject",

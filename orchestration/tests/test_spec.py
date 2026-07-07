@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from glaux_imt.errors import HardReject
-from glaux_imt.io.contour import Ellipse
-from glaux_imt.segmentation.contour import EllipseContourStub
-from glaux_imt.segmentation.stub import ConstantThicknessAdapter
+from glaux_core.errors import HardReject
+from glaux_core.io.contour import Ellipse
+from glaux_core.segmentation.contour import EllipseContourStub
+from glaux_core.segmentation.stub import ConstantThicknessAdapter
 
 from glaux_orchestrator.intent import ClaudeVLMBackend, IntentBackendUnavailable, RuleBasedBackend
 from glaux_orchestrator.run import HCTaskResult, TaskResult, interpret_and_run, run_spec

@@ -7,9 +7,9 @@ import math
 import numpy as np
 import pytest
 
-from glaux_imt.io.contour import Ellipse
-from glaux_imt.segmentation.base import ROI, SegmentationBackendUnavailable
-from glaux_imt.segmentation.contour import (
+from glaux_core.io.contour import Ellipse
+from glaux_core.segmentation.base import ROI, SegmentationBackendUnavailable
+from glaux_core.segmentation.contour import (
     BrightRingEllipseAdapter,
     ContourRequest,
     EllipseContourStub,

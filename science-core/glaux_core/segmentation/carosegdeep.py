@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from glaux_imt.segmentation.base import (
+from glaux_core.segmentation.base import (
     ModelAdapter,
     SegmentationBackendUnavailable,
     SegmentationRequest,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image, ImageDraw
 
-from glaux_imt.io.boundaries import Boundary
-from glaux_imt.segmentation.base import ROI
+from glaux_core.io.boundaries import Boundary
+from glaux_core.segmentation.base import ROI
 
 _LI_COLOR = (255, 80, 80)  # 红：内界 LI
 _MA_COLOR = (80, 160, 255)  # 蓝：外界 MA

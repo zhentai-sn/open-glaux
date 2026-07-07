@@ -3,16 +3,16 @@
 import numpy as np
 import pytest
 
-from glaux_imt.measurement.pdm import imt
-from glaux_imt.segmentation.base import (
+from glaux_core.measurement.pdm import imt
+from glaux_core.segmentation.base import (
     Compute,
     ROI,
     SegmentationBackendUnavailable,
     SegmentationRequest,
 )
-from glaux_imt.segmentation.carosegdeep import CaroSegDeepAdapter
-from glaux_imt.segmentation.roi import auto_far_wall_roi, resolve_roi
-from glaux_imt.segmentation.stub import ConstantThicknessAdapter
+from glaux_core.segmentation.carosegdeep import CaroSegDeepAdapter
+from glaux_core.segmentation.roi import auto_far_wall_roi, resolve_roi
+from glaux_core.segmentation.stub import ConstantThicknessAdapter
 
 
 def _img(h=200, w=300):

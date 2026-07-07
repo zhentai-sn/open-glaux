@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from glaux_imt.io.boundaries import Boundary
-from glaux_imt.segmentation.base import (
+from glaux_core.io.boundaries import Boundary
+from glaux_core.segmentation.base import (
     ModelAdapter,
     SegmentationRequest,
     SegmentationResult,
 )
-from glaux_imt.segmentation.roi import resolve_roi
+from glaux_core.segmentation.roi import resolve_roi
 
 
 class ConstantThicknessAdapter(ModelAdapter):

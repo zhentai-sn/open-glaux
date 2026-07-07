@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.io.boundaries import Boundary, common_support
+from glaux_core.io.boundaries import Boundary, common_support
 
 
 @dataclass(frozen=True)

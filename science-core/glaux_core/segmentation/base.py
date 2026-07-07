@@ -13,8 +13,8 @@ from enum import Enum
 
 import numpy as np
 
-from glaux_imt.errors import GlauxError
-from glaux_imt.io.boundaries import Boundary
+from glaux_core.errors import GlauxError
+from glaux_core.io.boundaries import Boundary
 
 
 class SegmentationBackendUnavailable(GlauxError):

@@ -1,6 +1,6 @@
 """闭合轮廓分割接口（多模态）——胎儿头围（HC）等**闭合边界**任务的动作层。
 
-与壁线对分割（:mod:`glaux_imt.segmentation.base` 的 :class:`ModelAdapter` → LI/MA）并列：
+与壁线对分割（:mod:`glaux_core.segmentation.base` 的 :class:`ModelAdapter` → LI/MA）并列：
 这里的适配器给图 + ROI，出**一条闭合轮廓**（离散点）及其拟合椭圆。换/加模型只需新增适配器。
 
 两个 v0.2 适配器：
@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from glaux_imt.io.contour import Ellipse, fit_ellipse
-from glaux_imt.segmentation.base import ROI, SegmentationBackendUnavailable
+from glaux_core.io.contour import Ellipse, fit_ellipse
+from glaux_core.segmentation.base import ROI, SegmentationBackendUnavailable
 
 
 @dataclass(frozen=True)

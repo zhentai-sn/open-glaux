@@ -13,8 +13,8 @@ from eval.harness import (
     hausdorff_distance,
     paired_imt,
 )
-from glaux_imt.io.boundaries import Boundary, BoundaryPair
-from glaux_imt.measurement.pdm import imt
+from glaux_core.io.boundaries import Boundary, BoundaryPair
+from glaux_core.measurement.pdm import imt
 
 
 def _pair(x, li_y, ma_y):

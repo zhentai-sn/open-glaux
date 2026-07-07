@@ -4,13 +4,13 @@ import math
 
 import pytest
 
-from glaux_imt.calibration.calibration import (
+from glaux_core.calibration.calibration import (
     CFSource,
     ManualClick,
     cf_from_two_clicks,
     resolve_calibration,
 )
-from glaux_imt.errors import HardReject
+from glaux_core.errors import HardReject
 
 
 def test_cubs_cf_direct():

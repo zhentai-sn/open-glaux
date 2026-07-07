@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pytest
 
-from glaux_imt.io.contour import Ellipse, fit_ellipse
+from glaux_core.io.contour import Ellipse, fit_ellipse
 
 
 def _sample(cx, cy, a, b, theta, n=60, noise=0.0, seed=0):

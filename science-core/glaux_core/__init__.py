@@ -7,7 +7,7 @@ CUBS 颈动脉 IMT 首个楔子的 headless 内核：读取 → 标定 → 表�
 ``docs/plans/2026-07-05-001-feat-cubs-imt-pipeline-plan.zh-CN.md``。
 """
 
-from glaux_imt.errors import CalibrationUnavailable, GlauxError, HardReject
+from glaux_core.errors import CalibrationUnavailable, GlauxError, HardReject
 
 __all__ = ["GlauxError", "CalibrationUnavailable", "HardReject"]
 __version__ = "0.1.0"

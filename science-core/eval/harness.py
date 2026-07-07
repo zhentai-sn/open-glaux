@@ -15,9 +15,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.io.boundaries import Boundary, BoundaryPair, common_support, to_mask
-from glaux_imt.measurement.pdm import imt, polyline_distances
-from glaux_imt.verification.crosscenter import loco_report
+from glaux_core.io.boundaries import Boundary, BoundaryPair, common_support, to_mask
+from glaux_core.measurement.pdm import imt, polyline_distances
+from glaux_core.verification.crosscenter import loco_report
 
 # 专家变异参考阈（µm）
 INTRA_OBSERVER_UM = 160.0

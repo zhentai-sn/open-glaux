@@ -14,7 +14,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from glaux_imt.errors import HardReject
+from glaux_core.errors import HardReject
 
 
 class CFSource(str, Enum):

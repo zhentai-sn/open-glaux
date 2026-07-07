@@ -1,6 +1,6 @@
 """胎儿头围（HC）测量——闭合轮廓任务的确定性几何度量。
 
-与 IMT（两条壁线间法向厚度，见 :mod:`glaux_imt.measurement.pdm`）并列的**第二种测量族**：
+与 IMT（两条壁线间法向厚度，见 :mod:`glaux_core.measurement.pdm`）并列的**第二种测量族**：
 颅骨轮廓点 → 直接最小二乘椭圆拟合 → Ramanujan 周长 → ×CF 转 mm。
 
 临床 HC 标准即「椭圆拟合周长」（HC18 挑战赛口径）；BPD/OFD 分别对应短/长轴。
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.io.contour import Ellipse, fit_ellipse
+from glaux_core.io.contour import Ellipse, fit_ellipse
 
 
 @dataclass(frozen=True)

@@ -13,11 +13,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.calibration.calibration import resolve_calibration
-from glaux_imt.measurement.hc import hc_from_ellipse
-from glaux_imt.measurement.pdm import imt
-from glaux_imt.segmentation.base import ROI, ModelAdapter, SegmentationRequest
-from glaux_imt.segmentation.contour import ContourAdapter, ContourRequest
+from glaux_core.calibration.calibration import resolve_calibration
+from glaux_core.measurement.hc import hc_from_ellipse
+from glaux_core.measurement.pdm import imt
+from glaux_core.segmentation.base import ROI, ModelAdapter, SegmentationRequest
+from glaux_core.segmentation.contour import ContourAdapter, ContourRequest
 
 from glaux_orchestrator.intent import IntentBackend, RuleBasedBackend
 from glaux_orchestrator.spec import TASKS, GeometryKind, IntentResult, Scope, TaskSpec

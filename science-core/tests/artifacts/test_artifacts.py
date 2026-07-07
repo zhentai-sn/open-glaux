@@ -4,17 +4,17 @@ import csv
 
 import numpy as np
 
-from glaux_imt.artifacts.cohort import COLUMNS, write_cohort_csv
-from glaux_imt.artifacts.overlay import render_overlay
-from glaux_imt.artifacts.result import Provenance, SubjectResult
-from glaux_imt.io.boundaries import Boundary
-from glaux_imt.memory.capture import (
+from glaux_core.artifacts.cohort import COLUMNS, write_cohort_csv
+from glaux_core.artifacts.overlay import render_overlay
+from glaux_core.artifacts.result import Provenance, SubjectResult
+from glaux_core.io.boundaries import Boundary
+from glaux_core.memory.capture import (
     CorrectionEvent,
     MemoryRecord,
     load_record,
     save_record,
 )
-from glaux_imt.segmentation.base import ROI
+from glaux_core.segmentation.base import ROI
 
 
 def _result(subject="clin_0001", image_id="clin_0001_R"):

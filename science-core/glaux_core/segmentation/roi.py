@@ -1,7 +1,7 @@
 """远壁 CCA ROI（U4）.
 
 自动检测远壁 + ~1cm 段。真正的远壁定位由 caroSegDeep 的 FW 检测阶段承担
-（见 :mod:`glaux_imt.segmentation.carosegdeep`）；此处提供一个**占位启发式**
+（见 :mod:`glaux_core.segmentation.carosegdeep`）；此处提供一个**占位启发式**
 （居中列带）+ 手动覆盖，保证无模型时管线仍可端到端跑通。可微调（外部传 ROI）。
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from glaux_imt.segmentation.base import ROI
+from glaux_core.segmentation.base import ROI
 
 
 def auto_far_wall_roi(image: np.ndarray, *, fraction: float = 0.5) -> ROI:

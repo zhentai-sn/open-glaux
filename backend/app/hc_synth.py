@@ -21,10 +21,10 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image
 
-from glaux_imt.io.contour import Ellipse
-from glaux_imt.measurement.hc import hc_from_ellipse
-from glaux_imt.segmentation.base import ROI
-from glaux_imt.segmentation.contour import BrightRingEllipseAdapter, ContourRequest
+from glaux_core.io.contour import Ellipse
+from glaux_core.measurement.hc import hc_from_ellipse
+from glaux_core.segmentation.base import ROI
+from glaux_core.segmentation.contour import BrightRingEllipseAdapter, ContourRequest
 
 MODALITY = "fetal_hc"
 PREFIX = "hc_"

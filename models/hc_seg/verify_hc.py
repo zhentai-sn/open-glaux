@@ -11,7 +11,7 @@ from pathlib import Path
 
 HOME = Path.home()
 sys.path.insert(0, str(HOME / "code/pre-tech/open-glaux/science-core"))
-from glaux_imt.io.hc18 import Hc18Dataset  # noqa: E402
+from glaux_core.io.hc18 import Hc18Dataset  # noqa: E402
 from eval.hc_harness import evaluate  # noqa: E402
 
 DATA = HOME / "hc18_data"

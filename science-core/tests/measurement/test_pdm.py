@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from glaux_imt.io.boundaries import Boundary
-from glaux_imt.measurement.pdm import imt, polyline_distances
+from glaux_core.io.boundaries import Boundary
+from glaux_core.measurement.pdm import imt, polyline_distances
 
 
 def test_parallel_horizontal_lines_exact():

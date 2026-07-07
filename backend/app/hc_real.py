@@ -1,7 +1,7 @@
 """胎儿头围（HC）——**真实 HC18 数据 + CSM 隔离模型**实现（M1 真实接入）。
 
 镜像 IMT 的分层：数据侧（列图 / PNG / 标定 / 参考 HC）读 science-core 的
-:class:`glaux_imt.io.hc18.Hc18Dataset`，纯 numpy/PIL；模型侧走 **缓存优先 + .venv-hc
+:class:`glaux_core.io.hc18.Hc18Dataset`，纯 numpy/PIL；模型侧走 **缓存优先 + .venv-hc
 隔离子进程**（CSM，torch/cv2 只存在于该子进程，FastAPI 主进程绝不 import）。
 
 - 参考头围来自 HC18 官方 CSV（``head circumference (mm)``，挑战赛口径）。
@@ -20,8 +20,8 @@ import numpy as np
 from . import config
 
 # science-core（经 config 挂上 sys.path）——纯 numpy/PIL，主进程无 torch/cv2。
-from glaux_imt.io.contour import fit_ellipse  # noqa: E402
-from glaux_imt.io.hc18 import Hc18Dataset  # noqa: E402
+from glaux_core.io.contour import fit_ellipse  # noqa: E402
+from glaux_core.io.hc18 import Hc18Dataset  # noqa: E402
 
 _METHOD = "CSM"  # 真分割方法名（对齐 UI 模型注册表）
 _GT = "GT-ellipse"  # 参考（HC18 标注椭圆）

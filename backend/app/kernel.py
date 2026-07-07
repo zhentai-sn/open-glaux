@@ -22,10 +22,10 @@ from .schemas import (
 )
 
 # science-core / orchestration（经 config 挂上 sys.path）
-from glaux_imt.io.boundaries import Boundary  # noqa: E402
-from glaux_imt.measurement.hc import hc_from_ellipse as _hc_from_ellipse  # noqa: E402
-from glaux_imt.measurement.hc import head_circumference as _hc  # noqa: E402
-from glaux_imt.measurement.pdm import imt as _imt  # noqa: E402
+from glaux_core.io.boundaries import Boundary  # noqa: E402
+from glaux_core.measurement.hc import hc_from_ellipse as _hc_from_ellipse  # noqa: E402
+from glaux_core.measurement.hc import head_circumference as _hc  # noqa: E402
+from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 

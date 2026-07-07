@@ -1,11 +1,11 @@
 """U1 骨架 smoke：包可导入、异常层次成立。"""
 
-import glaux_imt
-from glaux_imt.errors import CalibrationUnavailable, GlauxError, HardReject
+import glaux_core
+from glaux_core.errors import CalibrationUnavailable, GlauxError, HardReject
 
 
 def test_package_imports_and_versioned():
-    assert glaux_imt.__version__
+    assert glaux_core.__version__
 
 
 def test_exception_hierarchy():

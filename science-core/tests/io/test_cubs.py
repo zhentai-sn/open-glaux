@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from glaux_imt.errors import CalibrationUnavailable
-from glaux_imt.io import cubs
+from glaux_core.errors import CalibrationUnavailable
+from glaux_core.io import cubs
 
 
 def _write_profile(path, x, y):

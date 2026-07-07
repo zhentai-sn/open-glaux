@@ -1,1 +1,0 @@
-"""glaux_imt.verification"""

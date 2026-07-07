@@ -8,8 +8,8 @@
 - 清单   ``training_set_pixel_size_and_HC.csv``：``filename, pixel size(mm), head circumference (mm)``
          999 行为权威图像清单 + 标定(mm/px) + 参考头围(mm)。
 
-与 CUBS（:mod:`glaux_imt.io.cubs`，颈动脉壁线对）并列的闭合轮廓数据源：本模块**只读数据**、
-模型无关（纯 numpy/PIL），标注→GT 椭圆用 :func:`glaux_imt.io.contour.fit_ellipse`。GT 头围
+与 CUBS（:mod:`glaux_core.io.cubs`，颈动脉壁线对）并列的闭合轮廓数据源：本模块**只读数据**、
+模型无关（纯 numpy/PIL），标注→GT 椭圆用 :func:`glaux_core.io.contour.fit_ellipse`。GT 头围
 以 CSV 的 ``head circumference (mm)`` 为准（挑战赛官方口径 = 标注椭圆周长×pixel size）。
 """
 
@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from glaux_imt.io.contour import Ellipse, fit_ellipse
+from glaux_core.io.contour import Ellipse, fit_ellipse
 
 MODALITY = "fetal_hc"
 _ANNOT_SUFFIX = "_Annotation.png"

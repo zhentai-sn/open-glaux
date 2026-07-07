@@ -1,1 +1,1 @@
-"""glaux_imt.eval —— 评测 harness"""
+"""glaux_core.eval —— 评测 harness"""

@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from glaux_imt.verification.consistency import method_agreement
-from glaux_imt.verification.crosscenter import (
+from glaux_core.verification.consistency import method_agreement
+from glaux_core.verification.crosscenter import (
     center_split,
     leave_one_center_out,
     loco_report,
 )
-from glaux_imt.verification.uncertainty import (
+from glaux_core.verification.uncertainty import (
     UncertaintyCalibrator,
     absolute_bias_um,
 )

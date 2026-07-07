@@ -17,8 +17,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from glaux_imt.io.contour import fit_ellipse
-from glaux_imt.io.hc18 import Hc18Dataset, dice, filled_ellipse_mask
+from glaux_core.io.contour import fit_ellipse
+from glaux_core.io.hc18 import Hc18Dataset, dice, filled_ellipse_mask
 
 
 @dataclass(frozen=True)

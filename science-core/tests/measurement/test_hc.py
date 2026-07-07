@@ -7,8 +7,8 @@ import math
 import numpy as np
 import pytest
 
-from glaux_imt.io.contour import Ellipse
-from glaux_imt.measurement.hc import hc_from_ellipse, head_circumference
+from glaux_core.io.contour import Ellipse
+from glaux_core.measurement.hc import hc_from_ellipse, head_circumference
 
 
 def _sample(cx, cy, a, b, theta, n=120):

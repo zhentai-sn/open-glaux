@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "glaux-imt"
+name = "glaux-core"
 version = "0.1.0"
 description = "Glaux 首个楔子：CUBS 颈动脉 IMT 分割→测量→验证科学内核"
 readme = "README.md"
@@ -23,7 +23,7 @@ carosegdeep = ["tensorflow>=2.10"]
 dev = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]
-include = ["glaux_imt*", "eval*"]
+include = ["glaux_core*", "eval*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -21,8 +21,8 @@ from pathlib import Path
 
 import numpy as np
 
-from glaux_imt.errors import CalibrationUnavailable
-from glaux_imt.io.boundaries import Boundary, BoundaryPair
+from glaux_core.errors import CalibrationUnavailable
+from glaux_core.io.boundaries import Boundary, BoundaryPair
 
 # clin_0006_R / clin_0006_L / tech_383（技术集无侧）
 _IMAGE_ID_RE = re.compile(r"^(?P<id>(?:clin|tech)_\d+)(?:_(?P<side>[LR]))?$")

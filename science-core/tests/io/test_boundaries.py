@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from glaux_imt.io.boundaries import (
+from glaux_core.io.boundaries import (
     Boundary,
     common_support,
     mask_to_boundaries,
