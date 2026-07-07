@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client";
+import type { Primitive } from "../api/types";
 import { useSession } from "../store/session";
 
 // 影像画布（F6 + M2/F10）——真图为底，真实 LI/MA/ROI 叠加，比例尺由真实 CF 算。
@@ -258,9 +259,23 @@ export function AnnotationCanvas() {
     const which = d.which === "li" ? "LI" : "MA";
     useSession.getState().setBoundaries({ li: wk.li, ma: wk.ma, source: "human", modelVersion: "human-corrected" });
     try {
-      const m = await api.measure(wk.li, wk.ma, cf);
-      useSession.getState().setMeasurement({ ...m, vs_a1_um: useSession.getState().measurement?.vs_a1_um ?? null });
-      useSession.getState().pushAgent({ variant: "plain", key: "remeasure", vars: { w: which, v: m.pdm_mean_mm.toFixed(3) } });
+      // 统一测量：编辑后的 LI/MA 图元 → /task/measure（更新泛型 metrics + 派生 typed）
+      const primitives: Primitive[] = [
+        { kind: "polyline", id: "LI", role: "LI", points: wk.li, closed: false },
+        { kind: "polyline", id: "MA", role: "MA", points: wk.ma, closed: false },
+      ];
+      const meas = await api.taskMeasure("far_wall_cca_imt", primitives, cf);
+      const m = meas.metrics;
+      const pdm = m.IMT_pdm?.value ?? 0;
+      useSession.getState().setMetrics(m);
+      useSession.getState().setMeasurement({
+        mean_mm: m.IMT_mean?.value ?? 0,
+        max_mm: m.IMT_max?.value ?? 0,
+        pdm_mean_mm: pdm,
+        n_columns: wk.li.length,
+        vs_a1_um: useSession.getState().measurement?.vs_a1_um ?? null,
+      });
+      useSession.getState().pushAgent({ variant: "plain", key: "remeasure", vars: { w: which, v: pdm.toFixed(3) } });
     } catch {
       /* 后端失败保留预览值 */
     }

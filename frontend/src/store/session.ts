@@ -5,6 +5,7 @@ import type {
   HCEllipse,
   ImageMeta,
   IntentBackendInfo,
+  Measure,
   Modality,
   ModelInfo,
   Scope,
@@ -94,10 +95,11 @@ interface SessionState {
   models: ModelInfo[];
   images: ImageMeta[]; // 数据集列表（Explorer）
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods）
-  boundaries: Boundaries | null; // 当前叠加边界（IMT）
-  measurement: Measurement | null; // 当前测量（IMT）
+  metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板真相源
+  boundaries: Boundaries | null; // 当前叠加边界（IMT，画布用；由 primitives 派生）
+  measurement: Measurement | null; // 当前测量（IMT，agent/状态栏用；由 metrics 派生）
   hcContour: HCContour | null; // 当前颅骨轮廓 + 椭圆（HC）
-  hcMeasurement: HCMeasure | null; // 当前 HC 测量
+  hcMeasurement: HCMeasure | null; // 当前 HC 测量（agent 用；由 metrics 派生）
   imt: string; // 当前展示的 IMT（mm，字符串保三位）
   lastScope: Scope | null;
   loading: boolean; // 分割/测量进行中
@@ -124,6 +126,7 @@ interface SessionState {
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
   setImageMeta: (m: ImageMeta | null) => void;
+  setMetrics: (m: Record<string, Measure> | null) => void;
   setBoundaries: (b: Boundaries | null) => void;
   setMeasurement: (m: Measurement | null) => void;
   setHcContour: (c: HCContour | null) => void;
@@ -157,6 +160,7 @@ export const useSession = create<SessionState>((set) => ({
   models: [],
   images: [],
   imageMeta: null,
+  metrics: null,
   boundaries: null,
   measurement: null,
   hcContour: null,
@@ -188,6 +192,7 @@ export const useSession = create<SessionState>((set) => ({
     })),
   setImages: (m) => set({ images: m }),
   setImageMeta: (m) => set({ imageMeta: m }),
+  setMetrics: (m) => set({ metrics: m }),
   setBoundaries: (b) => set({ boundaries: b }),
   setMeasurement: (m) =>
     set({ measurement: m, imt: m ? m.pdm_mean_mm.toFixed(3) : "—" }),

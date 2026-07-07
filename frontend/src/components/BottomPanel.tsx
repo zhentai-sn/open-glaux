@@ -17,61 +17,32 @@ const mcell = (k: string, v: string, unit: string, hi = false) => (
   </div>
 );
 
-function IMTMeasurements() {
-  const { t } = useI18n();
-  const m = useSession((s) => s.measurement);
-  const src = useSession((s) => s.boundaries?.source ?? "agent");
-  const fmt = (v: number | undefined | null, d = 3) => (v == null ? "—" : v.toFixed(d));
+// 泛型测量视图——度量读 store.metrics（TaskOutput.metrics），区域行读注册表 overlays。
+// 加任务/度量 = 后端注册一行，此处零改（不再 IMTMeasurements/HCMeasurements 逐模态硬写）。
+function MeasurementsView() {
+  const { t, lang } = useI18n();
+  const metrics = useSession((s) => s.metrics);
+  const modality = useSession((s) => s.modality);
+  const overlays = useSession((s) => s.tasks.find((tk) => tk.modality === modality)?.overlays ?? []);
+  const src = useSession((s) => s.boundaries?.source ?? s.hcContour?.source ?? "agent");
+  if (!metrics) return <div className="stub">— no run yet —</div>;
+  const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
   return (
     <div>
       <div className="mgrid">
-        {mcell(t("measure_k1"), fmt(m?.mean_mm), "mm")}
-        {mcell("Max IMT", fmt(m?.max_mm), "mm")}
-        {mcell("PDM sym", fmt(m?.pdm_mean_mm), "mm")}
-        {mcell(t("m_vsa1"), m?.vs_a1_um == null ? "—" : m.vs_a1_um.toFixed(1), "µm", true)}
-        {mcell("cols", m?.n_columns == null ? "—" : String(m.n_columns), "")}
+        {Object.entries(metrics).map(([k, m]) =>
+          mcell(lang === "zh" ? m.label_zh : m.label_en, fmt(m.value), m.unit, k.startsWith("vs")),
+        )}
       </div>
-      {[
-        { c: "var(--li)", nm: "LI", rk: "rg_boundary" as const },
-        { c: "var(--ma)", nm: "MA", rk: "rg_boundary" as const },
-        { c: "var(--roi)", nm: "ROI", rk: "rg_roi" as const },
-      ].map((r) => (
-        <div key={r.nm} className="regionrow">
-          <span className="sw" style={{ background: r.c }} />
-          <b>{r.nm}</b>&nbsp;<span>{t(r.rk)}</span>
+      {overlays.map((o) => (
+        <div key={o.role} className="regionrow">
+          <span className="sw" style={{ background: o.color }} />
+          <b>{o.role}</b>
           <span className={"src " + src}>{t(src === "human" ? "src_human" : "src_agent")}</span>
         </div>
       ))}
     </div>
   );
-}
-
-function HCMeasurements() {
-  const { t } = useI18n();
-  const m = useSession((s) => s.hcMeasurement);
-  const src = useSession((s) => s.hcContour?.source ?? "agent");
-  const fmt = (v: number | undefined | null, d = 1) => (v == null ? "—" : v.toFixed(d));
-  return (
-    <div>
-      <div className="mgrid">
-        {mcell("HC", fmt(m?.hc_mm), "mm")}
-        {mcell("BPD", fmt(m?.bpd_mm), "mm")}
-        {mcell("OFD", fmt(m?.ofd_mm), "mm")}
-        {mcell(t("m_vsgt"), m?.vs_gt_mm == null ? "—" : m.vs_gt_mm.toFixed(2), "mm", true)}
-        {mcell("area", m?.area_mm2 == null ? "—" : m.area_mm2.toFixed(0), "mm²")}
-      </div>
-      <div className="regionrow">
-        <span className="sw" style={{ background: "#C39BFF" }} />
-        <b>HC</b>&nbsp;<span>{t("rg_skull")}</span>
-        <span className={"src " + src}>{t(src === "human" ? "src_human" : "src_agent")}</span>
-      </div>
-    </div>
-  );
-}
-
-function MeasurementsView() {
-  const isHC = useSession((s) => s.modality === "fetal_hc");
-  return isHC ? <HCMeasurements /> : <IMTMeasurements />;
 }
 
 const logline = (body: JSX.Element, key: string) => (

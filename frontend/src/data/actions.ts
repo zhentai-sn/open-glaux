@@ -1,12 +1,18 @@
-// 真实数据编排（F5/F6/F8 + 多模态）——载数据集、切模态、选图、分割/检测 + 测量。
+// 真实数据编排（F5/F6/F8 + 多模态）——载数据集、切模态、选图、统一驱动 /task/run。
+// 数据流统一到 api.taskRun（多模态通吃）：设泛型 metrics（面板真相源）+ 由 primitives/metrics
+// 派生强类型 boundaries/measurement/hcContour/hcMeasurement（画布/agent/状态栏沿用，零改）。
 // 不推送智能体发言（静默载入）；智能体叙事在 useAgent 里叠加。
 import { api } from "../api/client";
-import type { Modality } from "../api/types";
+import type { Modality, Primitive } from "../api/types";
 import { useSession } from "../store/session";
+
+type Poly = Extract<Primitive, { kind: "polyline" }>;
+type Ell = Extract<Primitive, { kind: "ellipse" }>;
 
 /** 清空两模态的叠加/测量态（切图/切模态时）。 */
 function clearOverlays(): void {
   const s = useSession.getState();
+  s.setMetrics(null);
   s.setBoundaries(null);
   s.setMeasurement(null);
   s.setHcContour(null);
@@ -39,61 +45,69 @@ export async function switchModality(modality: Modality): Promise<void> {
   if (imgs.length) await selectImage(imgs[0].id);
 }
 
-/** IMT：用某模型分割 + 对齐口径测量。返回 pdm 字符串或 null。 */
+/** IMT：统一驱动 /task/run → 设 metrics + 派生 boundaries/measurement。返回 pdm 字符串或 null。 */
 export async function segmentAndMeasure(imageId: string, model: string): Promise<string | null> {
   const s = useSession.getState();
   const cf = s.imageMeta?.cf ?? undefined;
   s.setLoading(true);
   try {
-    const seg = await api.segment(imageId, model);
-    const res = await api.run({ task: "far_wall_cca_imt", image_id: imageId, cubs_cf: cf, method: model });
-    useSession.getState().setBoundaries({
-      li: seg.li,
-      ma: seg.ma,
-      source: "agent",
-      modelVersion: seg.model_version,
-    });
+    const res = await api.taskRun({ task: "far_wall_cca_imt", image_id: imageId, cubs_cf: cf, method: model });
+    const li = res.primitives.find((p): p is Poly => p.kind === "polyline" && p.role === "LI");
+    const ma = res.primitives.find((p): p is Poly => p.kind === "polyline" && p.role === "MA");
+    const m = res.metrics;
+    useSession.getState().setMetrics(m);
+    if (li && ma) {
+      useSession.getState().setBoundaries({
+        li: li.points,
+        ma: ma.points,
+        source: "agent",
+        modelVersion: String(res.provenance.model_version ?? model),
+      });
+    }
     useSession.getState().setMeasurement({
-      mean_mm: res.mean_mm,
-      max_mm: res.max_mm,
-      pdm_mean_mm: res.pdm_mean_mm,
-      n_columns: res.n_columns,
-      vs_a1_um: res.vs_a1_um ?? null,
+      mean_mm: m.IMT_mean?.value ?? 0,
+      max_mm: m.IMT_max?.value ?? 0,
+      pdm_mean_mm: m.IMT_pdm?.value ?? 0,
+      n_columns: li ? li.points.length : 0,
+      vs_a1_um: m.vs_A1?.value ?? null,
     });
-    return res.pdm_mean_mm.toFixed(3);
+    return (m.IMT_pdm?.value ?? 0).toFixed(3);
   } catch {
-    useSession.getState().setBoundaries(null);
-    useSession.getState().setMeasurement(null);
+    clearOverlays();
     return null;
   } finally {
     useSession.getState().setLoading(false);
   }
 }
 
-/** HC：合成图 → 真椭圆检测 → 周长测量。返回 HC 字符串（mm）或 null。 */
+/** HC：统一驱动 /task/run → 设 metrics + 派生 hcContour/hcMeasurement。返回 HC 字符串或 null。 */
 export async function hcDetectAndMeasure(imageId: string): Promise<string | null> {
   const s = useSession.getState();
   const cf = s.imageMeta?.cf ?? undefined;
   s.setLoading(true);
   try {
-    const r = await api.hcRun(imageId, cf);
-    useSession.getState().setHcContour({
-      points: r.contour,
-      ellipse: r.ellipse,
-      source: "agent",
-      modelVersion: r.model_version,
-    });
+    const res = await api.taskRun({ task: "fetal_hc", image_id: imageId, cubs_cf: cf });
+    const ell = res.primitives.find((p): p is Ell => p.kind === "ellipse");
+    const m = res.metrics;
+    useSession.getState().setMetrics(m);
+    if (ell) {
+      useSession.getState().setHcContour({
+        points: [],
+        ellipse: { cx: ell.cx, cy: ell.cy, a: ell.a, b: ell.b, theta: ell.theta },
+        source: "agent",
+        modelVersion: String(res.provenance.model_version ?? ""),
+      });
+    }
     useSession.getState().setHcMeasurement({
-      hc_mm: r.hc_mm,
-      bpd_mm: r.bpd_mm,
-      ofd_mm: r.ofd_mm,
-      area_mm2: r.area_mm2,
-      vs_gt_mm: r.vs_gt_mm,
+      hc_mm: m.HC?.value ?? 0,
+      bpd_mm: m.BPD?.value ?? 0,
+      ofd_mm: m.OFD?.value ?? 0,
+      area_mm2: m.area?.value ?? 0,
+      vs_gt_mm: m.vs_GT?.value ?? null,
     });
-    return r.hc_mm.toFixed(1);
+    return (m.HC?.value ?? 0).toFixed(1);
   } catch {
-    useSession.getState().setHcContour(null);
-    useSession.getState().setHcMeasurement(null);
+    clearOverlays();
     return null;
   } finally {
     useSession.getState().setLoading(false);
