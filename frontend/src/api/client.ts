@@ -2,19 +2,14 @@
 import type {
   CorrectionResult,
   Detection,
-  HCResult,
-  HCRunResult,
   ImageMeta,
-  IMTResult,
   IntentBackendInfo,
   IntentResult,
   MeasurementResult,
   Modality,
   ModelInfo,
   Primitive,
-  SegmentResult,
   TaskOutput,
-  TaskResult,
   TaskSpec,
   TaskType,
   TaskView,
@@ -81,26 +76,12 @@ export const api = {
 
   intentBackends: () => get<IntentBackendInfo[]>("/intent/backends"),
 
-  run: (spec: TaskSpec) => post<TaskResult>("/run", spec),
-
-  measure: (li: number[][], ma: number[][], cf: number, x_window?: [number, number]) =>
-    post<IMTResult>("/measure", { li, ma, cf, x_window }),
-
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
 
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
   models: () => get<ModelInfo[]>("/models"),
-
-  segment: (image_id: string, model: string, roi?: [number, number]) =>
-    post<SegmentResult>("/segment", { image_id, model, roi }),
-
-  // 胎儿头围（HC）：检测+测量 / 由轮廓点重测
-  hcRun: (image_id: string, cubs_cf?: number) =>
-    post<HCRunResult>("/hc/run", { image_id, cubs_cf: cubs_cf ?? null }),
-
-  hcMeasure: (points: number[][], cf: number) => post<HCResult>("/hc/measure", { points, cf }),
 
   correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
     post<CorrectionResult>("/correction", { image_id, which, points, imt }),

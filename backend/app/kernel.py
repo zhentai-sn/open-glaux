@@ -12,9 +12,6 @@ import numpy as np
 
 from . import config, dataset, hc_dataset, mock, segment_proc
 from .schemas import (
-    HCEllipse,
-    HCResult,
-    HCRunResult,
     IMTResult,
     IntentResult,
     ModelInfo,
@@ -34,8 +31,6 @@ from glaux_core.contracts import (  # noqa: E402
     task_output_to_dict,
 )
 from glaux_core.io.boundaries import Boundary  # noqa: E402
-from glaux_core.measurement.hc import hc_from_ellipse as _hc_from_ellipse  # noqa: E402
-from glaux_core.measurement.hc import head_circumference as _hc  # noqa: E402
 from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
@@ -129,41 +124,6 @@ def measure(
     )
 
 
-def _hc_result(mm, ell, n_points: int) -> HCResult:
-    return HCResult(
-        hc_mm=round(float(mm.hc_mm), 2),
-        bpd_mm=round(float(mm.bpd_mm), 2),
-        ofd_mm=round(float(mm.ofd_mm), 2),
-        area_mm2=round(float(mm.area_mm2), 1),
-        ellipse=HCEllipse(cx=ell.cx, cy=ell.cy, a=ell.a, b=ell.b, theta=ell.theta),
-        n_points=n_points,
-    )
-
-
-def hc_measure(points: list[list[float]], cf: float) -> HCResult:
-    """由轮廓点算头围（椭圆拟合 + Ramanujan 周长）——用户编辑轮廓后即时重测。"""
-    mm = _hc(np.asarray(points, dtype=float), cf)
-    return _hc_result(mm, mm.ellipse_px, len(points))
-
-
-def hc_run(image_id: str, cf: float, roi: tuple[int, int] | None = None) -> HCRunResult:
-    """HC 规范驱动：真椭圆检测 → 周长测量 → 对真值偏差。"""
-    points, ell, model_version = hc_dataset.detect(image_id, roi)
-    mm = _hc_from_ellipse(ell, cf)
-    base = _hc_result(mm, ell, int(points.shape[0]))
-    vs_gt = round(abs(base.hc_mm - hc_dataset.gt_hc_mm(image_id)), 2)
-    # 轮廓点下采样（叠加/编辑够用，避免传回上千点）
-    step = max(1, points.shape[0] // 240)
-    contour = [[float(x), float(y)] for x, y in points[::step]]
-    return HCRunResult(
-        **base.model_dump(),
-        cf=cf,
-        model_version=model_version,
-        contour=contour,
-        vs_gt_mm=vs_gt,
-    )
-
-
 def tasks() -> list[dict]:
     """任务注册表视图——前端 ``GET /tasks`` 的单一真相源（模态/查看器/工具/度量字段）。
 
@@ -209,6 +169,8 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
         return det, CalibrationResult(cf=float(cf), source=CFSource.CUBS)
 
     if plugin.adapter_kind == "contour":
+        if not spec.image_id or not hc_dataset.is_hc(spec.image_id):
+            raise ValueError(f"非 HC 图像 id：{spec.image_id}——硬拒绝，不在错模态上瞎跑")
         cf = spec.cubs_cf or hc_dataset.cf_of(spec.image_id)
         _points, ell, mv = hc_dataset.detect(spec.image_id, roi)
         det = Detection(

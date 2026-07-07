@@ -54,31 +54,16 @@ class IntentResult(BaseModel):
     backend: str = "rule_based"
 
 
-# --- 测量 / 运行 -------------------------------------------------------------
-
-class MeasureRequest(BaseModel):
-    li: list[list[float]] = Field(description="LI 边界逐点 [[x,y],...]")
-    ma: list[list[float]] = Field(description="MA 边界逐点 [[x,y],...]")
-    cf: float = Field(gt=0, description="标定系数 mm/px")
-    x_window: tuple[float, float] | None = None
-
+# --- 测量 -------------------------------------------------------------------
 
 class IMTResult(BaseModel):
+    """对齐口径测量结果（内核 measure 的返回；仅后端内部与金标准对比用）。"""
+
     mean_mm: float
     max_mm: float
     pdm_mean_mm: float = Field(description="对称 PDM（评测口径）")
     per_column_um: list[float] = Field(default_factory=list)
     n_columns: int = 0
-
-
-class TaskResult(IMTResult):
-    """run_spec 的结果——测量 + provenance。"""
-
-    cf: float
-    cf_source: str = "cubs"
-    model_version: str = ""
-    roi: tuple[int, int] | None = None
-    vs_a1_um: float | None = None  # 与金标准 Manual-A1 的 |bias|（µm）；无 A1 时 None
 
 
 class TaskMeasureRequest(BaseModel):
@@ -102,47 +87,6 @@ class ImageMeta(BaseModel):
     modality: Modality = "carotid_imt"
 
 
-# --- 胎儿头围（HC，闭合轮廓模态） -------------------------------------------
-
-class HCEllipse(BaseModel):
-    """拟合椭圆（像素）——供前端叠加渲染。"""
-
-    cx: float
-    cy: float
-    a: float  # 半长轴
-    b: float  # 半短轴
-    theta: float  # 长轴相对 +x 的旋转（弧度）
-
-
-class HCMeasureRequest(BaseModel):
-    points: list[list[float]] = Field(description="颅骨轮廓逐点 [[x,y],...]，≥5 点")
-    cf: float = Field(gt=0, description="标定系数 mm/px")
-
-
-class HCResult(BaseModel):
-    hc_mm: float  # 头围（椭圆周长）
-    bpd_mm: float  # 双顶径（短轴）
-    ofd_mm: float  # 枕额径（长轴）
-    area_mm2: float
-    ellipse: HCEllipse  # 拟合椭圆（像素）
-    n_points: int = 0
-
-
-class HCRunRequest(BaseModel):
-    image_id: str
-    cubs_cf: float | None = Field(default=None, gt=0)
-    roi: tuple[int, int] | None = None
-
-
-class HCRunResult(HCResult):
-    """HC 规范驱动结果——检测 + 测量 + provenance + 对真值偏差。"""
-
-    cf: float
-    model_version: str = ""
-    contour: list[list[float]] = Field(default_factory=list)  # 检测到的环点（叠加/编辑用）
-    vs_gt_mm: float | None = None  # 与真值椭圆 HC 的 |bias|（mm）；类比 IMT 的 vs_a1
-
-
 # --- 模型（扩展=适配器） -----------------------------------------------------
 
 class ModelInfo(BaseModel):
@@ -152,20 +96,6 @@ class ModelInfo(BaseModel):
     active: bool
     backend: str
     modality: Modality = "carotid_imt"
-
-
-# --- 分割 --------------------------------------------------------------------
-
-class SegmentRequest(BaseModel):
-    image_id: str
-    model: str
-    roi: tuple[int, int] | None = None
-
-
-class SegmentResult(BaseModel):
-    li: list[list[float]]
-    ma: list[list[float]]
-    model_version: str
 
 
 # --- 修正回流 ----------------------------------------------------------------

@@ -179,19 +179,3 @@ def synthetic_png(image_id: str, w: int = 700, h: int = 470) -> bytes:
         + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
         + chunk(b"IEND", b"")
     )
-
-
-def measure(li: list[list[float]], ma: list[list[float]], cf: float) -> dict:
-    """对称 PDM 的 mock：以逐列 (MA-LI)*cf 近似，返回与 IMTResult 一致的形状。"""
-    n = min(len(li), len(ma))
-    if n == 0:
-        return {"mean_mm": 0.0, "max_mm": 0.0, "pdm_mean_mm": 0.0, "per_column_um": [], "n_columns": 0}
-    per_um = [abs(ma[i][1] - li[i][1]) * cf * 1000 for i in range(n)]
-    mean_um = sum(per_um) / n
-    return {
-        "mean_mm": round(mean_um / 1000, 4),
-        "max_mm": round(max(per_um) / 1000, 4),
-        "pdm_mean_mm": round(mean_um / 1000, 4),
-        "per_column_um": [round(v, 2) for v in per_um],
-        "n_columns": n,
-    }

@@ -64,14 +64,6 @@ def test_tasks_registry_exposed():
     assert any(m["key"] == "HC" for m in hc["metrics"])
 
 
-def test_measure_matches_imtresult_shape():
-    li = [[0, 100], [10, 100], [20, 100]]
-    ma = [[0, 116.4], [10, 116.4], [20, 116.4]]
-    r = client.post("/measure", json={"li": li, "ma": ma, "cf": 0.0559}).json()
-    assert set(r) == {"mean_mm", "max_mm", "pdm_mean_mm", "per_column_um", "n_columns"}
-    assert 0.8 < r["mean_mm"] < 1.0  # 16.4px × 0.0559 ≈ 0.917mm
-
-
 def test_images_and_models_shape():
     imgs = client.get("/images").json()
     assert len(imgs) > 0 and imgs[0]["center"] == "CUBS-tech"
@@ -84,13 +76,6 @@ def test_image_returns_png():
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/png"
     assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
-
-
-def test_run_returns_physiological_imt():
-    r = client.post("/run", json={"task": "far_wall_cca_imt", "image_id": _a_demo_id()}).json()
-    assert r["cf_source"] == "cubs"
-    assert 0.3 < r["mean_mm"] < 2.0  # 真实/mock 都落生理区间
-    assert r["n_columns"] > 0
 
 
 def test_correction_provenance():
@@ -113,21 +98,19 @@ def test_real_dataset_cohort():
 
 
 def test_real_segment_caro_and_reference():
+    """segment_proc 直取：caroSegDeep（隔离子进程/缓存）+ 参考方法都出稠密边界。
+
+    （端点已收口到 /task/run；此处直测取数层 segment_proc，保真实子进程/参考方法覆盖。）
+    """
     if not HAS_DATA:
         return
+    from app import segment_proc
+
     i = _a_demo_id()
-    caro = client.post("/segment", json={"image_id": i, "model": "caroSegDeep"}).json()
-    assert len(caro["li"]) > 100 and "caroSegDeep" in caro["model_version"]
-    ref = client.post("/segment", json={"image_id": i, "model": "GT-FAMUS"}).json()
-    assert len(ref["li"]) > 100 and "reference" in ref["model_version"]
-
-
-def test_real_run_hard_rejects_without_cf():
-    if not HAS_DATA:
-        return
-    # 缺 image_id → 无法标定 → 硬拒绝（422，不出假 IMT）
-    r = client.post("/run", json={"task": "far_wall_cca_imt"})
-    assert r.status_code == 422
+    caro_li, _caro_ma, caro_mv = segment_proc.segment(i, "caroSegDeep")
+    assert len(caro_li) > 100 and "caroSegDeep" in caro_mv
+    ref_li, _ref_ma, ref_mv = segment_proc.segment(i, "GT-FAMUS")
+    assert len(ref_li) > 100 and "reference" in ref_mv
 
 
 # --- 第二模态：胎儿头围（HC）------------------------------------------------
@@ -161,23 +144,20 @@ def test_hc_image_returns_png():
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_hc_run_detects_near_ground_truth():
-    r = client.post("/hc/run", json={"image_id": _an_hc_id()}).json()
-    assert 30 < r["hc_mm"] < 350  # 生理量级（真实 HC18 覆盖 ~44–324mm）
-    assert r["ofd_mm"] > r["bpd_mm"]  # 枕额径（长轴）> 双顶径（短轴）
-    # 真检测/合成检测都应贴近参考（真实模型端到端 MAE≈1mm，留裕度）
-    assert r["vs_gt_mm"] is not None and r["vs_gt_mm"] < 10.0
-    assert len(r["contour"]) >= 5 and "ellipse" in r
+def test_hc_task_measure_roundtrips_from_run_primitives():
+    """由 /task/run 输出的椭圆图元重测头围应一致量级（编辑回流一致性）。"""
+    run = client.post("/task/run", json={"task": "fetal_hc", "image_id": _an_hc_id()}).json()
+    m = client.post(
+        "/task/measure",
+        json={"task": "fetal_hc", "primitives": run["primitives"], "cf": run["calibration"]["cf"]},
+    ).json()
+    assert abs(m["metrics"]["HC"]["value"] - run["metrics"]["HC"]["value"]) < 2.0
 
 
-def test_hc_measure_from_contour_roundtrips():
-    run = client.post("/hc/run", json={"image_id": _an_hc_id()}).json()
-    m = client.post("/hc/measure", json={"points": run["contour"], "cf": run["cf"]}).json()
-    assert abs(m["hc_mm"] - run["hc_mm"]) < 2.0  # 由检测轮廓重测应一致量级
-
-
-def test_hc_run_rejects_non_hc_id():
-    assert client.post("/hc/run", json={"image_id": "tech_401"}).status_code == 422
+def test_task_run_rejects_non_hc_id():
+    """HC 任务喂颈动脉图 id → 硬拒绝（422，不在错模态上瞎跑）。"""
+    r = client.post("/task/run", json={"task": "fetal_hc", "image_id": "tech_401"})
+    assert r.status_code == 422
 
 
 def test_hc_intent_routes_to_fetal_task():
@@ -211,7 +191,9 @@ def test_task_run_unified_hc_shape():
     out = r.json()
     assert out["task"] == "fetal_hc"
     assert "HC" in out["metrics"]
+    assert 30 < out["metrics"]["HC"]["value"] < 350  # 生理量级（HC18 ~44–324mm）
     assert out["metrics"]["OFD"]["value"] > out["metrics"]["BPD"]["value"]  # 长轴 > 短轴
+    assert out["metrics"]["vs_GT"]["value"] < 10.0  # 贴近参考（真模型端到端 MAE≈1mm，留裕度）
     assert any(p["kind"] == "ellipse" for p in out["primitives"])
 
 

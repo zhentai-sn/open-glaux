@@ -19,22 +19,6 @@ export interface IntentResult {
   backend: string;
 }
 
-export interface IMTResult {
-  mean_mm: number;
-  max_mm: number;
-  pdm_mean_mm: number;
-  per_column_um: number[];
-  n_columns: number;
-}
-
-export interface TaskResult extends IMTResult {
-  cf: number;
-  cf_source: string;
-  model_version: string;
-  roi?: [number, number] | null;
-  vs_a1_um?: number | null;
-}
-
 export interface ImageMeta {
   id: string;
   center: string;
@@ -60,28 +44,6 @@ export interface HCEllipse {
   a: number; // 半长轴
   b: number; // 半短轴
   theta: number; // 长轴相对 +x 的旋转（弧度）
-}
-
-export interface HCResult {
-  hc_mm: number;
-  bpd_mm: number;
-  ofd_mm: number;
-  area_mm2: number;
-  ellipse: HCEllipse;
-  n_points: number;
-}
-
-export interface HCRunResult extends HCResult {
-  cf: number;
-  model_version: string;
-  contour: [number, number][];
-  vs_gt_mm: number | null;
-}
-
-export interface SegmentResult {
-  li: [number, number][];
-  ma: [number, number][];
-  model_version: string;
 }
 
 export interface CorrectionResult {
