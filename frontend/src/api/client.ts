@@ -1,17 +1,23 @@
 // 类型化 API 客户端。走同源 /api（dev 由 Vite 反代到 FastAPI:8000，生产同源部署）。
 import type {
   CorrectionResult,
+  Detection,
   HCResult,
   HCRunResult,
   ImageMeta,
   IMTResult,
   IntentBackendInfo,
   IntentResult,
+  MeasurementResult,
   Modality,
   ModelInfo,
+  Primitive,
   SegmentResult,
+  TaskOutput,
   TaskResult,
   TaskSpec,
+  TaskType,
+  TaskView,
 } from "./types";
 
 const BASE = "/api";
@@ -98,4 +104,15 @@ export const api = {
 
   correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
     post<CorrectionResult>("/correction", { image_id, which, points, imt }),
+
+  // --- 统一驱动（多模态·P2）——注册表 + /task/*，逐步取代上面的逐模态方法 -----
+  /** 任务注册表：模态切换器/工具栏/度量字段的单一真相源。 */
+  tasks: () => get<TaskView[]>("/tasks"),
+  /** 统一驱动：取数 → 测量 → TaskOutput（多模态通吃）。 */
+  taskRun: (spec: TaskSpec) => post<TaskOutput>("/task/run", spec),
+  /** 只检测几何原语（不测量）。 */
+  taskDetect: (spec: TaskSpec) => post<Detection>("/task/detect", spec),
+  /** 由编辑后的图元重测（泛型替代 measure + hcMeasure）。 */
+  taskMeasure: (task: TaskType, primitives: Primitive[], cf: number) =>
+    post<MeasurementResult>("/task/measure", { task, primitives, cf }),
 };

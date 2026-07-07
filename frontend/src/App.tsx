@@ -13,11 +13,18 @@ import { useSession } from "./store/session";
 
 export function App() {
   const setModels = useSession((s) => s.setModels);
+  const setTasks = useSession((s) => s.setTasks);
   const setIntentBackends = useSession((s) => s.setIntentBackends);
   const { seedFromCurrent } = useAgent();
 
   useEffect(() => {
     void (async () => {
+      // 任务注册表（多模态切换器/工具/度量的单一真相源）——P2 前端据此去 if 模态
+      try {
+        setTasks(await api.tasks());
+      } catch {
+        /* 后端未起时不阻塞外壳 */
+      }
       // 已装分割适配器（活动栏角标 + Models 视图 + Agent 徽标）
       try {
         setModels(await api.models());

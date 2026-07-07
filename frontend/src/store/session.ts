@@ -1,7 +1,15 @@
 import { create } from "zustand";
 
 import type { I18nKey } from "../i18n";
-import type { HCEllipse, ImageMeta, IntentBackendInfo, Modality, ModelInfo, Scope } from "../api/types";
+import type {
+  HCEllipse,
+  ImageMeta,
+  IntentBackendInfo,
+  Modality,
+  ModelInfo,
+  Scope,
+  TaskView,
+} from "../api/types";
 
 export type IntentBackendId = "rule" | "vlm";
 
@@ -79,6 +87,7 @@ interface SessionState {
   tool: Tool;
 
   // 领域
+  tasks: TaskView[]; // 任务注册表（GET /tasks）——切换器/工具/度量的真相源
   modality: Modality; // 当前模态（颈动脉 IMT / 胎儿 HC）
   activeImage: string | null;
   activeModel: string;
@@ -108,6 +117,7 @@ interface SessionState {
   setPanelTab: (t: PanelTab) => void;
   togglePanel: () => void;
   setTool: (t: Tool) => void;
+  setTasks: (t: TaskView[]) => void;
   setModality: (m: Modality) => void;
   setActiveImage: (id: string | null) => void;
   setModels: (m: ModelInfo[]) => void;
@@ -140,6 +150,7 @@ export const useSession = create<SessionState>((set) => ({
   panelCollapsed: false,
   tool: "cursor",
 
+  tasks: [],
   modality: "carotid_imt",
   activeImage: null,
   activeModel: "caroSegDeep",
@@ -166,6 +177,7 @@ export const useSession = create<SessionState>((set) => ({
   setPanelTab: (t) => set({ panelTab: t }),
   togglePanel: () => set((s) => ({ panelCollapsed: !s.panelCollapsed })),
   setTool: (t) => set({ tool: t }),
+  setTasks: (t) => set({ tasks: t }),
   setModality: (m) => set({ modality: m }),
   setActiveImage: (id) => set({ activeImage: id }),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),

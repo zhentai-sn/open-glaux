@@ -95,3 +95,83 @@ export interface IntentBackendInfo {
   available: boolean;
   reason: string;
 }
+
+// --- 统一信封（多模态·P2）——镜像 glaux_core.contracts + /task/* 端点 ---------
+
+export interface Measure {
+  value: number;
+  unit: string;
+  label_en: string;
+  label_zh: string;
+}
+
+export interface Calibration {
+  cf: number;
+  source: string;
+  provenance: Record<string, unknown>;
+}
+
+/** 带类型的几何原语（前端泛型渲染 / 编辑）——kind 判别，镜像 primitive_to_dict。 */
+export type Primitive =
+  | { kind: "polyline"; id: string; role: string; points: number[][]; closed: boolean }
+  | { kind: "ellipse"; id: string; role: string; cx: number; cy: number; a: number; b: number; theta: number }
+  | { kind: "mask"; id: string; role: string; ref: string };
+
+export interface Detection {
+  primitives: Primitive[];
+  model_version: string;
+  roi_used: [number, number] | null;
+  meta: Record<string, unknown>;
+}
+
+/** 驱动层产物——度量字典 + 待绘几何 + 标定 + provenance（POST /task/run）。 */
+export interface TaskOutput {
+  task: TaskType;
+  metrics: Record<string, Measure>;
+  primitives: Primitive[];
+  calibration: Calibration;
+  provenance: Record<string, unknown>;
+}
+
+/** 拖动重测结果（POST /task/measure）。 */
+export interface MeasurementResult {
+  metrics: Record<string, Measure>;
+  calibration: Calibration;
+  overlays: Primitive[];
+}
+
+// --- 任务注册表视图（GET /tasks）——前端渲染切换器/工具/度量的单一真相源 -------
+
+export interface Bilingual {
+  en: string;
+  zh: string;
+}
+
+export interface TaskMetricDef {
+  key: string;
+  unit: string;
+  label: Bilingual;
+}
+
+export interface TaskToolDef {
+  id: string;
+  glyph: string;
+  label: Bilingual;
+}
+
+export interface TaskOverlaySpec {
+  role: string;
+  color: string;
+  editable: boolean;
+}
+
+export interface TaskView {
+  task: TaskType;
+  adapter_kind: string;
+  label: Bilingual;
+  default_method: string;
+  viewer: string;
+  metrics: TaskMetricDef[];
+  tools: TaskToolDef[];
+  overlays: TaskOverlaySpec[];
+}
