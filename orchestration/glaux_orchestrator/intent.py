@@ -15,14 +15,8 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 
-from glaux_orchestrator.spec import (
-    TASKS,
-    IntentResult,
-    Scope,
-    TaskSpec,
-    TaskType,
-    task_for_signals,
-)
+from glaux_orchestrator.spec import IntentResult, Scope, TaskSpec, TaskType
+from glaux_orchestrator.tasks import REGISTRY, task_for_signals
 
 
 class IntentBackendUnavailable(Exception):
@@ -80,7 +74,7 @@ class RuleBasedBackend(IntentBackend):
 
         # --- 命中某注册任务的信号词最优先 → in-scope（即便另含泛词）
         if task is not None:
-            td = TASKS[task]
+            td = REGISTRY[task]
             spec = TaskSpec(
                 task=task,
                 image_path=image_path,
@@ -92,7 +86,7 @@ class RuleBasedBackend(IntentBackend):
 
         # --- 明确的他解剖/他任务 → 超范围（当前仅支持已注册任务）
         if has_oos:
-            supported = "、".join(t.label_zh for t in TASKS.values())
+            supported = "、".join(t.label_zh for t in REGISTRY.values())
             return IntentResult(
                 Scope.OUT_OF_SCOPE, None,
                 f"目标超出当前能力（仅支持：{supported}）", self.name,
@@ -230,6 +224,6 @@ class ClaudeVLMBackend(IntentBackend):
                 )
             spec = TaskSpec(
                 task=task, image_path=image_path, cubs_cf=cubs_cf, roi=roi,
-                method=TASKS[task].default_method,
+                method=REGISTRY[task].default_method,
             )
         return IntentResult(scope, spec, reason, self.name)

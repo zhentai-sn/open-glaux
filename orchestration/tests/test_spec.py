@@ -3,13 +3,14 @@
 import numpy as np
 import pytest
 
+from glaux_core.contracts import TaskOutput
 from glaux_core.errors import HardReject
 from glaux_core.io.contour import Ellipse
 from glaux_core.segmentation.contour import EllipseContourStub
 from glaux_core.segmentation.stub import ConstantThicknessAdapter
 
 from glaux_orchestrator.intent import ClaudeVLMBackend, IntentBackendUnavailable, RuleBasedBackend
-from glaux_orchestrator.run import HCTaskResult, TaskResult, interpret_and_run, run_spec
+from glaux_orchestrator.run import interpret_and_run, run_spec
 from glaux_orchestrator.spec import IntentResult, Scope, TaskSpec, TaskType
 
 
@@ -94,15 +95,15 @@ def test_spec_drives_kernel_e2e():
     spec = TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.06)
     adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
     res = run_spec(spec, adapter, _image())
-    assert isinstance(res, TaskResult)
-    assert res.mean_mm == pytest.approx(0.48)  # 8px × 0.06
-    assert res.cf_source == "cubs"
+    assert isinstance(res, TaskOutput)
+    assert res.metrics["IMT_mean"].value == pytest.approx(0.48)  # 8px × 0.06
+    assert res.calibration.source.value == "cubs"
 
 
 def test_interpret_and_run_in_scope_executes():
     adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
     res = interpret_and_run("测这张图远壁颈动脉 IMT", adapter, _image(), cubs_cf=0.06)
-    assert isinstance(res, TaskResult) and res.mean_mm == pytest.approx(0.48)
+    assert isinstance(res, TaskOutput) and res.metrics["IMT_mean"].value == pytest.approx(0.48)
 
 
 def test_interpret_and_run_out_of_scope_does_not_touch_kernel():
@@ -124,11 +125,11 @@ def test_hc_spec_drives_contour_kernel_e2e():
     ell = Ellipse(cx=100, cy=90, a=80, b=60, theta=0.0)  # cf=0.1 → HC=周长×0.1 mm
     spec = TaskSpec(task=TaskType.FETAL_HC, cubs_cf=0.1, method="ellipse-fit")
     res = run_spec(spec, EllipseContourStub(ell), _image())
-    assert isinstance(res, HCTaskResult)
-    assert res.hc_mm == pytest.approx(ell.circumference() * 0.1, rel=1e-6)
-    assert res.bpd_mm == pytest.approx(2 * 60 * 0.1)  # 短轴
-    assert res.ofd_mm == pytest.approx(2 * 80 * 0.1)  # 长轴
-    assert res.cf_source == "cubs"
+    assert isinstance(res, TaskOutput)
+    assert res.metrics["HC"].value == pytest.approx(ell.circumference() * 0.1, rel=1e-6)
+    assert res.metrics["BPD"].value == pytest.approx(2 * 60 * 0.1)  # 短轴
+    assert res.metrics["OFD"].value == pytest.approx(2 * 80 * 0.1)  # 长轴
+    assert res.calibration.source.value == "cubs"
 
 
 def test_hc_wrong_adapter_type_rejected():
@@ -140,8 +141,8 @@ def test_hc_wrong_adapter_type_rejected():
 def test_interpret_and_run_hc_end_to_end():
     ell = Ellipse(cx=110, cy=95, a=90, b=65, theta=0.2)
     res = interpret_and_run("测这张胎儿超声的头围", EllipseContourStub(ell), _image(), cubs_cf=0.12)
-    assert isinstance(res, HCTaskResult)
-    assert res.hc_mm == pytest.approx(ell.circumference() * 0.12, rel=1e-6)
+    assert isinstance(res, TaskOutput)
+    assert res.metrics["HC"].value == pytest.approx(ell.circumference() * 0.12, rel=1e-6)
 
 
 # --- VLM 后端：可用性探测 + 不可用时显式失败（不臆造、不静默） ---------------
