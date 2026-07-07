@@ -8,6 +8,7 @@ import type {
   Measure,
   Modality,
   ModelInfo,
+  Primitive,
   Scope,
   TaskView,
 } from "../api/types";
@@ -96,6 +97,7 @@ interface SessionState {
   images: ImageMeta[]; // 数据集列表（Explorer）
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods）
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板真相源
+  primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
   boundaries: Boundaries | null; // 当前叠加边界（IMT，画布用；由 primitives 派生）
   measurement: Measurement | null; // 当前测量（IMT，agent/状态栏用；由 metrics 派生）
   hcContour: HCContour | null; // 当前颅骨轮廓 + 椭圆（HC）
@@ -127,6 +129,7 @@ interface SessionState {
   setImages: (m: ImageMeta[]) => void;
   setImageMeta: (m: ImageMeta | null) => void;
   setMetrics: (m: Record<string, Measure> | null) => void;
+  setPrimitives: (p: Primitive[]) => void;
   setBoundaries: (b: Boundaries | null) => void;
   setMeasurement: (m: Measurement | null) => void;
   setHcContour: (c: HCContour | null) => void;
@@ -161,6 +164,7 @@ export const useSession = create<SessionState>((set) => ({
   images: [],
   imageMeta: null,
   metrics: null,
+  primitives: [],
   boundaries: null,
   measurement: null,
   hcContour: null,
@@ -193,6 +197,7 @@ export const useSession = create<SessionState>((set) => ({
   setImages: (m) => set({ images: m }),
   setImageMeta: (m) => set({ imageMeta: m }),
   setMetrics: (m) => set({ metrics: m }),
+  setPrimitives: (p) => set({ primitives: p }),
   setBoundaries: (b) => set({ boundaries: b }),
   setMeasurement: (m) =>
     set({ measurement: m, imt: m ? m.pdm_mean_mm.toFixed(3) : "—" }),

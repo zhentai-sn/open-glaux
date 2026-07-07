@@ -13,6 +13,7 @@ type Ell = Extract<Primitive, { kind: "ellipse" }>;
 function clearOverlays(): void {
   const s = useSession.getState();
   s.setMetrics(null);
+  s.setPrimitives([]);
   s.setBoundaries(null);
   s.setMeasurement(null);
   s.setHcContour(null);
@@ -56,6 +57,7 @@ export async function segmentAndMeasure(imageId: string, model: string): Promise
     const ma = res.primitives.find((p): p is Poly => p.kind === "polyline" && p.role === "MA");
     const m = res.metrics;
     useSession.getState().setMetrics(m);
+    useSession.getState().setPrimitives(res.primitives);
     if (li && ma) {
       useSession.getState().setBoundaries({
         li: li.points,
@@ -90,6 +92,7 @@ export async function hcDetectAndMeasure(imageId: string): Promise<string | null
     const ell = res.primitives.find((p): p is Ell => p.kind === "ellipse");
     const m = res.metrics;
     useSession.getState().setMetrics(m);
+    useSession.getState().setPrimitives(res.primitives);
     if (ell) {
       useSession.getState().setHcContour({
         points: [],

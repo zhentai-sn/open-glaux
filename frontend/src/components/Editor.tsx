@@ -1,8 +1,7 @@
-import { AnnotationCanvas } from "./AnnotationCanvas";
 import { BottomPanel } from "./BottomPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { HCCanvas } from "./HCCanvas";
 import { Rich } from "./Rich";
+import { Viewer } from "./Viewer";
 import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
@@ -63,7 +62,7 @@ export function Editor() {
       <div className="editor">
         {image ? (
           <>
-            <ErrorBoundary label="canvas">{isHC ? <HCCanvas /> : <AnnotationCanvas />}</ErrorBoundary>
+            <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>
             <div className="hud">
               <Rich k={isHC ? "hud_mode_hc" : "hud_mode"} className="tagpill" />
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
