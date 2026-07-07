@@ -31,6 +31,9 @@ export async function switchModality(modality: Modality): Promise<void> {
   s.setImageMeta(null);
   clearOverlays();
   s.setTool("cursor");
+  // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
+  const pick = s.models.find((m) => m.modality === modality && m.active);
+  if (pick) useSession.setState({ activeModel: pick.id });
   const imgs = await api.images(modality);
   useSession.getState().setImages(imgs);
   if (imgs.length) await selectImage(imgs[0].id);

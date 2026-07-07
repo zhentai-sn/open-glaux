@@ -25,7 +25,7 @@ export function Editor() {
   const { t } = useI18n();
   const modality = useSession((s) => s.modality);
   const image = useSession((s) => s.activeImage);
-  const center = useSession((s) => s.imageMeta?.center ?? (modality === "fetal_hc" ? "synthetic-HC" : "CUBS-tech"));
+  const center = useSession((s) => s.imageMeta?.center ?? (modality === "fetal_hc" ? "HC18" : "CUBS-tech"));
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
@@ -94,7 +94,7 @@ export function Editor() {
                 </button>
               ))}
             </div>
-            <span className="repr">{t(isHC ? "repr_hc" : "repr")}</span>
+            <span className="repr">{t(isHC ? (center === "synthetic-HC" ? "repr_hc_synth" : "repr_hc") : "repr")}</span>
             {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t(isHC ? "hc_detecting" : "segmenting")}</span>}
           </>
         ) : (

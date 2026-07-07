@@ -95,7 +95,7 @@ function OutputView() {
         {logline(<>interpret → <span className="ok">in_scope</span> fetal_hc</>, "i")}
         {logline(<>calibrate → {cf ?? "—"} mm/px</>, "c")}
         {logline(<>detect → {hcC.modelVersion} · {hcC.points.length} ring pts</>, "s")}
-        {logline(<>measure → ellipse-fit · Ramanujan · <span className="ok">HC {hcM.hc_mm.toFixed(1)} mm</span> · vs GT {hcM.vs_gt_mm == null ? "—" : hcM.vs_gt_mm.toFixed(2)} mm</>, "m")}
+        {logline(<>measure → ellipse-fit · Ramanujan perimeter · <span className="ok">HC {hcM.hc_mm.toFixed(1)} mm</span> · vs GT {hcM.vs_gt_mm == null ? "—" : hcM.vs_gt_mm.toFixed(2)} mm</>, "m")}
       </div>
     );
   }

@@ -83,13 +83,15 @@ function ExplorerView() {
   const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
   const methods = useSession((s) => s.imageMeta?.methods ?? []);
+  const center = useSession((s) => s.imageMeta?.center);
   const shown = images.slice(0, IMG_LIMIT);
   const rest = images.length - shown.length;
   const isHC = modality === "fetal_hc";
-  const ws = isHC ? "synthetic-HC" : "CUBS-tech";
+  // 工作区/方法名读真实元数据（HC18 + CSM），无数据时回退默认。
+  const ws = center ?? (isHC ? "HC18" : "CUBS-tech");
   const methodsDir = isHC ? "ellipse-profiles" : "LIMA-Profiles";
   const goldMethod = isHC ? "GT-ellipse" : "Manual-A1";
-  const agentMethod = isHC ? "ellipse-fit" : "caroSegDeep";
+  const agentMethod = isHC ? (methods.find((m) => m !== goldMethod) ?? "CSM") : "caroSegDeep";
 
   return (
     <div className="sb-view">
