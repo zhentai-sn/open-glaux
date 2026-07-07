@@ -69,6 +69,7 @@ class TaskPlugin:
 
     task: TaskType
     adapter_kind: str  # 需要的适配器几何族："wall_pair" / "contour" / "mask" / ...
+    modality: str  # 数据模态（前端切换器/数据集路由）："carotid_imt" / "fetal_hc" / ...
     label_en: str
     label_zh: str
     signals: tuple[str, ...]  # 规则意图后端的关键词信号（中英，小写）
@@ -133,6 +134,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
     TaskType.FAR_WALL_CCA_IMT: TaskPlugin(
         task=TaskType.FAR_WALL_CCA_IMT,
         adapter_kind="wall_pair",
+        modality="carotid_imt",
         label_en="Carotid far-wall IMT",
         label_zh="颈动脉远壁 IMT",
         signals=(
@@ -161,6 +163,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
     TaskType.FETAL_HC: TaskPlugin(
         task=TaskType.FETAL_HC,
         adapter_kind="contour",
+        modality="fetal_hc",
         label_en="Fetal head circumference",
         label_zh="胎儿头围",
         signals=(
@@ -200,6 +203,7 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
     return {
         "task": plugin.task.value,
         "adapter_kind": plugin.adapter_kind,
+        "modality": plugin.modality,
         "label": {"en": plugin.label_en, "zh": plugin.label_zh},
         "default_method": plugin.default_method,
         "viewer": plugin.viewer,

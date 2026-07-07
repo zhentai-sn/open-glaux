@@ -168,6 +168,7 @@ export interface TaskOverlaySpec {
 export interface TaskView {
   task: TaskType;
   adapter_kind: string;
+  modality: Modality;
   label: Bilingual;
   default_method: string;
   viewer: string;

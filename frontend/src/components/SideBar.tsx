@@ -3,28 +3,28 @@ import { useState, type ReactNode } from "react";
 import { reRunActiveModel, selectImage, switchModality } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
-import type { Modality } from "../api/types";
 
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
 
-// 模态切换（颈动脉 IMT ⇄ 胎儿 HC）——换数据集/画布/测量口径。
+// 模态切换——从任务注册表（GET /tasks）派生，不再硬编码模态数组/标签。
+// 一模态多任务时按模态去重（取该模态首个任务的标签）。加模态 = 后端注册一行，前端零改。
 function ModalitySwitch() {
-  const { t } = useI18n();
+  const { lang } = useI18n();
   const modality = useSession((s) => s.modality);
-  const opts: { id: Modality; key: "mod_carotid" | "mod_fetal" }[] = [
-    { id: "carotid_imt", key: "mod_carotid" },
-    { id: "fetal_hc", key: "mod_fetal" },
-  ];
+  const tasks = useSession((s) => s.tasks);
+  const seen = new Set<string>();
+  const opts = tasks.filter((tk) => (seen.has(tk.modality) ? false : (seen.add(tk.modality), true)));
+  if (opts.length < 2) return null; // 单模态无需切换器
   return (
     <div className="modsw">
-      {opts.map((o) => (
+      {opts.map((tk) => (
         <button
-          key={o.id}
-          className={"modseg" + (modality === o.id ? " on" : "")}
-          onClick={() => void switchModality(o.id)}
+          key={tk.modality}
+          className={"modseg" + (modality === tk.modality ? " on" : "")}
+          onClick={() => void switchModality(tk.modality)}
         >
-          {t(o.key)}
+          {tk.label[lang]}
         </button>
       ))}
     </div>
