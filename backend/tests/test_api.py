@@ -188,3 +188,54 @@ def test_models_include_both_modalities():
     ids = {m["id"]: m for m in client.get("/models").json()}
     hc_method = "CSM" if HAS_HC_DATA else "ellipse-fit"  # 真实用 CSM，合成用亮环椭圆
     assert hc_method in ids and ids[hc_method]["modality"] == "fetal_hc"
+
+
+# --- 统一驱动端点（P2.0：/task/run · /task/detect · /task/measure，多模态通吃） --
+
+def test_task_run_unified_imt_shape():
+    r = client.post("/task/run", json={"task": "far_wall_cca_imt", "image_id": _a_demo_id()})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["task"] == "far_wall_cca_imt"
+    assert out["metrics"]["IMT_mean"]["unit"] == "mm"
+    assert 0.3 < out["metrics"]["IMT_mean"]["value"] < 2.0  # 生理区间（真实/mock 都成立）
+    roles = [p["role"] for p in out["primitives"] if p["kind"] == "polyline"]
+    assert "LI" in roles and "MA" in roles
+    assert out["calibration"]["cf"] > 0 and out["calibration"]["source"] == "cubs"
+
+
+def test_task_run_unified_hc_shape():
+    r = client.post("/task/run", json={"task": "fetal_hc", "image_id": _an_hc_id()})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["task"] == "fetal_hc"
+    assert "HC" in out["metrics"]
+    assert out["metrics"]["OFD"]["value"] > out["metrics"]["BPD"]["value"]  # 长轴 > 短轴
+    assert any(p["kind"] == "ellipse" for p in out["primitives"])
+
+
+def test_task_detect_returns_primitives_only():
+    r = client.post("/task/detect", json={"task": "fetal_hc", "image_id": _an_hc_id()})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["model_version"] and any(p["kind"] == "ellipse" for p in d["primitives"])
+    assert "metrics" not in d  # detect 只出几何，不测量
+
+
+def test_task_measure_reflows_from_edited_primitives():
+    prims = [
+        {"kind": "polyline", "id": "LI", "role": "LI",
+         "points": [[0, 100], [10, 100], [20, 100]], "closed": False},
+        {"kind": "polyline", "id": "MA", "role": "MA",
+         "points": [[0, 116.4], [10, 116.4], [20, 116.4]], "closed": False},
+    ]
+    r = client.post("/task/measure",
+                    json={"task": "far_wall_cca_imt", "primitives": prims, "cf": 0.0559})
+    assert r.status_code == 200, r.text
+    assert 0.8 < r.json()["metrics"]["IMT_mean"]["value"] < 1.0  # 16.4px × 0.0559 ≈ 0.917
+
+
+def test_task_run_hard_rejects_without_calibration():
+    if not HAS_DATA:
+        return  # 无数据时 wall_pair 走 mock（无需 image_id），不触发硬拒绝
+    assert client.post("/task/run", json={"task": "far_wall_cca_imt"}).status_code == 422

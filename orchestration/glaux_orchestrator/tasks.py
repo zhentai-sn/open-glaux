@@ -97,6 +97,7 @@ def measure_imt(det: Detection, cal: CalibrationResult) -> Measurement:
         _polyline_to_boundary(by_role["LI"], "LI"),
         _polyline_to_boundary(by_role["MA"], "MA"),
         cal.cf,
+        x_window=det.roi_used,  # ROI 列窗（对齐原 /run 口径；None → 全公共支撑）
     )
     return Measurement(
         metrics={

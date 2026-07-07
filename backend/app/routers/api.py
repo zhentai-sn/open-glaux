@@ -35,6 +35,7 @@ from ..schemas import (
     ModelInfo,
     SegmentRequest,
     SegmentResult,
+    TaskMeasureRequest,
     TaskResult,
     TaskSpec,
 )
@@ -191,6 +192,48 @@ def tasks() -> list[dict]:
     if not KERNEL_OK:
         raise HTTPException(503, "任务注册表需 science-core（未装配）")
     return kernel.tasks()
+
+
+# --- 统一驱动端点（多模态·P2.0；与旧端点并存，P2.5 删旧） -------------------
+
+@router.post("/task/run", tags=["task"])
+def task_run(spec: TaskSpec) -> dict:
+    """统一驱动：取数 → 测量 → TaskOutput（度量字典 + 待绘 primitives + 金标准对比）。
+
+    多模态通吃（IMT/HC/…）：桥接子进程/缓存流到统一信封。缺标定→422，检测不可用→503。
+    """
+    if not KERNEL_OK:
+        raise HTTPException(503, "统一驱动需 science-core（未装配）")
+    try:
+        return kernel.run_task(spec)
+    except ValueError as e:  # 缺标定 / 缺 image_id / 测量前置不满足 → 硬拒绝
+        raise HTTPException(422, str(e)) from e
+    except Exception as e:  # 分割/检测不可用（子进程/隔离环境/缓存缺失）
+        raise HTTPException(503, f"检测/运行不可用：{e}") from e
+
+
+@router.post("/task/detect", tags=["task"])
+def task_detect(spec: TaskSpec) -> dict:
+    """只检测几何原语（不测量）——供渲染/未测状态。返回 Detection（primitives + model_version）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "统一检测需 science-core（未装配）")
+    try:
+        return kernel.detect_task(spec)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except Exception as e:
+        raise HTTPException(503, f"检测不可用：{e}") from e
+
+
+@router.post("/task/measure", tags=["task"])
+def task_measure(req: TaskMeasureRequest) -> dict:
+    """统一测量：由前端编辑后的图元重测（泛型替代 /measure + /hc/measure）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "统一测量需 science-core（未装配）")
+    try:
+        return kernel.measure_task(req.task, req.primitives, req.cf)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
 
 
 @router.get("/models", response_model=list[ModelInfo], tags=["models"])

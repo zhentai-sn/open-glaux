@@ -81,6 +81,17 @@ class TaskResult(IMTResult):
     vs_a1_um: float | None = None  # 与金标准 Manual-A1 的 |bias|（µm）；无 A1 时 None
 
 
+class TaskMeasureRequest(BaseModel):
+    """统一测量（多模态）——前端编辑几何后携任务 + 图元 + 标定重测。
+
+    ``primitives`` 为 :func:`glaux_core.contracts.primitive_to_dict` 的形状（带 kind 判别）。
+    """
+
+    task: TaskType
+    primitives: list[dict] = Field(description="编辑后的几何原语 [{kind,...},...]")
+    cf: float = Field(gt=0, description="标定系数 mm/px")
+
+
 # --- 数据集 / 影像 -----------------------------------------------------------
 
 class ImageMeta(BaseModel):

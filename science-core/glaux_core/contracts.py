@@ -169,3 +169,42 @@ def task_output_to_dict(o: TaskOutput) -> dict:
         "calibration": calibration_to_dict(o.calibration),
         "provenance": dict(o.provenance),
     }
+
+
+def detection_to_dict(d: Detection) -> dict:
+    """检测信封 → JSON-native dict（供 ``POST /task/detect``）。"""
+    return {
+        "primitives": [primitive_to_dict(p) for p in d.primitives],
+        "model_version": d.model_version,
+        "roi_used": list(d.roi_used) if d.roi_used is not None else None,
+        "meta": dict(d.meta),
+    }
+
+
+def measurement_to_dict(m: Measurement) -> dict:
+    """测量信封 → JSON-native dict（供 ``POST /task/measure`` 拖动重测）。"""
+    return {
+        "metrics": {k: measure_to_dict(v) for k, v in m.metrics.items()},
+        "calibration": calibration_to_dict(m.calibration),
+        "overlays": [primitive_to_dict(p) for p in m.overlays],
+    }
+
+
+def primitive_from_dict(d: dict) -> Primitive:
+    """带 ``kind`` 判别的 dict → 几何原语（``POST /task/measure`` 反序列化前端编辑后的图元）。"""
+    kind = d.get("kind")
+    if kind == "polyline":
+        return Polyline(
+            id=d["id"], role=d["role"],
+            points=tuple((float(x), float(y)) for x, y in d["points"]),
+            closed=bool(d.get("closed", False)),
+        )
+    if kind == "ellipse":
+        return EllipseShape(
+            id=d["id"], cx=float(d["cx"]), cy=float(d["cy"]),
+            a=float(d["a"]), b=float(d["b"]), theta=float(d["theta"]),
+            role=d.get("role", "ellipse"),
+        )
+    if kind == "mask":
+        return Mask(id=d["id"], ref=d["ref"], role=d.get("role", "mask"))
+    raise ValueError(f"未知 primitive kind：{kind!r}")

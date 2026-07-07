@@ -10,7 +10,7 @@ import base64
 
 import numpy as np
 
-from . import config, dataset, hc_dataset
+from . import config, dataset, hc_dataset, mock, segment_proc
 from .schemas import (
     HCEllipse,
     HCResult,
@@ -22,12 +22,24 @@ from .schemas import (
 )
 
 # science-core / orchestration（经 config 挂上 sys.path）
+from glaux_core.calibration.calibration import CalibrationResult, CFSource  # noqa: E402
+from glaux_core.contracts import (  # noqa: E402
+    Detection,
+    EllipseShape,
+    Polyline,
+    TaskOutput,
+    detection_to_dict,
+    measurement_to_dict,
+    primitive_from_dict,
+    task_output_to_dict,
+)
 from glaux_core.io.boundaries import Boundary  # noqa: E402
 from glaux_core.measurement.hc import hc_from_ellipse as _hc_from_ellipse  # noqa: E402
 from glaux_core.measurement.hc import head_circumference as _hc  # noqa: E402
 from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
+from glaux_orchestrator.spec import TaskType as _TaskType  # noqa: E402
 from glaux_orchestrator.tasks import REGISTRY as _REGISTRY  # noqa: E402
 from glaux_orchestrator.tasks import plugin_to_view as _plugin_to_view  # noqa: E402
 
@@ -159,6 +171,136 @@ def tasks() -> list[dict]:
     前端据此渲染任务切换器 / 工具栏 / 测量面板，**不再硬编码 if 模态**。
     """
     return [_plugin_to_view(p) for p in _REGISTRY.values()]
+
+
+# --- 统一驱动（P2.0）：桥接子进程/缓存流 → 统一信封 -------------------------
+
+
+def _polyline(role: str, pts) -> Polyline:
+    return Polyline(id=role, role=role, points=tuple((float(x), float(y)) for x, y in pts))
+
+
+def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
+    """按任务几何族在**数据入口边界**取数 → 统一 Detection + 标定。
+
+    这是后端唯一保留的 adapter_kind 分派：表征层数据源天然不同（CUBS tiff+CF+子进程缓存
+    vs HC18/合成椭圆检测），**非任务逻辑分派**。无 CUBS 数据时 wall_pair 回退 mock 合成边界。
+    缺标定 → ValueError（映射 422 硬拒绝，不出假值）。
+    """
+    plugin = _REGISTRY[_TaskType(spec.task)]
+    roi = tuple(spec.roi) if spec.roi else None
+    if plugin.adapter_kind == "wall_pair":
+        if config.data_available():
+            if not spec.image_id:
+                raise ValueError("run 需要 image_id")
+            cf = spec.cubs_cf or dataset.cf_of(spec.image_id)
+            if not cf:
+                raise ValueError(f"标定不可用：{spec.image_id} 无 CF——硬拒绝，不出假 IMT")
+            li, ma, mv = segment_proc.segment(spec.image_id, spec.method or dataset.CARO)
+        else:  # 无 CUBS 数据 → mock 合成边界（形状即契约）
+            cf = spec.cubs_cf or mock.CF_CANONICAL
+            li, ma = mock.segment_boundaries(spec.roi)
+            mv = f"{spec.method or dataset.CARO}@mock"
+        det = Detection(
+            primitives=(_polyline("LI", li), _polyline("MA", ma)),
+            model_version=mv,
+            roi_used=roi,
+        )
+        return det, CalibrationResult(cf=float(cf), source=CFSource.CUBS)
+
+    if plugin.adapter_kind == "contour":
+        cf = spec.cubs_cf or hc_dataset.cf_of(spec.image_id)
+        _points, ell, mv = hc_dataset.detect(spec.image_id, roi)
+        det = Detection(
+            primitives=(EllipseShape.from_ellipse(ell, id="skull", role="skull"),),
+            model_version=mv,
+            roi_used=roi,
+        )
+        return det, CalibrationResult(cf=float(cf), source=CFSource.CUBS)
+
+    raise ValueError(f"未支持的 adapter_kind：{plugin.adapter_kind}")  # pragma: no cover
+
+
+def _round_metric_values(d: dict) -> None:
+    """展示层取整（内核数值原生，取整只在序列化边界做）。"""
+    for m in d.get("metrics", {}).values():
+        v = m.get("value")
+        if isinstance(v, float):
+            m["value"] = round(v, 4)
+
+
+def _enrich_gold(d: dict, spec: TaskSpec, plugin, cal: CalibrationResult) -> None:
+    """后端特有增强：与金标准的 |bias|（IMT vs Manual-A1 µm / HC vs GT mm），追加为 metric。"""
+    metrics = d.get("metrics", {})
+    if plugin.adapter_kind == "wall_pair":
+        method = spec.method or dataset.CARO
+        if not (config.data_available() and spec.image_id and method != "Manual-A1"):
+            return
+        if "IMT_pdm" not in metrics:
+            return
+        try:
+            a1_li, a1_ma = dataset.boundaries_as_points(spec.image_id, "Manual-A1")
+        except FileNotFoundError:
+            return
+        a1 = measure(a1_li, a1_ma, cal.cf)  # 既有 kernel.measure → IMTResult
+        um = round(abs(metrics["IMT_pdm"]["value"] - a1.pdm_mean_mm) * 1000, 1)
+        metrics["vs_A1"] = {
+            "value": um, "unit": "µm", "label_en": "vs A1 |bias|", "label_zh": "vs A1 |偏差|",
+        }
+    elif plugin.adapter_kind == "contour":
+        if "HC" not in metrics:
+            return
+        try:
+            gt = hc_dataset.gt_hc_mm(spec.image_id)
+        except Exception:
+            return
+        mm = round(abs(metrics["HC"]["value"] - gt), 2)
+        metrics["vs_GT"] = {
+            "value": mm, "unit": "mm", "label_en": "vs GT |bias|", "label_zh": "vs 真值 |偏差|",
+        }
+
+
+def run_task(spec: TaskSpec) -> dict:
+    """统一驱动（多模态）：取数 → 注册表测量 → TaskOutput dict（+ 金标准增强、展示取整）。
+
+    桥接后端"子进程/缓存流"到统一信封：不在进程内跑 adapter，而是复用既有取数
+    （segment_proc 缓存/子进程、hc_dataset 检测），包成 Detection 后走 plugin.measure。
+    """
+    plugin = _REGISTRY[_TaskType(spec.task)]
+    det, cal = _detect_for_spec(spec)
+    meas = plugin.measure(det, cal)
+    out = TaskOutput(
+        task=spec.task,
+        metrics=meas.metrics,
+        primitives=tuple(det.primitives) + tuple(meas.overlays),
+        calibration=cal,
+        provenance={
+            "model_version": det.model_version,
+            "method": spec.method,
+            "cf_source": cal.source.value,
+        },
+    )
+    d = task_output_to_dict(out)
+    _enrich_gold(d, spec, plugin, cal)
+    _round_metric_values(d)
+    return d
+
+
+def detect_task(spec: TaskSpec) -> dict:
+    """只检测出几何原语（不测量）——供渲染/未测状态。"""
+    det, _cal = _detect_for_spec(spec)
+    return detection_to_dict(det)
+
+
+def measure_task(task: str, primitives: list[dict], cf: float) -> dict:
+    """由前端编辑后的图元重测（泛型替代 /measure + /hc/measure）。"""
+    plugin = _REGISTRY[_TaskType(task)]
+    prims = tuple(primitive_from_dict(p) for p in primitives)
+    det = Detection(primitives=prims, model_version="edited")
+    meas = plugin.measure(det, CalibrationResult(cf=float(cf), source=CFSource.CUBS))
+    d = measurement_to_dict(meas)
+    _round_metric_values(d)
+    return d
 
 
 def models() -> list[ModelInfo]:

@@ -13,7 +13,10 @@ from glaux_core.contracts import (
     Measurement,
     Polyline,
     TaskOutput,
+    detection_to_dict,
     measure_to_dict,
+    measurement_to_dict,
+    primitive_from_dict,
     primitive_to_dict,
     task_output_to_dict,
 )
@@ -100,3 +103,46 @@ def test_task_output_to_dict_shape():
     import json
 
     json.dumps(d)
+
+
+def test_primitive_from_dict_roundtrip():
+    for p in (
+        Polyline(id="LI", role="LI", points=((0.0, 1.0), (2.0, 3.0)), closed=False),
+        EllipseShape(id="e", cx=1.0, cy=2.0, a=3.0, b=4.0, theta=0.5),
+        Mask(id="m", ref="mask://1"),
+    ):
+        again = primitive_from_dict(primitive_to_dict(p))
+        assert again == p
+
+
+def test_primitive_from_dict_unknown_kind_raises():
+    import pytest
+
+    with pytest.raises(ValueError):
+        primitive_from_dict({"kind": "wat", "id": "x"})
+
+
+def test_detection_and_measurement_to_dict():
+    det = Detection(
+        primitives=(Polyline(id="LI", role="LI", points=((0.0, 0.0),)),),
+        model_version="stub@0",
+        roi_used=(10, 90),
+        meta={"k": "v"},
+    )
+    dd = detection_to_dict(det)
+    assert dd["model_version"] == "stub@0" and dd["roi_used"] == [10, 90]
+    assert dd["primitives"][0]["kind"] == "polyline" and dd["meta"] == {"k": "v"}
+
+    meas = Measurement(
+        metrics={"IMT_mean": Measure(0.9, "mm", "IMT mean", "平均 IMT")},
+        calibration=CalibrationResult(cf=0.06, source=CFSource.CUBS),
+        overlays=(Polyline(id="pdm", role="pdm", points=((0.0, 0.0), (1.0, 1.0))),),
+    )
+    md = measurement_to_dict(meas)
+    assert md["metrics"]["IMT_mean"]["value"] == 0.9
+    assert md["calibration"]["source"] == "cubs"
+    assert md["overlays"][0]["role"] == "pdm"
+    import json
+
+    json.dumps(dd)
+    json.dumps(md)
