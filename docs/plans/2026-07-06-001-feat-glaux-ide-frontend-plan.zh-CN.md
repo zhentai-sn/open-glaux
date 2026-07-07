@@ -168,7 +168,8 @@ P2（可延后）：                    F17 · F18(桌面壳)
 | **M2** | F10 拖边界即时重测 | ✅ 完成 | 画布重写：滚轮缩放/平移 + 拖 LI/MA 手柄高斯形变 → 松手 /measure 权威值 + 来源翻 human + 重测回话 |
 | 附 | MVP 收敛空壳感 | ✅ 完成 | 去装饰控件（菜单/假标签/设置/铃/假市场）、未做模块标 WIP、ErrorBoundary 防单组件拖垮全树 |
 | 附 | 接真实 VLM | ✅ 完成 | ClaudeVLMBackend 看图+NL→受约束 tool-use 三态；后端 /intent/backends + 密钥（env 或 UI 填入）；智能体面板配置弹层；不可用显式报错不静默 |
-| 附 | 多模态抽象 + 胎儿头围(HC) | ✅ 完成 | 内核从单一 IMT 抽象成任务族（TaskDef 注册表 · 几何族 · 度量口径）；新增第二模态胎儿头围（闭合椭圆几何 · Ramanujan 周长）；合成数据 + 真椭圆检测（vs 真值 |bias| 0.80mm）；意图路由/驱动/后端/前端全读注册表分派；前端模态切换 + HC 画布/测量/智能体卡；IMT 路径回归无损 |
+| 附 | 多模态抽象 + 胎儿头围(HC) | ✅ 完成 | 内核从单一 IMT 抽象成任务族（TaskDef 注册表 · 几何族 · 度量口径）；新增第二模态胎儿头围（闭合椭圆几何 · Ramanujan 周长）；意图路由/驱动/后端/前端全读注册表分派；前端模态切换 + HC 画布/测量/智能体卡；IMT 路径回归无损 |
+| 附 | HC 真实数据 + 真实模型 + 端到端验证 | ✅ 完成 | HC 从合成升级为真实：HC18 数据集（Zenodo，CC-BY-4.0）+ HuggingFace CSM 模型（Apache-2.0，隔离 `.venv-hc` 子进程，缓存优先，主进程无 torch）；`io/hc18.py` 数据层 + `eval/hc_harness.py`；80 图端到端 **MAE 1.13mm · Dice 0.982**；无数据自动回退合成（`hc_synth.py`） |
 | M2– | F11–F18 | ⏳ 待办 | 下一步：F11 修正回流记忆层 / F13 Models 重跑 / F18 桌面壳 |
 
 **M0 验证**（2026-07-06）：`uv run pytest` 9/9；前端 `npm run build` 59 模块通过、`lint`/`typecheck` 净；
@@ -195,3 +196,15 @@ out_of_scope 无 spec 拒绝），`/image` 返回真实 PNG 魔数。
   （真值椭圆栅格化，明标 synthetic），下游全真几何；10 图检测 vs 真值 |bias| 0.61–0.80mm。
   测试：science-core 83、orchestration 16、backend 19（+7 HC）全绿；前端 tsc + build 净；
   浏览器实测两模态端到端、模态切换双向、颈动脉 IMT 回归无损。保持 `glaux_imt` 包名（兼容）。
+- **2026-07-07**：HC 第二模态**从合成升级为真实数据 + 真实模型 + 端到端验证**（对齐 IMT 范式）。
+  - **数据**：接入 HC18 挑战赛真实胎儿颅脑超声（Zenodo 1327317，CC-BY-4.0，999 图 + 椭圆真值标注 +
+    官方 pixel size/参考头围 CSV）；新增 `science-core/glaux_imt/io/hc18.py`（模型无关，纯 numpy/PIL）。
+  - **模型**：接入 HuggingFace `gauravxthakur/Fetal-Head-Biometry` 的 **CSM**（Apache-2.0，权重经
+    **静态 pickle 操作码审查**确认仅张量重建、无系统调用）；torch/cv2 隔离在 `.venv-hc` 子进程
+    （`~/glaux_models/hc_seg/run_headless.py`），**缓存优先 + 现算兜底 + 显式失败**，FastAPI 主进程仍无 torch。
+    子进程产出原图坐标轮廓点/掩膜，主进程 `fit_ellipse`→Ramanujan 周长×pixel size（曲线原生几何）。
+  - **验证**：新增 `science-core/eval/hc_harness.py`；80 张真实图端到端跑批 → **MAE 1.13mm、Bias +0.35mm、
+    95% LoA [-2.70,+3.39]mm、交付椭圆 vs GT Dice 0.982**（HC18 榜单量级）。诚实边界：HC18 仅训练集有
+    公开真值，验证在训练集图上进行（官方测试集真值不公开）；CSM 上游未标训练/验证切分。
+  - **回退**：无 HC18 数据/模型时经 `backend/app/hc_dataset.py` 路由自动回退合成实现（`hc_synth.py`），CI/无数据环境照常起。
+  - 测试：science-core 92（+9 HC18/harness）、backend 19（HC 用例改为环境感知：真数据测 CSM，无则测合成）全绿。

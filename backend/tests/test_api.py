@@ -12,6 +12,7 @@ from app.main import app
 
 client = TestClient(app)
 HAS_DATA = config.data_available()
+HAS_HC_DATA = config.hc_data_available()  # HC18 真实数据就绪 → 真图真模型；否则合成回退
 
 
 def _a_demo_id() -> str:
@@ -112,30 +113,48 @@ def test_real_run_hard_rejects_without_cf():
     assert r.status_code == 422
 
 
-# --- 第二模态：胎儿头围（HC，合成数据；不依赖 CUBS） ------------------------
+# --- 第二模态：胎儿头围（HC）------------------------------------------------
+# HC18 真实数据就绪时测真图 + CSM 真模型；否则测合成回退。两条路径契约形状一致。
+
+def _an_hc_id() -> str:
+    """一个可用（真实优先且已缓存）的 HC image_id。"""
+    if HAS_HC_DATA:
+        from app import hc_dataset
+
+        ids = hc_dataset.list_ids()
+        # 优先取已有预测缓存的图，避免测试触发隔离子进程现算。
+        for i in ids:
+            if (config.HC_SEG_CACHE / f"{i}-contour.txt").is_file():
+                return i
+        return ids[0]
+    return "hc_004"
+
 
 def test_hc_images_modality_tagged():
     imgs = client.get("/images", params={"modality": "fetal_hc"}).json()
-    assert len(imgs) == 10
     assert all(m["modality"] == "fetal_hc" and m["cf"] > 0 for m in imgs)
-    assert imgs[0]["id"].startswith("hc_")
+    if HAS_HC_DATA:
+        assert len(imgs) == 999 and not imgs[0]["id"].startswith("hc_")  # 真实 HC18
+    else:
+        assert len(imgs) == 10 and imgs[0]["id"].startswith("hc_")  # 合成回退
 
 
 def test_hc_image_returns_png():
-    r = client.get("/image/hc_003")
+    r = client.get(f"/image/{_an_hc_id()}")
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_hc_run_detects_near_ground_truth():
-    r = client.post("/hc/run", json={"image_id": "hc_004"}).json()
-    assert 100 < r["hc_mm"] < 300  # 生理量级（合成）
+    r = client.post("/hc/run", json={"image_id": _an_hc_id()}).json()
+    assert 30 < r["hc_mm"] < 350  # 生理量级（真实 HC18 覆盖 ~44–324mm）
     assert r["ofd_mm"] > r["bpd_mm"]  # 枕额径（长轴）> 双顶径（短轴）
-    assert r["vs_gt_mm"] is not None and r["vs_gt_mm"] < 3.0  # 真检测贴近真值
+    # 真检测/合成检测都应贴近参考（真实模型端到端 MAE≈1mm，留裕度）
+    assert r["vs_gt_mm"] is not None and r["vs_gt_mm"] < 10.0
     assert len(r["contour"]) >= 5 and "ellipse" in r
 
 
 def test_hc_measure_from_contour_roundtrips():
-    run = client.post("/hc/run", json={"image_id": "hc_006"}).json()
+    run = client.post("/hc/run", json={"image_id": _an_hc_id()}).json()
     m = client.post("/hc/measure", json={"points": run["contour"], "cf": run["cf"]}).json()
     assert abs(m["hc_mm"] - run["hc_mm"]) < 2.0  # 由检测轮廓重测应一致量级
 
@@ -151,4 +170,5 @@ def test_hc_intent_routes_to_fetal_task():
 
 def test_models_include_both_modalities():
     ids = {m["id"]: m for m in client.get("/models").json()}
-    assert "ellipse-fit" in ids and ids["ellipse-fit"]["modality"] == "fetal_hc"
+    hc_method = "CSM" if HAS_HC_DATA else "ellipse-fit"  # 真实用 CSM，合成用亮环椭圆
+    assert hc_method in ids and ids[hc_method]["modality"] == "fetal_hc"

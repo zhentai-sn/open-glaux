@@ -175,15 +175,27 @@ def models() -> list[ModelInfo]:
                 continue
             pub, desc, be = known.get(d.name, (d.name, "CUBS reference method", "reference"))
             out.append(ModelInfo(id=d.name, pub=pub, desc=desc, active=False, backend=be))
-    # 第二模态：HC 亮环椭圆检测器（合成数据；主进程纯 numpy）
-    out.append(
-        ModelInfo(
-            id="ellipse-fit",
-            pub="Bright-ring · direct LSQ ellipse",
-            desc="阈高回声颅骨环 → Halir–Flusser 最小二乘椭圆拟合 → Ramanujan 周长",
-            active=True,
-            backend="local:numpy",
-            modality="fetal_hc",
+    # 第二模态（HC）：真实 HC18 就绪时用 CSM 隔离真模型，否则合成亮环椭圆检测器。
+    if config.hc_data_available():
+        out.append(
+            ModelInfo(
+                id="CSM",
+                pub="gauravxthakur · CSM (HuggingFace)",
+                desc="Convolutional Segmentation Machine · HC18 · Apache-2.0 · 头部分割 → 椭圆 → Ramanujan 周长",
+                active=True,
+                backend="isolated:uv/py3.12/torch-cpu",
+                modality="fetal_hc",
+            )
         )
-    )
+    else:
+        out.append(
+            ModelInfo(
+                id="ellipse-fit",
+                pub="Bright-ring · direct LSQ ellipse",
+                desc="阈高回声颅骨环 → Halir–Flusser 最小二乘椭圆拟合 → Ramanujan 周长（合成回退）",
+                active=True,
+                backend="local:numpy",
+                modality="fetal_hc",
+            )
+        )
     return out

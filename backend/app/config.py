@@ -50,6 +50,16 @@ CSD_WEIGHTS = _env_path("GLAUX_CSD_WEIGHTS", CSD_ROOT / "EXAMPLE/TRAINED_MODEL")
 # caroSegDeep 真实产出缓存（eval 100 图）+ 本会话新算结果落盘目录。
 CSD_CACHE = _env_path("GLAUX_CSD_CACHE", HOME / "glaux_models/csd_out")
 
+# --- HC 第二模态：HC18 真实数据集（Zenodo 1327317，CC-BY-4.0） ----------------
+HC18_ROOT = _env_path("GLAUX_HC18_ROOT", HOME / "hc18_data")
+
+# --- HC 分割隔离环境（CSM，HuggingFace gauravxthakur/Fetal-Head-Biometry，Apache-2.0）
+HC_SEG_ROOT = _env_path("GLAUX_HC_SEG_ROOT", HOME / "glaux_models/hc_seg")
+HC_SEG_PYTHON = _env_path("GLAUX_HC_SEG_PYTHON", HC_SEG_ROOT / ".venv-hc/bin/python")
+HC_SEG_DRIVER = _env_path("GLAUX_HC_SEG_DRIVER", HC_SEG_ROOT / "run_headless.py")
+HC_SEG_WEIGHTS = _env_path("GLAUX_HC_SEG_WEIGHTS", HC_SEG_ROOT / "hf/test_model.pth")
+HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", HOME / "glaux_models/hc_seg_out")
+
 
 def data_available() -> bool:
     """真实数据集是否就绪（否则端点回退 mock）。"""
@@ -59,3 +69,15 @@ def data_available() -> bool:
 def csd_live_available() -> bool:
     """caroSegDeep 隔离环境是否可现算（缓存未命中时才需要）。"""
     return CSD_PYTHON.is_file() and CSD_DRIVER.is_file() and CSD_WEIGHTS.is_dir()
+
+
+def hc_data_available() -> bool:
+    """HC18 真实数据集是否就绪（否则 HC 端点回退自包含合成数据）。"""
+    return (HC18_ROOT / "training_set/training_set").is_dir() and (
+        HC18_ROOT / "training_set_pixel_size_and_HC.csv"
+    ).is_file()
+
+
+def hc_live_available() -> bool:
+    """HC 分割隔离环境是否可现算（缓存未命中时才需要）。"""
+    return HC_SEG_PYTHON.is_file() and HC_SEG_DRIVER.is_file() and HC_SEG_WEIGHTS.is_file()
