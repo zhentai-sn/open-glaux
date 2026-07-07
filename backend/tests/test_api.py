@@ -57,7 +57,7 @@ def test_tasks_registry_exposed():
     assert imt["viewer"] == "raster_2d" and imt["adapter_kind"] == "wall_pair"
     assert imt["modality"] == "carotid_imt" and by_id["fetal_hc"]["modality"] == "fetal_hc"
     assert any(m["key"] == "IMT_mean" for m in imt["metrics"])
-    assert {t["id"] for t in imt["tools"]} >= {"cursor", "edit_li", "edit_ma"}
+    assert {t["id"] for t in imt["tools"]} >= {"cursor", "editli", "editma"}
     assert imt["overlays"][0]["role"] == "LI"
     hc = by_id["fetal_hc"]
     assert hc["adapter_kind"] == "contour"

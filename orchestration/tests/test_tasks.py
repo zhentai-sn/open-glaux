@@ -75,7 +75,7 @@ def test_plugin_to_view_is_json_native_without_callable():
     assert view["adapter_kind"] == "wall_pair"
     assert view["modality"] == "carotid_imt"
     assert [m["key"] for m in view["metrics"]] == ["IMT_mean", "IMT_max", "IMT_pdm"]
-    assert {t["id"] for t in view["tools"]} == {"cursor", "edit_li", "edit_ma", "reset"}
+    assert {t["id"] for t in view["tools"]} == {"cursor", "editli", "editma", "reset"}
     assert view["overlays"][0] == {"role": "LI", "color": "#4FB0FF", "editable": True}
     assert "measure" not in view  # 不下发可调用
     json.dumps(view)  # JSON-native

@@ -150,10 +150,10 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="raster_2d",
         tools=(
-            ToolDef("cursor", "▹", "Select / Pan", "选择 / 平移"),
-            ToolDef("edit_li", "◠", "Edit LI", "编辑 LI"),
-            ToolDef("edit_ma", "◡", "Edit MA", "编辑 MA"),
-            ToolDef("reset", "⟲", "Reset", "重置"),
+            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
+            ToolDef("editli", "◠", "Edit LI", "编辑 LI"),
+            ToolDef("editma", "◡", "Edit MA", "编辑 MA"),
+            ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
         overlays=(
             OverlaySpec("LI", "#4FB0FF", editable=True),
@@ -180,7 +180,8 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="raster_2d",
         tools=(
-            ToolDef("cursor", "▹", "Select / Pan", "选择 / 平移"),
+            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
+            ToolDef("reset", "⟲", "Re-detect", "重新检测"),
         ),
         overlays=(
             OverlaySpec("skull", "#C39BFF", editable=False),

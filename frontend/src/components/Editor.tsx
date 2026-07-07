@@ -4,26 +4,13 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { HCCanvas } from "./HCCanvas";
 import { Rich } from "./Rich";
 import { reRunActiveModel } from "../data/actions";
-import { useI18n, type I18nKey } from "../i18n";
+import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
 
-type ToolDef = { id: Tool; glyph: string; tip: I18nKey; cls?: string };
-
-// IMT：选择 / 改 LI / 改 MA / 复位；HC：选择 / 重新检测（闭合轮廓无 LI/MA 拖边界）。
-const IMT_TOOLS: ToolDef[] = [
-  { id: "cursor", glyph: "▸", tip: "tip_select" },
-  { id: "editli", glyph: "◠", tip: "tip_editli", cls: "editli" },
-  { id: "editma", glyph: "◡", tip: "tip_editma", cls: "editma" },
-  { id: "reset", glyph: "⟲", tip: "tip_reset" },
-];
-const HC_TOOLS: ToolDef[] = [
-  { id: "cursor", glyph: "▸", tip: "tip_select" },
-  { id: "reset", glyph: "⟲", tip: "tip_redetect" },
-];
-
 export function Editor() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const modality = useSession((s) => s.modality);
+  const tasks = useSession((s) => s.tasks);
   const image = useSession((s) => s.activeImage);
   const center = useSession((s) => s.imageMeta?.center ?? (modality === "fetal_hc" ? "HC18" : "CUBS-tech"));
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
@@ -34,7 +21,8 @@ export function Editor() {
 
   const isHC = modality === "fetal_hc";
   const ext = isHC ? ".png" : ".tiff";
-  const tools = isHC ? HC_TOOLS : IMT_TOOLS;
+  // 工具栏从任务注册表派生（当前模态对应任务的 tools），不再硬编码 IMT_TOOLS/HC_TOOLS。
+  const tools = tasks.find((tk) => tk.modality === modality)?.tools ?? [];
 
   const onTool = (id: Tool) => {
     if (id === "reset") {
@@ -85,12 +73,12 @@ export function Editor() {
               {tools.map((tl) => (
                 <button
                   key={tl.id}
-                  className={"etool" + (tl.cls ? " " + tl.cls : "")}
+                  className={"etool" + (tl.id === "editli" || tl.id === "editma" ? " " + tl.id : "")}
                   aria-pressed={tool === tl.id}
-                  onClick={() => onTool(tl.id)}
+                  onClick={() => onTool(tl.id as Tool)}
                 >
                   {tl.glyph}
-                  <span className="tip">{t(tl.tip)}</span>
+                  <span className="tip">{tl.label[lang]}</span>
                 </button>
               ))}
             </div>
