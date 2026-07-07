@@ -10,13 +10,19 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
 
+from glaux_core.contracts import Detection, EllipseShape
 from glaux_core.io.contour import Ellipse, fit_ellipse
-from glaux_core.segmentation.base import ROI, SegmentationBackendUnavailable
+from glaux_core.segmentation.base import (
+    ROI,
+    Adapter,
+    DetectRequest,
+    SegmentationBackendUnavailable,
+)
 
 
 @dataclass(frozen=True)
@@ -33,14 +39,25 @@ class ContourResult:
     meta: dict = field(default_factory=dict)
 
 
-class ContourAdapter(ABC):
+class ContourAdapter(Adapter):
     """闭合轮廓适配器契约：给图 + ROI，出闭合轮廓点 + 拟合椭圆。"""
 
     name: str = "abstract-contour"
+    kind: str = "contour"
 
     @abstractmethod
     def detect(self, request: ContourRequest) -> ContourResult:
         raise NotImplementedError
+
+    def run(self, request: DetectRequest) -> Detection:
+        """统一入口：调 :meth:`detect`，把拟合椭圆包成 Detection（一枚 :class:`EllipseShape`）。"""
+        res = self.detect(ContourRequest(image=request.image, roi=request.roi))
+        return Detection(
+            primitives=(EllipseShape.from_ellipse(res.ellipse, id="skull", role="skull"),),
+            model_version=res.model_version,
+            roi_used=(request.roi.x0, request.roi.x1) if request.roi is not None else None,
+            meta=dict(res.meta),
+        )
 
 
 class EllipseContourStub(ContourAdapter):

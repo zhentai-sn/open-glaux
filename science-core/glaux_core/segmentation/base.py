@@ -13,6 +13,7 @@ from enum import Enum
 
 import numpy as np
 
+from glaux_core.contracts import Detection, Polyline
 from glaux_core.errors import GlauxError
 from glaux_core.io.boundaries import Boundary
 
@@ -60,12 +61,50 @@ class SegmentationResult:
     meta: dict = field(default_factory=dict)
 
 
-class ModelAdapter(ABC):
-    """分割适配器契约：给图 + ROI，出 LI/MA 双边界。"""
+@dataclass(frozen=True)
+class DetectRequest:
+    """统一适配器入口请求：给图 + 可选 ROI（输出几何形态由适配器 ``kind`` 决定）。"""
+
+    image: np.ndarray  # 灰度 H×W
+    roi: ROI | None = None
+
+
+class Adapter(ABC):
+    """统一适配器契约（多模态）：给图 + ROI，出 :class:`~glaux_core.contracts.Detection`。
+
+    ``kind`` 声明几何族（``"wall_pair"`` / ``"contour"`` / ``"mask"`` …），供驱动层
+    （``run_spec``）与任务插件 ``adapter_kind`` 做一次契约校验，替代 ``isinstance`` 联合。
+    具体适配器可实现富接口（``segment`` / ``detect``）由基类包成 Detection，或直接覆盖 ``run``。
+    """
 
     name: str = "abstract"
+    kind: str = "abstract"
+
+    @abstractmethod
+    def run(self, request: DetectRequest) -> Detection:
+        raise NotImplementedError
+
+
+class ModelAdapter(Adapter):
+    """壁线对分割适配器契约：给图 + ROI，出 LI/MA 双边界（曲线原生，非掩膜）。"""
+
+    name: str = "abstract"
+    kind: str = "wall_pair"
 
     @abstractmethod
     def segment(self, request: SegmentationRequest) -> SegmentationResult:
         """分割一张图，返回 LI/MA 曲线。缺 ROI 时应自动检测远壁。"""
         raise NotImplementedError
+
+    def run(self, request: DetectRequest) -> Detection:
+        """统一入口：调 :meth:`segment`，把 LI/MA 包成 Detection（两条 :class:`Polyline`）。"""
+        seg = self.segment(SegmentationRequest(image=request.image, roi=request.roi))
+        return Detection(
+            primitives=(
+                Polyline.from_boundary(seg.li, "LI"),
+                Polyline.from_boundary(seg.ma, "MA"),
+            ),
+            model_version=seg.model_version,
+            roi_used=(seg.roi_used.x0, seg.roi_used.x1),
+            meta=dict(seg.meta),
+        )
