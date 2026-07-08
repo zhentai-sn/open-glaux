@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Response
 
 from .. import config, mock
 from ..schemas import (
+    Capability,
     CorrectionRequest,
     CorrectionResult,
     ImageMeta,
@@ -159,6 +160,14 @@ def models() -> list[ModelInfo]:
     if not _has_data():
         return mock.models()
     return kernel.models()
+
+
+@router.get("/capabilities", response_model=list[Capability], tags=["capabilities"])
+def capabilities() -> list[Capability]:
+    """能力注册表——「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "能力注册表需 science-core（未装配）")
+    return [Capability(**c) for c in kernel.capabilities()]
 
 
 @router.post("/correction", response_model=CorrectionResult, tags=["correction"])

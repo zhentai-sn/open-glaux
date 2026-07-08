@@ -314,3 +314,81 @@ def models() -> list[ModelInfo]:
             )
         )
     return out
+
+
+def capabilities() -> list[dict]:
+    """能力注册表（「插件市场」的单一真相源，§5）——用「环境四层」本体把 skill/model/dataset/…收成一套清单。
+
+    真实优先：Skill = TaskPlugin（REGISTRY）、Model/ReferenceMethod = models() 按 backend 分类、
+    Dataset/CalibrationSource = 真实可用性；Connector/MCP/KnowledgeBase 出有类型占位卡
+    （status=planned，v0 不做下载/安装/沙箱编排——市场先是目录 + 状态）。
+    """
+    caps: list[dict] = []
+    modality_task = {p.modality: p.task.value for p in _REGISTRY.values()}
+
+    # 动作层 · Skill（= TaskPlugin：打包好的任务配方本身就是一种能力）
+    for p in _REGISTRY.values():
+        caps.append({
+            "id": f"skill:{p.task.value}", "kind": "skill", "layer": "action",
+            "name": p.label_en, "provider": "glaux", "license": "internal",
+            "status": "active", "isolation": "in_process",
+            "desc": f"Task recipe · {p.adapter_kind} · viewer={p.viewer}",
+            "tasks": [p.task.value],
+        })
+
+    # 动作层 · Model / 验证层 · ReferenceMethod（models() 按 backend 分类）
+    for m in models():
+        is_ref = "reference" in m.backend
+        caps.append({
+            "id": m.id, "kind": "reference_method" if is_ref else "model",
+            "layer": "verification" if is_ref else "action",
+            "name": m.pub, "provider": m.pub.split(" · ")[0] if " · " in m.pub else "",
+            "license": "research", "status": "active" if m.active else "installed",
+            "isolation": m.backend, "desc": m.desc,
+            "tasks": [modality_task.get(m.modality, "")],
+        })
+
+    # 表征层 · Dataset（真实可用性）
+    caps.append({
+        "id": "dataset:cubs-tech", "kind": "dataset", "layer": "representation",
+        "name": "CUBS-tech · carotid US", "provider": "CREATIS", "license": "CC BY",
+        "status": "active" if config.data_available() else "planned",
+        "isolation": "local", "desc": "颈动脉超声 · LI/MA 专家标注 · CF 标定",
+        "tasks": ["far_wall_cca_imt"],
+    })
+    hc_real = config.hc_data_available()
+    caps.append({
+        "id": "dataset:hc18" if hc_real else "dataset:synthetic-hc",
+        "kind": "dataset", "layer": "representation",
+        "name": "HC18 · fetal head US" if hc_real else "Synthetic fetal-skull demo",
+        "provider": "Grand Challenge" if hc_real else "glaux",
+        "license": "CC BY-NC-SA" if hc_real else "internal",
+        "status": "active", "isolation": "local",
+        "desc": "999 张真实胎儿颅脑超声 + 椭圆真值" if hc_real else "合成亮环颅骨演示",
+        "tasks": ["fetal_hc"],
+    })
+
+    # 验证层 · CalibrationSource（真实：CUBS CF）
+    caps.append({
+        "id": "cal:cubs-cf", "kind": "calibration_source", "layer": "verification",
+        "name": "CUBS calibration factor", "provider": "CREATIS", "license": "CC BY",
+        "status": "active", "isolation": "local", "desc": "每图 mm/px 标定系数（无标定硬拒绝）",
+        "tasks": ["far_wall_cca_imt"],
+    })
+
+    # 占位卡（planned · 有类型不接线）——表征 / 动作 / 记忆层
+    caps += [
+        {"id": "connector:dicom-pacs", "kind": "connector", "layer": "representation",
+         "name": "DICOM-PACS connector", "provider": "—", "license": "—",
+         "status": "planned", "isolation": "", "desc": "从院内 PACS 拉取 DICOM（待接）", "tasks": []},
+        {"id": "mcp:clinical-tools", "kind": "mcp", "layer": "action",
+         "name": "Clinical-tools MCP", "provider": "—", "license": "—",
+         "status": "planned", "isolation": "", "desc": "外部工具服务器（MCP，待接）", "tasks": []},
+        {"id": "kb:fetal-growth", "kind": "knowledge_base", "layer": "memory",
+         "name": "Fetal growth curves", "provider": "—", "license": "—",
+         "status": "planned", "isolation": "", "desc": "生长曲线 / 指南 RAG（待接）", "tasks": ["fetal_hc"]},
+        {"id": "store:corrections", "kind": "correction_store", "layer": "memory",
+         "name": "Correction flywheel", "provider": "glaux", "license": "internal",
+         "status": "planned", "isolation": "local", "desc": "人工修正回流记忆层（占位）", "tasks": []},
+    ]
+    return caps

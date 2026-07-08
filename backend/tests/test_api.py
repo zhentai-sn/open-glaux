@@ -64,6 +64,27 @@ def test_tasks_registry_exposed():
     assert any(m["key"] == "HC" for m in hc["metrics"])
 
 
+def test_capabilities_registry_four_layers():
+    """GET /capabilities 下发能力清单——按「环境四层」本体，含真实 skill/model/dataset + 占位卡。"""
+    r = client.get("/capabilities")
+    assert r.status_code == 200
+    caps = r.json()
+    layers = {c["layer"] for c in caps}
+    assert {"representation", "action", "verification", "memory"} <= layers
+    kinds = {c["kind"] for c in caps}
+    # skill = TaskPlugin：两个任务各一张 skill 卡（动作层）
+    ids = {c["id"] for c in caps}
+    assert {"skill:far_wall_cca_imt", "skill:fetal_hc"} <= ids
+    assert all(c["layer"] == "action" for c in caps if c["kind"] == "skill")
+    # 真实 model（caroSegDeep 动作层）
+    assert any(c["id"] == "caroSegDeep" and c["kind"] == "model" and c["layer"] == "action" for c in caps)
+    # dataset（表征层）
+    assert any(c["kind"] == "dataset" and c["layer"] == "representation" for c in caps)
+    # 有类型占位卡（planned）：connector/mcp/knowledge_base
+    assert any(c["status"] == "planned" for c in caps)
+    assert {"connector", "mcp", "knowledge_base"} <= kinds
+
+
 def test_images_and_models_shape():
     imgs = client.get("/images").json()
     assert len(imgs) > 0 and imgs[0]["center"] == "CUBS-tech"

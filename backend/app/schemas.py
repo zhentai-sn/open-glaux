@@ -98,6 +98,28 @@ class ModelInfo(BaseModel):
     modality: Modality = "carotid_imt"
 
 
+# --- 能力（「插件市场」的统一抽象，§5） --------------------------------------
+
+class Capability(BaseModel):
+    """一条能力清单——把模型/数据集/连接器/skill/MCP/知识库用「环境四层」本体收成一套。
+
+    layer：representation(表征·数据进来) / action(动作·给项目能力) /
+           verification(验证·裁判) / memory(记忆·飞轮)。
+    v0 只 Model + Dataset + Skill 真接线，Connector/MCP/KnowledgeBase 等先出有类型占位卡。
+    """
+
+    id: str
+    kind: str  # model | adapter | skill | mcp | dataset | connector | reference_method | calibration_source | knowledge_base | correction_store
+    layer: Literal["representation", "action", "verification", "memory"]
+    name: str
+    provider: str = ""
+    license: str = ""
+    status: Literal["active", "installed", "planned"] = "active"
+    isolation: str = ""
+    desc: str = ""
+    tasks: list[str] = Field(default_factory=list)
+
+
 # --- 修正回流 ----------------------------------------------------------------
 
 class CorrectionRequest(BaseModel):
