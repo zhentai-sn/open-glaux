@@ -1,9 +1,7 @@
 import { useEffect } from "react";
 
 import { ActivityBar } from "./components/ActivityBar";
-import { AgentPanel } from "./components/AgentPanel";
-import { Editor } from "./components/Editor";
-import { SideBar } from "./components/SideBar";
+import { Shell } from "./components/Shell";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { useAgent } from "./agent/useAgent";
@@ -60,9 +58,7 @@ export function App() {
       <TitleBar />
       <div className="body">
         <ActivityBar />
-        <SideBar />
-        <Editor />
-        <AgentPanel />
+        <Shell />
       </div>
       <StatusBar />
     </div>

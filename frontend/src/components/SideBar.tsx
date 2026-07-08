@@ -211,16 +211,11 @@ function MarketplaceView() {
   );
 }
 
+// 标题栏交给 dockview 面板标签（见 Shell.SidebarPane，随活动栏切换更新），此处只渲染视图主体。
 export function SideBar() {
-  const { t } = useI18n();
   const view = useSession((s) => s.sidebarView);
-  const title: Record<typeof view, I18nKey> = { explorer: "av_explorer", market: "av_market" };
-
   return (
     <aside className="sidebar">
-      <div className="sb-head">
-        <span>{t(title[view])}</span>
-      </div>
       {view === "explorer" && <ExplorerView />}
       {view === "market" && <MarketplaceView />}
     </aside>

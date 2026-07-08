@@ -1,4 +1,3 @@
-import { BottomPanel } from "./BottomPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Viewer } from "./Viewer";
 import { reRunActiveModel } from "../data/actions";
@@ -41,7 +40,7 @@ export function Editor() {
   };
 
   return (
-    <div className="center">
+    <div className="editorpane">
       <div className="tabs">
         {image && (
           <div className="tab on">
@@ -85,8 +84,6 @@ export function Editor() {
           <div className="empty">{t("empty_editor")}</div>
         )}
       </div>
-
-      <BottomPanel />
     </div>
   );
 }

@@ -14,6 +14,7 @@
   "dependencies": {
     "@cornerstonejs/core": "^3.33.5",
     "@cornerstonejs/tools": "^3.33.5",
+    "dockview-react": "^7.0.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"
