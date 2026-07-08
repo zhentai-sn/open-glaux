@@ -50,6 +50,7 @@ export const en = {
   p_meas: "Measurements",
   p_out: "Output",
   p_prob: "Problems",
+  p_term: "Terminal",
   src_agent: "agent",
   src_human: "human",
   no_problems: "No problems detected. Calibration resolved, measurement within physiological range.",

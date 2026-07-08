@@ -45,6 +45,7 @@ export const zh: Record<I18nKey, string> = {
   p_meas: "测量",
   p_out: "输出",
   p_prob: "问题",
+  p_term: "终端",
   src_agent: "智能体",
   src_human: "人工",
   no_problems: "未检出问题。标定已解析，测量落在生理区间内。",

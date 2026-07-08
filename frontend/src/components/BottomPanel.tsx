@@ -1,10 +1,12 @@
+import { TerminalView } from "./TerminalView";
 import { useI18n } from "../i18n";
 import { useSession, type PanelTab } from "../store/session";
 
-const TABS: { id: PanelTab; key: "p_meas" | "p_out" | "p_prob" }[] = [
+const TABS: { id: PanelTab; key: "p_meas" | "p_out" | "p_prob" | "p_term" }[] = [
   { id: "meas", key: "p_meas" },
   { id: "out", key: "p_out" },
   { id: "prob", key: "p_prob" },
+  { id: "term", key: "p_term" },
 ];
 
 const mcell = (k: string, v: string, unit: string, hi = false) => (
@@ -103,6 +105,7 @@ export function BottomPanel() {
         {tab === "meas" && <MeasurementsView />}
         {tab === "out" && <OutputView />}
         {tab === "prob" && <ProblemsView />}
+        {tab === "term" && <TerminalView />}
       </div>
     </div>
   );

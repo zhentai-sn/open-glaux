@@ -19,7 +19,7 @@ export type IntentBackendId = "rule" | "vlm";
 export type Source = "agent" | "human"; // 当前叠加/测量的来源（模型产出 vs 人工修正）
 
 export type View = "explorer" | "market"; // 侧边栏视图：资源管理器 / 插件市场（去掉搜索/源代码管理）
-export type PanelTab = "meas" | "out" | "prob";
+export type PanelTab = "meas" | "out" | "prob" | "term";
 export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
 
 // 智能体消息以 i18n 键 + 变量存储（非解析后的字符串），切语言即重译、历史不丢（设计稿 §4/R8）。
