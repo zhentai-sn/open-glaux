@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from "react";
 
+import type { CapabilityLayer } from "../api/types";
 import { reRunActiveModel, selectImage, switchModality } from "../data/actions";
-import { useI18n } from "../i18n";
+import { useI18n, type I18nKey } from "../i18n";
 import { useSession } from "../store/session";
 
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
@@ -33,7 +34,6 @@ function ModalitySwitch() {
 
 function ImageLeaf({ id, depth }: { id: string; depth: number }) {
   const activeImage = useSession((s) => s.activeImage);
-  const ext = useSession((s) => (s.modality === "fetal_hc" ? ".png" : ".tiff"));
   const selected = activeImage === id;
   return (
     <div
@@ -43,10 +43,7 @@ function ImageLeaf({ id, depth }: { id: string; depth: number }) {
     >
       <span className="tw" />
       <span className="ico fico">▤</span>
-      <span className="nm">
-        {id}
-        {ext}
-      </span>
+      <span className="nm">{id}</span>
       {selected && <span className="dot">●</span>}
     </div>
   );
@@ -126,71 +123,90 @@ function ExplorerView() {
   );
 }
 
-// 未实现的视图统一走诚实的 WIP 占位（不摆假数据/假输入）。
-function WipView({ badge, note }: { badge: string; note: string }) {
-  const { t } = useI18n();
-  return (
-    <div className="sb-view">
-      <div className="stub">
-        <span className="wip">{t("wip_badge")}</span>
-        <div style={{ marginTop: 8, fontWeight: 600, color: "var(--mid)" }}>{badge}</div>
-        <div style={{ marginTop: 6 }}>{note}</div>
-      </div>
-    </div>
-  );
-}
+// ---- 插件市场（能力注册表浏览器，§5）——按「环境四层」分组的卡片墙 ----
+const LAYERS: { layer: CapabilityLayer; key: I18nKey }[] = [
+  { layer: "representation", key: "lay_representation" },
+  { layer: "action", key: "lay_action" },
+  { layer: "verification", key: "lay_verification" },
+  { layer: "memory", key: "lay_memory" },
+];
 
-function SearchView() {
-  const { t } = useI18n();
-  return <WipView badge={t("av_search")} note={t("search_hint")} />;
-}
+const KIND_GLYPH: Record<string, string> = {
+  skill: "✦",
+  model: "◈",
+  adapter: "◈",
+  dataset: "▦",
+  reference_method: "⚖",
+  calibration_source: "⊹",
+  connector: "⇄",
+  mcp: "⧉",
+  knowledge_base: "❋",
+  correction_store: "↺",
+};
 
-function ScmView() {
+// 「模型/数据集/skill/连接器/MCP/知识库」= 一套 Capability 清单（洞见：skill = TaskPlugin）。
+// v0：Model 卡可点激活（驱动运行模型），余为目录卡（状态徽标）；加一种能力 = 后端清单加一条，前端零改。
+function MarketplaceView() {
   const { t } = useI18n();
-  return <WipView badge={t("av_scm")} note={t("scm_hint")} />;
-}
-
-function ModelsView() {
-  const { t } = useI18n();
+  const caps = useSession((s) => s.capabilities);
   const models = useSession((s) => s.models);
   const activate = useSession((s) => s.activateModel);
   const pushAgent = useSession((s) => s.pushAgent);
+  const modelById = new Map(models.map((m) => [m.id, m]));
 
   return (
     <div className="sb-view">
-      <div className="sec">{t("ext_installed")}</div>
-      <div>
-        {models.map((m) => {
-          const icon = m.id === "caroSegDeep" ? "✦" : m.backend === "in_process" ? "◇" : "◈";
-          return (
-            <div
-              key={m.id}
-              className={"ext" + (m.active ? " on" : "")}
-              onClick={() => {
-                if (m.active) return;
-                activate(m.id);
-                pushAgent({ variant: "plain", key: "switched_model", vars: { model: m.id } });
-                void reRunActiveModel();
-              }}
-            >
-              <div className="top">
-                <div className="mi">{icon}</div>
-                <div>
-                  <div className="nm">{m.id}</div>
-                  <div className="pub">{m.pub}</div>
+      {LAYERS.map(({ layer, key }) => {
+        const items = caps.filter((c) => c.layer === layer);
+        if (!items.length) return null;
+        return (
+          <div key={layer}>
+            <div className="sec">{t(key)}</div>
+            {items.map((c) => {
+              // id 命中已装模型即可激活（含参考方法——保留「换方法对比」的老 UX）；skill/dataset/占位卡只读。
+              const model = modelById.get(c.id);
+              const activatable = !!model;
+              const active = !!model?.active;
+              const planned = c.status === "planned";
+              const badge = activatable
+                ? active
+                  ? t("ext_active")
+                  : t("ext_enable")
+                : planned
+                  ? t("cap_planned")
+                  : c.status === "installed"
+                    ? t("cap_installed")
+                    : t("cap_active");
+              return (
+                <div
+                  key={c.id}
+                  className={"ext" + (active ? " on" : "")}
+                  style={{ cursor: activatable && !active ? "pointer" : "default", opacity: planned ? 0.55 : 1 }}
+                  onClick={() => {
+                    if (!activatable || active) return;
+                    activate(c.id);
+                    pushAgent({ variant: "plain", key: "switched_model", vars: { model: c.id } });
+                    void reRunActiveModel();
+                  }}
+                >
+                  <div className="top">
+                    <div className="mi">{KIND_GLYPH[c.kind] ?? "◇"}</div>
+                    <div>
+                      <div className="nm">{c.name}</div>
+                      <div className="pub">
+                        {c.kind}
+                        {c.provider ? ` · ${c.provider}` : ""}
+                      </div>
+                    </div>
+                    <span className={"st" + (active ? "" : " off")}>{badge}</span>
+                  </div>
+                  {c.desc && <div className="desc">{c.desc}</div>}
                 </div>
-                <span className={"st" + (m.active ? "" : " off")}>
-                  {m.active ? t("ext_active") : t("ext_enable")}
-                </span>
-              </div>
-              <div className="desc">{m.desc}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="sec">
-        {t("ext_market")} <span className="wip" style={{ marginLeft: 6 }}>{t("wip_badge")}</span>
-      </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -198,7 +214,7 @@ function ModelsView() {
 export function SideBar() {
   const { t } = useI18n();
   const view = useSession((s) => s.sidebarView);
-  const title = { explorer: "av_explorer", search: "av_search", scm: "av_scm", models: "av_models" } as const;
+  const title: Record<typeof view, I18nKey> = { explorer: "av_explorer", market: "av_market" };
 
   return (
     <aside className="sidebar">
@@ -206,9 +222,7 @@ export function SideBar() {
         <span>{t(title[view])}</span>
       </div>
       {view === "explorer" && <ExplorerView />}
-      {view === "search" && <SearchView />}
-      {view === "scm" && <ScmView />}
-      {view === "models" && <ModelsView />}
+      {view === "market" && <MarketplaceView />}
     </aside>
   );
 }

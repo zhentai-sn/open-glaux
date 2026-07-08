@@ -13,6 +13,7 @@ import { useSession } from "./store/session";
 
 export function App() {
   const setModels = useSession((s) => s.setModels);
+  const setCapabilities = useSession((s) => s.setCapabilities);
   const setTasks = useSession((s) => s.setTasks);
   const setIntentBackends = useSession((s) => s.setIntentBackends);
   const { seedFromCurrent } = useAgent();
@@ -25,9 +26,15 @@ export function App() {
       } catch {
         /* 后端未起时不阻塞外壳 */
       }
-      // 已装分割适配器（活动栏角标 + Models 视图 + Agent 徽标）
+      // 已装分割适配器（活动栏角标 + Agent 徽标 + 模型激活）
       try {
         setModels(await api.models());
+      } catch {
+        /* 后端未起时不阻塞外壳 */
+      }
+      // 能力注册表（「插件市场」——按四层浏览模型/数据集/skill/连接器/MCP/知识库）
+      try {
+        setCapabilities(await api.capabilities());
       } catch {
         /* 后端未起时不阻塞外壳 */
       }

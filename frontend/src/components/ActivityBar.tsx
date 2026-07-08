@@ -2,7 +2,8 @@ import { useAgent } from "../agent/useAgent";
 import { useI18n } from "../i18n";
 import { useSession, type View } from "../store/session";
 
-const VIEWS: { id: View; key: "av_explorer" | "av_search" | "av_scm" | "av_models"; icon: JSX.Element }[] = [
+// 侧边栏入口——只留 资源管理器 + 插件市场（去掉搜索/源代码管理，见设计稿 §6）。
+const VIEWS: { id: View; key: "av_explorer" | "av_market"; icon: JSX.Element }[] = [
   {
     id: "explorer",
     key: "av_explorer",
@@ -14,30 +15,8 @@ const VIEWS: { id: View; key: "av_explorer" | "av_search" | "av_scm" | "av_model
     ),
   },
   {
-    id: "search",
-    key: "av_search",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-        <circle cx="10.5" cy="10.5" r="6.5" />
-        <path d="M20 20l-4.5-4.5" />
-      </svg>
-    ),
-  },
-  {
-    id: "scm",
-    key: "av_scm",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-        <circle cx="6" cy="6" r="2.4" />
-        <circle cx="6" cy="18" r="2.4" />
-        <circle cx="18" cy="9" r="2.4" />
-        <path d="M6 8.4v7.2M8.2 7.2c6 1 8 1.2 8 4.4" />
-      </svg>
-    ),
-  },
-  {
-    id: "models",
-    key: "av_models",
+    id: "market",
+    key: "av_market",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -74,7 +53,7 @@ export function ActivityBar() {
         >
           {v.icon}
           <span className="tip">{t(v.key)}</span>
-          {v.id === "models" && nInstalled > 0 && <span className="badge">{nInstalled}</span>}
+          {v.id === "market" && nInstalled > 0 && <span className="badge">{nInstalled}</span>}
         </button>
       ))}
       <button className="act" onClick={() => run(seedPrompt())}>

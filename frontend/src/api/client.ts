@@ -1,5 +1,6 @@
 // 类型化 API 客户端。走同源 /api（dev 由 Vite 反代到 FastAPI:8000，生产同源部署）。
 import type {
+  Capability,
   CorrectionResult,
   Detection,
   ImageMeta,
@@ -82,6 +83,9 @@ export const api = {
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
   models: () => get<ModelInfo[]>("/models"),
+
+  /** 能力注册表：「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。 */
+  capabilities: () => get<Capability[]>("/capabilities"),
 
   correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
     post<CorrectionResult>("/correction", { image_id, which, points, imt }),

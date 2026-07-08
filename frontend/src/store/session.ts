@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { I18nKey } from "../i18n";
 import type {
+  Capability,
   ImageMeta,
   IntentBackendInfo,
   Measure,
@@ -17,7 +18,7 @@ export type IntentBackendId = "rule" | "vlm";
 
 export type Source = "agent" | "human"; // 当前叠加/测量的来源（模型产出 vs 人工修正）
 
-export type View = "explorer" | "search" | "scm" | "models";
+export type View = "explorer" | "market"; // 侧边栏视图：资源管理器 / 插件市场（去掉搜索/源代码管理）
 export type PanelTab = "meas" | "out" | "prob";
 export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
 
@@ -54,6 +55,7 @@ interface SessionState {
   activeImage: string | null;
   activeModel: string;
   models: ModelInfo[];
+  capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   images: ImageMeta[]; // 数据集列表（Explorer）
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods）
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
@@ -82,6 +84,7 @@ interface SessionState {
   setModality: (m: Modality) => void;
   setActiveImage: (id: string | null) => void;
   setModels: (m: ModelInfo[]) => void;
+  setCapabilities: (c: Capability[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
   setImageMeta: (m: ImageMeta | null) => void;
@@ -115,6 +118,7 @@ export const useSession = create<SessionState>((set) => ({
   activeImage: null,
   activeModel: "caroSegDeep",
   models: [],
+  capabilities: [],
   images: [],
   imageMeta: null,
   metrics: null,
@@ -140,6 +144,7 @@ export const useSession = create<SessionState>((set) => ({
   setModality: (m) => set({ modality: m }),
   setActiveImage: (id) => set({ activeImage: id }),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
+  setCapabilities: (c) => set({ capabilities: c }),
   activateModel: (id) =>
     set((s) => ({
       activeModel: id,

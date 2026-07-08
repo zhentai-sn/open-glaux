@@ -52,7 +52,7 @@ export function StatusBar() {
           "—"
         )}
       </span>
-      <button className="item" onClick={() => setView("models")}>
+      <button className="item" onClick={() => setView("market")}>
         ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>
       </button>
       <button className="item" onClick={toggle} title="language">

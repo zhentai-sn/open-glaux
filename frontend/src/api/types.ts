@@ -36,6 +36,23 @@ export interface ModelInfo {
   modality: Modality;
 }
 
+// 能力清单（「插件市场」·§5）——把模型/数据集/skill/连接器/MCP/知识库用「环境四层」收成一套。
+export type CapabilityLayer = "representation" | "action" | "verification" | "memory";
+export type CapabilityStatus = "active" | "installed" | "planned";
+
+export interface Capability {
+  id: string;
+  kind: string; // model | adapter | skill | mcp | dataset | connector | reference_method | calibration_source | knowledge_base | correction_store
+  layer: CapabilityLayer;
+  name: string;
+  provider: string;
+  license: string;
+  status: CapabilityStatus;
+  isolation: string;
+  desc: string;
+  tasks: string[];
+}
+
 // --- 胎儿头围（HC，闭合轮廓模态） ------------------------------------------
 
 export interface HCEllipse {

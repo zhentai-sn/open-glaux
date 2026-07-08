@@ -10,24 +10,20 @@ export const en = {
   m_help: "Help",
   // activity bar / sidebar titles
   av_explorer: "Explorer",
-  av_search: "Search",
-  av_scm: "Source Control",
-  av_models: "Models",
   av_run: "Run & Measure",
   av_settings: "Settings",
-  // search view
-  search_ph: "Search images / annotations…",
-  search_hint: "Filter the dataset by id, center, method, or confidence.",
-  // source control
-  scm_changes: "Changes · 1",
-  scm_human: "human-corrected",
-  scm_hint: "Corrections are versioned per image and flow to the memory layer with provenance.",
-  // models / extensions
-  ext_installed: "Installed · segmentation adapters",
-  ext_market: "Marketplace",
-  ext_get: "Get",
+  // marketplace cards reuse these two for the activatable-model badge
   ext_active: "active",
   ext_enable: "enable",
+  // plugin marketplace (capability registry · 4 layers)
+  av_market: "Plugin Marketplace",
+  lay_representation: "Representation · data in",
+  lay_action: "Action · capabilities",
+  lay_verification: "Verification · judges",
+  lay_memory: "Memory · flywheel",
+  cap_active: "ready",
+  cap_installed: "installed",
+  cap_planned: "planned",
   // editor hud / tools
   tip_select: "Pan (drag) · zoom (scroll)",
   tip_editli: "Edit LI",
