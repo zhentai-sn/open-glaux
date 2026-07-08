@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAgent } from "../agent/useAgent";
 import { Rich } from "./Rich";
+import type { Measure, TaskType } from "../api/types";
 import { useI18n } from "../i18n";
-import { useSession, type IntentBackendId, type Msg } from "../store/session";
+import { useSession, type IntentBackendId, type Msg, type Tool } from "../store/session";
 
 function IntentConfig({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
@@ -49,96 +50,79 @@ function IntentConfig({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AgentRun({ model, imt, max, cols, vsA1 }: { model: string; imt: string; max: string; cols: number; vsA1: number | null }) {
-  const { t } = useI18n();
+// 泛型任务运行卡片——按注册表（label/metrics/overlays）渲染任意模态的运行结果。
+// 头条=首个度量；其余度量（含金标准偏差 vs_*）平铺；可编辑叠加才出「修正」按钮。加任务零改。
+function AgentTaskRun({ task, model, metrics }: { task: TaskType; model: string; metrics: Record<string, Measure> }) {
+  const { t, lang } = useI18n();
+  const tasks = useSession((s) => s.tasks);
+  const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const setTool = useSession((s) => s.setTool);
   const pushAgent = useSession((s) => s.pushAgent);
   const setPanelTab = useSession((s) => s.setPanelTab);
 
-  return (
-    <div className="abody">
-      {t("intro")}
-      <ul className="steps">
-        <li><span className="st">✓</span><Rich k="s_interp" /></li>
-        <li><span className="st">✓</span><Rich k="s_cal" /></li>
-        <li><span className="st">✓</span><Rich k="s_seg" vars={{ model }} /></li>
-        <li><span className="st">✓</span><Rich k="s_meas" /></li>
-      </ul>
-      <div className="prop">
-        <div className="r">
-          <div className="val">
-            {imt}
-            <u>mm</u>
-          </div>
-          <span className="conf">{t("conf")}</span>
-        </div>
-        <div className="r" style={{ marginTop: 5, fontSize: 11, color: "var(--faint)" }}>
-          <span>{t("m_vsa1")} {vsA1 == null ? "—" : `${vsA1.toFixed(1)} µm`}</span>
-          <span className="mono">max {max} · cols {cols}</span>
-        </div>
-        <div className="act">
-          <button
-            className="accept"
-            onClick={() => {
-              pushAgent({ variant: "plain", key: "accepted" });
-              setPanelTab("meas");
-            }}
-          >
-            {t("accept")}
-          </button>
-          <button
-            className="correct"
-            onClick={() => {
-              setTool("editma");
-              pushAgent({ variant: "plain", key: "switch_ma" });
-            }}
-          >
-            {t("correct")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const tv = tasks.find((x) => x.task === task);
+  const label = tv?.label[lang] ?? task;
+  const defs = tv?.metrics ?? [];
+  const editRole = tv?.overlays.find((o) => o.editable)?.role;
 
-function AgentHCRun({ model, hc, bpd, ofd, vsGt }: { model: string; hc: string; bpd: string; ofd: string; vsGt: number | null }) {
-  const { t } = useI18n();
-  const pushAgent = useSession((s) => s.pushAgent);
-  const setPanelTab = useSession((s) => s.setPanelTab);
+  // 度量按注册表顺序在前，后端追加的金标准偏差（vs_*）在后
+  const keys = [...defs.map((d) => d.key), ...Object.keys(metrics).filter((k) => !defs.some((d) => d.key === k))];
+  const ordered = keys.map((k) => [k, metrics[k]] as const).filter(([, mm]) => !!mm);
+  const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
+  const head = ordered[0]?.[1];
+  const rest = ordered.slice(1);
 
   return (
     <div className="abody">
-      {t("intro_hc")}
+      {t("task_intro", { task: label })}
       <ul className="steps">
-        <li><span className="st">✓</span><Rich k="hs_interp" /></li>
-        <li><span className="st">✓</span><Rich k="hs_cal" /></li>
-        <li><span className="st">✓</span><Rich k="hs_det" vars={{ model }} /></li>
-        <li><span className="st">✓</span><Rich k="hs_meas" /></li>
+        <li><span className="st">✓</span><Rich k="st_interpret" vars={{ task }} /></li>
+        <li><span className="st">✓</span><Rich k="st_calibrate" vars={{ cf: String(cf ?? "—") }} /></li>
+        <li><span className="st">✓</span><Rich k="st_detect" vars={{ model }} /></li>
+        <li><span className="st">✓</span><Rich k="st_measure" /></li>
       </ul>
-      <div className="prop">
-        <div className="r">
-          <div className="val">
-            {hc}
-            <u>mm</u>
+      {head && (
+        <div className="prop">
+          <div className="r">
+            <div className="val">
+              {fmt(head.value)}
+              <u>{head.unit}</u>
+            </div>
+            <span className="conf">{t("conf")}</span>
           </div>
-          <span className="conf">{t("conf")}</span>
+          {rest.length > 0 && (
+            <div className="r" style={{ marginTop: 5, fontSize: 11, color: "var(--faint)", flexWrap: "wrap", gap: 8 }}>
+              {rest.map(([k, mm]) => (
+                <span key={k} className="mono">
+                  {(lang === "zh" ? mm.label_zh : mm.label_en)} {fmt(mm.value)} {mm.unit}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="act">
+            <button
+              className="accept"
+              onClick={() => {
+                pushAgent({ variant: "plain", key: "accepted" });
+                setPanelTab("meas");
+              }}
+            >
+              {t("accept")}
+            </button>
+            {editRole && (
+              <button
+                className="correct"
+                onClick={() => {
+                  setTool(`edit${editRole.toLowerCase()}` as Tool);
+                  pushAgent({ variant: "plain", key: "switch_edit" });
+                }}
+              >
+                {t("correct")}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="r" style={{ marginTop: 5, fontSize: 11, color: "var(--faint)" }}>
-          <span>{t("m_vsgt")} {vsGt == null ? "—" : `${vsGt.toFixed(2)} mm`}</span>
-          <span className="mono">BPD {bpd} · OFD {ofd}</span>
-        </div>
-        <div className="act">
-          <button
-            className="accept"
-            onClick={() => {
-              pushAgent({ variant: "plain", key: "accepted" });
-              setPanelTab("meas");
-            }}
-          >
-            {t("accept")}
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -151,10 +135,8 @@ function AgentTurn({ m }: { m: Extract<Msg, { role: "agent" }> }) {
         <span className="d" />
         {t("agent_name")}
       </div>
-      {m.variant === "run" ? (
-        <AgentRun model={m.model} imt={m.imt} max={m.max} cols={m.cols} vsA1={m.vsA1} />
-      ) : m.variant === "hcrun" ? (
-        <AgentHCRun model={m.model} hc={m.hc} bpd={m.bpd} ofd={m.ofd} vsGt={m.vsGt} />
+      {m.variant === "taskrun" ? (
+        <AgentTaskRun task={m.task} model={m.model} metrics={m.metrics} />
       ) : m.variant === "note" ? (
         <div className={"abody " + (m.tone === "crit" ? "refuse" : "plain")}>{m.text}</div>
       ) : (

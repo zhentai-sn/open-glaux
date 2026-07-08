@@ -27,13 +27,6 @@ function sampleHandles(pts: Pts): number[] {
 function deform(base: Pts, handleX: number, dy: number, sigma: number): Pts {
   return base.map(([x, y]) => [x, y + dy * Math.exp(-((x - handleX) ** 2) / (2 * sigma * sigma))]);
 }
-function meanThicknessMm(a: Pts, b: Pts, cf: number): number {
-  const n = Math.min(a.length, b.length);
-  if (!n) return 0;
-  let s = 0;
-  for (let i = 0; i < n; i++) s += Math.abs(b[i][1] - a[i][1]);
-  return (s / n) * cf;
-}
 function clonePrims(ps: Primitive[]): Primitive[] {
   return ps.map((p) => (p.kind === "polyline" ? { ...p, points: p.points.map((q) => [...q]) } : { ...p }));
 }
@@ -59,7 +52,6 @@ export function CornerstoneViewer() {
   const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
   const setCoords = useSession((s) => s.setCoords);
-  const setImt = useSession((s) => s.setImt);
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
@@ -364,8 +356,6 @@ export function CornerstoneViewer() {
       if (!poly) return;
       poly.points = deform(d.base, d.hx, iy - d.y0img, d.sigma);
       drawOverlay();
-      const polys = work.current.filter((q): q is Poly => q.kind === "polyline");
-      if (polys.length >= 2 && cf) setImt(meanThicknessMm(polys[0].points, polys[1].points, cf).toFixed(3));
     }
   };
 
@@ -386,22 +376,16 @@ export function CornerstoneViewer() {
     try {
       const meas = await api.taskMeasure(taskType, edited, cf);
       const m = meas.metrics;
-      useSession.getState().setMetrics(m);
-      useSession.getState().setPrimitives(edited);
-      const polys = edited.filter((q): q is Poly => q.kind === "polyline");
-      const li = polys.find((q) => q.role === "LI");
-      const ma = polys.find((q) => q.role === "MA");
-      if (li && ma) useSession.getState().setBoundaries({ li: li.points, ma: ma.points, source: "human", modelVersion: "human-corrected" });
-      if (m.IMT_pdm) {
-        const pdm = m.IMT_pdm.value;
-        useSession.getState().setMeasurement({
-          mean_mm: m.IMT_mean?.value ?? 0,
-          max_mm: m.IMT_max?.value ?? 0,
-          pdm_mean_mm: pdm,
-          n_columns: li ? li.points.length : 0,
-          vs_a1_um: useSession.getState().measurement?.vs_a1_um ?? null,
-        });
-        useSession.getState().pushAgent({ variant: "plain", key: "remeasure", vars: { w: d.role, v: pdm.toFixed(3) } });
+      const st = useSession.getState();
+      st.setMetrics(m);
+      st.setPrimitives(edited);
+      st.setSource("human"); // 编辑后来源翻人工
+      // 智能体重测回话——头条度量（首个注册表度量）；泛型，加任务零改
+      const tvNow = st.tasks.find((x) => x.task === taskType);
+      const head = tvNow ? m[tvNow.metrics[0]?.key] : undefined;
+      if (head) {
+        const v = Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1);
+        st.pushAgent({ variant: "plain", key: "remeasure", vars: { w: d.role, v: `${v} ${head.unit}` } });
       }
     } catch {
       /* 后端失败保留预览值 */

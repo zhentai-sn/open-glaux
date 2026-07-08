@@ -24,7 +24,7 @@ function MeasurementsView() {
   const metrics = useSession((s) => s.metrics);
   const modality = useSession((s) => s.modality);
   const overlays = useSession((s) => s.tasks.find((tk) => tk.modality === modality)?.overlays ?? []);
-  const src = useSession((s) => s.boundaries?.source ?? s.hcContour?.source ?? "agent");
+  const src = useSession((s) => s.source);
   if (!metrics) return <div className="stub">— no run yet —</div>;
   const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
   return (
@@ -51,33 +51,24 @@ const logline = (body: JSX.Element, key: string) => (
   </div>
 );
 
+// 泛型运行日志——按注册表标签 + 泛型 metrics/modelVersion 渲染 provenance，不再逐模态硬写。
 function OutputView() {
+  const { lang } = useI18n();
   const modality = useSession((s) => s.modality);
+  const tasks = useSession((s) => s.tasks);
+  const metrics = useSession((s) => s.metrics);
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
-  const b = useSession((s) => s.boundaries);
-  const m = useSession((s) => s.measurement);
-  const hcC = useSession((s) => s.hcContour);
-  const hcM = useSession((s) => s.hcMeasurement);
-
-  if (modality === "fetal_hc") {
-    if (!hcC || !hcM) return <div className="stub">— no run yet —</div>;
-    return (
-      <div>
-        {logline(<>interpret → <span className="ok">in_scope</span> fetal_hc</>, "i")}
-        {logline(<>calibrate → {cf ?? "—"} mm/px</>, "c")}
-        {logline(<>detect → {hcC.modelVersion} · {hcC.points.length} ring pts</>, "s")}
-        {logline(<>measure → ellipse-fit · Ramanujan perimeter · <span className="ok">HC {hcM.hc_mm.toFixed(1)} mm</span> · vs GT {hcM.vs_gt_mm == null ? "—" : hcM.vs_gt_mm.toFixed(2)} mm</>, "m")}
-      </div>
-    );
-  }
-
-  if (!b || !m) return <div className="stub">— no run yet —</div>;
+  const modelVersion = useSession((s) => s.modelVersion);
+  const tv = tasks.find((tk) => tk.modality === modality);
+  if (!metrics || !tv) return <div className="stub">— no run yet —</div>;
+  const head = (tv.metrics[0] && metrics[tv.metrics[0].key]) || Object.values(metrics)[0];
+  const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
   return (
     <div>
-      {logline(<>interpret → <span className="ok">in_scope</span> far_wall_cca_imt</>, "i")}
-      {logline(<>calibrate → CUBS CF {cf ?? "—"} mm/px</>, "c")}
-      {logline(<>segment → {b.modelVersion} · {b.li.length} pts LI/MA</>, "s")}
-      {logline(<>measure → PDM common-support · <span className="ok">IMT {m.pdm_mean_mm.toFixed(3)} mm</span> · cols {m.n_columns}</>, "m")}
+      {logline(<>interpret → <span className="ok">in_scope</span> {tv.task}</>, "i")}
+      {logline(<>calibrate → CF {cf ?? "—"} mm/px</>, "c")}
+      {logline(<>detect → {modelVersion || "—"}</>, "s")}
+      {logline(<>measure → {tv.label[lang]} · <span className="ok">{head ? `${fmt(head.value)} ${head.unit}` : "—"}</span></>, "m")}
     </div>
   );
 }

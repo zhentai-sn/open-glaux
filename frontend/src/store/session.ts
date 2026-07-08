@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 import type { I18nKey } from "../i18n";
 import type {
-  HCEllipse,
   ImageMeta,
   IntentBackendInfo,
   Measure,
@@ -10,42 +9,13 @@ import type {
   ModelInfo,
   Primitive,
   Scope,
+  TaskType,
   TaskView,
 } from "../api/types";
 
 export type IntentBackendId = "rule" | "vlm";
 
-// 画布叠加的边界（图像像素坐标）+ 来源（agent/human）+ 产出模型版本。
-export interface Boundaries {
-  li: number[][];
-  ma: number[][];
-  source: "agent" | "human";
-  modelVersion: string;
-}
-
-export interface Measurement {
-  mean_mm: number;
-  max_mm: number;
-  pdm_mean_mm: number;
-  n_columns: number;
-  vs_a1_um: number | null;
-}
-
-// 胎儿头围（HC，闭合轮廓模态）：检测到的颅骨轮廓 + 拟合椭圆 + 来源。
-export interface HCContour {
-  points: number[][];
-  ellipse: HCEllipse;
-  source: "agent" | "human";
-  modelVersion: string;
-}
-
-export interface HCMeasure {
-  hc_mm: number;
-  bpd_mm: number;
-  ofd_mm: number;
-  area_mm2: number;
-  vs_gt_mm: number | null;
-}
+export type Source = "agent" | "human"; // 当前叠加/测量的来源（模型产出 vs 人工修正）
 
 export type View = "explorer" | "search" | "scm" | "models";
 export type PanelTab = "meas" | "out" | "prob";
@@ -57,24 +27,14 @@ export type Msg =
   | { id: number; role: "agent"; variant: "plain" | "refuse" | "clarify"; key: I18nKey; vars?: Record<string, string> }
   | { id: number; role: "agent"; variant: "note"; text: string; tone: "crit" | "plain" }
   | {
+      // 泛型任务运行卡片（多模态·替代逐模态 run/hcrun）——携任务 + 模型 + 度量快照，
+      // 卡片按注册表（label/metrics/overlays）渲染，加任务零改。
       id: number;
       role: "agent";
-      variant: "run";
+      variant: "taskrun";
+      task: TaskType;
       model: string;
-      imt: string;
-      max: string;
-      cols: number;
-      vsA1: number | null;
-    }
-  | {
-      id: number;
-      role: "agent";
-      variant: "hcrun";
-      model: string;
-      hc: string;
-      bpd: string;
-      ofd: string;
-      vsGt: number | null;
+      metrics: Record<string, Measure>;
     };
 
 // 联合上的 Omit 需分布，否则各成员的判别字段会坍塌（TS 会误判字面量缺属性）。
@@ -96,13 +56,10 @@ interface SessionState {
   models: ModelInfo[];
   images: ImageMeta[]; // 数据集列表（Explorer）
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods）
-  metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板真相源
+  metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
-  boundaries: Boundaries | null; // 当前叠加边界（IMT，画布用；由 primitives 派生）
-  measurement: Measurement | null; // 当前测量（IMT，agent/状态栏用；由 metrics 派生）
-  hcContour: HCContour | null; // 当前颅骨轮廓 + 椭圆（HC）
-  hcMeasurement: HCMeasure | null; // 当前 HC 测量（agent 用；由 metrics 派生）
-  imt: string; // 当前展示的 IMT（mm，字符串保三位）
+  source: Source; // 当前叠加来源（agent 模型产出 / human 人工修正）
+  modelVersion: string; // 当前结果的模型版本（供卡片/输出栏展示）
   lastScope: Scope | null;
   loading: boolean; // 分割/测量进行中
   coords: { x: number; y: number }; // 画布光标坐标（状态栏读出）
@@ -130,11 +87,8 @@ interface SessionState {
   setImageMeta: (m: ImageMeta | null) => void;
   setMetrics: (m: Record<string, Measure> | null) => void;
   setPrimitives: (p: Primitive[]) => void;
-  setBoundaries: (b: Boundaries | null) => void;
-  setMeasurement: (m: Measurement | null) => void;
-  setHcContour: (c: HCContour | null) => void;
-  setHcMeasurement: (m: HCMeasure | null) => void;
-  setImt: (v: string) => void;
+  setSource: (s: Source) => void;
+  setModelVersion: (v: string) => void;
   setLastScope: (s: Scope | null) => void;
   setLoading: (v: boolean) => void;
   setCoords: (x: number, y: number) => void;
@@ -165,11 +119,8 @@ export const useSession = create<SessionState>((set) => ({
   imageMeta: null,
   metrics: null,
   primitives: [],
-  boundaries: null,
-  measurement: null,
-  hcContour: null,
-  hcMeasurement: null,
-  imt: "—",
+  source: "agent",
+  modelVersion: "",
   lastScope: null,
   loading: false,
   coords: { x: 0, y: 0 },
@@ -198,12 +149,8 @@ export const useSession = create<SessionState>((set) => ({
   setImageMeta: (m) => set({ imageMeta: m }),
   setMetrics: (m) => set({ metrics: m }),
   setPrimitives: (p) => set({ primitives: p }),
-  setBoundaries: (b) => set({ boundaries: b }),
-  setMeasurement: (m) =>
-    set({ measurement: m, imt: m ? m.pdm_mean_mm.toFixed(3) : "—" }),
-  setHcContour: (c) => set({ hcContour: c }),
-  setHcMeasurement: (m) => set({ hcMeasurement: m, imt: m ? m.hc_mm.toFixed(1) : "—" }),
-  setImt: (v) => set({ imt: v }),
+  setSource: (v) => set({ source: v }),
+  setModelVersion: (v) => set({ modelVersion: v }),
   setLastScope: (s) => set({ lastScope: s }),
   setLoading: (v) => set({ loading: v }),
   setCoords: (x, y) => set({ coords: { x, y } }),

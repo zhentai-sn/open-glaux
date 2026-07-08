@@ -15,12 +15,17 @@ export function StatusBar() {
   const { t, lang, toggle } = useI18n();
   const tool = useSession((s) => s.tool);
   const coords = useSession((s) => s.coords);
-  const imt = useSession((s) => s.imt);
+  const metrics = useSession((s) => s.metrics);
+  const modality = useSession((s) => s.modality);
+  const tasks = useSession((s) => s.tasks);
   const model = useSession((s) => s.activeModel);
   const image = useSession((s) => s.activeImage);
   const images = useSession((s) => s.images);
   const setView = useSession((s) => s.setSidebarView);
   const idx = image ? images.findIndex((m) => m.id === image) + 1 : 0;
+  // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
+  const tv = tasks.find((tk) => tk.modality === modality);
+  const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
 
   return (
     <div className="status">
@@ -38,7 +43,14 @@ export function StatusBar() {
         x {coords.x} · y {coords.y}
       </span>
       <span className="item mono">
-        IMT <b>{imt}</b> mm
+        {head ? (
+          <>
+            {lang === "zh" ? head.label_zh : head.label_en}{" "}
+            <b>{Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1)}</b> {head.unit}
+          </>
+        ) : (
+          "—"
+        )}
       </span>
       <button className="item" onClick={() => setView("models")}>
         ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>

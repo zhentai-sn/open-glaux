@@ -1,6 +1,5 @@
 import { BottomPanel } from "./BottomPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { Rich } from "./Rich";
 import { Viewer } from "./Viewer";
 import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
@@ -11,27 +10,29 @@ export function Editor() {
   const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
   const image = useSession((s) => s.activeImage);
-  const center = useSession((s) => s.imageMeta?.center ?? (modality === "fetal_hc" ? "HC18" : "CUBS-tech"));
+  const center = useSession((s) => s.imageMeta?.center ?? "dataset");
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
   const setTool = useSession((s) => s.setTool);
   const pushAgent = useSession((s) => s.pushAgent);
+  const modelVersion = useSession((s) => s.modelVersion);
 
-  const isHC = modality === "fetal_hc";
-  const ext = isHC ? ".png" : ".tiff";
-  // 工具栏从任务注册表派生（当前模态对应任务的 tools），不再硬编码 IMT_TOOLS/HC_TOOLS。
-  const tools = tasks.find((tk) => tk.modality === modality)?.tools ?? [];
+  // 当前模态对应任务（注册表）——工具栏/标签/查看器全从这里来，不再 if 模态。
+  const tv = tasks.find((tk) => tk.modality === modality);
+  const tools = tv?.tools ?? [];
+  const label = tv?.label[lang] ?? "";
 
   const onTool = (id: Tool) => {
     if (id === "reset") {
       setTool("cursor");
       void reRunActiveModel().then(() => {
         const st = useSession.getState();
-        if (isHC) {
-          if (st.hcMeasurement) pushAgent({ variant: "plain", key: "hc_redetect", vars: { v: st.hcMeasurement.hc_mm.toFixed(1) } });
-        } else if (st.measurement) {
-          pushAgent({ variant: "plain", key: "reset", vars: { v: st.measurement.pdm_mean_mm.toFixed(3) } });
+        const head = tv && st.metrics ? st.metrics[tv.metrics[0]?.key] : undefined;
+        if (head) {
+          const v = Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1);
+          const hl = lang === "zh" ? head.label_zh : head.label_en;
+          pushAgent({ variant: "plain", key: "reset_done", vars: { v: `${hl} ${v} ${head.unit}` } });
         }
       });
       return;
@@ -46,17 +47,13 @@ export function Editor() {
           <div className="tab on">
             <span className="fico">▤</span>
             {image}
-            {ext}
           </div>
         )}
       </div>
       <div className="breadcrumb">
         <span>{center}</span>
         <span>images</span>
-        <span style={{ color: "var(--ink)" }}>
-          {image ?? "—"}
-          {ext}
-        </span>
+        <span style={{ color: "var(--ink)" }}>{image ?? "—"}</span>
       </div>
 
       <div className="editor">
@@ -64,7 +61,7 @@ export function Editor() {
           <>
             <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>
             <div className="hud">
-              <Rich k={isHC ? "hud_mode_hc" : "hud_mode"} className="tagpill" />
+              <span className="tagpill">{label}</span>
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
               {loading && <span className="tagpill" style={{ color: "var(--agent)" }}>…</span>}
             </div>
@@ -81,8 +78,8 @@ export function Editor() {
                 </button>
               ))}
             </div>
-            <span className="repr">{t(isHC ? (center === "synthetic-HC" ? "repr_hc_synth" : "repr_hc") : "repr")}</span>
-            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t(isHC ? "hc_detecting" : "segmenting")}</span>}
+            {modelVersion && <span className="repr">{modelVersion}</span>}
+            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t("running")}</span>}
           </>
         ) : (
           <div className="empty">{t("empty_editor")}</div>

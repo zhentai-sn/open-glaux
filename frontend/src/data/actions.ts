@@ -1,23 +1,24 @@
 // 真实数据编排（F5/F6/F8 + 多模态）——载数据集、切模态、选图、统一驱动 /task/run。
-// 数据流统一到 api.taskRun（多模态通吃）：设泛型 metrics（面板真相源）+ 由 primitives/metrics
-// 派生强类型 boundaries/measurement/hcContour/hcMeasurement（画布/agent/状态栏沿用，零改）。
+// 单一泛型入口 runCurrentTask：按注册表取当前模态的任务 → api.taskRun → 设 metrics/primitives/
+// source/modelVersion。加任务/模态零改（不再 segmentAndMeasure vs hcDetectAndMeasure 逐模态）。
 // 不推送智能体发言（静默载入）；智能体叙事在 useAgent 里叠加。
 import { api } from "../api/client";
-import type { Modality, Primitive } from "../api/types";
+import type { Modality, TaskType } from "../api/types";
 import { useSession } from "../store/session";
 
-type Poly = Extract<Primitive, { kind: "polyline" }>;
-type Ell = Extract<Primitive, { kind: "ellipse" }>;
+/** 当前模态对应的任务类型（注册表真相源）；未就绪则 null。 */
+function currentTask(): TaskType | null {
+  const { tasks, modality } = useSession.getState();
+  return tasks.find((t) => t.modality === modality)?.task ?? null;
+}
 
-/** 清空两模态的叠加/测量态（切图/切模态时）。 */
+/** 清空叠加/度量态（切图/切模态时）。 */
 function clearOverlays(): void {
   const s = useSession.getState();
   s.setMetrics(null);
   s.setPrimitives([]);
-  s.setBoundaries(null);
-  s.setMeasurement(null);
-  s.setHcContour(null);
-  s.setHcMeasurement(null);
+  s.setSource("agent");
+  s.setModelVersion("");
 }
 
 /** 载入当前模态的数据集列表（Explorer）；若无选中图则选第一张。 */
@@ -46,72 +47,24 @@ export async function switchModality(modality: Modality): Promise<void> {
   if (imgs.length) await selectImage(imgs[0].id);
 }
 
-/** IMT：统一驱动 /task/run → 设 metrics + 派生 boundaries/measurement。返回 pdm 字符串或 null。 */
-export async function segmentAndMeasure(imageId: string, model: string): Promise<string | null> {
+/** 泛型驱动：/task/run 当前模态的任务 → 设 metrics/primitives/source/modelVersion。成功返回 true。 */
+export async function runCurrentTask(imageId: string): Promise<boolean> {
   const s = useSession.getState();
+  const task = currentTask();
+  if (!task) return false;
   const cf = s.imageMeta?.cf ?? undefined;
+  const method = s.activeModel || undefined;
   s.setLoading(true);
   try {
-    const res = await api.taskRun({ task: "far_wall_cca_imt", image_id: imageId, cubs_cf: cf, method: model });
-    const li = res.primitives.find((p): p is Poly => p.kind === "polyline" && p.role === "LI");
-    const ma = res.primitives.find((p): p is Poly => p.kind === "polyline" && p.role === "MA");
-    const m = res.metrics;
-    useSession.getState().setMetrics(m);
+    const res = await api.taskRun({ task, image_id: imageId, cubs_cf: cf, method });
+    useSession.getState().setMetrics(res.metrics);
     useSession.getState().setPrimitives(res.primitives);
-    if (li && ma) {
-      useSession.getState().setBoundaries({
-        li: li.points,
-        ma: ma.points,
-        source: "agent",
-        modelVersion: String(res.provenance.model_version ?? model),
-      });
-    }
-    useSession.getState().setMeasurement({
-      mean_mm: m.IMT_mean?.value ?? 0,
-      max_mm: m.IMT_max?.value ?? 0,
-      pdm_mean_mm: m.IMT_pdm?.value ?? 0,
-      n_columns: li ? li.points.length : 0,
-      vs_a1_um: m.vs_A1?.value ?? null,
-    });
-    return (m.IMT_pdm?.value ?? 0).toFixed(3);
+    useSession.getState().setSource("agent");
+    useSession.getState().setModelVersion(String(res.provenance.model_version ?? method ?? ""));
+    return Object.keys(res.metrics).length > 0;
   } catch {
     clearOverlays();
-    return null;
-  } finally {
-    useSession.getState().setLoading(false);
-  }
-}
-
-/** HC：统一驱动 /task/run → 设 metrics + 派生 hcContour/hcMeasurement。返回 HC 字符串或 null。 */
-export async function hcDetectAndMeasure(imageId: string): Promise<string | null> {
-  const s = useSession.getState();
-  const cf = s.imageMeta?.cf ?? undefined;
-  s.setLoading(true);
-  try {
-    const res = await api.taskRun({ task: "fetal_hc", image_id: imageId, cubs_cf: cf });
-    const ell = res.primitives.find((p): p is Ell => p.kind === "ellipse");
-    const m = res.metrics;
-    useSession.getState().setMetrics(m);
-    useSession.getState().setPrimitives(res.primitives);
-    if (ell) {
-      useSession.getState().setHcContour({
-        points: [],
-        ellipse: { cx: ell.cx, cy: ell.cy, a: ell.a, b: ell.b, theta: ell.theta },
-        source: "agent",
-        modelVersion: String(res.provenance.model_version ?? ""),
-      });
-    }
-    useSession.getState().setHcMeasurement({
-      hc_mm: m.HC?.value ?? 0,
-      bpd_mm: m.BPD?.value ?? 0,
-      ofd_mm: m.OFD?.value ?? 0,
-      area_mm2: m.area?.value ?? 0,
-      vs_gt_mm: m.vs_GT?.value ?? null,
-    });
-    return (m.HC?.value ?? 0).toFixed(1);
-  } catch {
-    clearOverlays();
-    return null;
+    return false;
   } finally {
     useSession.getState().setLoading(false);
   }
@@ -124,14 +77,12 @@ export async function selectImage(imageId: string): Promise<void> {
   s.setActiveImage(imageId);
   s.setImageMeta(meta);
   clearOverlays();
-  if (s.modality === "fetal_hc") await hcDetectAndMeasure(imageId);
-  else await segmentAndMeasure(imageId, s.activeModel);
+  await runCurrentTask(imageId);
 }
 
 /** 重跑当前模态的活动模型/检测器（切模型 / Reset 用）。 */
 export async function reRunActiveModel(): Promise<void> {
-  const { activeImage, activeModel, modality } = useSession.getState();
+  const { activeImage } = useSession.getState();
   if (!activeImage) return;
-  if (modality === "fetal_hc") await hcDetectAndMeasure(activeImage);
-  else await segmentAndMeasure(activeImage, activeModel);
+  await runCurrentTask(activeImage);
 }
