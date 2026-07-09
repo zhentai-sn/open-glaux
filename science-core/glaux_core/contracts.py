@@ -11,12 +11,14 @@
 于是上层（run_spec / 后端端点 / 前端渲染）只认信封、不认任务：``IMT_mean`` 与 ``hc_mm``
 只是 ``metrics`` 字典里不同的键；LI/MA 与椭圆只是 ``primitives`` 里不同的 :data:`Primitive`。
 
-**几何原语**（v0.3 落地 Polyline / Ellipse，Mask 留引用式接口位）：
+**几何原语**：
 - :class:`Polyline` —— 开放折线（LI/MA 壁线）或闭合轮廓（``closed=True``，分割/病理）。
 - :class:`EllipseShape` —— 参数化椭圆（HC 颅骨）。
 - :class:`Mask` —— 栅格掩膜（病理区域 / labelmap），编码延后，先留不透明引用。
+- :class:`VolumeMask` —— 3D 体掩膜（CT labelmap，多类器官，顶层一体），含 :class:`ClassSpec`
+  表。前端按 classes 上色；kernel 走 ``path`` 读 NIfTI 数体素算体积/HU mean。
 
-未来模态（BBox / Keypoints / 3D 体掩膜 / 视频帧掩膜）按需在此追加一个 dataclass +
+未来模态（BBox / Keypoints / 视频帧掩膜）按需在此追加一个 dataclass +
 在 :func:`primitive_to_dict` 补一条分支，上层无需改动。
 """
 
@@ -37,7 +39,7 @@ Point = tuple[float, float]
 
 @dataclass(frozen=True)
 class Polyline:
-    """一条折线：开放（LI/MA 壁线）或闭合（``closed=True``，分割/病理轮廓）。
+    """一条折线：开放（LI/MA 壁线）或闭合轮廓（``closed=True``，分割/病理）。
 
     ``role`` 标识语义角色（``"LI"`` / ``"MA"`` / ``"contour"`` …），供前端按
     overlay_spec 上色与判定是否可编辑。坐标为像素。
@@ -90,7 +92,37 @@ class Mask:
     role: str = "mask"
 
 
-Primitive = Union[Polyline, EllipseShape, Mask]
+@dataclass(frozen=True)
+class ClassSpec:
+    """3D 体掩膜中一个器官类的元数据（id + 双语标签 + 颜色 + 是否可量）。"""
+
+    class_id: int  # 0=背景, 1=肝, 2=左肾, 3=右肾 …
+    role: str      # "liver" | "lk" | "rk" | …（与 task overlay_spec 对齐）
+    label_zh: str
+    label_en: str
+    color: str     # "#FF8A5B" 等
+    measurable: bool = True  # 体积/HU mean 等是否可量
+
+
+@dataclass(frozen=True)
+class VolumeMask:
+    """3D 体掩膜（CT labelmap，多类器官，顶层一体）。
+
+    - ``ref``：客户端拉 labelmap 的 URL（``/api/volume/{vid}/labelmap?task=…``）。
+    - ``classes``：该体掩膜包含的器官类表（前端按 class_spec 上色 + 面板列字段）。
+    - ``raw_ref``：可选原始 CT 引用，用于算 HU mean。
+    - ``path``：本地 NIfTI 文件路径——后端构造 Detection 时填，kernel measure 数体素用。
+      前端忽略；measure 必读，否则 ``RuntimeError``（无路径 → 无 measure）。
+    """
+
+    id: str
+    ref: str
+    classes: tuple[ClassSpec, ...]
+    raw_ref: str | None = None
+    path: str | None = None
+
+
+Primitive = Union[Polyline, EllipseShape, Mask, VolumeMask]
 
 
 # --- 结果信封 ----------------------------------------------------------------
@@ -149,6 +181,20 @@ def primitive_to_dict(p: Primitive) -> dict:
                 "cx": p.cx, "cy": p.cy, "a": p.a, "b": p.b, "theta": p.theta}
     if isinstance(p, Mask):
         return {"kind": "mask", "id": p.id, "role": p.role, "ref": p.ref}
+    if isinstance(p, VolumeMask):
+        d = {
+            "kind": "volume_mask", "id": p.id, "ref": p.ref,
+            "classes": [
+                {"class_id": c.class_id, "role": c.role,
+                 "label": {"en": c.label_en, "zh": c.label_zh},
+                 "color": c.color, "measurable": c.measurable}
+                for c in p.classes
+            ],
+        }
+        if p.raw_ref is not None:
+            d["raw_ref"] = p.raw_ref
+        # path 是 backend 内部路径，**不下发前端**（避免泄露文件系统布局）
+        return d
     raise TypeError(f"未知 primitive 类型：{type(p).__name__}")  # pragma: no cover
 
 
@@ -207,4 +253,21 @@ def primitive_from_dict(d: dict) -> Primitive:
         )
     if kind == "mask":
         return Mask(id=d["id"], ref=d["ref"], role=d.get("role", "mask"))
+    if kind == "volume_mask":
+        return VolumeMask(
+            id=d["id"],
+            ref=d["ref"],
+            classes=tuple(
+                ClassSpec(
+                    class_id=int(c["class_id"]),
+                    role=c["role"],
+                    label_zh=c["label"]["zh"],
+                    label_en=c["label"]["en"],
+                    color=c["color"],
+                    measurable=bool(c.get("measurable", True)),
+                )
+                for c in d["classes"]
+            ),
+            raw_ref=d.get("raw_ref"),
+        )
     raise ValueError(f"未知 primitive kind：{kind!r}")

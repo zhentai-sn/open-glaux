@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pytest
 
-from glaux_core.calibration.calibration import CalibrationResult, CFSource
-from glaux_core.contracts import Detection, EllipseShape, Polyline
-
+from glaux_core.calibration.calibration import CFSource, CalibrationResult, resolve_ct_calibration
+from glaux_core.contracts import (
+    ClassSpec,
+    Detection,
+    EllipseShape,
+    Polyline,
+    VolumeMask,
+)
 from glaux_orchestrator.spec import TaskType
 from glaux_orchestrator.tasks import (
+    LIVER_KIDNEY_CLASSES,
     REGISTRY,
     measure_hc,
     measure_imt,
@@ -23,8 +30,8 @@ def test_registry_covers_all_task_types():
     assert set(REGISTRY) == set(TaskType)
     for task, plugin in REGISTRY.items():
         assert plugin.task is task
-        assert plugin.adapter_kind in {"wall_pair", "contour"}
-        assert plugin.viewer == "raster_2d"
+        assert plugin.adapter_kind in {"wall_pair", "contour", "volume"}
+        assert plugin.viewer in {"raster_2d", "volume_3d"}
         assert callable(plugin.measure)
 
 
@@ -32,6 +39,9 @@ def test_task_for_signals_routes():
     assert task_for_signals("测远壁颈动脉 IMT") is TaskType.FAR_WALL_CCA_IMT
     assert task_for_signals("estimate fetal head circumference") is TaskType.FETAL_HC
     assert task_for_signals("测头围") is TaskType.FETAL_HC
+    # P6：CT 肝/肾信号词路由
+    assert task_for_signals("肝体积") is TaskType.TOTALSEG_LIVER_KIDNEY
+    assert task_for_signals("measure liver volume from CT") is TaskType.TOTALSEG_LIVER_KIDNEY
     assert task_for_signals("hello world") is None
 
 
@@ -79,3 +89,53 @@ def test_plugin_to_view_is_json_native_without_callable():
     assert view["overlays"][0] == {"role": "LI", "color": "#4FB0FF", "editable": True}
     assert "measure" not in view  # 不下发可调用
     json.dumps(view)  # JSON-native
+
+
+def test_plugin_to_view_totalseg_liver_kidney():
+    """P6：CT 任务 plugin view 应含 volume_3d viewer + 6 个 metric keys + brush 工具 + 三色 overlay。"""
+    view = plugin_to_view(REGISTRY[TaskType.TOTALSEG_LIVER_KIDNEY])
+    assert view["task"] == "totalseg_liver_kidney"
+    assert view["viewer"] == "volume_3d"
+    assert view["adapter_kind"] == "volume"
+    assert view["modality"] == "ct_abdomen"
+    expected_keys = {
+        "liver_volume_mm3", "liver_hu_mean",
+        "lk_volume_mm3", "lk_hu_mean",
+        "rk_volume_mm3", "rk_hu_mean",
+    }
+    assert {m["key"] for m in view["metrics"]} == expected_keys
+    assert {t["id"] for t in view["tools"]} == {"cursor", "brush", "reset"}
+    roles = {o["role"] for o in view["overlays"]}
+    assert roles == {"liver", "lk", "rk"}
+    assert all(o["editable"] for o in view["overlays"])
+    assert "measure" not in view
+    json.dumps(view)
+
+
+def test_liver_kidney_classes_constant():
+    """LIVER_KIDNEY_CLASSES 与 plugin.overlays 同步（class_id/role/label/color）。"""
+    plugin = REGISTRY[TaskType.TOTALSEG_LIVER_KIDNEY]
+    overlay_roles = {o.role for o in plugin.overlays}
+    assert {c.role for c in LIVER_KIDNEY_CLASSES} == overlay_roles
+    assert [c.class_id for c in LIVER_KIDNEY_CLASSES] == [1, 2, 3]
+    assert LIVER_KIDNEY_CLASSES[0].label_zh == "肝"
+    assert LIVER_KIDNEY_CLASSES[0].color == "#FF8A5B"
+
+
+def test_measure_liver_kidney_via_registry(tmp_path):
+    """通过 REGISTRY 调 measure_liver_kidney：写一个 10³ 假 labelmap + (1,1,1) 标定。"""
+    import nibabel as nib
+
+    arr = np.zeros((10, 10, 10), dtype=np.int32)
+    arr[2:8, 2:8, 2:8] = 1  # 肝 216 体素
+    arr[0:2, 0:2, 0:2] = 2  # lk 8 体素
+    p = str(tmp_path / "label.nii.gz")
+    nib.save(nib.Nifti1Image(arr, np.eye(4)), p)
+    vol = VolumeMask(id="ct_001", ref="x", classes=LIVER_KIDNEY_CLASSES, path=p)
+    det = Detection(primitives=(vol,), model_version="test")
+    cal = resolve_ct_calibration((1.0, 1.0, 1.0))
+    meas = REGISTRY[TaskType.TOTALSEG_LIVER_KIDNEY].measure(det, cal)
+    assert meas.metrics["liver_volume_mm3"].value == pytest.approx(216.0)
+    assert meas.metrics["lk_volume_mm3"].value == pytest.approx(8.0)
+    # rk 不在 labelmap → 0（不出 hu）
+    assert meas.metrics["rk_volume_mm3"].value == 0.0

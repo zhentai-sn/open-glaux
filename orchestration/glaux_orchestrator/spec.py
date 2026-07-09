@@ -20,6 +20,7 @@ class TaskType(str, Enum):
 
     FAR_WALL_CCA_IMT = "far_wall_cca_imt"  # 颈动脉远壁内中膜厚度
     FETAL_HC = "fetal_hc"  # 胎儿头围
+    TOTALSEG_LIVER_KIDNEY = "totalseg_liver_kidney"  # P6：CT 肝+双肾分割 + 体积/HU mean
 
 
 class Scope(str, Enum):

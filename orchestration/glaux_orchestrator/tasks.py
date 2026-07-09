@@ -22,9 +22,18 @@ from dataclasses import dataclass
 import numpy as np
 
 from glaux_core.calibration.calibration import CalibrationResult
-from glaux_core.contracts import Detection, EllipseShape, Measure, Measurement, Polyline
+from glaux_core.contracts import (
+    ClassSpec,
+    Detection,
+    EllipseShape,
+    Measure,
+    Measurement,
+    Polyline,
+    VolumeMask,
+)
 from glaux_core.io.boundaries import Boundary
 from glaux_core.io.contour import Ellipse
+from glaux_core.measurement.ct import measure_liver_kidney as _measure_liver_kidney
 from glaux_core.measurement.hc import hc_from_ellipse as _hc_from_ellipse
 from glaux_core.measurement.pdm import imt as _imt
 
@@ -187,6 +196,41 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("skull", "#C39BFF", editable=False),
         ),
     ),
+    # P6 楔子：CT 肝+双肾分割（3 类）。几何族 "volume" 走 VolumeMask Primitive；后端
+    # _detect_for_spec 新加 "volume" 分支派发到 segment_ts.subprocess。viewer 走
+    # volume_3d（CS3D OrthographicViewport，U3 接）；tools 含 brush（画笔，U4 接）。
+    TaskType.TOTALSEG_LIVER_KIDNEY: TaskPlugin(
+        task=TaskType.TOTALSEG_LIVER_KIDNEY,
+        adapter_kind="volume",
+        modality="ct_abdomen",
+        label_en="Liver + kidneys (CT, 3 classes)",
+        label_zh="肝+双肾 (CT, 3 类)",
+        signals=(
+            "liver", "kidney", "ct", "abdomen", "腹部", "肝", "肾", "ct", "ct扫描",
+            "肝脏", "左肾", "右肾", "器官体积", "organ volume",
+        ),
+        default_method="totalsegmentator_v2",
+        measure=_measure_liver_kidney,  # type: ignore[arg-type]
+        metrics=(
+            MetricDef("liver_volume_mm3", "mm³", "Liver volume", "肝体积"),
+            MetricDef("liver_hu_mean", "HU", "Liver mean HU", "肝平均 HU"),
+            MetricDef("lk_volume_mm3", "mm³", "L kidney volume", "左肾体积"),
+            MetricDef("lk_hu_mean", "HU", "L kidney mean HU", "左肾平均 HU"),
+            MetricDef("rk_volume_mm3", "mm³", "R kidney volume", "右肾体积"),
+            MetricDef("rk_hu_mean", "HU", "R kidney mean HU", "右肾平均 HU"),
+        ),
+        viewer="volume_3d",
+        tools=(
+            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
+            ToolDef("brush", "✎", "Brush edit", "画笔编辑"),
+            ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
+        ),
+        overlays=(
+            OverlaySpec("liver", "#FF8A5B", editable=True),
+            OverlaySpec("lk", "#4FB0FF", editable=True),
+            OverlaySpec("rk", "#4FB0FF", editable=True),
+        ),
+    ),
 }
 
 
@@ -197,6 +241,17 @@ def task_for_signals(text: str) -> TaskType | None:
         if any(sig in low for sig in plugin.signals):
             return task
     return None
+
+
+# P6：CT 肝+双肾的 ClassSpec 表（与 TaskPlugin.REGISTRY 行同步；后端 build VolumeMask 用）。
+LIVER_KIDNEY_CLASSES: tuple[ClassSpec, ...] = (
+    ClassSpec(class_id=1, role="liver", label_zh="肝", label_en="Liver",
+              color="#FF8A5B", measurable=True),
+    ClassSpec(class_id=2, role="lk", label_zh="左肾", label_en="L kidney",
+              color="#4FB0FF", measurable=True),
+    ClassSpec(class_id=3, role="rk", label_zh="右肾", label_en="R kidney",
+              color="#4FB0FF", measurable=True),
+)
 
 
 def plugin_to_view(plugin: TaskPlugin) -> dict:
