@@ -10,10 +10,16 @@ dist/
 venv/
 env/
 
-# 数据集不入库（CUBS 走下载，见 science-core/README.md）——仅锚定仓库根，勿误伤 src/data/
-/data/
+# 数据集不入库（CUBS 走下载，见 science-core/README.md）——锚定仓库根，勿误伤 src/data/
+# 注：/data/<dir>/ 仍忽略二进制，但 README.md 重新放行
+/data/*
+!/data/ct/
+!/data/ct/README.md
 *.tiff
 *.tif
+# P6：CT NIfTI 体积/labelmap 不入库
+*.nii
+*.nii.gz
 
 # 模型权重不入库
 *.h5

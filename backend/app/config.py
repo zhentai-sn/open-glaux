@@ -60,6 +60,15 @@ HC_SEG_DRIVER = _env_path("GLAUX_HC_SEG_DRIVER", HC_SEG_ROOT / "run_headless.py"
 HC_SEG_WEIGHTS = _env_path("GLAUX_HC_SEG_WEIGHTS", HC_SEG_ROOT / "hf/test_model.pth")
 HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", HOME / "glaux_models/hc_seg_out")
 
+# --- P6 第三模态：CT 体积数据 + TotalSegmentator 隔离环境（v2.4.0，Apache-2.0）---
+CT_ROOT = _env_path("GLAUX_CT_ROOT", REPO_ROOT / "data/ct")
+# 隔离环境（主进程绝不 import torch；与 .venv-csd / .venv-hc 同构）
+TS_ROOT = _env_path("GLAUX_TS_ROOT", HOME / "glaux_models/totalseg")
+TS_PYTHON = _env_path("GLAUX_TS_PYTHON", TS_ROOT / ".venv-ts/bin/python")
+TS_DRIVER = _env_path("GLAUX_TS_DRIVER", TS_ROOT / "run_headless.py")
+TS_WEIGHTS = _env_path("GLAUX_TS_WEIGHTS", TS_ROOT / "weights")
+TS_CACHE = _env_path("GLAUX_TS_CACHE", HOME / "glaux_models/ts_out")
+
 
 def data_available() -> bool:
     """真实数据集是否就绪（否则端点回退 mock）。"""
@@ -81,3 +90,13 @@ def hc_data_available() -> bool:
 def hc_live_available() -> bool:
     """HC 分割隔离环境是否可现算（缓存未命中时才需要）。"""
     return HC_SEG_PYTHON.is_file() and HC_SEG_DRIVER.is_file() and HC_SEG_WEIGHTS.is_file()
+
+
+def ct_data_available() -> bool:
+    """CT 体积数据是否就绪（`data/ct/` 下 ship 了至少 1 例 NIfTI demo）。"""
+    return CT_ROOT.is_dir() and any(p.suffix in {".nii", ".nii.gz"} for p in CT_ROOT.glob("ct_*"))
+
+
+def ts_live_available() -> bool:
+    """TotalSegmentator 隔离环境是否可现算（缓存未命中时才需要）。"""
+    return TS_PYTHON.is_file() and TS_DRIVER.is_file() and TS_WEIGHTS.is_dir()

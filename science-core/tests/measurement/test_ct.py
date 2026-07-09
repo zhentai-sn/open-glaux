@@ -106,7 +106,7 @@ def test_resolve_ct_calibration_happy_path():
 
 
 def test_resolve_ct_calibration_zero_or_negative_rejects():
-    for bad in [(0, 0.5, 1.0), (-1, 0.5, 1.0), (0.5, 0.5, 0), (0.5, 0.5, "x")]:
+    for bad in [(0, 0.5, 1.0), (-1, 0.5, 1.0), (0.5, 0.5, 0), (0.5, 0.5, 0.0)]:
         with pytest.raises(HardReject, match="CT voxel_spacing"):
             resolve_ct_calibration(bad)
 

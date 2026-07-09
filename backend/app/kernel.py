@@ -2,6 +2,9 @@
 
 后端不搬业务：意图判定用 orchestration 的 RuleBasedBackend，测量用 science-core 的
 对齐口径 imt（共同支撑 + 对称 PDM）。此处只做 HTTP schema ↔ 领域对象 的映射。
+
+P6：在 _detect_for_spec 加 "volume" 分支（CT 模态），数据来自 segment_ts + dataset_ct，
+组装成 VolumeMask + voxel_spacing 标定。
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ import base64
 
 import numpy as np
 
-from . import config, dataset, hc_dataset, mock, segment_proc
+from . import config, dataset, dataset_ct, hc_dataset, mock, segment_proc, segment_ts
 from .schemas import (
     IMTResult,
     IntentResult,
@@ -35,8 +38,10 @@ from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
 from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 from glaux_orchestrator.spec import TaskType as _TaskType  # noqa: E402
-from glaux_orchestrator.tasks import REGISTRY as _REGISTRY  # noqa: E402
+from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES, REGISTRY as _REGISTRY  # noqa: E402
 from glaux_orchestrator.tasks import plugin_to_view as _plugin_to_view  # noqa: E402
+from glaux_core.contracts import VolumeMask  # noqa: E402
+from glaux_core.calibration.calibration import resolve_ct_calibration  # noqa: E402
 
 _rule = RuleBasedBackend()
 _vlm = ClaudeVLMBackend()
@@ -179,6 +184,33 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
             roi_used=roi,
         )
         return det, CalibrationResult(cf=float(cf), source=CFSource.CUBS)
+
+    if plugin.adapter_kind == "volume":
+        # P6：CT 模态——数据入口边界走 segment_ts（缓存 + 隔离子进程）+ dataset_ct（标定）。
+        # 与 wall_pair / contour 同形：构造 VolumeMask（含 path 与 classes），落 Detection.primitives。
+        if not spec.image_id or not dataset_ct.is_ct(spec.image_id):
+            raise ValueError(f"非 CT volume id：{spec.image_id}——硬拒绝，不在错模态上瞎跑")
+        if not config.ct_data_available():
+            raise ValueError(f"CT 数据未就绪：{config.CT_ROOT} 无 ct_*.nii.gz")
+        method = spec.method or "totalsegmentator_v2"
+        labelmap_path, mv = segment_ts.segment(spec.image_id, method)
+        cal = resolve_ct_calibration(dataset_ct.vox_spacing_mm(spec.image_id))
+        # ref 用 URL 模板（含 task 与 method），前端用 ref 拉 labelmap；path 给 kernel measure 用
+        ref = f"/api/volume/{spec.image_id}/labelmap?task={spec.task}&method={method}"
+        raw_ref = f"/api/volume/{spec.image_id}/raw"
+        vol_prim = VolumeMask(
+            id=f"{spec.image_id}_labelmap",
+            ref=ref,
+            classes=LIVER_KIDNEY_CLASSES,
+            raw_ref=raw_ref,
+            path=labelmap_path,
+        )
+        det = Detection(
+            primitives=(vol_prim,),
+            model_version=mv,
+            roi_used=roi,
+        )
+        return det, cal
 
     raise ValueError(f"未支持的 adapter_kind：{plugin.adapter_kind}")  # pragma: no cover
 

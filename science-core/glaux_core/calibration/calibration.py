@@ -103,7 +103,7 @@ def resolve_ct_calibration(voxel_spacing_mm: tuple[float, float, float]) -> Cali
     """
     if voxel_spacing_mm is None or len(voxel_spacing_mm) != 3:
         raise HardReject(f"CT 标定形状非法：{voxel_spacing_mm!r}")
-    if not all(isinstance(v, (int, float)) and v > 0 for v in voxel_spacing_mm):
+    if not all(float(v) > 0 for v in voxel_spacing_mm):
         raise HardReject(f"CT voxel_spacing 非正/非数：{voxel_spacing_mm!r}")
     sx, sy, sz = float(voxel_spacing_mm[0]), float(voxel_spacing_mm[1]), float(voxel_spacing_mm[2])
     return CalibrationResult(

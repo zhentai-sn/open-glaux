@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 # --- 意图 / 规范 -------------------------------------------------------------
 
 Scope = Literal["in_scope", "ambiguous", "out_of_scope"]
-TaskType = Literal["far_wall_cca_imt", "fetal_hc"]
-Modality = Literal["carotid_imt", "fetal_hc"]
+TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney"]
+Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen"]
 
 
 class TaskSpec(BaseModel):
@@ -85,6 +85,7 @@ class ImageMeta(BaseModel):
     cf: float | None
     methods: list[str] = Field(default_factory=list)
     modality: Modality = "carotid_imt"
+    voxel_spacing_mm: list[float] | None = None  # P6：CT 模态用（替代 cubs_cf）
 
 
 # --- 模型（扩展=适配器） -----------------------------------------------------

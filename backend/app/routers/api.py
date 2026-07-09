@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Response
 
@@ -40,7 +41,7 @@ router = APIRouter()
 try:
     from glaux_orchestrator.intent import IntentBackendUnavailable
 
-    from .. import dataset, hc_dataset, kernel
+    from .. import dataset, dataset_ct, hc_dataset, kernel, segment_ts
 
     KERNEL_OK = True
 except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
@@ -49,6 +50,10 @@ except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
 
     class IntentBackendUnavailable(Exception):  # 降级占位，保证 except 名可解析
         ...
+
+    # P6: 缺 science-core 时也让 import 不挂——KERNEL_OK=False 已足以让 ct 端点走 503
+    segment_ts = None  # type: ignore[assignment]
+    dataset_ct = None  # type: ignore[assignment]
 
 
 def _has_data() -> bool:
@@ -85,9 +90,69 @@ def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[I
         if not KERNEL_OK:
             raise HTTPException(503, "HC 模态需 science-core（未装配）")
         return [ImageMeta(**hc_dataset.image_meta(i)) for i in hc_dataset.list_ids()]
+    if modality == "ct_abdomen":  # P6
+        if not KERNEL_OK:
+            raise HTTPException(503, "CT 模态需 science-core（未装配）")
+        return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
     if not _has_data():
         return mock.dataset()
     return [ImageMeta(**dataset.image_meta(i)) for i in dataset.list_ids()]
+
+
+@router.get("/volumes", response_model=list[ImageMeta], tags=["dataset"])
+def volumes() -> list[ImageMeta]:
+    """P6：CT 体积列表——与 /images?modality=ct_abdomen 同源；分端点便于前端 discovery。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct.__module__:  # 防御性：import 后再看
+        raise HTTPException(503, "CT dataset 模块未装配")
+    return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
+
+
+@router.get("/volume/{volume_id}", tags=["dataset"])
+def volume_stream(volume_id: str) -> Response:
+    """P6：流式返回 CT 原始 NIfTI 字节（前端 CS3D DICOM image loader 走 wadouri:）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    try:
+        path = dataset_ct.nifti_path(volume_id)
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    # 流式给前端；二进制 NIfTI 字节
+    with open(path, "rb") as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"X-Glaux-Volume-Id": volume_id, "Content-Length": str(len(data))},
+    )
+
+
+@router.get("/volume/{volume_id}/labelmap", tags=["dataset"])
+def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2") -> Response:
+    """P6：流式返回 labelmap NIfTI 字节（缓存命中直返；未命中 → 422 提示先 POST /volume/{id}/segment）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    labelmap_path = segment_ts.labelmap_path(volume_id, method)
+    if not Path(labelmap_path).is_file():
+        raise HTTPException(
+            404,
+            f"labelmap 缓存未命中：{volume_id} {method}——先调 POST /volume/{id}/segment",
+        )
+    with open(labelmap_path, "rb") as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={
+            "X-Glaux-Volume-Id": volume_id,
+            "X-Glaux-Task": task,
+            "X-Glaux-Method": method,
+            "Content-Length": str(len(data)),
+        },
+    )
 
 
 @router.get("/image/{image_id}", tags=["dataset"])
