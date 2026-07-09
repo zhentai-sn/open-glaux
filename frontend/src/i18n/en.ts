@@ -90,6 +90,13 @@ export const en = {
   reset_done: "Reset to model output. {v}.",
   switch_task: "That's a {task} task. Switch the modality (sidebar) to run it.",
   switched_model: "Segmentation model switched to <b>{model}</b>.",
+  // 修正回流失败：note 变体走 {m.text} 纯文本（不经过 <Rich>），不能用 <b>——会原样输出。
+  // 422（被内核拒绝，校准/解剖范围外）vs 500/超时/网络 → 两种文案。
+  measure_rejected: "Correction on {w} was rejected by the kernel ({why}). Reverted to the previous geometry; nothing was saved.",
+  measure_failed: "Correction on {w} failed to reach the kernel ({why}). Reverted to the previous geometry; nothing was saved.",
+  // VLM key 持久化提示
+  vlm_key_persist_note: "Stored in this browser's local storage. Clear after use on shared machines; the proper long-term fix is a server-side session.",
+  vlm_key_clear: "Clear",
 } as const;
 
 export type I18nKey = keyof typeof en;

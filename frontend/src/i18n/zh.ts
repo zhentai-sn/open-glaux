@@ -82,4 +82,8 @@ export const zh: Record<I18nKey, string> = {
   reset_done: "已重置到模型输出。{v}。",
   switch_task: "这是 {task} 任务。请在侧栏切到对应模态再运行。",
   switched_model: "分割模型已切换为 <b>{model}</b>。",
+  measure_rejected: "{w} 修正被内核拒绝（{why}）。已回滚到拖动前的几何，未保存。",
+  measure_failed: "{w} 修正未能抵达内核（{why}）。已回滚到拖动前的几何，未保存。",
+  vlm_key_persist_note: "存储在本浏览器 localStorage。共用机器用完请清除；长期方案是后端 session。",
+  vlm_key_clear: "清除",
 };

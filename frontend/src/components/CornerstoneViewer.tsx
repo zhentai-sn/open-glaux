@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Enums, RenderingEngine, csReady, csUtils, preloadDims, type Types } from "../viewer/cornerstone";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
+import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
 // Cornerstone3D StackViewport 引擎（viewer="raster_2d"）——CS3D 负责影像显示 + 相机（缩放/平移，
@@ -40,9 +41,14 @@ export function CornerstoneViewer() {
   const work = useRef<Primitive[]>([]);
   const drag = useRef<
     | { mode: "pan"; sx: number; sy: number; pan0: Types.Point2 }
-    | { mode: "handle"; role: string; hx: number; y0img: number; base: Pts; sigma: number }
+    | { mode: "handle"; role: string; hx: number; y0img: number; base: Pts; sigma: number; prePrims: Primitive[] }
     | null
   >(null);
+  // 单调递增的编辑请求序列号：每次 onPointerUp 拍一个 mySeq，await 之后仅当 mySeq ===
+  // editSeqRef.current 才 commit / rollback。保证：
+  // - 后到的响应不会盖掉先到的：fast A→B，旧的 A 响应丢弃。
+  // - 后到的回滚不会盖掉先到的成功：A 失败 + B 成功，A 看到 B 已加 seq，跳过回滚。
+  const editSeqRef = useRef(0);
   const [ready, setReady] = useState(false);
 
   const activeImage = useSession((s) => s.activeImage);
@@ -52,6 +58,7 @@ export function CornerstoneViewer() {
   const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
   const setCoords = useSession((s) => s.setCoords);
+  const { t } = useI18n();
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
@@ -330,7 +337,7 @@ export function CornerstoneViewer() {
             const [, y0img] = toImage(e.clientX, e.clientY);
             const xs = poly.points.map((q) => q[0]);
             const sigma = ((Math.max(...xs) - Math.min(...xs)) / NUM_HANDLES) * 0.7;
-            drag.current = { mode: "handle", role, hx: poly.points[i][0], y0img, base: poly.points.map((q) => [...q]), sigma };
+            drag.current = { mode: "handle", role, hx: poly.points[i][0], y0img, base: poly.points.map((q) => [...q]), sigma, prePrims: clonePrims(work.current) };
             capture(e.pointerId);
             return;
           }
@@ -372,9 +379,11 @@ export function CornerstoneViewer() {
     const d = drag.current;
     drag.current = null;
     if (!d || d.mode !== "handle" || !cf || !taskType) return;
+    const mySeq = ++editSeqRef.current;
     const edited = clonePrims(work.current);
     try {
       const meas = await api.taskMeasure(taskType, edited, cf);
+      if (mySeq !== editSeqRef.current) return; // 已被新编辑取代，丢弃过期响应
       const m = meas.metrics;
       const st = useSession.getState();
       st.setMetrics(m);
@@ -387,8 +396,24 @@ export function CornerstoneViewer() {
         const v = Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1);
         st.pushAgent({ variant: "plain", key: "remeasure", vars: { w: d.role, v: `${v} ${head.unit}` } });
       }
-    } catch {
-      /* 后端失败保留预览值 */
+    } catch (e) {
+      // 服务端拒绝（校准缺失 / 解剖范围外 → 422）或网络失败（500 / 超时）→ 必须回滚到拖动前，
+      // 否则画布新位置与面板旧值不一致，用户看不出修正没生效（医学测量硬伤）。
+      // 序列号守卫：若本编辑之后又有新 onPointerUp 触发（editSeqRef 已递增），跳过回滚——
+      // 否则晚到的失败响应会盖掉 B 修正成功后已生效的状态。useAgent.ts 的 VLM 错误处理无此守卫。
+      if (mySeq !== editSeqRef.current) return;
+      // 1) 还原画布工作副本 + 同步到 store（store.primitives 的 effect 会再触发一次完整同步，双保险）
+      work.current = clonePrims(d.prePrims);
+      useSession.getState().setPrimitives(d.prePrims);
+      // 2) 显式提示——沿用现有 pushAgent 失败回话通道，与 useAgent.ts 的 VLM 错误一致
+      const st = useSession.getState();
+      const isReject = e instanceof ApiError && e.status === 422;
+      const why = e instanceof ApiError ? e.message : (e instanceof Error ? e.message : String(e));
+      st.pushAgent({
+        variant: "note",
+        tone: "crit",
+        text: t(isReject ? "measure_rejected" : "measure_failed", { w: d.role, why }),
+      });
     }
   };
 

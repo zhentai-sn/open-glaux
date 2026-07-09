@@ -43,6 +43,22 @@ function IntentConfig({ onClose }: { onClose: () => void }) {
           <input className="cfgin" type="password" placeholder={t("cfg_key_ph")} value={vlmKey} onChange={(e) => setVlmKey(e.target.value)} />
           <input className="cfgin" type="text" placeholder={"claude-haiku-4-5-20251001"} value={vlmModel} onChange={(e) => setVlmModel(e.target.value)} />
           <div className="cfgnote">{t("cfg_model")}</div>
+          <div className="cfgnote" style={{ marginTop: 6, lineHeight: 1.45 }}>
+            {t("vlm_key_persist_note")}
+            {vlmKey && (
+              <>
+                {" "}
+                <button
+                  className="cfglink"
+                  type="button"
+                  onClick={() => setVlmKey("")}
+                  style={{ background: "transparent", border: "none", color: "var(--agent)", cursor: "pointer", padding: 0, fontSize: "inherit" }}
+                >
+                  {t("vlm_key_clear")}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
       <button className="cfgclose" onClick={onClose}>✕</button>
