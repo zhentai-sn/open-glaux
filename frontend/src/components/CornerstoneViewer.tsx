@@ -169,6 +169,8 @@ export function CornerstoneViewer() {
     };
 
     for (const p of prims) {
+      // volume_mask 在 VolumeViewer 渲染；CornerstoneViewer 仅看 2D primitive
+      if (p.kind === "volume_mask") continue;
       const color = ovByRole.get(p.role)?.color ?? "#4FB0FF";
       if (p.kind === "polyline") {
         strokePoly(p.points, color);

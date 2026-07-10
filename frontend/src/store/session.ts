@@ -51,13 +51,15 @@ interface SessionState {
 
   // 领域
   tasks: TaskView[]; // 任务注册表（GET /tasks）——切换器/工具/度量的真相源
-  modality: Modality; // 当前模态（颈动脉 IMT / 胎儿 HC）
-  activeImage: string | null;
+  modality: Modality; // 当前模态（颈动脉 IMT / 胎儿 HC / CT 腹部）
+  activeImage: string | null; // 2D 模态的当前图（CUBS / HC18 id）
+  activeVolume: string | null; // P6：3D 模态的当前 CT volume id
   activeModel: string;
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   images: ImageMeta[]; // 数据集列表（Explorer）
-  imageMeta: ImageMeta | null; // 当前图元数据（cf/methods）
+  volumes: ImageMeta[]; // P6：CT 体积列表
+  imageMeta: ImageMeta | null; // 当前图元数据（cf/methods 或 voxel_spacing_mm）
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
   source: Source; // 当前叠加来源（agent 模型产出 / human 人工修正）
@@ -83,10 +85,12 @@ interface SessionState {
   setTasks: (t: TaskView[]) => void;
   setModality: (m: Modality) => void;
   setActiveImage: (id: string | null) => void;
+  setActiveVolume: (id: string | null) => void; // P6
   setModels: (m: ModelInfo[]) => void;
   setCapabilities: (c: Capability[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
+  setVolumes: (m: ImageMeta[]) => void; // P6
   setImageMeta: (m: ImageMeta | null) => void;
   setMetrics: (m: Record<string, Measure> | null) => void;
   setPrimitives: (p: Primitive[]) => void;
@@ -116,10 +120,12 @@ export const useSession = create<SessionState>((set) => ({
   tasks: [],
   modality: "carotid_imt",
   activeImage: null,
+  activeVolume: null,
   activeModel: "caroSegDeep",
   models: [],
   capabilities: [],
   images: [],
+  volumes: [],
   imageMeta: null,
   metrics: null,
   primitives: [],
@@ -143,6 +149,7 @@ export const useSession = create<SessionState>((set) => ({
   setTasks: (t) => set({ tasks: t }),
   setModality: (m) => set({ modality: m }),
   setActiveImage: (id) => set({ activeImage: id }),
+  setActiveVolume: (id) => set({ activeVolume: id }),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
   setCapabilities: (c) => set({ capabilities: c }),
   activateModel: (id) =>
@@ -151,6 +158,7 @@ export const useSession = create<SessionState>((set) => ({
       models: s.models.map((m) => ({ ...m, active: m.id === id })),
     })),
   setImages: (m) => set({ images: m }),
+  setVolumes: (m) => set({ volumes: m }),
   setImageMeta: (m) => set({ imageMeta: m }),
   setMetrics: (m) => set({ metrics: m }),
   setPrimitives: (p) => set({ primitives: p }),

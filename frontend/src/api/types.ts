@@ -1,8 +1,8 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
 export type Scope = "in_scope" | "ambiguous" | "out_of_scope";
-export type TaskType = "far_wall_cca_imt" | "fetal_hc";
-export type Modality = "carotid_imt" | "fetal_hc";
+export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney";
+export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen";
 
 export interface TaskSpec {
   task: TaskType;
@@ -25,6 +25,8 @@ export interface ImageMeta {
   cf: number | null;
   methods: string[];
   modality: Modality;
+  /** P6：CT 模态用 voxel_spacing_mm 替代 cubs_cf；(sx, sy, sz) mm。 */
+  voxel_spacing_mm?: [number, number, number] | null;
 }
 
 export interface ModelInfo {
@@ -94,7 +96,24 @@ export interface Calibration {
 export type Primitive =
   | { kind: "polyline"; id: string; role: string; points: number[][]; closed: boolean }
   | { kind: "ellipse"; id: string; role: string; cx: number; cy: number; a: number; b: number; theta: number }
-  | { kind: "mask"; id: string; role: string; ref: string };
+  | { kind: "mask"; id: string; role: string; ref: string }
+  | {
+      /** P6：3D 体掩膜（CT labelmap，多类器官，顶层一体）。镜像 glaux_core.contracts.VolumeMask。 */
+      kind: "volume_mask";
+      id: string;
+      ref: string;
+      classes: ClassSpec[];
+      raw_ref?: string | null;
+    };
+
+/** VolumeMask 的一个器官类（P6）——颜色/双语标签/是否可量。 */
+export interface ClassSpec {
+  class_id: number;
+  role: string;
+  label: Bilingual;
+  color: string;
+  measurable: boolean;
+}
 
 export interface Detection {
   primitives: Primitive[];

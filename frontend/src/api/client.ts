@@ -6,6 +6,7 @@ import type {
   ImageMeta,
   IntentBackendInfo,
   IntentResult,
+  Measure,
   MeasurementResult,
   Modality,
   ModelInfo,
@@ -15,6 +16,21 @@ import type {
   TaskType,
   TaskView,
 } from "./types";
+
+/** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
+export interface VolumeMaskEditSlice {
+  z: number;
+  /** base64 编码 PNG 二值掩膜（与 z 切片同尺寸）；服务端解 → numpy mask。 */
+  mask_png_ref: string;
+  class_id: number;
+  mode: "paint" | "erase";
+}
+
+export interface VolumeMaskEditRequest {
+  task: TaskType;
+  slices: VolumeMaskEditSlice[];
+  method?: string;
+}
 
 const BASE = "/api";
 
@@ -81,6 +97,34 @@ export const api = {
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
 
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
+
+  // --- P6：CT 体积数据 ------------------------------------------------------
+  /** CT 体积列表——同 /images?modality=ct_abdomen，分端点便于前端 discovery。 */
+  volumes: () => get<ImageMeta[]>(`/volumes`),
+  /** 原始 NIfTI 字节流（CS3D DICOM image loader 走 wadouri: scheme）。 */
+  volumeUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}`,
+  /** labelmap NIfTI 字节流（VolumeMask.ref 即此 URL，CS3D SegmentIndex 拉此做渲染）。 */
+  volumeLabelmapUrl: (id: string, task: string, method: string) =>
+    `${BASE}/volume/${encodeURIComponent(id)}/labelmap?task=${encodeURIComponent(task)}&method=${encodeURIComponent(method)}`,
+  /** raw CT NIfTI 引用（用于画笔编辑参考；HU mean 计算走 backend）。 */
+  volumeRawUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}/raw`,
+  /** 触发 /volume/{id} 的子进程分割（异步返回 task_id 或直接落缓存后返 labelmap_ref）。 */
+  volumeSegment: (id: string, task: string, method: string) =>
+    post<{ labelmap_ref: string; model_version: string }>(
+      `/volume/${encodeURIComponent(id)}/segment`,
+      { task, method },
+    ),
+  /** 画笔编辑回流（U4）：patch labelmap + 度量重算 + 返回 metrics。 */
+  volumeMaskEdit: (id: string, payload: VolumeMaskEditRequest) =>
+    post<{ metrics: Record<string, Measure>; labelmap_ref: string }>(
+      `/volume/${encodeURIComponent(id)}/mask-edit`,
+      payload,
+    ),
+  /** Reproducibility Dice 验证（U5）：per-class Dice vs ship 的 reference labelmap。 */
+  volumeVerify: (id: string, task: string) =>
+    get<{ per_class: Record<string, number> }>(
+      `/volume/${encodeURIComponent(id)}/verify?task=${encodeURIComponent(task)}`,
+    ),
 
   models: () => get<ModelInfo[]>("/models"),
 

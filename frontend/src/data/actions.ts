@@ -24,6 +24,14 @@ function clearOverlays(): void {
 /** 载入当前模态的数据集列表（Explorer）；若无选中图则选第一张。 */
 export async function loadImages(): Promise<void> {
   const { modality } = useSession.getState();
+  if (modality === "ct_abdomen") {
+    // P6：CT 模态走 volumes（不同端点 + activeVolume 而非 activeImage）
+    const vols = await api.volumes();
+    useSession.getState().setVolumes(vols);
+    const { activeVolume } = useSession.getState();
+    if (!activeVolume && vols.length) await selectVolume(vols[0].id);
+    return;
+  }
   const imgs = await api.images(modality);
   useSession.getState().setImages(imgs);
   const { activeImage } = useSession.getState();
@@ -36,12 +44,20 @@ export async function switchModality(modality: Modality): Promise<void> {
   if (s.modality === modality) return;
   s.setModality(modality);
   s.setActiveImage(null);
+  s.setActiveVolume(null);
   s.setImageMeta(null);
   clearOverlays();
   s.setTool("cursor");
   // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
   const pick = s.models.find((m) => m.modality === modality && m.active);
   if (pick) useSession.setState({ activeModel: pick.id });
+  if (modality === "ct_abdomen") {
+    // P6：CT 模态独立分支——拉 volumes + 选首 volume
+    const vols = await api.volumes();
+    useSession.getState().setVolumes(vols);
+    if (vols.length) await selectVolume(vols[0].id);
+    return;
+  }
   const imgs = await api.images(modality);
   useSession.getState().setImages(imgs);
   if (imgs.length) await selectImage(imgs[0].id);
@@ -80,9 +96,24 @@ export async function selectImage(imageId: string): Promise<void> {
   await runCurrentTask(imageId);
 }
 
+/** P6：选 CT volume——设元数据（含 voxel_spacing_mm）+ 跑当前模态的 volume 任务。 */
+export async function selectVolume(volumeId: string): Promise<void> {
+  const s = useSession.getState();
+  const meta = s.volumes.find((m) => m.id === volumeId) ?? null;
+  s.setActiveVolume(volumeId);
+  s.setImageMeta(meta);
+  clearOverlays();
+  await runCurrentTask(volumeId);
+}
+
 /** 重跑当前模态的活动模型/检测器（切模型 / Reset 用）。 */
 export async function reRunActiveModel(): Promise<void> {
-  const { activeImage } = useSession.getState();
-  if (!activeImage) return;
-  await runCurrentTask(activeImage);
+  const s = useSession.getState();
+  if (s.modality === "ct_abdomen") {
+    if (!s.activeVolume) return;
+    await runCurrentTask(s.activeVolume);
+    return;
+  }
+  if (!s.activeImage) return;
+  await runCurrentTask(s.activeImage);
 }
