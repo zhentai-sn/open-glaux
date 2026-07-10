@@ -197,13 +197,15 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
         cal = resolve_ct_calibration(dataset_ct.vox_spacing_mm(spec.image_id))
         # ref 用 URL 模板（含 task 与 method），前端用 ref 拉 labelmap；path 给 kernel measure 用
         ref = f"/api/volume/{spec.image_id}/labelmap?task={spec.task}&method={method}"
-        raw_ref = f"/api/volume/{spec.image_id}/raw"
+        raw_ref = f"/api/volume/{spec.image_id}/raw"  # URL：下发前端
+        raw_path = dataset_ct.nifti_path(spec.image_id)  # fs 路径：measure 算 HU mean 读
         vol_prim = VolumeMask(
             id=f"{spec.image_id}_labelmap",
             ref=ref,
             classes=LIVER_KIDNEY_CLASSES,
             raw_ref=raw_ref,
             path=labelmap_path,
+            raw_path=raw_path,
         )
         det = Detection(
             primitives=(vol_prim,),
@@ -343,6 +345,20 @@ def models() -> list[ModelInfo]:
                 active=True,
                 backend="local:numpy",
                 modality="fetal_hc",
+            )
+        )
+    # 第三模态（CT）：TotalSegmentator v2 隔离子进程——注册为 ct_abdomen 的 active 模型，
+    # 否则前端切模态时 activeModel 停留在 IMT 的 caroSegDeep，/task/run 会把错 method 传给
+    # volume 分支 → segment_ts 只认 totalsegmentator_v2 → 503（真机 e2e 实测到此坑）。
+    if config.ct_data_available():
+        out.append(
+            ModelInfo(
+                id="totalsegmentator_v2",
+                pub="wasserth · TotalSegmentator v2.4.0",
+                desc="nnU-Net v2 · 117 类全身 CT 分割（v0 肝+双肾 3 类）· Apache-2.0",
+                active=True,
+                backend="isolated:uv/py3.12/torch-cpu",
+                modality="ct_abdomen",
             )
         )
     return out

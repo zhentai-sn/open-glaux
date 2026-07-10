@@ -30,6 +30,8 @@ export interface VolumeMaskEditRequest {
   task: TaskType;
   slices: VolumeMaskEditSlice[];
   method?: string;
+  /** 乐观并发：客户端上次见到的编辑序号；落后 → 409（被他人超越）。 */
+  base_seq?: number | null;
 }
 
 const BASE = "/api";
@@ -116,7 +118,7 @@ export const api = {
     ),
   /** 画笔编辑回流（U4）：patch labelmap + 度量重算 + 返回 metrics。 */
   volumeMaskEdit: (id: string, payload: VolumeMaskEditRequest) =>
-    post<{ metrics: Record<string, Measure>; labelmap_ref: string }>(
+    post<{ metrics: Record<string, Measure>; labelmap_ref: string; seq: number }>(
       `/volume/${encodeURIComponent(id)}/mask-edit`,
       payload,
     ),

@@ -142,6 +142,46 @@ def test_patch_labelmap_rejects_size_mismatch(tmp_path, monkeypatch):
         )
 
 
+def test_patch_labelmap_axial_axis_nonsquare(tmp_path, monkeypatch):
+    """回归：labelmap 沿 Z(nibabel 末轴) 切轴状位 + 非方形 mask 需转置对齐。
+
+    立方 labelmap 测试对轴向/转置错误免疫（对称），真机 e2e 才暴露：前端 PNG 宽=X 高=Y、
+    沿 Z 切，而旧代码 ``arr[z]`` 切轴 0(=X, 矢状面) + 尺寸校验用错维 → 422 / patch 错平面。
+    本测试用三维不同的 labelmap（X=12,Y=8,Z=5）+ 非方形 mask 锁死正确行为。
+    """
+    monkeypatch.setattr(config, "CT_ROOT", tmp_path / "ct")
+    monkeypatch.setattr(config, "TS_CACHE", tmp_path / "cache")
+    vid, method = "ct_001", "totalsegmentator_v2"
+    X, Y, Z = 12, 8, 5
+    (tmp_path / "ct").mkdir(parents=True)
+    ct = nib.Nifti1Image(np.zeros((X, Y, Z), dtype=np.float32), np.eye(4))
+    ct.header.set_zooms((1.0, 1.0, 1.0))
+    nib.save(ct, str(tmp_path / "ct" / f"{vid}.nii.gz"))
+    # 肝(=1) 填满 z=3 的整个 X×Y 平面（96 体素），其余 z 空
+    lbl = np.zeros((X, Y, Z), dtype=np.int32)
+    lbl[:, :, 3] = 1
+    (tmp_path / "cache").mkdir(parents=True)
+    li = nib.Nifti1Image(lbl, np.eye(4))
+    li.header.set_zooms((1.0, 1.0, 1.0))
+    nib.save(li, str(config.TS_CACHE / f"{vid}_{method}.nii.gz"))
+    dataset_ct._load_nifti.cache_clear()
+
+    # 非方形 mask：擦 z=3 的左半 X（6 列）× 全 Y → 48 体素。mask np 形状 (Y, X)=(8,12)
+    m = np.zeros((Y, X), dtype=bool)
+    m[:, :6] = True
+    _, arr = dataset_ct.patch_labelmap(
+        vid,
+        [{"z": 3, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(m)}],
+        method=method,
+    )
+    # 沿 Z 切正确 → z=3 肝从 96 减到 48；其它 z 不受影响
+    assert (arr[:, :, 3] == 1).sum() == 48
+    assert (arr == 1).sum() == 48
+    # 被擦的是左半 X（x<6），右半保留
+    assert (arr[:6, :, 3] == 1).sum() == 0
+    assert (arr[6:, :, 3] == 1).sum() == 48
+
+
 def test_patch_labelmap_empty_slices_noop(tmp_path, monkeypatch):
     """slices 空 → 不改 labelmap，返回缓存路径。"""
     volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
@@ -199,6 +239,54 @@ def test_mask_edit_endpoint_rejects_non_ct_id(tmp_path, monkeypatch):
     r = client.post("/volume/ct_999/mask-edit", json={"task": "totalseg_liver_kidney", "slices": []})
     # 422 校验失败 / 404 找不到 / 422 backend raise——皆可；只要求 4xx
     assert 400 <= r.status_code < 500
+
+
+def test_mask_edit_concurrency_stale_rejected(tmp_path, monkeypatch):
+    """并发守卫（review ①）：两笔从同一 base_seq 出发，先到者成功（seq+1），落后者 409 被超越。"""
+    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
+    dataset_ct.reset_edit_seq(volume_id, method)
+    base = dataset_ct.current_edit_seq(volume_id, method)  # 0
+
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[3:7, 3:7] = True
+    body_a = {
+        "task": "totalseg_liver_kidney", "method": method, "base_seq": base,
+        "slices": [{"z": 5, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(mask)}],
+    }
+    # A 先提交 → 200，seq 前进到 base+1
+    ra = client.post(f"/volume/{volume_id}/mask-edit", json=body_a)
+    assert ra.status_code == 200, ra.text
+    assert ra.json()["seq"] == base + 1
+
+    # B 仍持旧 base_seq 提交 → 409 被超越（旧编辑不会静默覆盖 A 的修正）
+    body_b = {
+        "task": "totalseg_liver_kidney", "method": method, "base_seq": base,
+        "slices": [{"z": 6, "class_id": 1, "mode": "paint", "mask_png_ref": _png_b64_mask(mask)}],
+    }
+    rb = client.post(f"/volume/{volume_id}/mask-edit", json=body_b)
+    assert rb.status_code == 409, rb.text
+    assert "超越" in rb.json()["detail"]
+
+    # B 以最新 seq 为 base 重试 → 200
+    body_b["base_seq"] = base + 1
+    rb2 = client.post(f"/volume/{volume_id}/mask-edit", json=body_b)
+    assert rb2.status_code == 200, rb2.text
+    assert rb2.json()["seq"] == base + 2
+
+
+def test_mask_edit_no_base_seq_still_serializes(tmp_path, monkeypatch):
+    """base_seq 省略 → 不做乐观并发校验，但仍成功且 seq 前进（后端锁串行化，修裸 read-modify-write）。"""
+    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
+    dataset_ct.reset_edit_seq(volume_id, method)
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[3:7, 3:7] = True
+    body = {
+        "task": "totalseg_liver_kidney", "method": method,
+        "slices": [{"z": 5, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(mask)}],
+    }
+    r = client.post(f"/volume/{volume_id}/mask-edit", json=body)
+    assert r.status_code == 200
+    assert r.json()["seq"] == 1
 
 
 # --- U5: Reproducibility Dice 验证 ----------------------------------------

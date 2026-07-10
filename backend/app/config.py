@@ -93,8 +93,14 @@ def hc_live_available() -> bool:
 
 
 def ct_data_available() -> bool:
-    """CT 体积数据是否就绪（`data/ct/` 下 ship 了至少 1 例 NIfTI demo）。"""
-    return CT_ROOT.is_dir() and any(p.suffix in {".nii", ".nii.gz"} for p in CT_ROOT.glob("ct_*"))
+    """CT 体积数据是否就绪（`data/ct/` 下 ship 了至少 1 例 NIfTI demo）。
+
+    注：``Path("ct_001.nii.gz").suffix == ".gz"``（非 ".nii.gz"），故用 ``name.endswith``
+    判断复合后缀——否则真实 ``.nii.gz`` 恒被判「未就绪」（真机 e2e 实测到此坑）。
+    """
+    return CT_ROOT.is_dir() and any(
+        p.name.endswith((".nii", ".nii.gz")) for p in CT_ROOT.glob("ct_*")
+    )
 
 
 def ts_live_available() -> bool:

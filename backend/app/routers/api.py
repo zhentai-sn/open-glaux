@@ -106,8 +106,6 @@ def volumes() -> list[ImageMeta]:
     """P6：CT 体积列表——与 /images?modality=ct_abdomen 同源；分端点便于前端 discovery。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct.__module__:  # 防御性：import 后再看
-        raise HTTPException(503, "CT dataset 模块未装配")
     return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
 
 
@@ -116,6 +114,8 @@ def volume_stream(volume_id: str) -> Response:
     """P6：流式返回 CT 原始 NIfTI 字节（前端 CS3D DICOM image loader 走 wadouri:）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):  # 白名单守卫（同兄弟端点）——防路径穿越 + 错模态
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
     try:
         path = dataset_ct.nifti_path(volume_id)
     except FileNotFoundError as e:
@@ -141,7 +141,7 @@ def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method:
     if not Path(labelmap_path).is_file():
         raise HTTPException(
             404,
-            f"labelmap 缓存未命中：{volume_id} {method}——先调 POST /volume/{id}/segment",
+            f"labelmap 缓存未命中：{volume_id} {method}——先调 POST /volume/{volume_id}/segment",
         )
     with open(labelmap_path, "rb") as f:
         data = f.read()
@@ -192,6 +192,7 @@ def volume_segment(volume_id: str, task: str = "totalseg_liver_kidney", method: 
         "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={task}&method={method}",
         "model_version": mv,
         "labelmap_path": labelmap_path,
+        "seq": dataset_ct.current_edit_seq(volume_id, method),  # 客户端首笔编辑的 base_seq
     }
 
 
@@ -212,6 +213,9 @@ class VolumeMaskEditRequest(BaseModel):
     task: Literal["totalseg_liver_kidney"] = "totalseg_liver_kidney"
     slices: list[VolumeMaskEditSliceIn] = Field(default_factory=list)
     method: str = "totalsegmentator_v2"
+    # 乐观并发：客户端上次见到的编辑序号；落后于服务端 → 409（被他人超越）。
+    # None = 不校验（向后兼容单笔编辑），仍在后端锁内串行化。
+    base_seq: int | None = None
 
 
 @router.post("/volume/{volume_id}/mask-edit", tags=["dataset"])
@@ -227,11 +231,15 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
     if not dataset_ct.is_ct(volume_id):
         raise HTTPException(404, f"非 CT volume id：{volume_id}")
     try:
-        new_path, new_arr = dataset_ct.patch_labelmap(
+        new_path, new_arr, new_seq = dataset_ct.guarded_patch_labelmap(
             volume_id,
             [s.model_dump() for s in req.slices],
+            base_seq=req.base_seq,
             method=req.method,
         )
+    except dataset_ct.StaleEditError as e:
+        # 并发编辑被超越——409 Conflict，回带服务端当前 seq 供客户端重取重试
+        raise HTTPException(409, str(e)) from e
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     except FileNotFoundError as e:
@@ -264,6 +272,7 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
         "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
         "new_labelmap_path": new_path,
         "model_version": "human@edit",
+        "seq": new_seq,  # 客户端下次编辑回传作 base_seq（乐观并发）
     }
 
 

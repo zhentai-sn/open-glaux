@@ -30,6 +30,10 @@ def main() -> int:
     p.add_argument("--method", default="totalsegmentator_v2",
                    help="segmentation method (v0: 仅 totalsegmentator_v2)")
     p.add_argument("--timeout", type=float, default=600.0, help="子进程超时（秒）")
+    # v0 楔子默认 fast（3mm 模型）——CPU 友好，且 ship 的 demo CT 本就是 3mm 各向同性。
+    # 关闭走 1.5mm 全分辨率（更准但 CPU 慢很多）。
+    p.add_argument("--fast", dest="fast", action="store_true", default=True)
+    p.add_argument("--no-fast", dest="fast", action="store_false")
     args = p.parse_args()
 
     in_path = Path(args.input)
@@ -54,37 +58,43 @@ def main() -> int:
 
     print(f"[segment_ts_headless] reading {in_path}", file=sys.stderr)
     img = nib.load(str(in_path))
-    img_data = np.asarray(img.dataobj).astype(np.float32, copy=False)
-    print(f"[segment_ts_headless] shape={img_data.shape}", file=sys.stderr)
+    print(f"[segment_ts_headless] shape={img.shape} fast={args.fast}", file=sys.stderr)
+
+    # TotalSegmentator v2 `total` 任务的原生标签编号（见官方 map_to_binary.py）：
+    #   liver=5, kidney_right=2, kidney_left=3
+    # 我们的 VolumeMask 约定（LIVER_KIDNEY_CLASSES）：liver=1, lk(左肾)=2, rk(右肾)=3
+    # 必须重映射，否则 labelmap 语义与 measure/verify/前端着色全对不上。
+    TS_TO_OURS = {5: 1, 3: 2, 2: 3}
 
     try:
-        # Totalsegmentator v2.4.0 python_api 期望 NIfTI 文件路径；自己造临时文件
-        # v0 简化：3 类楔子（肝+双肾），传 task="liver_kidney"（官方支持）。
-        # P6.x 扩 117 类再分 method。
-        ts_result = ts_api.totalsegmentator(
+        # ml=True → 单文件多标签输出；output 直接给目标文件路径（不再猜路径）。
+        # roi_subset 只保留肝+双肾（依赖 task="total"）。
+        ts_api.totalsegmentator(
             input=str(in_path),
-            output=None,  # 写到 .nii.gz 自动命名
-            task="liver_kidney",
-            ml=True,  # 用 nnU-Net 路径（v2 标准）
+            output=str(out_path),
+            task="total",
+            roi_subset=["liver", "kidney_left", "kidney_right"],
+            ml=True,
+            fast=args.fast,
             quiet=True,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"ERROR: totalsegmentator 失败：{e}", file=sys.stderr)
         return 3
 
-    # ts_api 输出落到 <input-dir>/<input-stem>/liver_kidney.nii.gz 或类似
-    # v0：直接约定路径——总 segmentator 默认输出是 <output_dir 或 input_dir>/<name>/<task>.nii.gz
-    # 简化：让 totalsegmentator 写到 out_path 同目录的 tmp 子目录，再 mv
-    import shutil
-    candidates = [
-        in_path.parent / "liver_kidney.nii.gz",
-        in_path.parent / f"{in_path.stem.split('.')[0]}" / "liver_kidney.nii.gz",
-    ]
-    found = next((c for c in candidates if c.is_file()), None)
-    if found is None:
-        print(f"ERROR: totalsegmentator 输出未在 candidates 找到：{candidates}", file=sys.stderr)
+    if not out_path.is_file():
+        print(f"ERROR: totalsegmentator 未产出 {out_path}", file=sys.stderr)
         return 4
-    shutil.move(str(found), str(out_path))
+
+    # 标签重映射：TS 原生编号 → 我们的 {1,2,3}，其余置 0
+    seg = nib.load(str(out_path))
+    arr = np.asarray(seg.dataobj).astype(np.int32, copy=False)
+    remapped = np.zeros_like(arr, dtype=np.int32)
+    for ts_id, ours in TS_TO_OURS.items():
+        remapped[arr == ts_id] = ours
+    counts = {ours: int((remapped == ours).sum()) for ours in (1, 2, 3)}
+    print(f"[segment_ts_headless] remapped voxel counts liver/lk/rk={counts}", file=sys.stderr)
+    nib.save(nib.Nifti1Image(remapped, seg.affine, seg.header), str(out_path))
     print(f"[segment_ts_headless] wrote {out_path}", file=sys.stderr)
     return 0
 

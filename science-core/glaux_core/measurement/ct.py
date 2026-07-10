@@ -123,7 +123,8 @@ def measure_liver_kidney(det: Detection, cal: CalibrationResult) -> Measurement:
         )
     voxel_mm3 = _voxel_volume_mm3(cal)
     labelmap = _load_labelmap_array(vol_prim.path)
-    raw = _load_raw_intensities(vol_prim.raw_ref, labelmap.shape)
+    # HU mean 读 raw_path（本地 fs 路径），**不是** raw_ref（URL，仅下发前端）
+    raw = _load_raw_intensities(vol_prim.raw_path, labelmap.shape)
     metrics = _per_class_metrics(labelmap, raw, vol_prim.classes, voxel_mm3)
     return Measurement(metrics=metrics, calibration=cal, overlays=())
 

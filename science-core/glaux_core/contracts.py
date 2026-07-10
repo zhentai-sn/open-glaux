@@ -108,11 +108,14 @@ class ClassSpec:
 class VolumeMask:
     """3D 体掩膜（CT labelmap，多类器官，顶层一体）。
 
-    - ``ref``：客户端拉 labelmap 的 URL（``/api/volume/{vid}/labelmap?task=…``）。
+    - ``ref``：客户端拉 labelmap 的 URL（``/api/volume/{vid}/labelmap?task=…``）——下发前端。
     - ``classes``：该体掩膜包含的器官类表（前端按 class_spec 上色 + 面板列字段）。
-    - ``raw_ref``：可选原始 CT 引用，用于算 HU mean。
-    - ``path``：本地 NIfTI 文件路径——后端构造 Detection 时填，kernel measure 数体素用。
-      前端忽略；measure 必读，否则 ``RuntimeError``（无路径 → 无 measure）。
+    - ``raw_ref``：可选原始 CT 的 **URL**（``/api/volume/{vid}/raw``）——下发前端（画笔参考）。
+    - ``path``：labelmap 本地 NIfTI **文件路径**——后端构造 Detection 时填，measure 数体素读；
+      前端忽略（不下发，避免泄露文件系统布局）。
+    - ``raw_path``：原始 CT 本地 NIfTI **文件路径**——measure 算 HU mean 读；前端忽略（不下发）。
+      与 ``raw_ref``（URL）刻意区分：measure 走 fs 路径，前端走 URL，不可混用
+      （历史 bug：kernel 曾把 URL 塞进 measure 读的字段 → ``nib.load(url)`` FileNotFoundError）。
     """
 
     id: str
@@ -120,6 +123,7 @@ class VolumeMask:
     classes: tuple[ClassSpec, ...]
     raw_ref: str | None = None
     path: str | None = None
+    raw_path: str | None = None
 
 
 Primitive = Union[Polyline, EllipseShape, Mask, VolumeMask]

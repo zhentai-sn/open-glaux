@@ -181,7 +181,7 @@ def test_measure_liver_kidney_with_voxel_spacing(tmp_path):
 
 
 def test_measure_liver_kidney_hu_mean(tmp_path):
-    """raw_ref 提供 → 算 HU mean（每 class 在 raw 区域上的均值）。"""
+    """raw_path 提供 → 算 HU mean（每 class 在 raw 区域上的均值）。measure 走 fs 路径 raw_path。"""
     labelmap = _make_labelmap()
     raw = (labelmap * 50).astype(np.float32)  # 肝=50, lk=100, rk=150, 背景=0
     lp = str(tmp_path / "label.nii.gz")
@@ -189,7 +189,7 @@ def test_measure_liver_kidney_hu_mean(tmp_path):
     _write_nifti(labelmap, lp)
     _write_nifti(raw, rp)
     classes = _classes()
-    vol = VolumeMask(id="ct_001", ref="x", classes=classes, raw_ref=rp, path=lp)
+    vol = VolumeMask(id="ct_001", ref="x", classes=classes, raw_path=rp, path=lp)
     det = Detection(primitives=(vol,), model_version="t")
     cal = resolve_ct_calibration((1.0, 1.0, 1.0))
     meas = measure_liver_kidney(det, cal)
@@ -248,7 +248,7 @@ def test_measure_liver_kidney_raw_shape_mismatch_rejects(tmp_path):
     rp = str(tmp_path / "raw.nii.gz")
     _write_nifti(labelmap, lp)
     _write_nifti(raw, rp)
-    vol = VolumeMask(id="ct_001", ref="x", classes=_classes(), raw_ref=rp, path=lp)
+    vol = VolumeMask(id="ct_001", ref="x", classes=_classes(), raw_path=rp, path=lp)
     det = Detection(primitives=(vol,), model_version="t")
     cal = resolve_ct_calibration((1.0, 1.0, 1.0))
     with pytest.raises(ValueError, match="不一致"):

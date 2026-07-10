@@ -47,22 +47,20 @@ ls ~/glaux_models/totalseg/.venv-ts/lib/python3.12/site-packages/totalsegmentato
 # 回到仓库根
 cd /path/to/open-glaux
 mkdir -p data/ct
-# TotalSegmentator 仓库的 sample data：https://github.com/wasserth/TotalSegmentator/tree/main/resources
-# 也可走 TotalSegmentator 公开 demo（README 中 #example-data 段）
-# v0 楔子：1 例腹部 CT + 配套的官方预测（reference）——便于跑 Reproducibility Dice
-
-# 例：从 TotalSegmentator 测试 fixtures 取 1 例
+# TotalSegmentator 官方测试 fixture：tests/reference_files/example_ct.nii.gz
+#   —— 3mm 各向同性腹部 CT，~2.2MB（默认分支是 master，非 main）。
 curl -L -o data/ct/ct_001.nii.gz \
-  https://raw.githubusercontent.com/wasserth/TotalSegmentator/main/resources/example_ct.nii.gz
+  https://raw.githubusercontent.com/wasserth/TotalSegmentator/master/tests/reference_files/example_ct.nii.gz
 
-# 配套 reproducibility reference（官方 demo 预测）
-curl -L -o data/ct/ct_001_ref.nii.gz \
-  https://raw.githubusercontent.com/wasserth/TotalSegmentator/main/resources/example_ct_ref.nii.gz
+# 验证是真 NIfTI（前 2 字节应是 gzip magic 1f 8b）：
+python -c "import nibabel as nib; i=nib.load('data/ct/ct_001.nii.gz'); print(i.shape, i.header.get_zooms()[:3])"
+# 期望：(122, 101, 112) (3.0, 3.0, 3.0)
 ```
 
-> 若上述 URL 失效：参考 TotalSegmentator GitHub README 的 **Example Data** 段，挑 1
-> 例 NIfTI 命名为 `ct_001.nii.gz` 放 `data/ct/`，再下 1 例对应的官方预测命名为
-> `ct_001_ref.nii.gz` 放同目录。reference 是 ship 的官方预测——非真 GT。
+> **reproducibility reference（`ct_001_ref.nii.gz`）**：TS 官方不 ship 该 CT 的 liver_kidney
+> 预测，故 v0 用「本机首跑 TotalSegmentator 产出的 labelmap 快照」作 reference——
+> 见下方步骤 6.a。这是**自复现快照**，非真 GT；Dice=1.0 说明 verify 链路端到端通，不代表
+> 临床正确性。若日后拿到独立 GT，替换 `ct_001_ref.nii.gz` 即可。
 
 ## 4. 装 driver 脚本（`~10 s`）
 

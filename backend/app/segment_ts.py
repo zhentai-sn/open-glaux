@@ -12,9 +12,12 @@ v0 仅跑 ``totalsegmentator_v2`` 单 method（plan: 3 类肝+双肾楔子；后
 
 from __future__ import annotations
 
+import logging
 import subprocess
 
 from . import config
+
+log = logging.getLogger(__name__)
 
 
 class TsSegmentUnavailable(RuntimeError):
@@ -40,11 +43,13 @@ def labelmap_path(volume_id: str, method: str = "totalsegmentator_v2"):
     return _labelmap_path(volume_id, method)
 
 
-def _run_live(volume_id: str, method: str, timeout: float) -> None:
+def _run_live(volume_id: str, method: str, timeout: float) -> str:
     """在 .venv-ts 隔离环境跑 segment_ts_headless，labelmap 落进 TS_CACHE。
 
     子进程 argv 列表（无 shell=True）；env 最小化（MPLBACKEND / CUDA / PATH）。
     与 caroSegDeep / CSM 同模板。
+
+    返回子进程 stderr 尾部（供上层在未产出时塞进异常，避免 503 变不可诊断黑盒）。
     """
     config.TS_CACHE.mkdir(parents=True, exist_ok=True)
     in_path = config.CT_ROOT / f"{volume_id}.nii.gz"
@@ -63,7 +68,7 @@ def _run_live(volume_id: str, method: str, timeout: float) -> None:
         "CUDA_VISIBLE_DEVICES": "-1",  # v0 CPU-only；GPU 走单独配置
         "PATH": "/usr/bin:/bin",
     }
-    subprocess.run(
+    result = subprocess.run(
         cmd,
         cwd=str(config.TS_DRIVER.parent),
         env=env,
@@ -72,6 +77,16 @@ def _run_live(volume_id: str, method: str, timeout: float) -> None:
         text=True,
         check=False,  # 失败由缓存缺失判定 + 上层显式抛
     )
+    # getattr 兜底：真实 subprocess.run 返回 CompletedProcess；测试可能 mock 成返回 None
+    stderr_tail = (getattr(result, "stderr", "") or "")[-2000:]
+    if getattr(result, "returncode", 0) != 0:
+        # 硬拒绝方向对（不静默假造 labelmap），但把子进程真实报错留下来供排查——
+        # 缺权重 / OOM / torch 崩 / nnU-Net 报错都在这。
+        log.warning(
+            "segment_ts_headless 非 0 退出 rc=%s vid=%s method=%s\nstderr:\n%s",
+            result.returncode, volume_id, method, stderr_tail,
+        )
+    return stderr_tail
 
 
 def segment(volume_id: str, method: str = "totalsegmentator_v2", timeout: float = 600.0) -> tuple[str, str]:
@@ -90,10 +105,11 @@ def segment(volume_id: str, method: str = "totalsegmentator_v2", timeout: float 
             f"TotalSegmentator 无 {volume_id} 缓存，且隔离环境不可用"
             f"（{config.TS_PYTHON}）"
         )
-    _run_live(volume_id, method, timeout)
+    stderr_tail = _run_live(volume_id, method, timeout)
     cached = _cached_labelmap(volume_id, method)
     if cached is None:
+        detail = f"：{stderr_tail.strip()}" if stderr_tail.strip() else ""
         raise TsSegmentUnavailable(
-            f"TotalSegmentator 现算未产出 {volume_id}（labelmap 落盘失败或子进程异常）"
+            f"TotalSegmentator 现算未产出 {volume_id}（labelmap 落盘失败或子进程异常）{detail}"
         )
     return str(cached), "TotalSegmentator v2.4.0@live"

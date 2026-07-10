@@ -44,7 +44,13 @@ def dice_per_class(
 
 
 def mean_dice(per_class: dict[int, float]) -> float:
-    """per-class Dice 字典的均值（不计零空类）。"""
+    """per-class Dice 字典的算术均值。
+
+    **注意**：对**所有** entry 求均值，包含值为 0.0 的项——:func:`dice_per_class`
+    对「零空类（pred/ref 都无该类）」与「完全不重叠」都返回 0.0，二者从字典无法区分，
+    故本函数不做「剔除零空类」的过滤（调用方若要排除背景/缺席类，应在传入前先从
+    ``class_ids`` 剔除）。空字典返回 0.0。
+    """
     if not per_class:
         return 0.0
     return sum(per_class.values()) / len(per_class)

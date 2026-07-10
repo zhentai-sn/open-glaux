@@ -3,6 +3,13 @@
 // CS3D 无内置 NIfTI 加载器（面向 DICOM），@cornerstonejs/nifti-volume-loader 要 core@5.x
 // （本仓库是 3.33.5，跨大版本不兼容）。nifti-reader-js 是无依赖的纯 JS NIfTI 解析器，
 // 我们自己把它包成 CS3D IImage。scheme 用 `nifti:` 与现有 `web:` 区分。
+//
+// P6 修正（review ②）：
+//   - 维度映射修正——NIfTI `dims[0]` 是维数(ndim)，空间维是 dims[1]=X / dims[2]=Y / dims[3]=Z。
+//     旧代码把 columns 取成 dims[0]（=3），连第 0 帧都畸变。
+//   - 多帧——imageId 编码切片 `nifti:<url>#z=<i>`；整卷解析一次缓存，每帧切片是连续块，
+//     setStack(每帧一个 id) + setImageIdIndex(z) 才真正换图。
+//   - CT 窗位——HU 可为负；以 +1024 偏移塞进 Uint16、intercept=-1024，保住空气/软组织对比。
 import * as nifti from "nifti-reader-js";
 
 import {
@@ -12,40 +19,132 @@ import {
   type Types,
 } from "@cornerstonejs/core";
 
-// --- 元数据 provider（让 StackViewport / OrthographicViewport 能定位） ---
-
 const META_PROVIDER_PRIORITY = 10000; // 同 cornerstone.ts 既有模式
-const dimCache = new Map<string, { rows: number; columns: number; slices: number }>();
 
-/** 预取 NIfTI header 并填缓存（必须在 setStack 前调用，否则元数据 0×0 警告）。 */
-export async function preloadNiftiDims(imageId: string): Promise<{ rows: number; columns: number; slices: number }> {
-  const cached = dimCache.get(imageId);
+// --- 整卷解析缓存（按 url，去 #z 片段） --------------------------------------
+
+interface NiftiVolume {
+  columns: number; // X = dims[1]
+  rows: number; // Y = dims[2]
+  slices: number; // Z = dims[3]
+  display: Uint16Array; // 展示用（CT: HU+offset；label: 原值），整卷 columns*rows*slices
+  raw: Int32Array; // 原始整数体素（label 着色 / 后续度量参考用）
+  slope: number;
+  intercept: number; // 展示 intercept（CT = scl_inter - offset）
+  min: number; // display 单位下的整卷极值（供 VOI）
+  max: number;
+}
+
+const volCache = new Map<string, NiftiVolume>();
+
+function _urlOf(imageId: string): string {
+  return imageId.replace(/^nifti:/, "").replace(/#z=\d+$/, "");
+}
+function _zOf(imageId: string): number {
+  const m = imageId.match(/#z=(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function _toInt32(buf: ArrayBuffer, dtypeCode: number): Int32Array {
+  // NIfTI dtype: 2=uint8, 4=int16, 8=int32, 16=float32, 64=float64, 256=int8, 512=uint16
+  switch (dtypeCode) {
+    case 2: return Int32Array.from(new Uint8Array(buf));
+    case 256: return Int32Array.from(new Int8Array(buf));
+    case 4: return Int32Array.from(new Int16Array(buf));
+    case 512: return Int32Array.from(new Uint16Array(buf));
+    case 8: return new Int32Array(buf);
+    case 16: return Int32Array.from(new Float32Array(buf), (v) => Math.round(v));
+    case 64: return Int32Array.from(new Float64Array(buf), (v) => Math.round(v));
+    default: return Int32Array.from(new Uint16Array(buf));
+  }
+}
+
+/** 解析整卷 NIfTI（fetch + parse 一次，按 url 缓存）。切片/维度/label 均由此派生。 */
+export async function loadNiftiVolume(url: string): Promise<NiftiVolume> {
+  const cached = volCache.get(url);
   if (cached) return cached;
-  const url = imageId.replace(/^nifti:/, "");
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`NIfTI fetch 失败：${url} → ${resp.status}`);
-  const buf = await resp.arrayBuffer();
+  let buf = await resp.arrayBuffer();
+  // .nii.gz 是 gzip 压缩——nifti-reader-js 需先 decompress，否则 isNIFTI 恒 false（这是 CT/labelmap
+  // 全加载失败的根因：服务端流式返回原始 .nii.gz 字节，magic 1f 8b）。
+  if (nifti.isCompressed(buf)) buf = nifti.decompress(buf) as ArrayBuffer;
   if (!nifti.isNIFTI(buf)) throw new Error(`非 NIfTI 文件：${url}`);
   const header = nifti.readHeader(buf);
-  const dim = {
-    rows: header.dims[1] ?? 1,
-    columns: header.dims[0] ?? 1,
-    slices: header.dims[2] ?? 1,
+  const columns = header.dims[1] ?? 1; // X
+  const rows = header.dims[2] ?? 1; // Y
+  const slices = header.dims[3] ?? 1; // Z
+  const raw = _toInt32(nifti.readImage(header, buf), header.datatypeCode);
+
+  const slope = header.scl_slope || 1;
+  const scInter = header.scl_inter || 0;
+  // 整卷极值（决定是否有负值 → CT 需偏移）。1~数百万体素，一次线性扫描即可。
+  let vmin = Infinity;
+  let vmax = -Infinity;
+  for (let i = 0; i < raw.length; i++) {
+    const v = raw[i];
+    if (v < vmin) vmin = v;
+    if (v > vmax) vmax = v;
+  }
+  if (!Number.isFinite(vmin)) { vmin = 0; vmax = 0; }
+  const offset = vmin < 0 ? -vmin : 0; // 有负值（CT HU）→ 平移到非负塞进 Uint16
+  const display = new Uint16Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    let v = raw[i] + offset;
+    if (v < 0) v = 0;
+    else if (v > 65535) v = 65535;
+    display[i] = v;
+  }
+  const vol: NiftiVolume = {
+    columns, rows, slices, display, raw, slope,
+    intercept: scInter - offset,
+    min: Math.max(0, vmin + offset),
+    max: Math.min(65535, vmax + offset),
   };
-  dimCache.set(imageId, dim);
-  return dim;
+  volCache.set(url, vol);
+  return vol;
+}
+
+/** 让某 url 的整卷缓存失效（画笔编辑后 labelmap 已变，需重取）。 */
+export function invalidateNiftiVolume(url: string): void {
+  volCache.delete(url);
+}
+
+/** 取某 z 切片的 label（原始整数体素）——VolumeViewer 画分割叠色用。 */
+export async function loadNiftiLabelSlice(
+  url: string,
+  z: number,
+): Promise<{ columns: number; rows: number; data: Int32Array }> {
+  const vol = await loadNiftiVolume(url);
+  const sliceLen = vol.columns * vol.rows;
+  const zc = Math.max(0, Math.min(vol.slices - 1, z));
+  return {
+    columns: vol.columns,
+    rows: vol.rows,
+    data: vol.raw.subarray(zc * sliceLen, (zc + 1) * sliceLen) as Int32Array,
+  };
+}
+
+// --- 元数据 provider（让 StackViewport 能定位 rows/columns） ----------------
+
+/** 预取 NIfTI 维度并填缓存（必须在 setStack 前调用）。返回 (rows, columns, slices)。 */
+export async function preloadNiftiDims(imageId: string): Promise<{ rows: number; columns: number; slices: number }> {
+  const vol = await loadNiftiVolume(_urlOf(imageId));
+  return { rows: vol.rows, columns: vol.columns, slices: vol.slices };
 }
 
 function metaProvider(type: string, imageId: string): unknown {
   if (typeof imageId !== "string" || !imageId.startsWith("nifti:")) return undefined;
-  const dim = dimCache.get(imageId) ?? { rows: 1, columns: 1, slices: 1 };
+  const vol = volCache.get(_urlOf(imageId));
+  const rows = vol?.rows ?? 1;
+  const columns = vol?.columns ?? 1;
   if (type === "imagePixelModule") {
     return {
       samplesPerPixel: 1,
       photometricInterpretation: "MONOCHROME2",
       planarConfiguration: 0,
-      rows: dim.rows,
-      columns: dim.columns,
+      rows,
+      columns,
       bitsAllocated: 16,
       bitsStored: 16,
       highBit: 15,
@@ -61,117 +160,60 @@ function metaProvider(type: string, imageId: string): unknown {
       pixelSpacing: [1, 1],
       rowPixelSpacing: 1,
       columnPixelSpacing: 1,
-      rows: dim.rows,
-      columns: dim.columns,
+      rows,
+      columns,
       frameOfReferenceUID: "GLAUX_NIFTI",
     };
   }
   if (type === "generalSeriesModule") return { modality: "CT" };
-  if (type === "voiLutModule") return { windowCenter: 40, windowWidth: 400 };  // CT 软组织窗
+  if (type === "voiLutModule") return { windowCenter: 40, windowWidth: 400 }; // CT 软组织窗
   if (type === "generalImageModule") {
-    return {
-      sopInstanceUID: imageId,
-      // 让 CS3D 把多 slice 视为同一 series
-      instanceNumber: 1,
-    };
+    return { sopInstanceUID: imageId, instanceNumber: _zOf(imageId) + 1 };
   }
   return undefined;
 }
 
-// --- Image loader —— 读 NIfTI → Uint16Array → IImage ------------------------
+// --- Image loader —— 读 NIfTI 切片 z → Uint16 → IImage ----------------------
 
 function niftiImageLoader(imageId: string): Types.IImageLoadObject {
-  const url = imageId.replace(/^nifti:/, "");
-  const promise = new Promise<Types.IImage>((resolve, reject) => {
-    (async () => {
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) {
-          reject(new Error(`NIfTI fetch ${resp.status}`));
-          return;
-        }
-        const buf = await resp.arrayBuffer();
-        if (!nifti.isNIFTI(buf)) {
-          reject(new Error(`非 NIfTI 文件：${url}`));
-          return;
-        }
-        const header = nifti.readHeader(buf);
-        const dataArr = nifti.readImage(header, buf);
-        // nifti-reader-js 返回 ArrayBuffer；按 header.datatypeCode 转 typed view
-        const pixData = _toTypedArray(dataArr, header.datatypeCode);
-        const rows = header.dims[1] ?? 1;
-        const columns = header.dims[0] ?? 1;
-        const slices = header.dims[2] ?? 1;
-        dimCache.set(imageId, { rows, columns, slices });
-        // CT 窗位：voxel value ≈ Hounsfield Unit（scaled by header.scl_slope + scl_inter）
-        const slope = header.scl_slope || 1;
-        const intercept = header.scl_inter || 0;
-        const minVal = pixData.length ? (pixData[0] * slope + intercept) : 0;
-        const maxVal = pixData.length ? (pixData[pixData.length - 1] * slope + intercept) : 255;
-        // 单 canvas 给 getCanvas（CS3D 偶有需要）
-        const cv = document.createElement("canvas");
-        cv.width = columns;
-        cv.height = rows;
-        const image = {
-          imageId,
-          dataType: "Uint16Array",
-          minPixelValue: minVal,
-          maxPixelValue: maxVal,
-          slope,
-          intercept,
-          windowCenter: 40,
-          windowWidth: 400,
-          getPixelData: () => pixData,
-          getCanvas: () => cv,
-          rows,
-          columns,
-          height: rows,
-          width: columns,
-          color: false,
-          rgba: false,
-          numberOfComponents: 1,
-          columnPixelSpacing: 1,
-          rowPixelSpacing: 1,
-          invert: false,
-          sizeInBytes: pixData.byteLength,
-          voiLUTFunction: "LINEAR",
-          // 3D 信息：CS3D 5.x 用 frameIndex / numFrames，3.33.5 忽略
-          numComps: 1,
-        } as unknown as Types.IImage;
-        resolve(image);
-      } catch (e) {
-        reject(e);
-      }
-    })();
-  });
+  const url = _urlOf(imageId);
+  const z = _zOf(imageId);
+  const promise = (async (): Promise<Types.IImage> => {
+    const vol = await loadNiftiVolume(url);
+    const { columns, rows, slices } = vol;
+    const zc = Math.max(0, Math.min(slices - 1, z));
+    const sliceLen = columns * rows;
+    const pixData = vol.display.subarray(zc * sliceLen, (zc + 1) * sliceLen);
+    const cv = document.createElement("canvas");
+    cv.width = columns;
+    cv.height = rows;
+    return {
+      imageId,
+      dataType: "Uint16Array",
+      minPixelValue: vol.min,
+      maxPixelValue: vol.max,
+      slope: vol.slope,
+      intercept: vol.intercept,
+      windowCenter: 40,
+      windowWidth: 400,
+      getPixelData: () => pixData,
+      getCanvas: () => cv,
+      rows,
+      columns,
+      height: rows,
+      width: columns,
+      color: false,
+      rgba: false,
+      numberOfComponents: 1,
+      columnPixelSpacing: 1,
+      rowPixelSpacing: 1,
+      invert: false,
+      sizeInBytes: pixData.byteLength,
+      voiLUTFunction: "LINEAR",
+      numComps: 1,
+    } as unknown as Types.IImage;
+  })();
   return { promise } as Types.IImageLoadObject;
-}
-
-function _toTypedArray(buf: ArrayBuffer, dtypeCode: number): Uint16Array {
-  // NIfTI dtype code: 2=uint8, 4=int16, 8=int32, 16=float32, 64=float64, 512=uint16
-  switch (dtypeCode) {
-    case 2: {
-      const v = new Uint8Array(buf);
-      const out = new Uint16Array(v.length);
-      for (let i = 0; i < v.length; i++) out[i] = v[i];
-      return out;
-    }
-    case 4: return new Uint16Array(buf);
-    case 512: return new Uint16Array(buf);
-    case 8: {
-      const v = new Int32Array(buf);
-      const out = new Uint16Array(v.length);
-      for (let i = 0; i < v.length; i++) out[i] = v[i] < 0 ? 0 : v[i];
-      return out;
-    }
-    case 16: {
-      const v = new Float32Array(buf);
-      const out = new Uint16Array(v.length);
-      for (let i = 0; i < v.length; i++) out[i] = v[i] < 0 ? 0 : v[i] | 0;
-      return out;
-    }
-    default: return new Uint16Array(buf);
-  }
 }
 
 // --- 一次性 init（沿 cornerstone.ts 模式） --------------------------------

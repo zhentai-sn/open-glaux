@@ -11,6 +11,7 @@ P6 v0：``data/ct/`` 下 ship 的 NIfTI demo 案例，ID 形如 ``ct_001``，命
 from __future__ import annotations
 
 import re
+import threading
 from functools import lru_cache
 
 import nibabel as nib
@@ -20,6 +21,42 @@ from . import config, segment_ts
 
 
 _ID_RE = re.compile(r"^ct_\d{3}$")
+
+
+# --- 画笔编辑并发守卫（U4 / review ①）---------------------------------------
+# 后端单进程多线程（FastAPI 同步 handler 跑线程池）——per-(volume,method) 乐观并发：
+# last_edit_seq 计数器 + 一把锁把「校验 base_seq → patch → 自增」整段原子化。
+# 这同时修掉 patch_labelmap 裸 read-modify-write 的丢更新竞态（两笔并发不再互相覆盖）。
+_edit_lock = threading.Lock()
+_edit_seq: dict[tuple[str, str], int] = {}
+
+
+class StaleEditError(RuntimeError):
+    """并发画笔编辑：客户端 base_seq 落后于服务端 last_edit_seq——拒收（被他人超越）。"""
+
+    def __init__(self, volume_id: str, base_seq: int, current_seq: int):
+        self.volume_id = volume_id
+        self.base_seq = base_seq
+        self.current_seq = current_seq
+        super().__init__(
+            f"编辑冲突：{volume_id} base_seq={base_seq} 落后于服务端 seq={current_seq}"
+            f"——已被他人编辑超越，请以最新 labelmap 为基重试"
+        )
+
+
+def current_edit_seq(volume_id: str, method: str = "totalsegmentator_v2") -> int:
+    """当前 per-(volume,method) 编辑序号（客户端拉 labelmap 时随附，编辑时回传作 base_seq）。"""
+    with _edit_lock:
+        return _edit_seq.get((volume_id, method), 0)
+
+
+def reset_edit_seq(volume_id: str | None = None, method: str = "totalsegmentator_v2") -> None:
+    """清空编辑序号——测试隔离用；volume_id=None 清全部。"""
+    with _edit_lock:
+        if volume_id is None:
+            _edit_seq.clear()
+        else:
+            _edit_seq.pop((volume_id, method), None)
 
 
 def list_ids() -> list[str]:
@@ -125,7 +162,9 @@ def patch_labelmap(
 
     labelmap = labelmap_nib(volume_id, method)
     arr = np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
-    Z, Y, X = arr.shape
+    # nibabel 体素轴序是 (X, Y, Z)；前端 VolumeViewer 沿 Z（末轴）切轴状位、PNG 宽=X 高=Y。
+    # 必须沿轴 2 切（arr[:, :, z]），而非旧代码的 arr[z]（切轴 0=X=矢状面，patch 错平面 + 尺寸不符 422）。
+    X, Y, Z = arr.shape
 
     # 验证：所有 class_id 在白名单内（防止 paint class_id=999 这种越权）
     if class_id_to_role is None:
@@ -156,17 +195,45 @@ def patch_labelmap(
             raise ValueError("mask_png_ref 必须 data:image/png;base64,... 格式")
         b = base64.b64decode(png_b64.split(",", 1)[1])
         img = Image.open(io.BytesIO(b)).convert("L")
-        if img.size != (X, Y):
+        if img.size != (X, Y):  # PIL size=(width,height)=(X,Y)
             raise ValueError(
-                f"mask 尺寸 {img.size} != labelmap slice 尺寸 ({X}, {Y})——硬拒绝"
+                f"mask 尺寸 {img.size} != labelmap 轴状位 slice 尺寸 ({X}, {Y})——硬拒绝"
             )
-        mask = np.asarray(img, dtype=bool)
+        # np.asarray(img) → (height, width)=(Y, X)；转置到 (X, Y) 对齐 arr[:, :, z]
+        mask_xy = np.asarray(img, dtype=bool).T
+        sl = arr[:, :, z]  # 轴状位切片（view，写回生效）
         if mode == "erase":
-            arr[z][mask] = 0
+            sl[mask_xy] = 0
         else:  # paint
-            arr[z][mask] = class_id
+            sl[mask_xy] = class_id
 
     # 写回（覆盖同 vid+method 路径）
     new_nib = nib.Nifti1Image(arr.astype(np.int32), labelmap.affine, labelmap.header)
     new_path = commit_labelmap(volume_id, new_nib, method)
     return new_path, arr
+
+
+def guarded_patch_labelmap(
+    volume_id: str,
+    slices: list[dict],
+    base_seq: int | None,
+    method: str = "totalsegmentator_v2",
+    class_id_to_role: dict[int, str] | None = None,
+) -> tuple[str, np.ndarray, int]:
+    """并发安全的 patch：校验 base_seq → patch（原子）→ 自增 seq。返回 (path, arr, new_seq)。
+
+    - ``base_seq`` 为客户端拉 labelmap 时随附的序号；``None`` 表示不做乐观并发校验
+      （向后兼容单笔编辑），但仍在锁内串行化，避免 read-modify-write 丢更新。
+    - ``base_seq`` 落后于服务端当前 seq → :class:`StaleEditError`（端点转 409）。
+    - 校验 → patch → 自增全程持锁，保证同 (volume,method) 的并发编辑互斥。
+    """
+    key = (volume_id, method)
+    with _edit_lock:
+        cur = _edit_seq.get(key, 0)
+        if base_seq is not None and base_seq != cur:
+            raise StaleEditError(volume_id, base_seq, cur)
+        new_path, arr = patch_labelmap(
+            volume_id, slices, method=method, class_id_to_role=class_id_to_role
+        )
+        _edit_seq[key] = cur + 1
+        return new_path, arr, cur + 1
