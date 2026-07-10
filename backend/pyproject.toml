@@ -10,8 +10,14 @@ dependencies = [
     # science-core 的运行期依赖（读边界/测量/tiff→PNG）——纯计算，无 TF。
     "numpy>=1.24",
     "Pillow>=10.0",
+    # P6：CT NIfTI 读（voxel_spacing/labelmap patch）。数据 IO 库（非重模型，主进程允许）。
+    "nibabel>=5.0",
     # Claude VLM 意图后端（看图+NL→受约束三态判定）；主进程用，无 TF。
     "anthropic>=0.40",
+    # P7：病理 WSI 瓦片服务——OpenSlide 读 .svs/.ndpi + DeepZoom 出瓦片。数据 IO C 库
+    # （同 nibabel，非重模型，主进程允许）；openslide-bin 是自带 libopenslide 的 wheel，免系统装。
+    "openslide-python>=1.3",
+    "openslide-bin>=4.0",
 ]
 
 # 说明：主进程刻意不依赖 TensorFlow / caroSegDeep。

@@ -54,11 +54,14 @@ interface SessionState {
   modality: Modality; // 当前模态（颈动脉 IMT / 胎儿 HC / CT 腹部）
   activeImage: string | null; // 2D 模态的当前图（CUBS / HC18 id）
   activeVolume: string | null; // P6：3D 模态的当前 CT volume id
+  activeSlide: string | null; // P7：病理 WSI 的当前 slide id
+  wsiRoi: [number, number, number, number] | null; // P7：当前框选 ROI (x0,y0,x1,y1) level-0 px
   activeModel: string;
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   images: ImageMeta[]; // 数据集列表（Explorer）
   volumes: ImageMeta[]; // P6：CT 体积列表
+  slides: ImageMeta[]; // P7：WSI slide 列表
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods 或 voxel_spacing_mm）
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
@@ -86,11 +89,14 @@ interface SessionState {
   setModality: (m: Modality) => void;
   setActiveImage: (id: string | null) => void;
   setActiveVolume: (id: string | null) => void; // P6
+  setActiveSlide: (id: string | null) => void; // P7
+  setWsiRoi: (roi: [number, number, number, number] | null) => void; // P7
   setModels: (m: ModelInfo[]) => void;
   setCapabilities: (c: Capability[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
   setVolumes: (m: ImageMeta[]) => void; // P6
+  setSlides: (m: ImageMeta[]) => void; // P7
   setImageMeta: (m: ImageMeta | null) => void;
   setMetrics: (m: Record<string, Measure> | null) => void;
   setPrimitives: (p: Primitive[]) => void;
@@ -121,11 +127,14 @@ export const useSession = create<SessionState>((set) => ({
   modality: "carotid_imt",
   activeImage: null,
   activeVolume: null,
+  activeSlide: null,
+  wsiRoi: null,
   activeModel: "caroSegDeep",
   models: [],
   capabilities: [],
   images: [],
   volumes: [],
+  slides: [],
   imageMeta: null,
   metrics: null,
   primitives: [],
@@ -150,6 +159,8 @@ export const useSession = create<SessionState>((set) => ({
   setModality: (m) => set({ modality: m }),
   setActiveImage: (id) => set({ activeImage: id }),
   setActiveVolume: (id) => set({ activeVolume: id }),
+  setActiveSlide: (id) => set({ activeSlide: id }),
+  setWsiRoi: (roi) => set({ wsiRoi: roi }),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
   setCapabilities: (c) => set({ capabilities: c }),
   activateModel: (id) =>
@@ -159,6 +170,7 @@ export const useSession = create<SessionState>((set) => ({
     })),
   setImages: (m) => set({ images: m }),
   setVolumes: (m) => set({ volumes: m }),
+  setSlides: (m) => set({ slides: m }),
   setImageMeta: (m) => set({ imageMeta: m }),
   setMetrics: (m) => set({ metrics: m }),
   setPrimitives: (p) => set({ primitives: p }),

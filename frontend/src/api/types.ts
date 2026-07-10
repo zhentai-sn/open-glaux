@@ -1,14 +1,16 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
 export type Scope = "in_scope" | "ambiguous" | "out_of_scope";
-export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney";
-export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen";
+export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
+export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology";
 
 export interface TaskSpec {
   task: TaskType;
   image_id?: string | null;
   cubs_cf?: number | null;
   roi?: [number, number] | null;
+  /** P7 WSI：框选 ROI (x0, y0, x1, y1) level-0 px（核检测按 ROI 推理，整片不可行）。 */
+  roi_box?: [number, number, number, number] | null;
   method?: string | null;
 }
 
@@ -27,6 +29,10 @@ export interface ImageMeta {
   modality: Modality;
   /** P6：CT 模态用 voxel_spacing_mm 替代 cubs_cf；(sx, sy, sz) mm。 */
   voxel_spacing_mm?: [number, number, number] | null;
+  /** P7：WSI 模态用 mpp（(mpp_x, mpp_y) µm/px）。 */
+  mpp_um?: [number, number] | null;
+  /** P7：WSI level-0 尺寸 (width, height) px（OSD tileSource 用）。 */
+  dims?: [number, number] | null;
 }
 
 export interface ModelInfo {
@@ -104,6 +110,16 @@ export type Primitive =
       ref: string;
       classes: ClassSpec[];
       raw_ref?: string | null;
+    }
+  | {
+      /** P7：点集（病理核检测质心，多类）。镜像 glaux_core.contracts.PointSet。坐标为 level-0 px。 */
+      kind: "point_set";
+      id: string;
+      role: string;
+      points: number[][];
+      point_class_ids: number[];
+      classes: ClassSpec[];
+      roi?: number[] | null;
     };
 
 /** VolumeMask 的一个器官类（P6）——颜色/双语标签/是否可量。 */

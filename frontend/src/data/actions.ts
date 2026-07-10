@@ -32,6 +32,14 @@ export async function loadImages(): Promise<void> {
     if (!activeVolume && vols.length) await selectVolume(vols[0].id);
     return;
   }
+  if (modality === "pathology") {
+    // P7：WSI 走 slides（activeSlide；不自动跑——核检测要先框 ROI）
+    const sl = await api.slides();
+    useSession.getState().setSlides(sl);
+    const { activeSlide } = useSession.getState();
+    if (!activeSlide && sl.length) await selectSlide(sl[0].id);
+    return;
+  }
   const imgs = await api.images(modality);
   useSession.getState().setImages(imgs);
   const { activeImage } = useSession.getState();
@@ -45,6 +53,8 @@ export async function switchModality(modality: Modality): Promise<void> {
   s.setModality(modality);
   s.setActiveImage(null);
   s.setActiveVolume(null);
+  s.setActiveSlide(null);
+  s.setWsiRoi(null);
   s.setImageMeta(null);
   clearOverlays();
   s.setTool("cursor");
@@ -56,6 +66,13 @@ export async function switchModality(modality: Modality): Promise<void> {
     const vols = await api.volumes();
     useSession.getState().setVolumes(vols);
     if (vols.length) await selectVolume(vols[0].id);
+    return;
+  }
+  if (modality === "pathology") {
+    // P7：WSI 模态独立分支——拉 slides + 选首 slide（不自动跑，等框 ROI）
+    const sl = await api.slides();
+    useSession.getState().setSlides(sl);
+    if (sl.length) await selectSlide(sl[0].id);
     return;
   }
   const imgs = await api.images(modality);
@@ -106,12 +123,54 @@ export async function selectVolume(volumeId: string): Promise<void> {
   await runCurrentTask(volumeId);
 }
 
+/** P7：选 WSI slide——设元数据（含 mpp/dims）+ 清叠加/ROI。**不自动跑**（核检测要先框 ROI）。 */
+export async function selectSlide(slideId: string): Promise<void> {
+  const s = useSession.getState();
+  const meta = s.slides.find((m) => m.id === slideId) ?? null;
+  s.setActiveSlide(slideId);
+  s.setImageMeta(meta);
+  s.setWsiRoi(null);
+  clearOverlays();
+}
+
+/** P7：WSI 核检测——按框选 ROI 跑 /task/run（roi_box）。成功返回 true。 */
+export async function runWsiTask(
+  slideId: string,
+  roiBox: [number, number, number, number],
+): Promise<boolean> {
+  const s = useSession.getState();
+  const task = currentTask();
+  if (!task) return false;
+  const method = s.activeModel || undefined;
+  s.setWsiRoi(roiBox);
+  s.setLoading(true);
+  try {
+    const res = await api.taskRun({ task, image_id: slideId, roi_box: roiBox, method });
+    useSession.getState().setMetrics(res.metrics);
+    useSession.getState().setPrimitives(res.primitives);
+    useSession.getState().setSource("agent");
+    useSession.getState().setModelVersion(String(res.provenance.model_version ?? method ?? ""));
+    return Object.keys(res.metrics).length > 0;
+  } catch {
+    clearOverlays();
+    return false;
+  } finally {
+    useSession.getState().setLoading(false);
+  }
+}
+
 /** 重跑当前模态的活动模型/检测器（切模型 / Reset 用）。 */
 export async function reRunActiveModel(): Promise<void> {
   const s = useSession.getState();
   if (s.modality === "ct_abdomen") {
     if (!s.activeVolume) return;
     await runCurrentTask(s.activeVolume);
+    return;
+  }
+  if (s.modality === "pathology") {
+    // P7：重跑要有已框 ROI；否则无操作（提示在 WsiViewer 里）
+    if (!s.activeSlide || !s.wsiRoi) return;
+    await runWsiTask(s.activeSlide, s.wsiRoi);
     return;
   }
   if (!s.activeImage) return;

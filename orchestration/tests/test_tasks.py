@@ -16,8 +16,12 @@ from glaux_core.contracts import (
     VolumeMask,
 )
 from glaux_orchestrator.spec import TaskType
+from glaux_core.calibration.calibration import resolve_wsi_calibration
+from glaux_core.contracts import PointSet
+from glaux_core.measurement.nuclei import measure_nuclei
 from glaux_orchestrator.tasks import (
     LIVER_KIDNEY_CLASSES,
+    NUCLEI_CLASSES,
     REGISTRY,
     measure_hc,
     measure_imt,
@@ -30,8 +34,8 @@ def test_registry_covers_all_task_types():
     assert set(REGISTRY) == set(TaskType)
     for task, plugin in REGISTRY.items():
         assert plugin.task is task
-        assert plugin.adapter_kind in {"wall_pair", "contour", "volume"}
-        assert plugin.viewer in {"raster_2d", "volume_3d"}
+        assert plugin.adapter_kind in {"wall_pair", "contour", "volume", "wsi"}
+        assert plugin.viewer in {"raster_2d", "volume_3d", "wsi"}
         assert callable(plugin.measure)
 
 
@@ -42,6 +46,9 @@ def test_task_for_signals_routes():
     # P6：CT 肝/肾信号词路由
     assert task_for_signals("肝体积") is TaskType.TOTALSEG_LIVER_KIDNEY
     assert task_for_signals("measure liver volume from CT") is TaskType.TOTALSEG_LIVER_KIDNEY
+    # P7：WSI 核检测信号词路由
+    assert task_for_signals("这张病理切片数一下细胞核") is TaskType.NUCLEI_DETECTION
+    assert task_for_signals("count nuclei in this WSI") is TaskType.NUCLEI_DETECTION
     assert task_for_signals("hello world") is None
 
 
@@ -120,6 +127,51 @@ def test_liver_kidney_classes_constant():
     assert [c.class_id for c in LIVER_KIDNEY_CLASSES] == [1, 2, 3]
     assert LIVER_KIDNEY_CLASSES[0].label_zh == "肝"
     assert LIVER_KIDNEY_CLASSES[0].color == "#FF8A5B"
+
+
+def test_plugin_to_view_nuclei_detection():
+    """P7：WSI 任务 plugin view 应含 wsi viewer + 计数/密度 metric + roi 工具 + 单类 overlay。"""
+    view = plugin_to_view(REGISTRY[TaskType.NUCLEI_DETECTION])
+    assert view["task"] == "nuclei_detection"
+    assert view["viewer"] == "wsi"
+    assert view["adapter_kind"] == "wsi"
+    assert view["modality"] == "pathology"
+    assert {m["key"] for m in view["metrics"]} == {
+        "nuclei_count", "nuclei_density_mm2", "roi_area_mm2",
+    }
+    assert {t["id"] for t in view["tools"]} == {"cursor", "roi", "reset"}
+    assert {o["role"] for o in view["overlays"]} == {"nucleus"}
+    assert view["overlays"][0]["editable"] is False  # v0 无核编辑
+    assert "measure" not in view
+    json.dumps(view)
+
+
+def test_nuclei_classes_constant():
+    """NUCLEI_CLASSES 与 plugin.overlays 同步（class_id/role/label/color）。"""
+    plugin = REGISTRY[TaskType.NUCLEI_DETECTION]
+    overlay_roles = {o.role for o in plugin.overlays}
+    assert {c.role for c in NUCLEI_CLASSES} == overlay_roles
+    assert [c.class_id for c in NUCLEI_CLASSES] == [1]
+    assert NUCLEI_CLASSES[0].label_zh == "细胞核"
+    assert NUCLEI_CLASSES[0].color == "#7BE0AD"
+
+
+def test_measure_nuclei_via_registry():
+    """通过 REGISTRY 调 measure_nuclei：500 点 + 1000×1000 ROI + mpp (0.25,0.25)。"""
+    points = tuple((float(i), float(i)) for i in range(500))
+    ps = PointSet(
+        id="slide_001_nuclei", points=points,
+        point_class_ids=tuple(1 for _ in points),
+        classes=NUCLEI_CLASSES, roi=(0.0, 0.0, 1000.0, 1000.0),
+    )
+    det = Detection(primitives=(ps,), model_version="stardist_he@test")
+    cal = resolve_wsi_calibration((0.25, 0.25))
+    meas = REGISTRY[TaskType.NUCLEI_DETECTION].measure(det, cal)
+    # 面积 = 1000×1000 × 0.25² / 1e6 = 0.0625 mm²；密度 = 500 / 0.0625 = 8000
+    assert meas.metrics["nuclei_count"].value == pytest.approx(500.0)
+    assert meas.metrics["roi_area_mm2"].value == pytest.approx(0.0625)
+    assert meas.metrics["nuclei_density_mm2"].value == pytest.approx(8000.0)
+    assert meas.metrics["nucleus_count"].value == pytest.approx(500.0)
 
 
 def test_measure_liver_kidney_via_registry(tmp_path):

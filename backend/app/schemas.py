@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 # --- 意图 / 规范 -------------------------------------------------------------
 
 Scope = Literal["in_scope", "ambiguous", "out_of_scope"]
-TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney"]
-Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen"]
+TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney", "nuclei_detection"]
+Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology"]
 
 
 class TaskSpec(BaseModel):
@@ -23,7 +23,8 @@ class TaskSpec(BaseModel):
     task: TaskType = "far_wall_cca_imt"
     image_id: str | None = None
     cubs_cf: float | None = Field(default=None, gt=0, description="标定系数 mm/px，须为正")
-    roi: tuple[int, int] | None = None
+    roi: tuple[int, int] | None = None  # US：列窗 (x0, x1)
+    roi_box: tuple[int, int, int, int] | None = None  # P7 WSI：框选 (x0, y0, x1, y1) level-0 px
     method: str | None = None
 
 
@@ -86,6 +87,8 @@ class ImageMeta(BaseModel):
     methods: list[str] = Field(default_factory=list)
     modality: Modality = "carotid_imt"
     voxel_spacing_mm: list[float] | None = None  # P6：CT 模态用（替代 cubs_cf）
+    mpp_um: list[float] | None = None  # P7：WSI 模态用（(mpp_x, mpp_y) µm/px）
+    dims: list[int] | None = None  # P7：WSI level-0 尺寸 (width, height) px（前端 OSD 用）
 
 
 # --- 模型（扩展=适配器） -----------------------------------------------------

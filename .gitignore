@@ -15,8 +15,16 @@ env/
 /data/*
 !/data/ct/
 !/data/ct/README.md
+# P7：WSI demo slide/reference 走 runbook 生成，仅放行 README（同 /data/ct/ 模式）
+!/data/wsi/
+/data/wsi/*
+!/data/wsi/README.md
 *.tiff
 *.tif
+# P7：WSI vendor 切片二进制不入库（demo slide 走 runbook 下载）
+*.svs
+*.ndpi
+*.mrxs
 # P6：CT NIfTI 体积/labelmap 不入库
 *.nii
 *.nii.gz

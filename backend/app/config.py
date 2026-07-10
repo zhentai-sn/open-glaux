@@ -69,6 +69,20 @@ TS_DRIVER = _env_path("GLAUX_TS_DRIVER", TS_ROOT / "run_headless.py")
 TS_WEIGHTS = _env_path("GLAUX_TS_WEIGHTS", TS_ROOT / "weights")
 TS_CACHE = _env_path("GLAUX_TS_CACHE", HOME / "glaux_models/ts_out")
 
+# --- P7 第四模态：病理 WSI 数据 + 核分割隔离环境（StarDist-HE / HoVerNet-PanNuke）------
+# OpenSlide 读 .svs/.ndpi 在主进程（数据 IO C 库，同 nibabel）；瓦片落盘缓存。
+WSI_ROOT = _env_path("GLAUX_WSI_ROOT", REPO_ROOT / "data/wsi")
+WSI_CACHE = _env_path("GLAUX_WSI_CACHE", HOME / "glaux_models/wsi_tiles")
+# 核分割隔离环境（主进程绝不 import torch/TF；与 .venv-ts 同构）
+WSI_SEG_ROOT = _env_path("GLAUX_WSI_SEG_ROOT", HOME / "glaux_models/wsi_seg")
+WSI_SEG_PYTHON = _env_path("GLAUX_WSI_SEG_PYTHON", WSI_SEG_ROOT / ".venv-wsi/bin/python")
+WSI_SEG_DRIVER = _env_path("GLAUX_WSI_SEG_DRIVER", WSI_SEG_ROOT / "run_headless.py")
+WSI_SEG_WEIGHTS = _env_path("GLAUX_WSI_SEG_WEIGHTS", WSI_SEG_ROOT / "weights")
+WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_out")
+
+# WSI vendor 格式后缀（OpenSlide 支持面的子集；v0 走 .svs demo）。
+_WSI_SUFFIXES = (".svs", ".ndpi", ".tif", ".tiff", ".mrxs", ".scn", ".vms", ".bif")
+
 
 def data_available() -> bool:
     """真实数据集是否就绪（否则端点回退 mock）。"""
@@ -106,3 +120,15 @@ def ct_data_available() -> bool:
 def ts_live_available() -> bool:
     """TotalSegmentator 隔离环境是否可现算（缓存未命中时才需要）。"""
     return TS_PYTHON.is_file() and TS_DRIVER.is_file() and TS_WEIGHTS.is_dir()
+
+
+def wsi_data_available() -> bool:
+    """病理 WSI 数据是否就绪（``data/wsi/`` 下 ship 了至少 1 例 slide）。"""
+    return WSI_ROOT.is_dir() and any(
+        p.suffix.lower() in _WSI_SUFFIXES for p in WSI_ROOT.glob("slide_*")
+    )
+
+
+def wsi_live_available() -> bool:
+    """核分割隔离环境是否可现算（缓存未命中时才需要）。"""
+    return WSI_SEG_PYTHON.is_file() and WSI_SEG_DRIVER.is_file() and WSI_SEG_WEIGHTS.is_dir()

@@ -128,6 +128,27 @@ export const api = {
       `/volume/${encodeURIComponent(id)}/verify?task=${encodeURIComponent(task)}`,
     ),
 
+  // --- P7：病理 WSI ---------------------------------------------------------
+  /** WSI slide 列表——同 /images?modality=pathology，分端点便于前端 discovery。 */
+  slides: () => get<ImageMeta[]>(`/slides`),
+  /** DeepZoom 瓦片 URL（OSD 自定义 tileSource 的 getTileUrl 用；level/col/row 为 DeepZoom 坐标）。 */
+  wsiTileUrl: (id: string, level: number, col: number, row: number) =>
+    `${BASE}/wsi/${encodeURIComponent(id)}/tile/${level}/${col}/${row}`,
+  /** 整片缩略图 URL（OSD 导航图 / discovery 卡片）。 */
+  wsiThumbnailUrl: (id: string) => `${BASE}/wsi/${encodeURIComponent(id)}/thumbnail`,
+  /** Reproducibility 验证（U5）：与 ship 的 reference（canonical ROI 检测）比质心匹配 F1。 */
+  wsiVerify: (id: string, method = "stardist_he") =>
+    get<{
+      f1: number;
+      precision: number;
+      recall: number;
+      tp: number;
+      count_pred: number;
+      count_ref: number;
+      roi: number[];
+      note: string;
+    }>(`/wsi/${encodeURIComponent(id)}/verify?method=${encodeURIComponent(method)}`),
+
   models: () => get<ModelInfo[]>("/models"),
 
   /** 能力注册表：「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。 */

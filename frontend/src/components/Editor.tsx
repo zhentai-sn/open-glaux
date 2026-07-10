@@ -10,9 +10,10 @@ export function Editor() {
   const tasks = useSession((s) => s.tasks);
   const activeImage = useSession((s) => s.activeImage);
   const activeVolume = useSession((s) => s.activeVolume);
-  // 2D 模态用 activeImage，3D（CT）模态用 activeVolume——查看器/标签统一走「当前对象」，
-  // 否则 CT 因 activeImage 恒 null 永远卡在空状态、VolumeViewer 从不挂载。
-  const image = activeImage ?? activeVolume;
+  const activeSlide = useSession((s) => s.activeSlide);
+  // 2D 模态用 activeImage，3D（CT）用 activeVolume，WSI（病理）用 activeSlide——查看器/标签统一
+  // 走「当前对象」，否则 CT/WSI 因 activeImage 恒 null 永远卡在空状态、对应 Viewer 从不挂载。
+  const image = activeImage ?? activeVolume ?? activeSlide;
   const center = useSession((s) => s.imageMeta?.center ?? "dataset");
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const loading = useSession((s) => s.loading);

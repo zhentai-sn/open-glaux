@@ -9,6 +9,10 @@
 
 P6 扩展：CT 模态走 ``voxel_spacing``——``value`` 是 ``(sx, sy, sz)`` mm/voxel tuple，
 由 NIfTI header ``pixdim[1:4]`` 解析。读不出/非正 → 硬拒绝（与 CUBS 路径同模板）。
+
+P7 扩展：病理 WSI 模态走 ``mpp``（microns per pixel）——``value`` 是 ``(mpp_x, mpp_y)``
+µm/px tuple，由 OpenSlide ``openslide.mpp-x/y`` 属性解析。读不出/非正 → 硬拒绝。
+与 US 的 cf (mm/px) 不可互换：WSI 密度是 count / (ROI 面积 mm²)，面积用 mpp 换算。
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ class CFSource(str, Enum):
     RULER = "ruler"
     MANUAL_CLICK = "manual_click"
     VOXEL_SPACING = "voxel_spacing"  # P6：CT 体素物理尺寸（mm/voxel，3 元 tuple）
+    MPP = "mpp"  # P7：WSI 像素物理尺寸（µm/px，2 元 tuple (mpp_x, mpp_y)）
 
 
 @dataclass(frozen=True)
@@ -50,8 +55,8 @@ class CalibrationResult:
 
     source: CFSource
     provenance: dict = field(default_factory=dict)
-    cf: float = 0.0  # US 路径便利字段；CT 路径为 0
-    value: Union[float, tuple[float, float, float]] = 0.0
+    cf: float = 0.0  # US 路径便利字段；CT/WSI 路径为 0
+    value: Union[float, tuple[float, ...]] = 0.0  # US=float；CT=(sx,sy,sz)；WSI=(mpp_x,mpp_y)
 
 
 def cf_from_two_clicks(click: ManualClick) -> float:
@@ -110,4 +115,23 @@ def resolve_ct_calibration(voxel_spacing_mm: tuple[float, float, float]) -> Cali
         source=CFSource.VOXEL_SPACING,
         value=(sx, sy, sz),
         provenance={"voxel_spacing_mm": [sx, sy, sz], "source": "nifti_pixdim"},
+    )
+
+
+def resolve_wsi_calibration(mpp_xy: tuple[float, float]) -> CalibrationResult:
+    """WSI 标定：MPP (µm/px) 必正、必有；读不出（None/含零/含负）走 :class:`HardReject`。
+
+    ``mpp_xy = (mpp_x, mpp_y)``——x/y 方向每像素的物理尺寸（微米）。来源是 OpenSlide
+    的 ``openslide.mpp-x`` / ``openslide.mpp-y`` 属性。与 US 的 cf (mm/px) 不可互换：
+    WSI 核密度 = count / (ROI 面积 mm²)，面积 = (w×h) px × mpp_x × mpp_y / 1e6。
+    """
+    if mpp_xy is None or len(mpp_xy) != 2:
+        raise HardReject(f"WSI 标定形状非法：{mpp_xy!r}")
+    if not all(float(v) > 0 for v in mpp_xy):
+        raise HardReject(f"WSI mpp 非正/非数：{mpp_xy!r}——拒绝输出无标定核密度")
+    mx, my = float(mpp_xy[0]), float(mpp_xy[1])
+    return CalibrationResult(
+        source=CFSource.MPP,
+        value=(mx, my),
+        provenance={"mpp_xy_um": [mx, my], "source": "openslide.mpp"},
     )

@@ -13,7 +13,17 @@ import base64
 
 import numpy as np
 
-from . import config, dataset, dataset_ct, hc_dataset, mock, segment_proc, segment_ts
+from . import (
+    config,
+    dataset,
+    dataset_ct,
+    dataset_wsi,
+    hc_dataset,
+    mock,
+    segment_proc,
+    segment_ts,
+    segment_wsi,
+)
 from .schemas import (
     IMTResult,
     IntentResult,
@@ -40,8 +50,12 @@ from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 from glaux_orchestrator.spec import TaskType as _TaskType  # noqa: E402
 from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES, REGISTRY as _REGISTRY  # noqa: E402
 from glaux_orchestrator.tasks import plugin_to_view as _plugin_to_view  # noqa: E402
-from glaux_core.contracts import VolumeMask  # noqa: E402
-from glaux_core.calibration.calibration import resolve_ct_calibration  # noqa: E402
+from glaux_core.contracts import PointSet, VolumeMask  # noqa: E402
+from glaux_core.calibration.calibration import (  # noqa: E402
+    resolve_ct_calibration,
+    resolve_wsi_calibration,
+)
+from glaux_orchestrator.tasks import NUCLEI_CLASSES  # noqa: E402
 
 _rule = RuleBasedBackend()
 _vlm = ClaudeVLMBackend()
@@ -214,6 +228,32 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
         )
         return det, cal
 
+    if plugin.adapter_kind == "wsi":
+        # P7：病理 WSI 核检测——数据入口边界走 segment_wsi（缓存 + 隔离子进程 ROI 抽块 + 去重）+
+        # dataset_wsi（MPP 标定）。与 volume 同形：构造 PointSet（含质心 + classes + roi），落 Detection。
+        if not spec.image_id or not dataset_wsi.is_wsi(spec.image_id):
+            raise ValueError(f"非 WSI slide id：{spec.image_id}——硬拒绝，不在错模态上瞎跑")
+        if not config.wsi_data_available():
+            raise ValueError(f"WSI 数据未就绪：{config.WSI_ROOT} 无 slide_*")
+        if spec.roi_box is None:
+            raise ValueError("WSI 核检测需 roi_box 框选区域——硬拒绝，整片推理不可行")
+        method = spec.method or "stardist_he"
+        roi_box = tuple(int(v) for v in spec.roi_box)
+        nuclei_json_path, mv = segment_wsi.segment(spec.image_id, roi_box, method)
+        data = segment_wsi.load_nuclei(nuclei_json_path)
+        cal = resolve_wsi_calibration(dataset_wsi.mpp(spec.image_id))
+        pts = tuple((float(x), float(y)) for x, y in data.get("points", []))
+        cids = tuple(int(c) for c in data.get("class_ids", []))
+        ps = PointSet(
+            id=f"{spec.image_id}_nuclei",
+            points=pts,
+            point_class_ids=cids,
+            classes=NUCLEI_CLASSES,
+            roi=roi_box,
+        )
+        det = Detection(primitives=(ps,), model_version=mv, roi_used=None)
+        return det, cal
+
     raise ValueError(f"未支持的 adapter_kind：{plugin.adapter_kind}")  # pragma: no cover
 
 
@@ -359,6 +399,19 @@ def models() -> list[ModelInfo]:
                 active=True,
                 backend="isolated:uv/py3.12/torch-cpu",
                 modality="ct_abdomen",
+            )
+        )
+    # 第四模态（病理 WSI）：StarDist-HE 隔离子进程——注册为 pathology 的 active 模型
+    # （gated on 数据就绪；同 CT 段的用意——切模态后 activeModel 有正确 method）。
+    if config.wsi_data_available():
+        out.append(
+            ModelInfo(
+                id="stardist_he",
+                pub="Weigert & Schmidt · StarDist 2D_versatile_he",
+                desc="StarDist 星凸多边形核检测 · H&E 预训练（v0 核计数/密度）· BSD-3",
+                active=True,
+                backend="isolated:uv/py3.12/tf-cpu",
+                modality="pathology",
             )
         )
     return out

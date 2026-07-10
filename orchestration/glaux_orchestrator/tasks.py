@@ -35,6 +35,7 @@ from glaux_core.io.boundaries import Boundary
 from glaux_core.io.contour import Ellipse
 from glaux_core.measurement.ct import measure_liver_kidney as _measure_liver_kidney
 from glaux_core.measurement.hc import hc_from_ellipse as _hc_from_ellipse
+from glaux_core.measurement.nuclei import measure_nuclei as _measure_nuclei
 from glaux_core.measurement.pdm import imt as _imt
 
 from glaux_orchestrator.spec import TaskType
@@ -231,6 +232,36 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("rk", "#4FB0FF", editable=True),
         ),
     ),
+    # P7 楔子：病理 WSI 细胞核检测 + 计数/密度。几何族 "wsi" 走 PointSet Primitive；后端
+    # _detect_for_spec 新加 "wsi" 分支派发到 segment_wsi.subprocess（ROI 抽块 + 质心去重）。
+    # viewer 走 wsi（OpenSeadragon，U4 接）；tools 含 roi 框选。v0 只读检测结果（无核编辑）。
+    TaskType.NUCLEI_DETECTION: TaskPlugin(
+        task=TaskType.NUCLEI_DETECTION,
+        adapter_kind="wsi",
+        modality="pathology",
+        label_en="Nuclei detection (WSI)",
+        label_zh="细胞核检测 (病理 WSI)",
+        signals=(
+            "nuclei", "nucleus", "cell", "细胞核", "细胞", "核检测", "核计数", "核密度",
+            "病理", "pathology", "wsi", "全切片", "组织切片", "h&e", "he染色", "cellularity",
+        ),
+        default_method="stardist_he",
+        measure=_measure_nuclei,  # type: ignore[arg-type]
+        metrics=(
+            MetricDef("nuclei_count", "个", "Nuclei count", "核计数"),
+            MetricDef("nuclei_density_mm2", "个/mm²", "Nuclei density", "核密度"),
+            MetricDef("roi_area_mm2", "mm²", "ROI area", "ROI 面积"),
+        ),
+        viewer="wsi",
+        tools=(
+            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
+            ToolDef("roi", "▭", "Select ROI", "框选 ROI"),
+            ToolDef("reset", "⟲", "Re-detect", "重新检测"),
+        ),
+        overlays=(
+            OverlaySpec("nucleus", "#7BE0AD", editable=False),
+        ),
+    ),
 }
 
 
@@ -251,6 +282,15 @@ LIVER_KIDNEY_CLASSES: tuple[ClassSpec, ...] = (
               color="#4FB0FF", measurable=True),
     ClassSpec(class_id=3, role="rk", label_zh="右肾", label_en="R kidney",
               color="#4FB0FF", measurable=True),
+)
+
+
+# P7：病理 WSI 核检测的 ClassSpec 表（与 NUCLEI_DETECTION 行 overlays 同步；后端 build PointSet 用）。
+# v0 用 StarDist-HE（类别无关）→ 单类 nucleus；升级 HoVerNet-PanNuke（5 类）时在此扩表 +
+# 同步 overlays（neoplastic/inflammatory/connective/dead/epithelial），measure_nuclei 无需改。
+NUCLEI_CLASSES: tuple[ClassSpec, ...] = (
+    ClassSpec(class_id=1, role="nucleus", label_zh="细胞核", label_en="Nucleus",
+              color="#7BE0AD", measurable=True),
 )
 
 

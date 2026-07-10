@@ -17,6 +17,9 @@
 - :class:`Mask` —— 栅格掩膜（病理区域 / labelmap），编码延后，先留不透明引用。
 - :class:`VolumeMask` —— 3D 体掩膜（CT labelmap，多类器官，顶层一体），含 :class:`ClassSpec`
   表。前端按 classes 上色；kernel 走 ``path`` 读 NIfTI 数体素算体积/HU mean。
+- :class:`PointSet` —— 点集（病理核检测质心，多类），坐标为 WSI level-0 px；含 :class:`ClassSpec`
+  表 + 每点 class_id + 可选 ``roi``（框选区域，算密度用）。前端按 class 上色画质心；
+  kernel 数点算计数/密度。
 
 未来模态（BBox / Keypoints / 视频帧掩膜）按需在此追加一个 dataclass +
 在 :func:`primitive_to_dict` 补一条分支，上层无需改动。
@@ -126,7 +129,33 @@ class VolumeMask:
     raw_path: str | None = None
 
 
-Primitive = Union[Polyline, EllipseShape, Mask, VolumeMask]
+@dataclass(frozen=True)
+class PointSet:
+    """点集（病理核检测质心，多类，顶层一体）。
+
+    - ``points``：质心坐标 ``((x,y), ...)``，WSI **level-0 像素**（全分辨率）——与 US Polyline 存 px 同理。
+    - ``point_class_ids``：与 ``points`` 等长的每点类别 id（类别无关模型全填同一 id）。
+    - ``classes``：类别表（前端按 class 上色 + 面板列 per-class 计数）。
+    - ``roi``：可选框选区域 ``(x0, y0, x1, y1)`` level-0 px——算核密度（count / 面积 mm²）用；
+      缺失则密度不可算（measure 硬拒绝）。ROI 存在 primitive 上（自带），不依赖 ``Detection.roi_used``。
+    """
+
+    id: str
+    points: tuple[Point, ...]
+    point_class_ids: tuple[int, ...]
+    classes: tuple[ClassSpec, ...]
+    roi: tuple[float, float, float, float] | None = None
+    role: str = "nuclei"
+
+    def __post_init__(self) -> None:
+        if len(self.points) != len(self.point_class_ids):
+            raise ValueError(
+                f"PointSet points({len(self.points)}) 与 point_class_ids"
+                f"({len(self.point_class_ids)}) 不等长"
+            )
+
+
+Primitive = Union[Polyline, EllipseShape, Mask, VolumeMask, PointSet]
 
 
 # --- 结果信封 ----------------------------------------------------------------
@@ -198,6 +227,21 @@ def primitive_to_dict(p: Primitive) -> dict:
         if p.raw_ref is not None:
             d["raw_ref"] = p.raw_ref
         # path 是 backend 内部路径，**不下发前端**（避免泄露文件系统布局）
+        return d
+    if isinstance(p, PointSet):
+        d = {
+            "kind": "point_set", "id": p.id, "role": p.role,
+            "points": [[x, y] for x, y in p.points],
+            "point_class_ids": list(p.point_class_ids),
+            "classes": [
+                {"class_id": c.class_id, "role": c.role,
+                 "label": {"en": c.label_en, "zh": c.label_zh},
+                 "color": c.color, "measurable": c.measurable}
+                for c in p.classes
+            ],
+        }
+        if p.roi is not None:
+            d["roi"] = list(p.roi)
         return d
     raise TypeError(f"未知 primitive 类型：{type(p).__name__}")  # pragma: no cover
 
@@ -273,5 +317,25 @@ def primitive_from_dict(d: dict) -> Primitive:
                 for c in d["classes"]
             ),
             raw_ref=d.get("raw_ref"),
+        )
+    if kind == "point_set":
+        roi = d.get("roi")
+        return PointSet(
+            id=d["id"],
+            points=tuple((float(x), float(y)) for x, y in d["points"]),
+            point_class_ids=tuple(int(c) for c in d["point_class_ids"]),
+            classes=tuple(
+                ClassSpec(
+                    class_id=int(c["class_id"]),
+                    role=c["role"],
+                    label_zh=c["label"]["zh"],
+                    label_en=c["label"]["en"],
+                    color=c["color"],
+                    measurable=bool(c.get("measurable", True)),
+                )
+                for c in d["classes"]
+            ),
+            roi=tuple(float(v) for v in roi) if roi is not None else None,  # type: ignore[arg-type]
+            role=d.get("role", "nuclei"),
         )
     raise ValueError(f"未知 primitive kind：{kind!r}")

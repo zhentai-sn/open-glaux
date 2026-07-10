@@ -58,6 +58,27 @@ except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
     dataset_ct = None  # type: ignore[assignment]
 
 
+# P7：WSI 瓦片层独立于 science-core（只需 OpenSlide + numpy）——单独 guard，
+# 使病理浏览/瓦片在无 science-core 时也能起；核检测（/task/run）才需 KERNEL_OK。
+try:
+    from .. import dataset_wsi, segment_wsi
+
+    WSI_OK = True
+except Exception as exc:  # pragma: no cover - 缺 openslide 时降级
+    log.warning("WSI 数据层不可用（缺 openslide？）：%s", exc)
+    dataset_wsi = None  # type: ignore[assignment]
+    segment_wsi = None  # type: ignore[assignment]
+    WSI_OK = False
+
+
+def _wsi_ready() -> None:
+    """WSI 端点公共守卫：openslide 装配 + 数据就绪，否则 503。"""
+    if not WSI_OK:
+        raise HTTPException(503, "WSI 模态需 openslide（未装配）")
+    if not config.wsi_data_available():
+        raise HTTPException(503, f"WSI 数据未就绪：{config.WSI_ROOT} 无 slide_*")
+
+
 def _has_data() -> bool:
     return KERNEL_OK and config.data_available()
 
@@ -96,6 +117,9 @@ def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[I
         if not KERNEL_OK:
             raise HTTPException(503, "CT 模态需 science-core（未装配）")
         return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
+    if modality == "pathology":  # P7
+        _wsi_ready()
+        return [ImageMeta(**dataset_wsi.image_meta(i)) for i in dataset_wsi.list_ids()]
     if not _has_data():
         return mock.dataset()
     return [ImageMeta(**dataset.image_meta(i)) for i in dataset.list_ids()]
@@ -341,6 +365,102 @@ def volume_verify(
         "mean_dice": sum(v["dice"] for v in out.values()) / max(len(out), 1),
         "note": "reproducibility check vs ship reference（非真 GT）",
     }
+
+
+# --- P7：病理 WSI 瓦片服务（OpenSlide + DeepZoom；数据 IO，无 science-core 依赖）------
+
+@router.get("/slides", response_model=list[ImageMeta], tags=["dataset"])
+def slides() -> list[ImageMeta]:
+    """P7：WSI slide 列表——与 /images?modality=pathology 同源；分端点便于前端 discovery。"""
+    _wsi_ready()
+    return [ImageMeta(**dataset_wsi.image_meta(i)) for i in dataset_wsi.list_ids()]
+
+
+@router.get("/wsi/{slide_id}/dzi", tags=["dataset"])
+def wsi_dzi(slide_id: str) -> Response:
+    """P7：DZI XML 描述（金字塔 Width/Height/TileSize/Overlap/Format）——OSD tileSource 源。"""
+    _wsi_ready()
+    if not dataset_wsi.is_wsi(slide_id):  # 白名单守卫（防路径穿越 + 错模态）
+        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
+    return Response(content=dataset_wsi.dzi_descriptor(slide_id), media_type="application/xml")
+
+
+@router.get("/wsi/{slide_id}/tile/{level}/{col}/{row}", tags=["dataset"])
+def wsi_tile(slide_id: str, level: int, col: int, row: int) -> Response:
+    """P7：DeepZoom 瓦片 JPEG（缓存优先）。坐标是 DeepZoom (level, col, row)。"""
+    _wsi_ready()
+    if not dataset_wsi.is_wsi(slide_id):
+        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
+    try:
+        data = dataset_wsi.tile(slide_id, level, col, row)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return Response(content=data, media_type="image/jpeg")
+
+
+@router.get("/wsi/{slide_id}/thumbnail", tags=["dataset"])
+def wsi_thumbnail(slide_id: str, max_size: int = 512) -> Response:
+    """P7：整片缩略图 JPEG（discovery 卡片 / OSD 导航图）。"""
+    _wsi_ready()
+    if not dataset_wsi.is_wsi(slide_id):
+        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
+    return Response(content=dataset_wsi.thumbnail(slide_id, max_size), media_type="image/jpeg")
+
+
+@router.get("/wsi/{slide_id}/region", tags=["dataset"])
+def wsi_region(slide_id: str, x: int, y: int, w: int, h: int, level: int = 0) -> Response:
+    """P7：读一块 region → JPEG（level-0 px 坐标；模型抽块 / 调试）。越界 → 422。"""
+    _wsi_ready()
+    if not dataset_wsi.is_wsi(slide_id):
+        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
+    from PIL import Image
+
+    try:
+        arr = dataset_wsi.read_region(slide_id, x, y, w, h, level)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    import io as _io
+    buf = _io.BytesIO()
+    Image.fromarray(arr).save(buf, format="JPEG", quality=85)
+    return Response(content=buf.getvalue(), media_type="image/jpeg")
+
+
+@router.get("/wsi/{slide_id}/verify", tags=["dataset"])
+def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
+    """P7 U5：与 ship 的 reference 检测（模型自身在 canonical demo ROI 的输出）算质心匹配 F1。
+
+    **非真 GT 比较**——reference 是模型自身在固定 ROI 的检测；F1 衡量「管线能否复现自身
+    ROI 检测」（确定性 + 缓存 → 期望 ≈1.0），不代表临床正确性。缺 reference → 422。
+    """
+    _wsi_ready()
+    if not KERNEL_OK:
+        raise HTTPException(503, "WSI 验证需 science-core（未装配）")
+    if not dataset_wsi.is_wsi(slide_id):
+        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
+    import json as _json
+
+    ref_path = config.WSI_ROOT / f"{slide_id}_ref_nuclei.json"
+    if not ref_path.is_file():
+        raise HTTPException(
+            422,
+            f"reproducibility reference 缺失：{ref_path}——按 data/wsi/README 手工 ship "
+            f"模型在 canonical ROI 的检测作 reference；本接口非真 GT 比较",
+        )
+    ref = _json.loads(ref_path.read_text())
+    roi = tuple(int(v) for v in ref["roi"])
+    # 在 reference 的 ROI 上重跑检测（缓存命中即秒回）
+    try:
+        pred_path, _mv = segment_wsi.segment(slide_id, roi, method)
+    except Exception as e:  # 隔离环境不可用 / 子进程失败
+        raise HTTPException(503, f"核检测不可用：{e}") from e
+    pred = segment_wsi.load_nuclei(pred_path)
+    from glaux_core.verification.nuclei import nuclei_reproducibility
+
+    res = nuclei_reproducibility(pred.get("points", []), ref.get("points", []), dist_thresh=8.0)
+    res["roi"] = list(roi)
+    res["method"] = method
+    res["note"] = "reproducibility vs ship reference（模型自身 canonical ROI 检测，非真 GT）"
+    return res
 
 
 @router.get("/image/{image_id}", tags=["dataset"])

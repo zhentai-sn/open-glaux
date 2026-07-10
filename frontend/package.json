@@ -16,12 +16,14 @@
     "@cornerstonejs/tools": "^3.33.5",
     "dockview-react": "^7.0.2",
     "nifti-reader-js": "^0.8.0",
+    "openseadragon": "^4.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@types/openseadragon": "^5.0.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

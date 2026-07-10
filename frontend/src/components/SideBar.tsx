@@ -1,7 +1,13 @@
 import { useState, type ReactNode } from "react";
 
 import type { CapabilityLayer } from "../api/types";
-import { reRunActiveModel, selectImage, switchModality } from "../data/actions";
+import {
+  reRunActiveModel,
+  selectImage,
+  selectSlide,
+  selectVolume,
+  switchModality,
+} from "../data/actions";
 import { useI18n, type I18nKey } from "../i18n";
 import { useSession } from "../store/session";
 
@@ -32,14 +38,22 @@ function ModalitySwitch() {
   );
 }
 
-function ImageLeaf({ id, depth }: { id: string; depth: number }) {
-  const activeImage = useSession((s) => s.activeImage);
-  const selected = activeImage === id;
+function ImageLeaf({
+  id,
+  depth,
+  selected,
+  onSelect,
+}: {
+  id: string;
+  depth: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <div
       className={"row" + (selected ? " sel" : "")}
       style={{ paddingLeft: depth * 12 + 4 }}
-      onClick={() => void selectImage(id)}
+      onClick={onSelect}
     >
       <span className="tw" />
       <span className="ico fico">▤</span>
@@ -79,25 +93,50 @@ function Dir({
 function ExplorerView() {
   const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
+  const volumes = useSession((s) => s.volumes);
+  const slides = useSession((s) => s.slides);
+  const activeImage = useSession((s) => s.activeImage);
+  const activeVolume = useSession((s) => s.activeVolume);
+  const activeSlide = useSession((s) => s.activeSlide);
   const methods = useSession((s) => s.imageMeta?.methods ?? []);
   const center = useSession((s) => s.imageMeta?.center);
-  const shown = images.slice(0, IMG_LIMIT);
-  const rest = images.length - shown.length;
   const isHC = modality === "fetal_hc";
-  // 工作区/方法名读真实元数据（HC18 + CSM），无数据时回退默认。
-  const ws = center ?? (isHC ? "HC18" : "CUBS-tech");
-  const methodsDir = isHC ? "ellipse-profiles" : "LIMA-Profiles";
+  const isCT = modality === "ct_abdomen";
+  const isWSI = modality === "pathology";
+  // 列表 + 选中 + 选择动作按模态派生（CT 走 volumes/activeVolume，WSI 走 slides/activeSlide）。
+  const list = isCT ? volumes : isWSI ? slides : images;
+  const activeId = isCT ? activeVolume : isWSI ? activeSlide : activeImage;
+  const onSelect = isCT ? selectVolume : isWSI ? selectSlide : selectImage;
+  const shown = list.slice(0, IMG_LIMIT);
+  const rest = list.length - shown.length;
+  // 工作区/方法名读真实元数据；无数据时按模态回退默认。
+  const ws = center ?? (isHC ? "HC18" : isCT ? "CT" : isWSI ? "Pathology" : "CUBS-tech");
+  const dirName = isCT || isWSI ? "slides" : "images";
+  const methodsDir = isHC ? "ellipse-profiles" : isCT ? "labelmaps" : isWSI ? "detections" : "LIMA-Profiles";
   const goldMethod = isHC ? "GT-ellipse" : "Manual-A1";
-  const agentMethod = isHC ? (methods.find((m) => m !== goldMethod) ?? "CSM") : "caroSegDeep";
+  const agentMethod = isHC
+    ? (methods.find((m) => m !== goldMethod) ?? "CSM")
+    : isCT
+      ? "totalsegmentator_v2"
+      : isWSI
+        ? "stardist_he"
+        : "caroSegDeep";
+  const isIMT = modality === "carotid_imt";
 
   return (
     <div className="sb-view">
       <ModalitySwitch />
       <div className="ws">{ws}</div>
       <div>
-        <Dir name="images" depth={0} defaultOpen>
+        <Dir name={dirName} depth={0} defaultOpen>
           {shown.map((m) => (
-            <ImageLeaf key={m.id} id={m.id} depth={1} />
+            <ImageLeaf
+              key={m.id}
+              id={m.id}
+              depth={1}
+              selected={activeId === m.id}
+              onSelect={() => void onSelect(m.id)}
+            />
           ))}
           {rest > 0 && (
             <div className="row" style={{ paddingLeft: 16 }}>
@@ -116,8 +155,8 @@ function ExplorerView() {
             </div>
           ))}
         </Dir>
-        {!isHC && <Dir name="CF" depth={0} />}
-        {!isHC && <Dir name="Folds" depth={0} />}
+        {isIMT && <Dir name="CF" depth={0} />}
+        {isIMT && <Dir name="Folds" depth={0} />}
       </div>
     </div>
   );
