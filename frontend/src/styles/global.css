@@ -948,6 +948,9 @@ canvas {
   display: flex;
   gap: 7px;
   margin-top: 9px;
+  /* 复位基础 .act（ActivityBar 用的 48×44 固定尺寸）——类名碰撞，否则卡片按钮被挤成 48px 竖排 */
+  width: auto;
+  height: auto;
 }
 .prop .act button {
   flex: 1;

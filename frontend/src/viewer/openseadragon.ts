@@ -41,7 +41,9 @@ export function makeWsiViewer(element: HTMLElement): OpenSeadragon.Viewer {
     animationTime: 0.4,
     springStiffness: 8,
     minZoomImageRatio: 0.6,
-    maxZoomPixelRatio: 4,
+    // 最多放大到原生 1.5×——demo slide 是单分辨率层（无更深金字塔），再放大只是插值糊化。
+    // 真·多层 WSI（多物镜层）可调高；此值仅决定"允许缩放到多糊"，不影响瓦片拉取。
+    maxZoomPixelRatio: 1.5,
     visibilityRatio: 0.7,
   });
 }
