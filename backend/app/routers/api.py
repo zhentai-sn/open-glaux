@@ -18,6 +18,7 @@ import logging
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 from fastapi import APIRouter, HTTPException, Response
 
 from .. import config, mock
@@ -263,6 +264,73 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
         "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
         "new_labelmap_path": new_path,
         "model_version": "human@edit",
+    }
+
+
+# --- P6 U5：Reproducibility Dice 验证 ----------------------------------------
+
+
+@router.get("/volume/{volume_id}/verify", tags=["dataset"])
+def volume_verify(
+    volume_id: str,
+    task: str = "totalseg_liver_kidney",
+    method: str = "totalsegmentator_v2",
+) -> dict:
+    """P6 U5：与 ship 的 reference labelmap（TotalSegmentator 公开 demo 预测）算 per-class Dice。
+
+    **非真 GT 比较**——reference 是 TotalSegmentator 官方 demo 的 labelmap；Dice 衡量
+    「我们的 pipeline 能否复现上游 demo」，复现好 = 0.95+ 是好信号，复现差 = 排查
+    measure/标定/缓存逻辑，**不**代表临床正确性。
+
+    缺 GT 时 422 + 解释。
+    """
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    from glaux_core.verification.dice import dice_per_class
+    from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES
+
+    # pred = 当前 labelmap 缓存；ref = ship 的 reproducibility reference
+    pred_path = segment_ts.labelmap_path(volume_id, method)
+    if not Path(pred_path).is_file():
+        raise HTTPException(404, f"labelmap 缓存未命中：{volume_id} {method}——先调 /segment")
+    # reproducibility reference 与 CT 同名（不带 method 后缀）放 data/ct/{vid}_ref.nii.gz
+    ref_path = config.CT_ROOT / f"{volume_id}_ref.nii.gz"
+    if not ref_path.is_file():
+        raise HTTPException(
+            422,
+            f"reproducibility reference 缺失：{ref_path}——"
+            f"按 data/ct/README.md 手工下载 TotalSegmentator demo 案例的官方预测作 reference；"
+            f"本接口非真 GT 比较",
+        )
+    import nibabel as nib
+    pred = np.asarray(nib.load(str(pred_path)).dataobj).astype(np.int32, copy=False)
+    ref = np.asarray(nib.load(str(ref_path)).dataobj).astype(np.int32, copy=False)
+    class_ids = [c.class_id for c in LIVER_KIDNEY_CLASSES]
+    try:
+        per = dice_per_class(pred, ref, class_ids)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    # 翻译 class_id → role/label 给前端
+    by_id = {c.class_id: c for c in LIVER_KIDNEY_CLASSES}
+    out: dict[str, dict] = {}
+    for cid, d in per.items():
+        cls = by_id.get(cid)
+        if cls is None:
+            continue
+        out[cls.role] = {
+            "dice": d,
+            "label_zh": cls.label_zh,
+            "label_en": cls.label_en,
+            "class_id": cid,
+        }
+    return {
+        "task": task,
+        "method": method,
+        "per_class": out,
+        "mean_dice": sum(v["dice"] for v in out.values()) / max(len(out), 1),
+        "note": "reproducibility check vs ship reference（非真 GT）",
     }
 
 

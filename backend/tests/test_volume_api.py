@@ -199,3 +199,99 @@ def test_mask_edit_endpoint_rejects_non_ct_id(tmp_path, monkeypatch):
     r = client.post("/volume/ct_999/mask-edit", json={"task": "totalseg_liver_kidney", "slices": []})
     # 422 校验失败 / 404 找不到 / 422 backend raise——皆可；只要求 4xx
     assert 400 <= r.status_code < 500
+
+
+# --- U5: Reproducibility Dice 验证 ----------------------------------------
+
+
+def test_verify_dice_perfect_overlap(tmp_path, monkeypatch):
+    """pred == ref → 每类 Dice 1.0；零空类（class 0 也是非空）按公式 = 1.0。"""
+    from glaux_core.verification.dice import dice_per_class
+    pred = np.zeros((4, 4, 4), dtype=np.int32); pred[1:3, 1:3, 1:3] = 1
+    ref = pred.copy()
+    out = dice_per_class(pred, ref, [0, 1])
+    assert out[1] == pytest.approx(1.0)
+    # 零空集合特例：class 0 在 4³ 全空间 56 个背景上两两相等 → Dice 1.0
+    # （想要"空 class 返回 0"，需要 class 在 pred 和 ref 都完全没体素）
+    assert out[0] == pytest.approx(1.0)
+
+
+def test_verify_dice_half_overlap():
+    """50% 重叠（pred 与 ref 在 class 1 上各 4 体素，重叠 2）→ Dice = 4/8 = 0.5。"""
+    from glaux_core.verification.dice import dice_per_class
+    pred = np.zeros((4, 4, 4), dtype=np.int32)
+    pred[0:1, 0:2, 0:2] = 1  # 1*2*2 = 4 体素
+    ref = np.zeros((4, 4, 4), dtype=np.int32)
+    ref[0:1, 1:3, 0:2] = 1  # 1*2*2 = 4 体素；与 pred 在 (0,1,0..1) 重叠 2
+    out = dice_per_class(pred, ref, [1])
+    # |p|=4, |g|=4, |p∩g|=2 → 2*2/(4+4) = 0.5
+    assert out[1] == pytest.approx(0.5)
+
+
+def test_verify_dice_no_overlap():
+    from glaux_core.verification.dice import dice_per_class
+    pred = np.zeros((4, 4, 4), dtype=np.int32); pred[0:2, :, :] = 1
+    ref = np.zeros((4, 4, 4), dtype=np.int32); ref[2:4, :, :] = 1
+    out = dice_per_class(pred, ref, [1])
+    assert out[1] == 0.0
+
+
+def test_verify_dice_empty_class_returns_zero():
+    """class 在 pred 与 ref 都没体素 → Dice 0.0（不抛）。"""
+    from glaux_core.verification.dice import dice_per_class
+    pred = np.zeros((4, 4, 4), dtype=np.int32)  # 全 0
+    ref = np.zeros((4, 4, 4), dtype=np.int32)
+    out = dice_per_class(pred, ref, [1, 2, 3])
+    assert all(v == 0.0 for v in out.values())
+
+
+def test_verify_dice_shape_mismatch_rejects():
+    from glaux_core.verification.dice import dice_per_class
+    pred = np.zeros((4, 4, 4), dtype=np.int32)
+    ref = np.zeros((5, 5, 5), dtype=np.int32)
+    with pytest.raises(ValueError, match="pred shape"):
+        dice_per_class(pred, ref, [1])
+
+
+def test_verify_endpoint_with_reference(tmp_path, monkeypatch):
+    """端到端：seed labelmap + ship reference（同 labelmap 拷贝）→ Dice 1.0。"""
+    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch, Z=10, Y=10, X=10, vox=(1.0, 1.0, 1.0))
+    # ship reference = 同一 labelmap（让 Dice 完美）
+    import nibabel as nib
+    lbl_path = config.TS_CACHE / f"{volume_id}_{method}.nii.gz"
+    ref_path = config.CT_ROOT / f"{volume_id}_ref.nii.gz"
+    ref_img = nib.Nifti1Image(nib.load(str(lbl_path)).get_fdata().astype(np.int32), np.eye(4))
+    nib.save(ref_img, str(ref_path))
+
+    r = client.get(f"/volume/{volume_id}/verify?task=totalseg_liver_kidney&method={method}")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "per_class" in data
+    assert "liver" in data["per_class"] and data["per_class"]["liver"]["dice"] == pytest.approx(1.0)
+    assert "lk" in data["per_class"] and data["per_class"]["lk"]["dice"] == pytest.approx(1.0)
+    assert "rk" in data["per_class"] and data["per_class"]["rk"]["dice"] == pytest.approx(1.0)
+    assert data["mean_dice"] == pytest.approx(1.0)
+    assert "reproducibility" in data["note"]
+
+
+def test_verify_endpoint_missing_reference(tmp_path, monkeypatch):
+    """缺 reference → 422 + 提示手工下载路径。"""
+    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
+    r = client.get(f"/volume/{volume_id}/verify")
+    assert r.status_code == 422
+    assert "reproducibility reference 缺失" in r.json()["detail"]
+
+
+def test_verify_endpoint_missing_labelmap_cache(tmp_path, monkeypatch):
+    """labelmap 缓存未命中 → 404 提示先 /segment。"""
+    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
+    import os
+    os.remove(config.TS_CACHE / f"{volume_id}_{method}.nii.gz")
+    r = client.get(f"/volume/{volume_id}/verify")
+    assert r.status_code == 404
+    assert "labelmap 缓存未命中" in r.json()["detail"]
+
+
+def test_verify_endpoint_non_ct_id(tmp_path, monkeypatch):
+    r = client.get("/volume/ct_999/verify")
+    assert 400 <= r.status_code < 500
