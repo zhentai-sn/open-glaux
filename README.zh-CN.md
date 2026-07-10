@@ -97,6 +97,17 @@ Glaux 是**科研**工具:经伦理审查(IRB)、在脱敏数据上做的回顾�
 [产品路线图 · 2026-07-05](docs/roadmaps/20260705-product-roadmap.zh-CN.md)。为其提供依据的竞争与定位
 分析见 [docs/researches/](docs/researches/)。
 
+### 当前已落地阶段
+
+- **P1–P2**：多模态脊柱（TaskPlugin + Primitive/TaskOutput 信封 + 统一端点 `/task/*`）
+- **P3**：能力注册表（`/capabilities` 插件市场）
+- **P5**：dockview 外壳 + CLI 终端
+- **P6 · 3D CT 楔子**（[设计](../designs/2026-07-09-001-p6-3d-totalseg-wedge.zh-CN.md) ·
+  [计划](../plans/2026-07-09-001-feat-p6-3d-totalseg-wedge-plan.md) ·
+  [runbook](docs/runbooks/p6-3d-totalseg-wedge.md)）：TotalSegmentator v2.4.0 肝+双肾分割 +
+  体积度量 + 画笔编辑 + Reproducibility Dice。代码已合到 `feat/multimodal-arch` 分支；
+  真机端到端（CPU/GPU 跑 nnU-Net）按 runbook 手动跑。
+
 ## 参与贡献
 
 贡献指南会与工程规范一同落地。欢迎先通过 issue 提早期反馈与讨论。
