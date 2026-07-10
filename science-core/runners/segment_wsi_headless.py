@@ -63,13 +63,23 @@ def main() -> int:
         img = np.asarray(Image.open(patch_path).convert("RGB"))
         if img.shape[0] < 2 or img.shape[1] < 2:
             continue
+        # 组织掩膜：跳过背景/玻璃 patch（近白 = 无核）。WSI 标准做法——大切片绝大部分是背景，
+        # 既大幅提速，又避开 StarDist ClipperLib 在退化（近白/平坦）输入上的 C++ terminate 崩溃
+        # （std::terminate 会杀整个子进程，Python 抓不住，只能从源头不喂坏 patch）。
+        gray = img.mean(axis=2)
+        if gray.mean() > 220.0 or gray.std() < 5.0:
+            continue
         # 按 scale 重采样到训练 MPP（放大倍率纠正）
         if scale != 1.0:
             new_wh = (max(2, round(img.shape[1] * scale)), max(2, round(img.shape[0] * scale)))
             img = np.asarray(Image.fromarray(img).resize(new_wh, Image.BILINEAR))
         # HE 模型吃 RGB；按通道分位归一化（csbdeep 惯例）
         img_norm = normalize(img, 1, 99.8, axis=(0, 1))
-        _labels, details = model.predict_instances(img_norm)
+        try:
+            _labels, details = model.predict_instances(img_norm)
+        except Exception as e:  # noqa: BLE001 — Python 级错误跳过该 patch（C++ terminate 抓不住，靠上面组织掩膜避开）
+            print(f"[segment_wsi_headless] patch {entry['file']} predict 失败跳过：{e}", file=sys.stderr)
+            continue
         pts = details.get("points")  # (N, 2) 数组，(row=y, col=x)（重采样空间）
         if pts is None or len(pts) == 0:
             continue

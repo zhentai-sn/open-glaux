@@ -131,6 +131,13 @@ npm run dev          # Vite dev（proxy /api → :8000）
   这是 CS3D（按需 `.render()`）在预览里能显示、OSD 不能的原因。
 - **最小 env 需带 HOME**：StarDist 首次 `from_pretrained` 把权重缓存到 `~/.keras`，子进程最小 env
   含 `HOME`（`segment_wsi._run_live` 已加）——同 P6 对 TotalSegmentator 记的 HOME 坑。
+- **背景 patch 触发 StarDist ClipperLib 崩溃**：完整切片（非纯组织小样本）的 ROI 会混入背景/玻璃 patch，
+  喂给 StarDist 时其星凸多边形 NMS（ClipperLib）在近白/平坦输入上抛 C++ 异常 → `std::terminate`
+  **杀整个子进程**（Python 抓不住）。driver 加 **tissue masking**：`gray.mean()>220 或 std<5` 的 patch
+  跳过（WSI 标准做法，既避崩溃又大幅提速——gigapixel 切片绝大部分是背景）。
+- **多层 vs 单层 slide**：`CMU-1-Small-Region.svs`（demo，单分辨率层，2220×2967）放大超原生即糊；
+  完整 `CMU-1.svs`（3 层：46000×32914 / 4× / 16×，1.5 gigapixel，20× 物镜）才有深缩放层层变清晰。
+  data/wsi 是 gitignore + env 可指向，丢任意 `.svs` 进去即被 `/slides` 列出。
 
 ## 10. 后续路径（P7.x 展望）
 
