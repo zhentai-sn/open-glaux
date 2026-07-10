@@ -1,4 +1,4 @@
-"""P6 楔子：CT 体积数据集封装——列表 / NIfTI serve / labelmap 路径 / voxel spacing。
+"""P6 楔子：CT 体积数据集封装——列表 / NIfTI serve / labelmap 路径 / voxel spacing / 画笔编辑 patch。
 
 镜像 :mod:`dataset` / :mod:`hc_dataset` 的形态：纯数据 IO（nibabel 在主进程允许——非重模型）。
 重模型（TotalSegmentator）走 :mod:`segment_ts` 隔离子进程。
@@ -16,7 +16,7 @@ from functools import lru_cache
 import nibabel as nib
 import numpy as np
 
-from . import config
+from . import config, segment_ts
 
 
 _ID_RE = re.compile(r"^ct_\d{3}$")
@@ -88,3 +88,85 @@ def image_meta(volume_id: str) -> dict:
         "methods": ["totalsegmentator_v2"],
         "voxel_spacing_mm": [sx, sy, sz],
     }
+
+
+# --- 画笔编辑 patch (U4) ---------------------------------------------------
+
+def labelmap_nib(volume_id: str, method: str = "totalsegmentator_v2") -> nib.Nifti1Image:
+    """读 labelmap NIfTI 句柄（callers 改完要调 commit_labelmap 写回）。"""
+    path = segment_ts.labelmap_path(volume_id, method)
+    return nib.load(str(path))
+
+
+def commit_labelmap(volume_id: str, labelmap: nib.Nifti1Image, method: str = "totalsegmentator_v2") -> str:
+    """写回 labelmap 到缓存（覆盖同 vid+method 路径）。返回 path。"""
+    out = segment_ts.labelmap_path(volume_id, method)
+    nib.save(labelmap, str(out))
+    return str(out)
+
+
+def patch_labelmap(
+    volume_id: str,
+    slices: list[dict],
+    method: str = "totalsegmentator_v2",
+    class_id_to_role: dict[int, str] | None = None,
+) -> tuple[str, np.ndarray]:
+    """画笔编辑 → patch labelmap → 返回 (新缓存路径, 修改后的 labelmap ndarray)。
+
+    - ``slices``: 形如 ``[{"z": 80, "mask_png_ref": "data:..."}]``；每条 (z, mask_png, class_id, mode)。
+    - 原 labelmap + 掩膜 union → 写新 labelmap（同缓存键覆盖）→ 返回 ndarray。
+    - class_id 必须在 VolumeMask.classes 内（class_id_to_role 提供）——否则 ValueError 硬拒绝。
+    - z 越界（< 0 或 >= Z 维）→ ValueError 硬拒绝，不静默接受。
+    """
+    if not slices:
+        # 无 slices → 不改 labelmap，但确保缓存存在（否则端点返 404 误导调用方）
+        labelmap = labelmap_nib(volume_id, method)
+        return str(segment_ts.labelmap_path(volume_id, method)), np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
+
+    labelmap = labelmap_nib(volume_id, method)
+    arr = np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
+    Z, Y, X = arr.shape
+
+    # 验证：所有 class_id 在白名单内（防止 paint class_id=999 这种越权）
+    if class_id_to_role is None:
+        from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES
+        class_id_to_role = {c.class_id: c.role for c in LIVER_KIDNEY_CLASSES}  # type: ignore[name-defined]
+    valid_class_ids = set(class_id_to_role.keys())
+    for s in slices:
+        if s.get("class_id", 0) not in valid_class_ids:
+            raise ValueError(
+                f"paint/erase class_id={s.get('class_id')} 不在 VolumeMask 白名单内"
+                f"（{sorted(valid_class_ids)}）——硬拒绝"
+            )
+        z = int(s.get("z", -1))
+        if z < 0 or z >= Z:
+            raise ValueError(f"z={z} 越界（labelmap Z={Z}）——硬拒绝")
+
+    # 解码 PNG 掩膜 + 应用
+    import base64
+    import io
+    from PIL import Image  # Pillow 是常见栈；主进程允许
+
+    for s in slices:
+        z = int(s["z"])
+        class_id = int(s["class_id"])
+        mode = s.get("mode", "paint")
+        png_b64 = s.get("mask_png_ref", "")
+        if not png_b64.startswith("data:image/png;base64,"):
+            raise ValueError("mask_png_ref 必须 data:image/png;base64,... 格式")
+        b = base64.b64decode(png_b64.split(",", 1)[1])
+        img = Image.open(io.BytesIO(b)).convert("L")
+        if img.size != (X, Y):
+            raise ValueError(
+                f"mask 尺寸 {img.size} != labelmap slice 尺寸 ({X}, {Y})——硬拒绝"
+            )
+        mask = np.asarray(img, dtype=bool)
+        if mode == "erase":
+            arr[z][mask] = 0
+        else:  # paint
+            arr[z][mask] = class_id
+
+    # 写回（覆盖同 vid+method 路径）
+    new_nib = nib.Nifti1Image(arr.astype(np.int32), labelmap.affine, labelmap.header)
+    new_path = commit_labelmap(volume_id, new_nib, method)
+    return new_path, arr

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
@@ -153,6 +154,116 @@ def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method:
             "Content-Length": str(len(data)),
         },
     )
+
+
+@router.get("/volume/{volume_id}/raw", tags=["dataset"])
+def volume_raw(volume_id: str) -> Response:
+    """P6：流式返回原始 CT NIfTI 字节——kernel measure 算 HU mean 用、前端画笔参考用。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    try:
+        path = dataset_ct.nifti_path(volume_id)
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    with open(path, "rb") as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"X-Glaux-Volume-Id": volume_id, "Content-Length": str(len(data))},
+    )
+
+
+@router.post("/volume/{volume_id}/segment", tags=["dataset"])
+def volume_segment(volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2") -> dict:
+    """P6 U2/U4：触发子进程跑 TotalSegmentator（缓存命中直返）→ 返回 labelmap URL。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    try:
+        labelmap_path, mv = segment_ts.segment(volume_id, method)
+    except segment_ts.TsSegmentUnavailable as e:
+        raise HTTPException(503, str(e)) from e
+    return {
+        "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={task}&method={method}",
+        "model_version": mv,
+        "labelmap_path": labelmap_path,
+    }
+
+
+# --- P6 U4：画笔编辑 ---------------------------------------------------------
+
+from pydantic import BaseModel, Field  # noqa: E402  (local import; pydantic 已在 schemas 顶部)
+
+
+class VolumeMaskEditSliceIn(BaseModel):
+    z: int = Field(ge=0, description="z 索引（0..Z-1）")
+    class_id: int = Field(description="画/擦哪个器官类（须在 VolumeMask.classes 内）")
+    mode: Literal["paint", "erase"] = "paint"
+    # base64 PNG 二值掩膜（与 z 切片同尺寸）
+    mask_png_ref: str = Field(description="data:image/png;base64,...")
+
+
+class VolumeMaskEditRequest(BaseModel):
+    task: Literal["totalseg_liver_kidney"] = "totalseg_liver_kidney"
+    slices: list[VolumeMaskEditSliceIn] = Field(default_factory=list)
+    method: str = "totalsegmentator_v2"
+
+
+@router.post("/volume/{volume_id}/mask-edit", tags=["dataset"])
+def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
+    """P6 U4：画笔编辑回流——patch labelmap + 重 measure + 返回新 metrics。"""
+    from glaux_core.contracts import VolumeMask
+    from glaux_core.calibration.calibration import resolve_ct_calibration
+    from glaux_orchestrator.tasks import REGISTRY as _REG, LIVER_KIDNEY_CLASSES, TaskType as _TT
+    from glaux_core.measurement.ct import measure_liver_kidney as _measure_lk
+
+    if not KERNEL_OK:
+        raise HTTPException(503, "CT 模态需 science-core（未装配）")
+    if not dataset_ct.is_ct(volume_id):
+        raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    try:
+        new_path, new_arr = dataset_ct.patch_labelmap(
+            volume_id,
+            [s.model_dump() for s in req.slices],
+            method=req.method,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except FileNotFoundError as e:
+        raise HTTPException(404, f"labelmap 缓存未命中：{req.method}——先调 /segment") from e
+    # 重 measure：走 plugin.measure 与 run_task 同形
+    try:
+        plugin = _REG[_TT(req.task)]
+    except KeyError as e:
+        raise HTTPException(400, f"未知 task：{req.task}") from e
+    if plugin.adapter_kind != "volume":
+        raise HTTPException(400, f"task {req.task} 非 volume 任务")
+    cal = resolve_ct_calibration(dataset_ct.vox_spacing_mm(volume_id))
+    # raw_ref 留 None——画笔编辑只改 labelmap（count）不改 CT 强度（HU），HU mean 不重算；
+    # 若未来要重算，需 measure 层支持 URL fetch 或后端在调 measure 前把 raw 落盘。
+    vol_prim = VolumeMask(
+        id=f"{volume_id}_labelmap",
+        ref=f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
+        classes=LIVER_KIDNEY_CLASSES,
+        raw_ref=None,
+        path=new_path,
+    )
+    from glaux_core.contracts import Detection
+    det = Detection(primitives=(vol_prim,), model_version="human@edit")
+    meas = _measure_lk(det, cal)
+    # 序列化（与 run_task 同形，measurement_to_dict）
+    from glaux_core.contracts import measurement_to_dict
+    metrics_dict = measurement_to_dict(meas)["metrics"]
+    return {
+        "metrics": metrics_dict,
+        "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
+        "new_labelmap_path": new_path,
+        "model_version": "human@edit",
+    }
 
 
 @router.get("/image/{image_id}", tags=["dataset"])
