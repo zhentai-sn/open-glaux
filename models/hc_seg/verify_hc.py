@@ -14,7 +14,7 @@ sys.path.insert(0, str(HOME / "code/pre-tech/open-glaux/science-core"))
 from glaux_core.io.hc18 import Hc18Dataset  # noqa: E402
 from eval.hc_harness import evaluate  # noqa: E402
 
-DATA = HOME / "hc18_data"
+DATA = HOME / "glaux_datasets/hc18_data"
 WEIGHTS = HOME / "glaux_models/hc_seg/hf/test_model.pth"
 DRIVER = HOME / "glaux_models/hc_seg/run_headless.py"
 PY = HOME / "glaux_models/hc_seg/.venv-hc/bin/python"

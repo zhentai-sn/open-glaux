@@ -18,7 +18,7 @@
 
 ```bash
 # 1) 数据集
-mkdir -p ~/hc18_data && cd ~/hc18_data
+mkdir -p ~/glaux_datasets/hc18_data && cd ~/glaux_datasets/hc18_data
 curl -sSL -o training_set.zip                     "https://zenodo.org/api/records/1327317/files/training_set.zip/content"
 curl -sSL -o training_set_pixel_size_and_HC.csv   "https://zenodo.org/api/records/1327317/files/training_set_pixel_size_and_HC.csv/content"
 unzip -q training_set.zip -d training_set

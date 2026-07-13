@@ -1,7 +1,7 @@
 """M1 真实接入配置——路径、science-core/orchestration 装配、可用性判定。
 
 一切路径可用环境变量覆盖；缺省指向本机 2026-07-06 下载/验证的真实资产：
-- CUBS-tech 数据集：``~/cubs_data/tech_extract/DATASET_CUBS_tech``
+- CUBS-tech 数据集：``~/glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech``
 - caroSegDeep 隔离环境：``~/glaux_models/caroSegDeep/.venv-csd`` + ``run_headless.py``
 - caroSegDeep 真实产出缓存（eval 100 图 tech_401–500）：``~/glaux_models/csd_out``
 
@@ -33,7 +33,7 @@ for _p in (_SCIENCE_CORE, _ORCHESTRATION):
         sys.path.insert(0, str(_p))
 
 # --- 数据集路径（CUBS-tech） -------------------------------------------------
-DATA_ROOT = _env_path("GLAUX_DATA_ROOT", HOME / "cubs_data/tech_extract/DATASET_CUBS_tech")
+DATA_ROOT = _env_path("GLAUX_DATA_ROOT", HOME / "glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech")
 IMAGES_DIR = DATA_ROOT / "images"
 CF_DIR = DATA_ROOT / "CF"
 SEG_DIR = DATA_ROOT / "LIMA-Profiles"
@@ -51,7 +51,7 @@ CSD_WEIGHTS = _env_path("GLAUX_CSD_WEIGHTS", CSD_ROOT / "EXAMPLE/TRAINED_MODEL")
 CSD_CACHE = _env_path("GLAUX_CSD_CACHE", HOME / "glaux_models/csd_out")
 
 # --- HC 第二模态：HC18 真实数据集（Zenodo 1327317，CC-BY-4.0） ----------------
-HC18_ROOT = _env_path("GLAUX_HC18_ROOT", HOME / "hc18_data")
+HC18_ROOT = _env_path("GLAUX_HC18_ROOT", HOME / "glaux_datasets/hc18_data")
 
 # --- HC 分割隔离环境（CSM，HuggingFace gauravxthakur/Fetal-Head-Biometry，Apache-2.0）
 HC_SEG_ROOT = _env_path("GLAUX_HC_SEG_ROOT", HOME / "glaux_models/hc_seg")
