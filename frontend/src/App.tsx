@@ -12,6 +12,7 @@ import { useSession } from "./store/session";
 export function App() {
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);
+  const setDatasources = useSession((s) => s.setDatasources);
   const setTasks = useSession((s) => s.setTasks);
   const setIntentBackends = useSession((s) => s.setIntentBackends);
   const { seedFromCurrent } = useAgent();
@@ -33,6 +34,12 @@ export function App() {
       // 能力注册表（「插件市场」——按四层浏览模型/数据集/skill/连接器/MCP/知识库）
       try {
         setCapabilities(await api.capabilities());
+      } catch {
+        /* 后端未起时不阻塞外壳 */
+      }
+      // 数据源注册表（dev-mode 标识 + 导入源管理；市场表征层的数据集卡即由此驱动）
+      try {
+        setDatasources(await api.datasources());
       } catch {
         /* 后端未起时不阻塞外壳 */
       }

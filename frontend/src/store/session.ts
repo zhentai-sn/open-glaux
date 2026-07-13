@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { I18nKey } from "../i18n";
 import type {
   Capability,
+  DataSource,
   ImageMeta,
   IntentBackendInfo,
   Measure,
@@ -59,6 +60,7 @@ interface SessionState {
   activeModel: string;
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
+  datasources: DataSource[]; // 数据源注册表（GET /datasources）——dev-mode 标识 + 导入源管理
   images: ImageMeta[]; // 数据集列表（Explorer）
   volumes: ImageMeta[]; // P6：CT 体积列表
   slides: ImageMeta[]; // P7：WSI slide 列表
@@ -93,6 +95,7 @@ interface SessionState {
   setWsiRoi: (roi: [number, number, number, number] | null) => void; // P7
   setModels: (m: ModelInfo[]) => void;
   setCapabilities: (c: Capability[]) => void;
+  setDatasources: (d: DataSource[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
   setVolumes: (m: ImageMeta[]) => void; // P6
@@ -132,6 +135,7 @@ export const useSession = create<SessionState>((set) => ({
   activeModel: "caroSegDeep",
   models: [],
   capabilities: [],
+  datasources: [],
   images: [],
   volumes: [],
   slides: [],
@@ -163,6 +167,7 @@ export const useSession = create<SessionState>((set) => ({
   setWsiRoi: (roi) => set({ wsiRoi: roi }),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
   setCapabilities: (c) => set({ capabilities: c }),
+  setDatasources: (d) => set({ datasources: d }),
   activateModel: (id) =>
     set((s) => ({
       activeModel: id,

@@ -341,6 +341,101 @@ button {
   background: var(--input);
   color: var(--mid);
 }
+/* ---- 数据源注册表（dev-mode 标识 + 文件夹导入） ---- */
+.dsmode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 10.5px;
+  color: var(--faint);
+  border-bottom: 1px solid var(--line);
+}
+.dsmode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dsmode-dot.dev {
+  background: var(--agent);
+}
+.dsmode-dot.prod {
+  background: var(--good);
+}
+.dsimp {
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.dsimp-hd {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  color: var(--agent);
+  cursor: pointer;
+  font-weight: 600;
+}
+.dsimp-hd:hover {
+  background: var(--hover);
+}
+.dsimp-bd {
+  padding: 4px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dsin {
+  width: 100%;
+  background: var(--input);
+  border: 1px solid var(--line2);
+  color: var(--ink);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.dsin:focus {
+  outline: none;
+  border-color: var(--agent-line);
+}
+.dsbtn {
+  align-self: flex-start;
+  background: var(--agent);
+  color: #1a0d2e;
+  font-weight: 700;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dsbtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dsmsg {
+  font-size: 11px;
+  color: var(--mid);
+  word-break: break-word;
+}
+.dshint {
+  font-size: 10.5px;
+  color: var(--faint);
+  line-height: 1.4;
+}
+.dsrm {
+  margin-left: 6px;
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+.dsrm:hover {
+  color: var(--ma);
+}
 .sec {
   padding: 8px 14px 4px;
   font-size: 11px;

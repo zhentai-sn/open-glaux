@@ -2,6 +2,7 @@
 import type {
   Capability,
   CorrectionResult,
+  DataSource,
   Detection,
   ImageMeta,
   IntentBackendInfo,
@@ -153,6 +154,19 @@ export const api = {
 
   /** 能力注册表：「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。 */
   capabilities: () => get<Capability[]>("/capabilities"),
+
+  // --- 数据源注册表（表征层 · 文件夹导入） ---------------------------------
+  /** 已注册数据源清单（builtin / imported）——dev-mode 标识 + 导入源删除。 */
+  datasources: () => get<DataSource[]>("/datasources"),
+  /** 导入一个文件夹为数据源。缺 calibration 时后端自动探测（读不出 → needs_calibration）。 */
+  importDatasource: (path: string, modality: Modality, calibration?: Record<string, unknown>) =>
+    post<DataSource>("/datasources", { path, modality, calibration: calibration ?? null }),
+  /** 删除一个导入源（builtin 不可删 → 404）。 */
+  removeDatasource: (id: string) =>
+    fetch(`${BASE}/datasources/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => {
+      if (!r.ok) throw new ApiError(r.status, `DELETE datasource ${id} → ${r.status}`);
+      return r.json() as Promise<{ ok: boolean; removed: string }>;
+    }),
 
   correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
     post<CorrectionResult>("/correction", { image_id, which, points, imt }),

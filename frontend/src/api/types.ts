@@ -61,6 +61,21 @@ export interface Capability {
   tasks: string[];
 }
 
+// --- 数据源（注册表 · 文件夹导入） ------------------------------------------
+export type DataSourceOrigin = "builtin" | "imported" | "connector";
+export type DataSourceStatus = "active" | "needs_calibration" | "empty" | "planned";
+
+/** 一个已注册的数据源——镜像 backend schemas.DataSourceInfo。 */
+export interface DataSource {
+  id: string;
+  name: string;
+  modality: Modality;
+  root: string;
+  origin: DataSourceOrigin;
+  calibration: Record<string, unknown>;
+  status: DataSourceStatus;
+}
+
 // --- 胎儿头围（HC，闭合轮廓模态） ------------------------------------------
 
 export interface HCEllipse {

@@ -123,9 +123,11 @@ def datasources_import(req: DatasourceImportRequest) -> DataSourceInfo:
 
     缺标定 → ``status=needs_calibration``（跑任务时上层 422，不出假值）。
     """
+    from .. import datasource_detect
     try:
         src = dsreg.register_folder(
-            req.path, req.modality, calibration=req.calibration, name=req.name
+            req.path, req.modality, calibration=req.calibration, name=req.name,
+            detect=datasource_detect.detect,  # 无显式标定时从数据文件探测嵌入标定（U3）
         )
     except dsreg.ImportError_ as e:
         raise HTTPException(422, str(e)) from e

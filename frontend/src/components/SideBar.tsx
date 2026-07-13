@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
 
-import type { CapabilityLayer } from "../api/types";
+import type { CapabilityLayer, Modality } from "../api/types";
 import {
+  importDataSource,
   reRunActiveModel,
+  removeDataSource,
   selectImage,
   selectSlide,
   selectVolume,
@@ -183,25 +185,105 @@ const KIND_GLYPH: Record<string, string> = {
   correction_store: "↺",
 };
 
+// 导入数据源表单——POST /datasources（服务端可达的文件夹路径；缺标定后端自动探测）。
+// v0 只放开端到端可用的 WSI/CT；carotid/HC 数据结构复杂，导入后续（见计划 §2）。
+const IMPORTABLE: { modality: Modality; label: string }[] = [
+  { modality: "pathology", label: "pathology · WSI" },
+  { modality: "ct_abdomen", label: "ct_abdomen · CT" },
+];
+
+function ImportDataSourceForm() {
+  const { lang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [path, setPath] = useState("");
+  const [modality, setModality] = useState<Modality>("pathology");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const submit = async () => {
+    const p = path.trim();
+    if (!p || busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const status = await importDataSource(p, modality);
+      setMsg((lang === "zh" ? "已导入 · 状态：" : "Imported · status: ") + status);
+      setPath("");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="dsimp">
+      <div className="dsimp-hd" onClick={() => setOpen((o) => !o)}>
+        <span className="tw">{open ? "▾" : "▸"}</span>
+        <span>{lang === "zh" ? "＋ 导入数据源" : "＋ Import data source"}</span>
+      </div>
+      {open && (
+        <div className="dsimp-bd">
+          <input
+            className="dsin"
+            placeholder={lang === "zh" ? "服务端文件夹路径" : "server folder path"}
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void submit()}
+          />
+          <select className="dsin" value={modality} onChange={(e) => setModality(e.target.value as Modality)}>
+            {IMPORTABLE.map((m) => (
+              <option key={m.modality} value={m.modality}>{m.label}</option>
+            ))}
+          </select>
+          <button className="dsbtn" disabled={busy || !path.trim()} onClick={() => void submit()}>
+            {busy ? "…" : lang === "zh" ? "导入" : "Import"}
+          </button>
+          {msg && <div className="dsmsg">{msg}</div>}
+          <div className="dshint">
+            {lang === "zh"
+              ? "路径须在 ~/glaux_datasets 下；缺标定自动从文件探测（读不出则需手动补）"
+              : "path must live under ~/glaux_datasets; calibration is auto-detected from files"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 「模型/数据集/skill/连接器/MCP/知识库」= 一套 Capability 清单（洞见：skill = TaskPlugin）。
 // v0：Model 卡可点激活（驱动运行模型），余为目录卡（状态徽标）；加一种能力 = 后端清单加一条，前端零改。
 function MarketplaceView() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const caps = useSession((s) => s.capabilities);
   const models = useSession((s) => s.models);
+  const datasources = useSession((s) => s.datasources);
   const activate = useSession((s) => s.activateModel);
   const pushAgent = useSession((s) => s.pushAgent);
   const modelById = new Map(models.map((m) => [m.id, m]));
+  // 数据源 id → origin（用于导入源可删 + dev-mode 标识）。capability id 形如 dataset:<source_id>。
+  const dsById = new Map(datasources.map((d) => [d.id, d]));
+  const devMode = datasources.some((d) => d.origin === "builtin");
 
   return (
     <div className="sb-view">
+      <div className="dsmode">
+        <span className={"dsmode-dot" + (devMode ? " dev" : " prod")} />
+        {devMode
+          ? lang === "zh" ? "开发者模式（内置数据源）" : "Developer mode (built-in sources)"
+          : lang === "zh" ? "产品模式（仅导入源）" : "Product mode (imported only)"}
+      </div>
       {LAYERS.map(({ layer, key }) => {
         const items = caps.filter((c) => c.layer === layer);
-        if (!items.length) return null;
+        if (!items.length && layer !== "representation") return null;
         return (
           <div key={layer}>
             <div className="sec">{t(key)}</div>
+            {layer === "representation" && <ImportDataSourceForm />}
             {items.map((c) => {
+              // 导入源（dataset:imported-*）显 × 可删；builtin/占位卡不可删。
+              const dsId = c.kind === "dataset" ? c.id.replace(/^dataset:/, "") : "";
+              const removable = dsById.get(dsId)?.origin === "imported";
               // id 命中已装模型即可激活（含参考方法——保留「换方法对比」的老 UX）；skill/dataset/占位卡只读。
               const model = modelById.get(c.id);
               const activatable = !!model;
@@ -238,6 +320,18 @@ function MarketplaceView() {
                       </div>
                     </div>
                     <span className={"st" + (active ? "" : " off")}>{badge}</span>
+                    {removable && (
+                      <button
+                        className="dsrm"
+                        title={lang === "zh" ? "移除导入源" : "Remove imported source"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void removeDataSource(dsId);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                   {c.desc && <div className="desc">{c.desc}</div>}
                 </div>

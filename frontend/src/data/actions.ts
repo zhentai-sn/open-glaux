@@ -159,6 +159,33 @@ export async function runWsiTask(
   }
 }
 
+/** 刷新「插件市场」相关注册表（能力 + 数据源 + 模型）——导入/删除数据源后调。 */
+export async function reloadMarket(): Promise<void> {
+  const [caps, ds, models] = await Promise.all([
+    api.capabilities(),
+    api.datasources(),
+    api.models(),
+  ]);
+  useSession.getState().setCapabilities(caps);
+  useSession.getState().setDatasources(ds);
+  useSession.getState().setModels(models);
+}
+
+/** 导入一个文件夹为数据源 → 刷新市场；若导入的是当前模态，刷新数据列表。返回状态。 */
+export async function importDataSource(path: string, modality: Modality): Promise<string> {
+  const src = await api.importDatasource(path, modality);
+  await reloadMarket();
+  if (useSession.getState().modality === modality) await loadImages();
+  return src.status;
+}
+
+/** 删除一个导入源 → 刷新市场（含当前模态数据列表，防删掉正用的源后列表悬空）。 */
+export async function removeDataSource(id: string): Promise<void> {
+  await api.removeDatasource(id);
+  await reloadMarket();
+  await loadImages();
+}
+
 /** 重跑当前模态的活动模型/检测器（切模型 / Reset 用）。 */
 export async function reRunActiveModel(): Promise<void> {
   const s = useSession.getState();
