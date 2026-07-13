@@ -18,6 +18,7 @@ from . import (
     dataset,
     dataset_ct,
     dataset_wsi,
+    datasource_registry,
     hc_dataset,
     mock,
     segment_proc,
@@ -449,25 +450,25 @@ def capabilities() -> list[dict]:
             "tasks": [modality_task.get(m.modality, "")],
         })
 
-    # 表征层 · Dataset（真实可用性）
-    caps.append({
-        "id": "dataset:cubs-tech", "kind": "dataset", "layer": "representation",
-        "name": "CUBS-tech · carotid US", "provider": "CREATIS", "license": "CC BY",
-        "status": "active" if config.data_available() else "planned",
-        "isolation": "local", "desc": "颈动脉超声 · LI/MA 专家标注 · CF 标定",
-        "tasks": ["far_wall_cca_imt"],
-    })
-    hc_real = config.hc_data_available()
-    caps.append({
-        "id": "dataset:hc18" if hc_real else "dataset:synthetic-hc",
-        "kind": "dataset", "layer": "representation",
-        "name": "HC18 · fetal head US" if hc_real else "Synthetic fetal-skull demo",
-        "provider": "Grand Challenge" if hc_real else "glaux",
-        "license": "CC BY-NC-SA" if hc_real else "internal",
-        "status": "active", "isolation": "local",
-        "desc": "999 张真实胎儿颅脑超声 + 椭圆真值" if hc_real else "合成亮环颅骨演示",
-        "tasks": ["fetal_hc"],
-    })
+    # 表征层 · Dataset（注册表驱动——加一个数据源 = 多一张卡，不改本函数）
+    _DS_META = {
+        "cubs-tech": ("CREATIS", "CC BY", "颈动脉超声 · LI/MA 专家标注 · CF 标定"),
+        "hc18": ("Grand Challenge", "CC BY-NC-SA", "999 张真实胎儿颅脑超声 + 椭圆真值"),
+        "ct-demo": ("wasserth · TotalSegmentator", "Apache-2.0", "腹部 CT NIfTI demo · voxel 标定"),
+        "wsi-demo": ("OpenSlide", "CC BY", "H&E 全切片 demo · MPP 标定"),
+    }
+    # DataSource.status → Capability.status（active/installed/planned 三态）
+    _DS_STATUS = {"active": "active", "needs_calibration": "installed", "empty": "planned", "planned": "planned"}
+    for s in datasource_registry.list_all():
+        provider, lic, desc = _DS_META.get(
+            s.id, (s.origin, "—", f"{s.modality} · 导入源 · {s.root}")
+        )
+        caps.append({
+            "id": f"dataset:{s.id}", "kind": "dataset", "layer": "representation",
+            "name": s.name, "provider": provider, "license": lic,
+            "status": _DS_STATUS.get(s.status, "planned"), "isolation": "local",
+            "desc": desc, "tasks": [modality_task.get(s.modality, "")],
+        })
 
     # 验证层 · CalibrationSource（真实：CUBS CF）
     caps.append({

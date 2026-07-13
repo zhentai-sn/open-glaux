@@ -59,12 +59,20 @@ def reset_edit_seq(volume_id: str | None = None, method: str = "totalsegmentator
             _edit_seq.pop((volume_id, method), None)
 
 
+def _root():
+    """当前生效的 CT 数据根（注册表驱动）——无 active 源 → None（列空/404）。"""
+    from . import datasource_registry as reg
+
+    return reg.resolve_root("ct_abdomen")
+
+
 def list_ids() -> list[str]:
-    """``data/ct/`` 下所有形如 ``ct_001.nii.gz`` 的 volume id 列表。"""
-    if not config.CT_ROOT.is_dir():
+    """当前 CT 源下所有形如 ``ct_001.nii.gz`` 的 volume id 列表。"""
+    root = _root()
+    if root is None or not root.is_dir():
         return []
     out: list[str] = []
-    for p in sorted(config.CT_ROOT.glob("ct_*.nii.gz")):
+    for p in sorted(root.glob("ct_*.nii.gz")):
         m = _ID_RE.match(p.stem.split(".")[0])
         if m:
             out.append(p.stem.split(".")[0])
@@ -82,17 +90,19 @@ def is_ct(image_id: str) -> bool:
 @lru_cache(maxsize=8)
 def _load_nifti(volume_id: str) -> nib.Nifti1Image:
     """读 NIfTI（lru_cache 避免重复 IO；后端单进程多请求时省时间）。"""
-    p = config.CT_ROOT / f"{volume_id}.nii.gz"
-    if not p.is_file():
-        raise FileNotFoundError(f"CT 体积不存在：{p}")
+    root = _root()
+    p = (root / f"{volume_id}.nii.gz") if root else None
+    if p is None or not p.is_file():
+        raise FileNotFoundError(f"CT 体积不存在：{volume_id}（root={root}）")
     return nib.load(str(p))
 
 
 def nifti_path(volume_id: str) -> str:
     """原始 NIfTI 路径（前端 /api/volume/{id} 流式返回用）。"""
-    p = config.CT_ROOT / f"{volume_id}.nii.gz"
-    if not p.is_file():
-        raise FileNotFoundError(f"CT 体积不存在：{p}")
+    root = _root()
+    p = (root / f"{volume_id}.nii.gz") if root else None
+    if p is None or not p.is_file():
+        raise FileNotFoundError(f"CT 体积不存在：{volume_id}（root={root}）")
     return str(p)
 
 

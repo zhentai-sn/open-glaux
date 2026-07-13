@@ -84,9 +84,46 @@ WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_ou
 _WSI_SUFFIXES = (".svs", ".ndpi", ".tif", ".tiff", ".mrxs", ".scn", ".vms", ".bif")
 
 
+def root_has_data(modality: str, root: Path) -> bool:
+    """某模态在给定 ``root`` 下是否有数据——内置源探针 + 可用性判定共用。
+
+    **不查注册表**（直接判目录），故可安全用作 ``seed_builtin`` 的探针，不会与
+    :func:`datasource_registry.resolve_root` 递归。各模态的「有数据」判据即原
+    ``*_available`` 的目录检查，只是把 root 参数化。
+    """
+    if modality == "carotid_imt":
+        return (root / "images").is_dir() and (root / "CF").is_dir() and (root / "LIMA-Profiles").is_dir()
+    if modality == "fetal_hc":
+        return (root / "training_set/training_set").is_dir() and (
+            root / "training_set_pixel_size_and_HC.csv"
+        ).is_file()
+    if modality == "ct_abdomen":
+        # 注：Path("ct_001.nii.gz").suffix == ".gz"（非 ".nii.gz"），用 name.endswith 判复合后缀。
+        return root.is_dir() and any(
+            p.name.endswith((".nii", ".nii.gz")) for p in root.glob("ct_*")
+        )
+    if modality == "pathology":
+        return root.is_dir() and any(
+            p.suffix.lower() in _WSI_SUFFIXES for p in root.glob("slide_*")
+        )
+    return False
+
+
+def _available(modality: str) -> bool:
+    """某模态数据是否就绪——注册表感知：当前生效源（resolve_root）下有数据即就绪。
+
+    开发者模式下 resolve_root 返回内置源 root（== 本文件的 X_ROOT 默认），行为与改前一致；
+    产品模式无源 → None → False（端点回退 mock / 503）。
+    """
+    from . import datasource_registry as reg  # 延迟导入，避免模块级循环
+
+    root = reg.resolve_root(modality)
+    return root is not None and root_has_data(modality, root)
+
+
 def data_available() -> bool:
     """真实数据集是否就绪（否则端点回退 mock）。"""
-    return IMAGES_DIR.is_dir() and CF_DIR.is_dir() and SEG_DIR.is_dir()
+    return _available("carotid_imt")
 
 
 def csd_live_available() -> bool:
@@ -96,9 +133,7 @@ def csd_live_available() -> bool:
 
 def hc_data_available() -> bool:
     """HC18 真实数据集是否就绪（否则 HC 端点回退自包含合成数据）。"""
-    return (HC18_ROOT / "training_set/training_set").is_dir() and (
-        HC18_ROOT / "training_set_pixel_size_and_HC.csv"
-    ).is_file()
+    return _available("fetal_hc")
 
 
 def hc_live_available() -> bool:
@@ -107,14 +142,8 @@ def hc_live_available() -> bool:
 
 
 def ct_data_available() -> bool:
-    """CT 体积数据是否就绪（`data/ct/` 下 ship 了至少 1 例 NIfTI demo）。
-
-    注：``Path("ct_001.nii.gz").suffix == ".gz"``（非 ".nii.gz"），故用 ``name.endswith``
-    判断复合后缀——否则真实 ``.nii.gz`` 恒被判「未就绪」（真机 e2e 实测到此坑）。
-    """
-    return CT_ROOT.is_dir() and any(
-        p.name.endswith((".nii", ".nii.gz")) for p in CT_ROOT.glob("ct_*")
-    )
+    """CT 体积数据是否就绪（当前生效源下 ship 了至少 1 例 NIfTI）。"""
+    return _available("ct_abdomen")
 
 
 def ts_live_available() -> bool:
@@ -123,10 +152,8 @@ def ts_live_available() -> bool:
 
 
 def wsi_data_available() -> bool:
-    """病理 WSI 数据是否就绪（``data/wsi/`` 下 ship 了至少 1 例 slide）。"""
-    return WSI_ROOT.is_dir() and any(
-        p.suffix.lower() in _WSI_SUFFIXES for p in WSI_ROOT.glob("slide_*")
-    )
+    """病理 WSI 数据是否就绪（当前生效源下 ship 了至少 1 例 slide）。"""
+    return _available("pathology")
 
 
 def wsi_live_available() -> bool:

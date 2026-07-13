@@ -31,21 +31,31 @@ OVERLAP = 1
 TILE_FORMAT = "jpeg"
 
 
+def _root():
+    """当前生效的 WSI 数据根（注册表驱动）——无 active 源 → None（列空/404）。"""
+    from . import datasource_registry as reg
+
+    return reg.resolve_root("pathology")
+
+
 def _slide_path(slide_id: str):
-    """定位 slide 文件（按已知 vendor 后缀在 WSI_ROOT 下找 ``{id}.<suffix>``）。"""
-    for suf in config._WSI_SUFFIXES:
-        p = config.WSI_ROOT / f"{slide_id}{suf}"
-        if p.is_file():
-            return p
-    raise FileNotFoundError(f"WSI slide 不存在：{slide_id}（WSI_ROOT={config.WSI_ROOT}）")
+    """定位 slide 文件（按已知 vendor 后缀在当前 WSI 源根下找 ``{id}.<suffix>``）。"""
+    root = _root()
+    if root is not None:
+        for suf in config._WSI_SUFFIXES:
+            p = root / f"{slide_id}{suf}"
+            if p.is_file():
+                return p
+    raise FileNotFoundError(f"WSI slide 不存在：{slide_id}（root={root}）")
 
 
 def list_ids() -> list[str]:
-    """``data/wsi/`` 下所有形如 ``slide_001.svs`` 的 slide id 列表。"""
-    if not config.WSI_ROOT.is_dir():
+    """当前 WSI 源下所有形如 ``slide_001.svs`` 的 slide id 列表。"""
+    root = _root()
+    if root is None or not root.is_dir():
         return []
     out: list[str] = []
-    for p in sorted(config.WSI_ROOT.glob("slide_*")):
+    for p in sorted(root.glob("slide_*")):
         if p.suffix.lower() in config._WSI_SUFFIXES and _ID_RE.match(p.stem):
             out.append(p.stem)
     return out

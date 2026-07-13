@@ -91,6 +91,29 @@ class ImageMeta(BaseModel):
     dims: list[int] | None = None  # P7：WSI level-0 尺寸 (width, height) px（前端 OSD 用）
 
 
+# --- 数据源（注册表 · 文件夹导入） ------------------------------------------
+
+class DataSourceInfo(BaseModel):
+    """一个已注册的数据源（builtin / imported / connector）——``GET/POST /datasources`` 契约。"""
+
+    id: str
+    name: str
+    modality: Modality
+    root: str
+    origin: Literal["builtin", "imported", "connector"]
+    calibration: dict = Field(default_factory=dict)
+    status: Literal["active", "needs_calibration", "empty", "planned"]
+
+
+class DatasourceImportRequest(BaseModel):
+    """导入一个文件夹为数据源。``path`` 须在服务端白名单根下（防任意目录读）。"""
+
+    path: str
+    modality: Modality
+    calibration: dict | None = Field(default=None, description="标定提示，如 {\"mpp\":[0.5,0.5]}；缺则 needs_calibration")
+    name: str | None = None
+
+
 # --- 模型（扩展=适配器） -----------------------------------------------------
 
 class ModelInfo(BaseModel):

@@ -11,8 +11,11 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__
+from . import __version__, datasource_registry
 from .routers.api import router
+
+# 数据源注册表装配（开发者模式 seed 内置源；产品模式空源起步）——见 datasource_registry。
+datasource_registry.init()
 
 app = FastAPI(
     title="Glaux IDE Backend",

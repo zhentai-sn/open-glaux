@@ -21,11 +21,13 @@ from typing import Literal
 import numpy as np
 from fastapi import APIRouter, HTTPException, Response
 
-from .. import config, mock
+from .. import config, datasource_registry as dsreg, mock
 from ..schemas import (
     Capability,
     CorrectionRequest,
     CorrectionResult,
+    DataSourceInfo,
+    DatasourceImportRequest,
     ImageMeta,
     IntentBackendInfo,
     InterpretRequest,
@@ -105,6 +107,38 @@ def interpret(req: InterpretRequest) -> IntentResult:
         except Exception:  # pragma: no cover
             log.exception("interpret 内核失败，回退 mock")
     return mock.classify(req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf)
+
+
+# --- 数据源注册表（表征层 · 文件夹导入） ------------------------------------
+
+@router.get("/datasources", response_model=list[DataSourceInfo], tags=["dataset"])
+def datasources() -> list[DataSourceInfo]:
+    """已注册数据源清单（builtin / imported）——前端「数据源」视图 + 市场数据集卡的真相源。"""
+    return [DataSourceInfo(**s.to_dict()) for s in dsreg.list_all()]
+
+
+@router.post("/datasources", response_model=DataSourceInfo, tags=["dataset"])
+def datasources_import(req: DatasourceImportRequest) -> DataSourceInfo:
+    """导入一个文件夹为数据源。路径越界/非法模态/不存在 → 422 硬拒绝。
+
+    缺标定 → ``status=needs_calibration``（跑任务时上层 422，不出假值）。
+    """
+    try:
+        src = dsreg.register_folder(
+            req.path, req.modality, calibration=req.calibration, name=req.name
+        )
+    except dsreg.ImportError_ as e:
+        raise HTTPException(422, str(e)) from e
+    return DataSourceInfo(**src.to_dict())
+
+
+@router.delete("/datasources/{source_id}", tags=["dataset"])
+def datasources_remove(source_id: str) -> dict:
+    """删除一个导入源（builtin 不可删）。"""
+    ok = dsreg.remove(source_id)
+    if not ok:
+        raise HTTPException(404, f"源不存在或不可删（builtin）：{source_id}")
+    return {"ok": True, "removed": source_id}
 
 
 @router.get("/images", response_model=list[ImageMeta], tags=["dataset"])
