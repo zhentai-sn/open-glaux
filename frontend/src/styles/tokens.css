@@ -22,10 +22,11 @@
   --faint: #6e7681;
   --bright: #e7e7e7;
 
-  /* 交互蓝 · 状态栏蓝（VS Code 签名） */
+  /* 交互蓝 · 状态栏（临时统一紫——与智能体紫 --agent 同系；原 VS Code 蓝 #0e639c。
+     后续主题方案落地时再规范，见 docs 主题 SDD TBD） */
   --accent: #0e70c0;
   --accent2: #3794ff;
-  --status: #0e639c;
+  --status: #6a3fb0;
 
   /* 智能体专属紫 */
   --agent: #b58bf2;

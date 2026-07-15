@@ -22,6 +22,17 @@ const RE_ID = "glaux-re-vol";
 const OVERLAY_ALPHA = 0.4; // labelmap 叠色透明度
 const DEFAULT_RADIUS = 3; // 画笔半径（图像像素）
 
+// CT 标准窗宽窗位预设（HU）——window width / level。voiRange 在 modality(HU) 空间，
+// 因 nifti loader 提供 intercept/slope 把 stored→HU（见 viewer/nifti.ts）。
+const CT_PRESETS = [
+  { key: "abd", label: "腹部", ww: 400, wl: 40 },
+  { key: "med", label: "纵隔", ww: 350, wl: 40 },
+  { key: "lung", label: "肺", ww: 1500, wl: -600 },
+  { key: "bone", label: "骨", ww: 1800, wl: 400 },
+] as const;
+const DEFAULT_WW = 400; // 腹部软组织窗（与 nifti.ts image 默认一致）
+const DEFAULT_WL = 40;
+
 type VolPrim = Extract<Primitive, { kind: "volume_mask" }>;
 type LabelVol = { columns: number; rows: number; slices: number; raw: Int32Array };
 
@@ -44,6 +55,8 @@ export function VolumeViewer() {
   const [brushMode, setBrushMode] = useState<"paint" | "erase">("erase");
   const [radius, setRadius] = useState(DEFAULT_RADIUS);
   const [busy, setBusy] = useState(false);
+  const [ww, setWw] = useState(DEFAULT_WW); // 窗宽（HU）
+  const [wl, setWl] = useState(DEFAULT_WL); // 窗位（HU）
 
   const activeVolume = useSession((s) => s.activeVolume);
   const primitives = useSession((s) => s.primitives);
@@ -269,6 +282,20 @@ export function VolumeViewer() {
     })();
   }, [z, numSlices, drawOverlay]);
 
+  // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）。
+  // 依赖 numSlices/activeVolume：切卷后 setStack→resetCamera 会重置 VOI 到 image 默认，
+  // 故卷就绪后重跑此 effect，把当前 WW/WL 重新贴上。
+  useEffect(() => {
+    const vp = vpRef.current;
+    if (!vp || numSlices <= 0) return;
+    try {
+      vp.setProperties({ voiRange: { lower: wl - ww / 2, upper: wl + ww / 2 } });
+      vp.render();
+    } catch {
+      /* VOI 设置瞬态（卷切换中）静默 */
+    }
+  }, [ww, wl, numSlices, activeVolume]);
+
   // 元素尺寸变化 → engine.resize + overlay 重绘
   useEffect(() => {
     if (!ready || !elRef.current) return;
@@ -406,6 +433,37 @@ export function VolumeViewer() {
           </>
         )}
       </div>
+      {/* 窗宽窗位工具条（CT 显示基本设置）——预设 + WW/WL 手动微调 */}
+      {numSlices > 0 && (
+        <div style={_voiBarStyle}>
+          {CT_PRESETS.map((p) => {
+            const active = p.ww === ww && p.wl === wl;
+            return (
+              <button
+                key={p.key}
+                onClick={() => { setWw(p.ww); setWl(p.wl); }}
+                title={`WW ${p.ww} / WL ${p.wl}`}
+                style={{ ..._btn, background: active ? "#6a3fb0" : "rgba(60,60,70,0.9)" }}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+          <span style={_voiSep} />
+          <label style={_voiLabel}>
+            WW
+            <input type="range" min={1} max={3000} step={10} value={ww}
+              onChange={(e) => setWw(Number(e.target.value))} style={{ width: 84 }} />
+            <span className="mono" style={{ width: 34, textAlign: "right" }}>{ww}</span>
+          </label>
+          <label style={_voiLabel}>
+            WL
+            <input type="range" min={-1000} max={1000} step={10} value={wl}
+              onChange={(e) => setWl(Number(e.target.value))} style={{ width: 84 }} />
+            <span className="mono" style={{ width: 40, textAlign: "right" }}>{wl}</span>
+          </label>
+        </div>
+      )}
       {/* 画笔工具条 */}
       {classes && classes.length > 0 && (
         <div style={_toolbarStyle}>
@@ -511,6 +569,33 @@ const _toolbarStyle: React.CSSProperties = {
   background: "rgba(20,20,20,0.75)",
   padding: "6px 8px",
   borderRadius: 6,
+};
+
+const _voiBarStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: 12,
+  transform: "translateX(-50%)",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  background: "rgba(20,20,20,0.75)",
+  padding: "6px 10px",
+  borderRadius: 6,
+};
+
+const _voiSep: React.CSSProperties = {
+  width: 1,
+  height: 16,
+  background: "rgba(230,234,240,0.2)",
+};
+
+const _voiLabel: React.CSSProperties = {
+  color: "#e6eaf0",
+  fontSize: 11,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
 };
 
 const _btn: React.CSSProperties = {
