@@ -30,6 +30,7 @@ class Scope(str, Enum):
     IN_SCOPE = "in_scope"        # 能映射到确定的 TaskSpec
     AMBIGUOUS = "ambiguous"      # 是医学测量意图但目标不明 → 需澄清
     OUT_OF_SCOPE = "out_of_scope"  # 超出当前已注册任务 → 拒绝
+    CHAT = "chat"                # 非测量意图（问候/元问题/闲聊）→ 自由对话回复（reason 即回复）
 
 
 @dataclass(frozen=True)

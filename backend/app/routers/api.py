@@ -22,6 +22,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Response
 
 from .. import config, datasource_registry as dsreg, mock
+from ..net_guard import UrlNotAllowed, assert_url_allowed
 from ..schemas import (
     Capability,
     CorrectionRequest,
@@ -34,8 +35,12 @@ from ..schemas import (
     IntentResult,
     Modality,
     ModelInfo,
+    ModelListResult,
+    ProbeRequest,
     TaskMeasureRequest,
     TaskSpec,
+    TestResult,
+    VlmModelInfo,
 )
 
 log = logging.getLogger("glaux.api")
@@ -93,13 +98,31 @@ def intent_backends() -> list[IntentBackendInfo]:
     return [IntentBackendInfo(id="rule", name="Rule-based", available=True, reason="mock")]
 
 
+def _guard_endpoint(provider: str, base_url: str | None) -> None:
+    """公共守卫——openai_compatible 必须给 base_url；给了则过 SSRF 守卫。"""
+    if base_url:
+        try:
+            assert_url_allowed(base_url)
+        except UrlNotAllowed as e:
+            raise HTTPException(400, f"base_url 被拒：{e}") from e
+    elif provider == "openai_compatible":
+        raise HTTPException(400, "openai_compatible 需要 base_url")
+
+
+def _guard_probe(req: ProbeRequest) -> None:
+    _guard_endpoint(req.provider, req.base_url)
+
+
 @router.post("/interpret", response_model=IntentResult, tags=["intent"])
 def interpret(req: InterpretRequest) -> IntentResult:
+    if req.backend == "vlm":
+        _guard_endpoint(req.provider, req.base_url)  # VLM + 自定义端点 → SSRF 守卫先行
     if KERNEL_OK:
         try:
             return kernel.interpret(
                 req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf,
                 backend=req.backend, api_key=req.api_key, model=req.model,
+                provider=req.provider, base_url=req.base_url,
             )
         except IntentBackendUnavailable as e:
             # VLM 被选中但不可用 → 显式 503（不静默退化到规则）
@@ -107,6 +130,28 @@ def interpret(req: InterpretRequest) -> IntentResult:
         except Exception:  # pragma: no cover
             log.exception("interpret 内核失败，回退 mock")
     return mock.classify(req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf)
+
+
+@router.post("/intent/vlm/test", response_model=TestResult, tags=["intent"])
+def vlm_test(req: ProbeRequest) -> TestResult:
+    """连接测试——SSRF 守卫先行，再 ping + 计数（SDD 2026-07-14-001 §5）。"""
+    _guard_probe(req)
+    if not KERNEL_OK:
+        raise HTTPException(503, "内核未就绪")
+    return TestResult(**kernel.vlm_test(req.provider, req.base_url, req.api_key))
+
+
+@router.post("/intent/vlm/models", response_model=ModelListResult, tags=["intent"])
+def vlm_models(req: ProbeRequest) -> ModelListResult:
+    """拉取模型列表（全列 + 视觉标注）——SSRF 守卫先行。"""
+    _guard_probe(req)
+    if not KERNEL_OK:
+        raise HTTPException(503, "内核未就绪")
+    try:
+        models = kernel.vlm_models(req.provider, req.base_url, req.api_key)
+        return ModelListResult(models=[VlmModelInfo(**m) for m in models])
+    except Exception as e:  # noqa: BLE001 - 拉取失败返回空列表 + reason（不 500）
+        return ModelListResult(models=[], reason=f"拉取失败：{type(e).__name__}: {e}")
 
 
 # --- 数据源注册表（表征层 · 文件夹导入） ------------------------------------

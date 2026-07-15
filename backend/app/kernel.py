@@ -10,6 +10,8 @@ P6：在 _detect_for_spec 加 "volume" 分支（CT 模态），数据来自 segm
 from __future__ import annotations
 
 import base64
+import os
+import time
 
 import numpy as np
 
@@ -46,7 +48,11 @@ from glaux_core.contracts import (  # noqa: E402
 )
 from glaux_core.io.boundaries import Boundary  # noqa: E402
 from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
-from glaux_orchestrator.intent import ClaudeVLMBackend, RuleBasedBackend  # noqa: E402
+from glaux_orchestrator.intent import (  # noqa: E402
+    ClaudeVLMBackend,
+    OpenAICompatVLMBackend,
+    RuleBasedBackend,
+)
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 from glaux_orchestrator.spec import TaskType as _TaskType  # noqa: E402
 from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES, REGISTRY as _REGISTRY  # noqa: E402
@@ -60,6 +66,7 @@ from glaux_orchestrator.tasks import NUCLEI_CLASSES  # noqa: E402
 
 _rule = RuleBasedBackend()
 _vlm = ClaudeVLMBackend()
+_vlm_openai = OpenAICompatVLMBackend()
 
 _SCOPE_STR = {
     _Scope.IN_SCOPE: "in_scope",
@@ -77,6 +84,40 @@ def intent_backends() -> list[dict]:
     ]
 
 
+def vlm_test(provider: str, base_url: str | None, api_key: str | None) -> dict:
+    """连接测试——ping + （成功时）拉模型算 model_count / vision_count（SDD §5）。
+
+    SSRF 守卫在端点侧先行（api._guard_probe）；此处只做探测，不抛栈（异常归 reason）。
+    """
+    from glaux_orchestrator.vlm_providers import make_provider
+
+    # anthropic 无 key 无法探测（SDK 会报错）；本地 openai_compatible 允许空 key。
+    if provider == "anthropic" and not (api_key or os.getenv("ANTHROPIC_API_KEY")):
+        return {"ok": False, "status": None, "latency_ms": None, "reason": "缺少密钥"}
+
+    p = make_provider(provider, base_url, api_key)
+    t0 = time.perf_counter()
+    ok, status, reason = p.ping()
+    latency = int((time.perf_counter() - t0) * 1000)
+    out: dict = {"ok": ok, "status": status, "latency_ms": latency, "reason": reason}
+    if ok:
+        try:
+            models = p.list_models()
+            out["model_count"] = len(models)
+            out["vision_count"] = sum(1 for m in models if m.vision == "yes")
+        except Exception:  # noqa: BLE001 - 计数失败不影响连通结论
+            pass
+    return out
+
+
+def vlm_models(provider: str, base_url: str | None, api_key: str | None) -> list[dict]:
+    """拉取模型列表（全列 + 视觉标注）——SSRF 守卫在端点侧先行。"""
+    from glaux_orchestrator.vlm_providers import make_provider
+
+    p = make_provider(provider, base_url, api_key)
+    return [{"id": m.id, "vision": m.vision} for m in p.list_models()]
+
+
 def interpret(
     nl: str,
     *,
@@ -85,11 +126,14 @@ def interpret(
     backend: str = "rule",
     api_key: str | None = None,
     model: str | None = None,
+    provider: str = "anthropic",
+    base_url: str | None = None,
 ) -> IntentResult:
     """NL(+图) → 三态守卫（真实 orchestrator）。非 in_scope 不带 spec。
 
-    backend="vlm" 时用 Claude VLM 看图判定（密钥取 UI 传入或服务端 env）；
-    不可用则抛 IntentBackendUnavailable（不静默退化）。
+    backend="vlm" 时用 VLM 看图判定：provider="anthropic"（默认，可 base_url 覆盖）或
+    "openai_compatible"（含本地 Ollama/LM Studio）。密钥取 UI 传入或服务端 env；不可用则抛
+    IntentBackendUnavailable（不静默退化）。
     """
     if backend == "vlm":
         image_b64 = None
@@ -98,10 +142,11 @@ def interpret(
                 image_b64 = base64.b64encode(dataset.image_png(image_id)).decode()
             except Exception:
                 image_b64 = None
-        r = _vlm.interpret(
+        vlm = _vlm_openai if provider == "openai_compatible" else _vlm
+        r = vlm.interpret(
             nl, image_path=image_id, cubs_cf=cubs_cf,
             has_image=image_b64 is not None, image_b64=image_b64,
-            api_key=api_key, model=model,
+            api_key=api_key, model=model, base_url=base_url,
         )
     else:
         r = _rule.interpret(nl, image_path=image_id, cubs_cf=cubs_cf, has_image=image_id is not None)

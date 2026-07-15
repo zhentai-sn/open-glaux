@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 # --- 意图 / 规范 -------------------------------------------------------------
 
-Scope = Literal["in_scope", "ambiguous", "out_of_scope"]
+Scope = Literal["in_scope", "ambiguous", "out_of_scope", "chat"]
 TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney", "nuclei_detection"]
 Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology"]
 
@@ -34,9 +34,12 @@ class InterpretRequest(BaseModel):
     has_image: bool = False
     image_id: str | None = None
     cubs_cf: float | None = None
-    backend: Literal["rule", "vlm"] = "rule"  # 意图后端：关键词规则 / Claude VLM
+    backend: Literal["rule", "vlm"] = "rule"  # 意图后端：关键词规则 / VLM
     api_key: str | None = None  # VLM 密钥（UI 填入；缺省用服务端 env）
     model: str | None = None  # VLM 模型覆盖
+    # VLM provider 维度（SDD 2026-07-14-001 §3）：anthropic 官方/代理 | openai 兼容（含本地 Ollama）
+    provider: Literal["anthropic", "openai_compatible"] = "anthropic"
+    base_url: str | None = None  # 自定义端点；None → provider 默认
 
 
 class IntentBackendInfo(BaseModel):
@@ -44,6 +47,37 @@ class IntentBackendInfo(BaseModel):
     name: str
     available: bool
     reason: str
+
+
+# --- VLM 连接探测（SDD 2026-07-14-001 §5）----------------------------------
+
+class ProbeRequest(BaseModel):
+    """连接测试 / 拉模型的入参——一条连接的 provider + 端点 + 密钥。"""
+
+    provider: Literal["anthropic", "openai_compatible"] = "anthropic"
+    base_url: str | None = None
+    api_key: str | None = None
+
+
+class VlmModelInfo(BaseModel):
+    """一个可选模型 + 视觉能力标注（前端据此 👁 / 灰显）。"""
+
+    id: str
+    vision: Literal["yes", "no", "unknown"]
+
+
+class TestResult(BaseModel):
+    ok: bool
+    status: int | None = None
+    latency_ms: int | None = None
+    model_count: int | None = None
+    vision_count: int | None = None
+    reason: str
+
+
+class ModelListResult(BaseModel):
+    models: list[VlmModelInfo]
+    reason: str = ""
 
 
 class IntentResult(BaseModel):
