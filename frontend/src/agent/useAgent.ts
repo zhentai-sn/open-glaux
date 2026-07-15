@@ -19,15 +19,23 @@ export function useAgent() {
       const text = nl.trim();
       if (!text) return;
       pushUser(text);
-      const { activeImage, intentBackend, vlmKey, vlmModel } = useSession.getState();
+      const { activeImage, intentBackend, connection } = useSession.getState();
+      const isVlm = intentBackend === "vlm";
       try {
         const r = await api.interpret(text, lang, {
           image_id: activeImage ?? undefined,
           backend: intentBackend,
-          api_key: intentBackend === "vlm" ? vlmKey || undefined : undefined,
-          model: intentBackend === "vlm" ? vlmModel || undefined : undefined,
+          api_key: isVlm ? connection.apiKey || undefined : undefined,
+          model: isVlm ? connection.model || undefined : undefined,
+          provider: isVlm ? connection.provider : undefined,
+          base_url: isVlm ? connection.baseUrl || undefined : undefined,
         });
         setLastScope(r.scope);
+        if (r.scope === "chat") {
+          // 闲聊：VLM 的自然回复在 reason 里，直接呈现（测量路径不受影响）
+          pushAgent({ variant: "note", tone: "plain", text: r.reason });
+          return;
+        }
         if (r.scope === "out_of_scope") {
           pushAgent({ variant: "refuse", key: "refuse" });
           return;

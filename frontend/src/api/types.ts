@@ -1,6 +1,6 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
-export type Scope = "in_scope" | "ambiguous" | "out_of_scope";
+export type Scope = "in_scope" | "ambiguous" | "out_of_scope" | "chat";
 export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
 export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology";
 
@@ -95,6 +95,29 @@ export interface IntentBackendInfo {
   id: "rule" | "vlm";
   name: string;
   available: boolean;
+  reason: string;
+}
+
+// --- VLM 连接探测（镜像 backend schemas §5 · SDD 2026-07-14-001）---------------
+
+export type VlmProvider = "anthropic" | "openai_compatible";
+
+export interface VlmModelInfo {
+  id: string;
+  vision: "yes" | "no" | "unknown";
+}
+
+export interface VlmTestResult {
+  ok: boolean;
+  status: number | null;
+  latency_ms: number | null;
+  model_count?: number | null;
+  vision_count?: number | null;
+  reason: string;
+}
+
+export interface VlmModelListResult {
+  models: VlmModelInfo[];
   reason: string;
 }
 

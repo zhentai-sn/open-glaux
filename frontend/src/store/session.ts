@@ -13,9 +13,47 @@ import type {
   Scope,
   TaskType,
   TaskView,
+  VlmModelInfo,
+  VlmProvider,
 } from "../api/types";
 
 export type IntentBackendId = "rule" | "vlm";
+
+/** 一条 VLM 连接（SDD 2026-07-14-001 §4）——provider + 端点 + 密钥 + 选定模型。 */
+export interface Connection {
+  provider: VlmProvider;
+  baseUrl: string; // "" → 用 provider 默认
+  apiKey: string; // 仅本机 localStorage；发请求随 body 传后端
+  model: string; // 选定模型 id
+  models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
+  lastTest?: { ok: boolean; at: string; reason?: string };
+}
+
+const CONNECTION_DEFAULTS: Connection = { provider: "anthropic", baseUrl: "", apiKey: "", model: "" };
+
+/** 载入连接：优先新键 glaux.connection；否则一次性从旧 vlmKey/vlmModel 迁移（旧键保留可回滚）。 */
+function loadConnection(): Connection {
+  if (typeof localStorage === "undefined") return { ...CONNECTION_DEFAULTS };
+  const raw = localStorage.getItem("glaux.connection");
+  if (raw) {
+    try {
+      return { ...CONNECTION_DEFAULTS, ...JSON.parse(raw) };
+    } catch {
+      /* 损坏 → 落回默认 + 迁移 */
+    }
+  }
+  const apiKey = localStorage.getItem("glaux.vlmKey") || "";
+  const model = localStorage.getItem("glaux.vlmModel") || "";
+  const migrated: Connection = { ...CONNECTION_DEFAULTS, apiKey, model };
+  if (apiKey || model) {
+    try {
+      localStorage.setItem("glaux.connection", JSON.stringify(migrated));
+    } catch {
+      /* noop */
+    }
+  }
+  return migrated;
+}
 
 export type Source = "agent" | "human"; // 当前叠加/测量的来源（模型产出 vs 人工修正）
 
@@ -76,8 +114,7 @@ interface SessionState {
   // 意图后端（VLM 配置）
   intentBackend: IntentBackendId;
   intentBackends: IntentBackendInfo[]; // 服务端可用性
-  vlmKey: string; // UI 填入的密钥（localStorage）
-  vlmModel: string; // 可选模型覆盖
+  connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
 
   // 智能体对话
   messages: Msg[];
@@ -110,8 +147,7 @@ interface SessionState {
   setCoords: (x: number, y: number) => void;
   setIntentBackend: (id: IntentBackendId) => void;
   setIntentBackends: (b: IntentBackendInfo[]) => void;
-  setVlmKey: (k: string) => void;
-  setVlmModel: (m: string) => void;
+  setConnection: (patch: Partial<Connection>) => void;
   pushUser: (text: string) => void;
   pushAgent: (m: DistributiveOmit<AgentMsg, "id" | "role">) => void;
   resetMessages: () => void;
@@ -150,8 +186,7 @@ export const useSession = create<SessionState>((set) => ({
 
   intentBackend: "rule",
   intentBackends: [],
-  vlmKey: (typeof localStorage !== "undefined" && localStorage.getItem("glaux.vlmKey")) || "",
-  vlmModel: (typeof localStorage !== "undefined" && localStorage.getItem("glaux.vlmModel")) || "",
+  connection: loadConnection(),
 
   messages: [],
 
@@ -186,22 +221,16 @@ export const useSession = create<SessionState>((set) => ({
   setCoords: (x, y) => set({ coords: { x, y } }),
   setIntentBackend: (id) => set({ intentBackend: id }),
   setIntentBackends: (b) => set({ intentBackends: b }),
-  setVlmKey: (k) => {
-    try {
-      localStorage.setItem("glaux.vlmKey", k);
-    } catch {
-      /* noop */
-    }
-    set({ vlmKey: k });
-  },
-  setVlmModel: (m) => {
-    try {
-      localStorage.setItem("glaux.vlmModel", m);
-    } catch {
-      /* noop */
-    }
-    set({ vlmModel: m });
-  },
+  setConnection: (patch) =>
+    set((s) => {
+      const next = { ...s.connection, ...patch };
+      try {
+        localStorage.setItem("glaux.connection", JSON.stringify(next));
+      } catch {
+        /* noop */
+      }
+      return { connection: next };
+    }),
   pushUser: (text) => set((s) => ({ messages: [...s.messages, { id: nextId(), role: "user", text }] })),
   pushAgent: (m) =>
     set((s) => ({ messages: [...s.messages, { ...m, role: "agent", id: nextId() } as AgentMsg] })),

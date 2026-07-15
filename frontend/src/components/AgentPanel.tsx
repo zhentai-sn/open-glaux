@@ -2,20 +2,78 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAgent } from "../agent/useAgent";
 import { Rich } from "./Rich";
-import type { Measure, TaskType } from "../api/types";
+import { ApiError, api } from "../api/client";
+import type { Measure, TaskType, VlmModelInfo, VlmProvider } from "../api/types";
 import { useI18n } from "../i18n";
 import { useSession, type IntentBackendId, type Msg, type Tool } from "../store/session";
+
+// 本地部署快填（Ollama / LM Studio 默认端点）——SDD 2026-07-14-001 §3。
+const LOCAL_PRESETS = [
+  { key: "ollama", label: "Ollama", baseUrl: "http://localhost:11434/v1" },
+  { key: "lmstudio", label: "LM Studio", baseUrl: "http://localhost:1234/v1" },
+] as const;
+
+/** 视觉能力 → 下拉前缀标记（👁 可用 / · 待定 / ⊘ 无）。 */
+function visMark(v: VlmModelInfo["vision"]): string {
+  return v === "yes" ? "👁" : v === "no" ? "⊘" : "·";
+}
 
 function IntentConfig({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const backend = useSession((s) => s.intentBackend);
   const setBackend = useSession((s) => s.setIntentBackend);
   const backends = useSession((s) => s.intentBackends);
-  const vlmKey = useSession((s) => s.vlmKey);
-  const setVlmKey = useSession((s) => s.setVlmKey);
-  const vlmModel = useSession((s) => s.vlmModel);
-  const setVlmModel = useSession((s) => s.setVlmModel);
+  const conn = useSession((s) => s.connection);
+  const setConnection = useSession((s) => s.setConnection);
   const serverKey = backends.find((b) => b.id === "vlm")?.available ?? false;
+
+  const [testing, setTesting] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [status, setStatus] = useState<{ tone: "good" | "warn" | "crit"; text: string } | null>(null);
+
+  const errText = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
+
+  const runTest = async () => {
+    setTesting(true);
+    setStatus(null);
+    try {
+      const r = await api.vlmTest(conn.provider, conn.baseUrl || undefined, conn.apiKey || undefined);
+      setConnection({ lastTest: { ok: r.ok, at: new Date().toISOString(), reason: r.reason } });
+      if (r.ok) {
+        const bits = [String(r.status ?? ""), t("cfg_n_models", { n: r.model_count ?? "?" })];
+        if (r.vision_count != null) bits.push(t("cfg_n_vision", { n: r.vision_count }));
+        setStatus({ tone: "good", text: `${t("cfg_connected")} · ${bits.filter(Boolean).join(" · ")}` });
+      } else {
+        setStatus({ tone: "crit", text: r.reason });
+      }
+    } catch (e) {
+      setStatus({ tone: "crit", text: errText(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const runFetch = async () => {
+    setFetching(true);
+    setStatus(null);
+    try {
+      const r = await api.vlmModels(conn.provider, conn.baseUrl || undefined, conn.apiKey || undefined);
+      if (r.models.length) {
+        setConnection({ models: r.models });
+        const vis = r.models.filter((m) => m.vision === "yes").length;
+        setStatus({
+          tone: "good",
+          text: `${t("cfg_n_models", { n: r.models.length })} · ${t("cfg_n_vision", { n: vis })}`,
+        });
+      } else {
+        setStatus({ tone: "warn", text: r.reason || t("cfg_no_models") });
+      }
+    } catch (e) {
+      setStatus({ tone: "crit", text: errText(e) });
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const opt = (id: IntentBackendId, label: string, desc: string) => (
     <label className={"cfgopt" + (backend === id ? " on" : "")}>
@@ -27,6 +85,9 @@ function IntentConfig({ onClose }: { onClose: () => void }) {
     </label>
   );
 
+  const models = conn.models ?? [];
+  const modelInList = models.some((m) => m.id === conn.model);
+
   return (
     <div className="cfgpop" onClick={(e) => e.stopPropagation()}>
       <div className="cfghead">{t("cfg_title")}</div>
@@ -34,25 +95,132 @@ function IntentConfig({ onClose }: { onClose: () => void }) {
       {opt("vlm", t("cfg_vlm"), t("cfg_vlm_desc"))}
       {backend === "vlm" && (
         <div className="cfgvlm">
-          <div className="cfgrow">
-            <span>{t("cfg_server_key")}</span>
-            <span className={serverKey ? "wip" : ""} style={{ color: serverKey ? "var(--good)" : "var(--faint)", borderColor: serverKey ? "rgba(78,201,138,.4)" : undefined, background: serverKey ? "rgba(78,201,138,.14)" : "transparent" }}>
-              {serverKey ? t("cfg_available") : t("cfg_unavailable")}
-            </span>
+          {/* provider */}
+          <label className="cfgrow">
+            <span>{t("cfg_provider")}</span>
+            <select
+              className="cfgsel"
+              value={conn.provider}
+              onChange={(e) =>
+                setConnection({ provider: e.target.value as VlmProvider, models: undefined })
+              }
+            >
+              <option value="anthropic">Anthropic</option>
+              <option value="openai_compatible">{t("cfg_openai_compat")}</option>
+            </select>
+          </label>
+
+          {/* 本地部署快填（仅 openai_compatible） */}
+          {conn.provider === "openai_compatible" && (
+            <div className="cfgquick">
+              <span className="cfgqlbl">{t("cfg_quickfill")}</span>
+              {LOCAL_PRESETS.map((p) => (
+                <button
+                  key={p.key}
+                  className="cfgqbtn"
+                  onClick={() => setConnection({ baseUrl: p.baseUrl })}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* base_url（openai_compatible 必填；anthropic 可选覆盖） */}
+          {(conn.provider === "openai_compatible" || conn.baseUrl) && (
+            <input
+              className="cfgin"
+              type="text"
+              placeholder={t("cfg_base_url_ph")}
+              value={conn.baseUrl}
+              onChange={(e) => setConnection({ baseUrl: e.target.value })}
+            />
+          )}
+
+          {/* anthropic：显示服务端 env 密钥可用性 */}
+          {conn.provider === "anthropic" && (
+            <div className="cfgrow">
+              <span>{t("cfg_server_key")}</span>
+              <span
+                style={{
+                  color: serverKey ? "var(--good)" : "var(--faint)",
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                  border: serverKey ? "1px solid rgba(78,201,138,.4)" : "none",
+                  background: serverKey ? "rgba(78,201,138,.14)" : "transparent",
+                }}
+              >
+                {serverKey ? t("cfg_available") : t("cfg_unavailable")}
+              </span>
+            </div>
+          )}
+
+          <input
+            className="cfgin"
+            type="password"
+            placeholder={t("cfg_key_ph")}
+            value={conn.apiKey}
+            onChange={(e) => setConnection({ apiKey: e.target.value })}
+          />
+
+          {/* 模型：拉取后变下拉（👁 标注）；否则手输 */}
+          {models.length > 0 ? (
+            <select
+              className="cfgsel"
+              value={conn.model}
+              onChange={(e) => setConnection({ model: e.target.value })}
+            >
+              <option value="" disabled>
+                {t("cfg_model_pick")}
+              </option>
+              {!modelInList && conn.model && <option value={conn.model}>{conn.model}</option>}
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {visMark(m.vision)} {m.id}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="cfgin"
+              type="text"
+              placeholder={
+                conn.provider === "anthropic" ? "claude-haiku-4-5-20251001" : t("cfg_model_ph")
+              }
+              value={conn.model}
+              onChange={(e) => setConnection({ model: e.target.value })}
+            />
+          )}
+
+          {/* 动作 */}
+          <div className="cfgacts">
+            <button className="cfgbtn" onClick={runTest} disabled={testing}>
+              {testing ? "…" : t("cfg_test")}
+            </button>
+            <button className="cfgbtn" onClick={runFetch} disabled={fetching}>
+              {fetching ? "…" : t("cfg_fetch_models")}
+            </button>
           </div>
-          <input className="cfgin" type="password" placeholder={t("cfg_key_ph")} value={vlmKey} onChange={(e) => setVlmKey(e.target.value)} />
-          <input className="cfgin" type="text" placeholder={"claude-haiku-4-5-20251001"} value={vlmModel} onChange={(e) => setVlmModel(e.target.value)} />
-          <div className="cfgnote">{t("cfg_model")}</div>
-          <div className="cfgnote" style={{ marginTop: 6, lineHeight: 1.45 }}>
+          {status && <div className={"cfgstat " + status.tone}>{status.text}</div>}
+          {models.length > 0 && <div className="cfgnote">{t("cfg_vis_legend")}</div>}
+
+          <div className="cfgnote" style={{ marginTop: 2, lineHeight: 1.45 }}>
             {t("vlm_key_persist_note")}
-            {vlmKey && (
+            {conn.apiKey && (
               <>
                 {" "}
                 <button
                   className="cfglink"
                   type="button"
-                  onClick={() => setVlmKey("")}
-                  style={{ background: "transparent", border: "none", color: "var(--agent)", cursor: "pointer", padding: 0, fontSize: "inherit" }}
+                  onClick={() => setConnection({ apiKey: "" })}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--agent)",
+                    cursor: "pointer",
+                    padding: 0,
+                    fontSize: "inherit",
+                  }}
                 >
                   {t("vlm_key_clear")}
                 </button>
@@ -61,7 +229,9 @@ function IntentConfig({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
-      <button className="cfgclose" onClick={onClose}>✕</button>
+      <button className="cfgclose" onClick={onClose}>
+        ✕
+      </button>
     </div>
   );
 }
@@ -167,6 +337,7 @@ export function AgentPanel() {
   const messages = useSession((s) => s.messages);
   const model = useSession((s) => s.activeModel);
   const backend = useSession((s) => s.intentBackend);
+  const conn = useSession((s) => s.connection);
   const modality = useSession((s) => s.modality);
   const { run } = useAgent();
   const streamRef = useRef<HTMLDivElement>(null);
@@ -198,7 +369,9 @@ export function AgentPanel() {
           title={t("cfg_title")}
           style={{ cursor: "pointer", marginLeft: "auto" }}
         >
-          {backend === "vlm" ? "✦ VLM" : "⚙ rule"}
+          {backend === "vlm"
+            ? `✦ VLM${conn.model ? " · " + conn.model.split(/[/:]/).pop()!.slice(0, 14) : ""}`
+            : "⚙ rule"}
         </button>
         <span className="amodel">{model}</span>
         {cfgOpen && <IntentConfig onClose={() => setCfgOpen(false)} />}

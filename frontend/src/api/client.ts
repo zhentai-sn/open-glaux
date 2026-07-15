@@ -16,6 +16,9 @@ import type {
   TaskSpec,
   TaskType,
   TaskView,
+  VlmModelListResult,
+  VlmProvider,
+  VlmTestResult,
 } from "./types";
 
 /** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
@@ -81,6 +84,8 @@ export const api = {
       backend?: "rule" | "vlm";
       api_key?: string;
       model?: string;
+      provider?: VlmProvider;
+      base_url?: string;
     },
   ) =>
     post<IntentResult>("/interpret", {
@@ -92,9 +97,27 @@ export const api = {
       backend: opts?.backend ?? "rule",
       api_key: opts?.api_key || null,
       model: opts?.model || null,
+      provider: opts?.provider ?? "anthropic",
+      base_url: opts?.base_url || null,
     }),
 
   intentBackends: () => get<IntentBackendInfo[]>("/intent/backends"),
+
+  /** 连接测试——ping + 计数（SDD 2026-07-14-001 §5）。 */
+  vlmTest: (provider: VlmProvider, base_url?: string, api_key?: string) =>
+    post<VlmTestResult>("/intent/vlm/test", {
+      provider,
+      base_url: base_url || null,
+      api_key: api_key || null,
+    }),
+
+  /** 拉取模型列表（全列 + 视觉标注）。 */
+  vlmModels: (provider: VlmProvider, base_url?: string, api_key?: string) =>
+    post<VlmModelListResult>("/intent/vlm/models", {
+      provider,
+      base_url: base_url || null,
+      api_key: api_key || null,
+    }),
 
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
