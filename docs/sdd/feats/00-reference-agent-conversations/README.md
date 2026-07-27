@@ -4,13 +4,15 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `ready` |
+| SDD 状态 | `implemented` |
 | 创建日期 | 2026-07-27 |
 | 最近更新 | 2026-07-27 |
 | 目标阶段 | 第一阶段：可持续使用的本地 AI 对话与会话管理 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
-进入 `ready` 的依据：本阶段范围、Pi 复用边界、薄 Transport Adapter 契约、生命周期、错误处理及验收标准均已确定，第 17 节无开放问题。
+进入 `implemented` 的依据：Runtime、REST/SSE Adapter、右侧栏会话 UI 与运行手册已经完成；
+Runtime、前端和既有 Python 测试均通过，编译产物健康检查返回 `adapter/pi/storage = ok`。真实
+Provider smoke 与 Dock 拖动/刷新属于业务验收前的人工检查，因此尚未进入 `accepted`。
 
 ## 1. 负责人
 
@@ -449,59 +451,70 @@ erDiagram
 
 ### 15.1 会话与持久化
 
-- [ ] 可新建会话；发送首条消息后按第 7.1 条自动生成标题。
-- [ ] 可在至少 20 个会话中搜索和切换，消息互不串线。
-- [ ] 可重命名、归档、恢复和确认删除会话；归档会话只读。
-- [ ] 刷新前端或重启应用后，Pi 活动叶消息、compaction 结果、归档状态、模型与权限模式保持一致。
-- [ ] 新建多个空会话时，系统只保留一个未发送消息的空会话。
-- [ ] transcript 与消息树由 `@earendil-works/pi-storage-sqlite-node` 保存；Glaux companion table 只含 §9.1 字段。
-- [ ] Adapter 代码和测试均不直接查询或修改 Pi SQLite 内部表。
+- [x] 可新建会话；发送首条消息后按第 7.1 条自动生成标题。
+- [x] 可在至少 20 个会话中搜索和切换，消息互不串线。
+- [x] 可重命名、归档、恢复和确认删除会话；归档会话只读。
+- [x] 刷新前端或重启应用后，Pi 活动叶消息、compaction 结果、归档状态、模型与权限模式保持一致。
+- [x] 新建多个空会话时，系统只保留一个未发送消息的空会话。
+- [x] transcript 与消息树由 `@earendil-works/pi-storage-sqlite-node` 保存；Glaux companion table 只含 §9.1 字段。
+- [x] Adapter 代码和测试均不直接查询或修改 Pi SQLite 内部表。
 
 ### 15.2 流式运行
 
-- [ ] 普通生成把 Pi `message_update` 原样包装为 `pi.event` 并按发生顺序增量展示。
-- [ ] 切换到其他会话不取消生成；返回后可看到实时状态或最终回答。
-- [ ] 点击停止后 1 秒内调用 Pi `abort()`，SessionView 最终回到 `idle`。
-- [ ] SSE 建连与重连的第一个事件都是 `snapshot`；注册监听器到 snapshot 发送完成之间的 Pi 事件不丢失。
-- [ ] Runtime 异常退出再启动后，最后一条已提交 Pi session entry 可恢复，允许丢失未提交 token。
-- [ ] 同 Session 并发发送第二个生成命令返回 `409 session_busy`；不同 Session 可以并发运行。
-- [ ] SSE 输出只包含 `snapshot`、`pi.event`、`adapter.error`，不存在复制改名的第二套 Agent 事件。
+- [x] 普通生成把 Pi `message_update` 原样包装为 `pi.event` 并按发生顺序增量展示。
+- [x] 切换到其他会话不取消生成；返回后可看到实时状态或最终回答。
+- [x] 点击停止后 1 秒内调用 Pi `abort()`，SessionView 最终回到 `idle`。
+- [x] SSE 建连与重连的第一个事件都是 `snapshot`；注册监听器到 snapshot 发送完成之间的 Pi 事件不丢失。
+- [x] Runtime 异常退出再启动后，最后一条已提交 Pi session entry 可恢复，允许丢失未提交 token。
+- [x] 同 Session 并发发送第二个生成命令返回 `409 session_busy`；不同 Session 可以并发运行。
+- [x] SSE 输出只包含 `snapshot`、`pi.event`、`adapter.error`，不存在复制改名的第二套 Agent 事件。
 
 ### 15.3 重新生成与无分支约束
 
-- [ ] 仅最近一条 assistant 回答显示“重新生成”。
-- [ ] 重新生成调用 Pi 原生 tree/navigation API，新回答成功后成为活动 leaf 路径。
-- [ ] 重新生成失败或取消时恢复原 leaf，原回答仍是活动路径。
-- [ ] Pi 内部可以保留旧分支，但 SessionView 只返回活动路径。
-- [ ] UI 不出现会话分支、替代回答、编辑历史消息或编辑后重发入口。
+- [x] 仅最近一条 assistant 回答显示“重新生成”。
+- [x] 重新生成调用 Pi 原生 tree/navigation API，新回答成功后成为活动 leaf 路径。
+- [x] 重新生成失败或取消时恢复原 leaf，原回答仍是活动路径。
+- [x] Pi 内部可以保留旧分支，但 SessionView 只返回活动路径。
+- [x] UI 不出现会话分支、替代回答、编辑历史消息或编辑后重发入口。
 
 ### 15.4 上下文
 
-- [ ] 长会话达到 Pi 锁定版本的 `shouldCompact` 条件时，通过 `AgentHarness.compact()` 生成 compaction entry。
-- [ ] 压缩参数使用 Pi `DEFAULT_COMPACTION_SETTINGS`，Glaux 不维护独立阈值或摘要表。
-- [ ] 压缩失败不会静默删除 Pi session entry；无法继续时返回 `context_overflow`。
-- [ ] 重启后 Pi compaction entry 生效，后续对话可继续。
+- [x] 长会话达到 Pi 锁定版本的 `shouldCompact` 条件时，通过 `AgentHarness.compact()` 生成 compaction entry。
+- [x] 压缩参数使用 Pi `DEFAULT_COMPACTION_SETTINGS`，Glaux 不维护独立阈值或摘要表。
+- [x] 压缩失败不会静默删除 Pi session entry；无法继续时返回 `context_overflow`。
+- [x] 重启后 Pi compaction entry 生效，后续对话可继续。
 
 ### 15.5 安全与兼容
 
-- [ ] 自动扫描 Pi SQLite、Glaux companion table、custom entries、应用日志和错误响应，API Key/Authorization/Bearer token 均不存在。
-- [ ] 三个 Pi 包使用当前维护的包名并由 lockfile 锁定精确版本；依赖树中不存在 `@mariozechner/pi-agent-core` 和 `@earendil-works/pi-server`。
-- [ ] Pi API/Event compatibility test 覆盖 Harness 创建、prompt、abort、compaction、Session reopen 和 SQLite migration。
-- [ ] `glaux.command.*` entries 不出现在模型输入和聊天消息列表中。
-- [ ] Pi 内置目录已知模型可直接生成；自定义模型缺少 `context_window`/`max_tokens` 时返回
+- [x] 自动扫描 Pi SQLite、Glaux companion table、custom entries、应用日志和错误响应，API Key/Authorization/Bearer token 均不存在。
+- [x] 三个 Pi 包使用当前维护的包名并由 lockfile 锁定精确版本；依赖树中不存在 `@mariozechner/pi-agent-core` 和 `@earendil-works/pi-server`。
+- [x] Pi API/Event compatibility test 覆盖 Harness 创建、prompt、abort、compaction、Session reopen 和 SQLite migration。
+- [x] `glaux.command.*` entries 不出现在模型输入和聊天消息列表中。
+- [x] Pi 内置目录已知模型可直接生成；自定义模型缺少 `context_window`/`max_tokens` 时返回
   `model_metadata_required`，不得使用 Glaux 自定义默认值。
 - [ ] 编辑器、左侧栏、底部面板及 Dock 布局行为无回归。
 - [ ] Agent 面板仍位于右侧 Dock，默认宽度为 `340px`，用户调整后的 Dock 布局可恢复。
-- [ ] Python FastAPI、`science-core` 与现有 `/task/*` 行为无需修改即可通过既有测试。
+- [x] Python FastAPI、`science-core` 与现有 `/task/*` 行为无需修改即可通过既有测试。
 
 ### 15.6 Adapter 契约
 
-- [ ] 重复创建同一客户端 `session_id` 不产生重复 Pi Session。
-- [ ] 同一 `command_id` 和相同内容重复提交不产生第二条 user entry 或第二次模型调用；已 settled 时返回当前 SessionView。
-- [ ] 同一 `command_id` 携带不同内容返回 `409 idempotency_conflict`。
-- [ ] Runtime 重启后遇到未 settled 的旧 `command_id` 返回 `409 command_outcome_unknown`，不会自动重放 prompt。
-- [ ] `abort` 在 Harness 已 `idle` 时幂等返回当前 snapshot。
-- [ ] Provider、Pi 和 Storage 错误按第 13 节映射，响应不暴露堆栈或敏感连接字段。
+- [x] 重复创建同一客户端 `session_id` 不产生重复 Pi Session。
+- [x] 同一 `command_id` 和相同内容重复提交不产生第二条 user entry 或第二次模型调用；已 settled 时返回当前 SessionView。
+- [x] 同一 `command_id` 携带不同内容返回 `409 idempotency_conflict`。
+- [x] Runtime 重启后遇到未 settled 的旧 `command_id` 返回 `409 command_outcome_unknown`，不会自动重放 prompt。
+- [x] `abort` 在 Harness 已 `idle` 时幂等返回当前 snapshot。
+- [x] Provider、Pi 和 Storage 错误按第 13 节映射，响应不暴露堆栈或敏感连接字段。
+
+### 15.7 开发侧验证证据
+
+| 验证 | 结果 |
+| --- | --- |
+| Agent Runtime | 14 个测试文件、27 项测试通过；typecheck、lint、build 通过 |
+| Frontend | 4 个测试文件、8 项测试通过；typecheck、lint、build 通过 |
+| 既有后端 | 156 项 pytest 通过；本 Feature 未修改 Python 领域路径 |
+| 编译产物 smoke | `GET /agent-api/v1/health` 返回 `adapter/pi/storage = ok` |
+| 安全扫描 | 双 SQLite、Pi custom entries、事件、错误与脱敏日志快照均无特征测试 credential |
+| 待业务验收 | 真实 Provider 两轮流式对话；Dock 在 340px、拖宽/移动及刷新后的视觉与布局恢复 |
 
 ## 16. 决策记录
 

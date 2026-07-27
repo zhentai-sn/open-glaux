@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   TEST_CONNECTION,
   createRuntimeFixture,
+  waitFor,
 } from "../helpers/runtime-fixture.js";
 
 describe("Pi default compaction", () => {
@@ -59,6 +60,73 @@ describe("Pi default compaction", () => {
         await fixture.sessions.closeSession(reopened);
       }
       expect(events).toContain("session_compact");
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it("preserves entries and records context_overflow when compaction fails", async () => {
+    const fixture = await createRuntimeFixture(
+      [
+        [
+          fauxAssistantMessage("compaction failed", {
+            stopReason: "error",
+            errorMessage: "controlled compact context failure",
+          }),
+        ],
+      ],
+      { contextWindow: 40_000 },
+    );
+    const sessionId = crypto.randomUUID();
+    let originalMessageCount = 0;
+
+    try {
+      await fixture.sessions.createSession({ session_id: sessionId });
+      const session = await fixture.sessions.openSession(sessionId);
+      for (let index = 0; index < 12; index += 1) {
+        await session.appendMessage({
+          role: "user",
+          content: `${index}:${"x".repeat(12_000)}`,
+          timestamp: Date.now(),
+        });
+        await session.appendMessage(fauxAssistantMessage(`answer-${index}`));
+      }
+      originalMessageCount = (await session.getEntries()).filter(
+        (entry) => entry.type === "message",
+      ).length;
+      await fixture.sessions.closeSession(session);
+
+      await fixture.commands.accept(sessionId, {
+        command_id: crypto.randomUUID(),
+        type: "prompt",
+        content: "continue",
+        connection: { ...TEST_CONNECTION, context_window: 40_000 },
+      });
+      await fixture.registry.waitForIdle(sessionId);
+      await waitFor(async () => {
+        const reopened = await fixture.sessions.openSession(sessionId);
+        try {
+          return (await reopened.getEntries()).some(
+            (entry) =>
+              entry.type === "custom" &&
+              entry.customType === "glaux.command.settled" &&
+              (entry.data as { code?: string }).code === "context_overflow",
+          );
+        } finally {
+          await fixture.sessions.closeSession(reopened);
+        }
+      });
+
+      const reopened = await fixture.sessions.openSession(sessionId);
+      try {
+        expect(
+          (await reopened.getEntries()).filter(
+            (entry) => entry.type === "message",
+          ).length,
+        ).toBeGreaterThanOrEqual(originalMessageCount);
+      } finally {
+        await fixture.sessions.closeSession(reopened);
+      }
     } finally {
       await fixture.close();
     }

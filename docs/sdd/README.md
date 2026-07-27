@@ -25,7 +25,7 @@ stateDiagram-v2
 
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
-| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `ready` | Glaux 项目维护者 | 2026-07-27 |
+| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented` | Glaux 项目维护者 | 2026-07-27 |
 
 ## 维护约定
 

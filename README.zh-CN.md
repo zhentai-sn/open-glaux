@@ -81,6 +81,19 @@ Glaux 是**科研**工具:经伦理审查(IRB)、在脱敏数据上做的回顾�
 **Pre-alpha · 预研究阶段。** 这里的方向是我们正在建造的北极星,目前还不是已交付的保证——与其过度承诺,
 我们宁可如实这么说。
 
+## 本地开发
+
+Glaux 现在由三个本地进程组成：Vite（`5173`）、FastAPI（`8000`）和基于 Pi 的 Agent Runtime
+（`8010`）。安装 Node.js `>=22.19.0`、Python 3.12 与 `uv` 后运行：
+
+```bash
+make install
+make -j3 dev
+```
+
+参考 Agent 会话默认保存在 `.glaux/agent/`。Provider 配置、数据备份、故障恢复、排障与验证方式见
+[参考 Agent 会话运行手册](docs/runbooks/reference-agent-conversations.md)。
+
 ## 路线图
 
 **北极星:** Biomedical Image Insight Agents —— 跨模态交付可验证、可复现洞察的智能体,建立在"模型越强

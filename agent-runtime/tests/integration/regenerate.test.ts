@@ -91,4 +91,45 @@ describe("latest answer regeneration", () => {
       await fixture.close();
     }
   });
+
+  it("restores the previous active leaf when regeneration fails", async () => {
+    const fixture = await createRuntimeFixture([
+      [fauxAssistantMessage("stable answer")],
+      [
+        fauxAssistantMessage("provider failed", {
+          stopReason: "error",
+          errorMessage: "controlled fake failure",
+        }),
+      ],
+    ]);
+    const sessionId = crypto.randomUUID();
+
+    try {
+      await fixture.sessions.createSession({ session_id: sessionId });
+      await fixture.commands.accept(sessionId, {
+        command_id: crypto.randomUUID(),
+        type: "prompt",
+        content: "keep this question",
+        connection: TEST_CONNECTION,
+      });
+      await fixture.registry.waitForIdle(sessionId);
+
+      await fixture.commands.accept(sessionId, {
+        command_id: crypto.randomUUID(),
+        type: "regenerate",
+        connection: TEST_CONNECTION,
+      });
+      await fixture.registry.waitForIdle(sessionId);
+
+      const view = await fixture.sessions.getSession(sessionId);
+      expect(view.messages).toHaveLength(2);
+      expect(
+        view.messages[1]?.role === "assistant"
+          ? contentText(view.messages[1].content)
+          : "",
+      ).toBe("stable answer");
+    } finally {
+      await fixture.close();
+    }
+  });
 });

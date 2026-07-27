@@ -194,7 +194,6 @@ export function VolumeViewer() {
       engineRef.current = null;
       vpRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 切 volume → 建每帧一个 imageId 的 stack + 设 numSlices

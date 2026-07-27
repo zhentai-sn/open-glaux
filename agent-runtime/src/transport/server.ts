@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import Fastify from "fastify";
+import Fastify, { LogController } from "fastify";
 
 import { RuntimeError, safeError } from "../errors.js";
 import type { RouteDependencies } from "./routes.js";
@@ -29,7 +29,7 @@ export function buildServer(options: BuildServerOptions = {}) {
         },
       },
     },
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
   });
 
   server.get("/agent-api/v1/health", async () => ({

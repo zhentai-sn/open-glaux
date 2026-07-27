@@ -86,6 +86,20 @@ fluorescence-microscopy prototype; this repo is the clean restart.
 **Pre-alpha · pre-research.** The direction here is a north star we are building toward, not a shipped
 guarantee — we would rather say that honestly than oversell.
 
+## Development
+
+Glaux now runs as three local processes: Vite (`5173`), FastAPI (`8000`), and the Pi-based Agent Runtime
+(`8010`). With Node.js `>=22.19.0`, Python 3.12, and `uv` installed:
+
+```bash
+make install
+make -j3 dev
+```
+
+Reference-agent sessions are stored locally under `.glaux/agent/` by default. See the
+[reference Agent runbook](docs/runbooks/reference-agent-conversations.md) for Provider setup, data backup,
+recovery, troubleshooting, and validation.
+
 ## Roadmap
 
 **North star:** Biomedical Image Insight Agents — agents that deliver verified, reproducible insight across

@@ -3,7 +3,7 @@
 > **用途**：把[《内置参考智能体与本地会话管理》SDD](../sdd/feats/00-reference-agent-conversations/README.md)
 > 拆成可逐项执行、验证和提交的实现任务。
 >
-> **日期**：2026-07-27 · **类别**：plan（ce-plan 风格） · **状态**：ready
+> **日期**：2026-07-27 · **类别**：plan（ce-plan 风格） · **状态**：completed
 >
 > **范围**：第一阶段只交付右侧 Agent Dock 内的持续对话与本地会话管理。Pi 提供 Agent harness、Session、
 > 消息树、停止和上下文压缩；Glaux 只建设 Node sidecar、薄 REST/SSE 适配层和产品 UI。
@@ -650,3 +650,5 @@ flowchart LR
 
 - **2026-07-27**：v1。由 ready 状态 SDD 拆为 RA0～RA7；采用 Pi-first、兼容性先行、薄
   REST/SSE Adapter、右侧栏首期会话 UI 的串行实施路线。
+- **2026-07-27**：RA0～RA7 已实施并完成开发侧验证；真实 Provider smoke 与 Dock 视觉/布局恢复
+  留待业务验收，SDD 状态更新为 `implemented`，不提前标记为 `accepted`。
