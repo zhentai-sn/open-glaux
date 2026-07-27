@@ -38,9 +38,14 @@ env/
 # Node / 前端
 node_modules/
 frontend/dist/
+agent-runtime/dist/
+agent-runtime/coverage/
 *.tsbuildinfo
 npm-debug.log*
 .eslintcache
+
+# Agent Runtime 本地会话数据
+.glaux/
 
 # 本地开发配置（含机器相关的 WSL/nvm 绝对路径，不入库）
 .claude/launch.json

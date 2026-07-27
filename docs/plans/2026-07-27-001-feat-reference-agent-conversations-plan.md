@@ -124,7 +124,7 @@ flowchart LR
 - Runtime 固定只监听 `127.0.0.1`；默认端口为 `8010`，仅 `GLAUX_AGENT_PORT` 可覆盖。
 - `/agent-api/v1` 是 Runtime 自身路由前缀；Vite 代理不重写语义路径。
 - `GLAUX_AGENT_DATA_DIR` 指定数据目录；开发默认使用仓库根 `.glaux/agent/`，测试必须使用临时目录。
-- HTTP 层使用 Fastify；Glaux companion database 使用 Node 22.13+ 内置 `node:sqlite`，不复用或扩展
+- HTTP 层使用 Fastify；Glaux companion database 使用 Node 22.19+ 内置 `node:sqlite`，不复用或扩展
   Pi Storage 的数据库连接。
 - Pi Session database 与 `glaux-meta.sqlite` 分文件；Glaux 代码不得查询 Pi 数据库内部表。
 - Runtime 使用独立 `agent-runtime/package-lock.json`；三个 Pi 包在 `package.json` 中写精确版本，不用
@@ -155,7 +155,7 @@ flowchart LR
 
 **实施**
 
-1. 建立 Node 22+、TypeScript、ESM 的最小包；测试采用 Vitest。
+1. 建立 Node 22.19+、TypeScript、ESM 的最小包；测试采用 Vitest。
 2. 安装并精确锁定：
    `@earendil-works/pi-agent-core`、`@earendil-works/pi-ai`、
    `@earendil-works/pi-storage-sqlite-node`。
