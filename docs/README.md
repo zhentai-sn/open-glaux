@@ -8,6 +8,7 @@
 docs/
 ├── README.md          # 本文件：文档区导航与命名规约
 ├── requirements.zh-CN.md  # 需求清单（初步 v0，活文档）
+├── sdd/               # 规范驱动开发：Feature 边界、契约、状态机与验收
 ├── brainstorms/       # 脑暴 / 需求文档（按任务，right-sized）
 ├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
 └── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
@@ -18,6 +19,7 @@ docs/
 
 - **[纲领 · Charter](roadmaps/charter.zh-CN.md)** —— Glaux 是什么、发展目标、决策过滤器、边界。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新——与 roadmaps/ 下按版本日期存档的其余文件不同，但同属路线图一族（路线图由纲领派生）。
 - **[需求清单 · Requirements](requirements.zh-CN.md)** —— 初步需求（v0）：首个用户、场景、按环境四层的功能需求、成功标准与开放问题。活文档，随阶段 2 推进更新。
+- **[SDD 索引](sdd/README.md)** —— 实现前冻结 Feature 范围、契约、状态机、错误处理与验收标准；仅 `ready` SDD 可进入实现规划。
 
 ## 一、调研 researches/
 
@@ -93,6 +95,14 @@ docs/
 | 文件 | 日期 | 主题 |
 | --- | --- | --- |
 | [20260705-01-cubs-imt-first-task.zh-CN.md](brainstorms/20260705-01-cubs-imt-first-task.zh-CN.md) | 2026-07-05 | 第一个任务：CUBS 颈动脉 IMT 分割→测量 |
+
+## 四、规范驱动开发 sdd/
+
+Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态、边界、输入输出、契约、生命周期、错误处理、验收与决策。
+
+| Feature | 状态 | 主题 |
+| --- | --- | --- |
+| [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `ready` | 内置参考智能体与本地会话管理 |
 
 ## 通用约定
 
