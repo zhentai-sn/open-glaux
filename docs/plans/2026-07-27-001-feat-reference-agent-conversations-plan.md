@@ -21,7 +21,8 @@
 - 使用 `@earendil-works/pi-agent-core` 的 `AgentHarness`，不自行实现 Agent 循环。
 - 使用 `@earendil-works/pi-storage-sqlite-node` 持久化 Pi Session，不自建消息、Run、摘要或事件表。
 - 用独立 Node sidecar 暴露 SDD §6.3 的 `/agent-api/v1` REST/SSE 契约。
-- 保留现有 Provider、Model、Base URL、API Key 配置入口；credential 仅随单次生成命令进入 Runtime 内存。
+- 保留现有 Provider、Model、Base URL、API Key 配置入口；自定义模型补充 Context Window 与 Max
+  Output Tokens；credential 仅随单次生成命令进入 Runtime 内存。
 - 权限模式支持 `observe`、`suggest`、`controlled`、`autonomous` 四级持久化与展示，默认
   `controlled`；本期不执行工具。
 
@@ -307,7 +308,8 @@ npm test -- tests/integration/session-lifecycle.test.ts tests/security/storage-l
 7. 同 Session busy 时拒绝第二个生成命令；不同 Session 可并行。
 8. `abort` 直接调用 Pi `abort()`；idle 时幂等返回 snapshot。
 9. `regenerate` 只解析活动路径最近一条 assistant 及其前一条 user：
-   保存原 leaf → 导航到 user → 生成；成功保留新 leaf，失败或取消恢复原 leaf。
+   保存原 leaf → 导航到 user 的 parent → replay 原 user 文本生成；成功保留新 leaf，失败或取消恢复
+   原 leaf。该流程只调用 Pi 公共 tree/Session API。
 10. 会话切换不触碰 registry 中其他 Session 的 Harness，也不调用 `abort()`。
 
 **验证**
@@ -411,7 +413,7 @@ npm test -- \
 7. command ID 由浏览器生成 UUID；网络不确定时复用同一 ID 重试，不创建新 ID。
 8. prompt/regenerate 从现有 `session.connection` 读取 provider、model、base URL、API Key；
    通过 RA0 冻结的单一映射函数转换 provider 标识；credential 只进入请求对象，错误对象和 store
-   不保存它。
+   不保存它。自定义模型同时携带 SDD D-019 要求的 `context_window` 与 `max_tokens`。
 9. Runtime 离线时保留当前 snapshot，显示离线并禁用输入；恢复连接后主动刷新列表和当前会话。
 10. 增加 Vitest、jsdom 和 Testing Library 的最小测试脚本，不扩大到全仓库组件重写。
 
@@ -457,7 +459,8 @@ npm run build
 
 **实施**
 
-1. 从 `AgentPanel.tsx` 提取现有连接配置为 `ConnectionConfig`，保留测试连接、拉模型和本地服务快填。
+1. 从 `AgentPanel.tsx` 提取现有连接配置为 `ConnectionConfig`，保留测试连接、拉模型和本地服务快填；
+   对 Pi 内置目录无法解析的自定义模型显示 Context Window 与 Max Output Tokens 数值输入。
 2. `AgentPanel` 变为轻量容器，内部固定五区：
    顶栏、配置栏、消息区、Composer、面板内覆盖式会话抽屉。
 3. 顶栏提供当前标题、会话抽屉、新建和更多菜单；新建复用服务端返回的唯一空会话。

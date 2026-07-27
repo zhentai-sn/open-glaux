@@ -56,6 +56,8 @@ export interface ConnectionInput {
   provider: string;
   model: string;
   base_url?: string;
+  context_window?: number;
+  max_tokens?: number;
   credential?: string;
 }
 
@@ -83,3 +85,27 @@ export interface SafeErrorBody {
     trace_id: string;
   };
 }
+
+export type TransportEvent =
+  | {
+      event: "snapshot";
+      data: SessionView;
+    }
+  | {
+      event: "pi.event";
+      data: {
+        session_id: string;
+        command_id?: string;
+        event: import("@earendil-works/pi-agent-core").AgentHarnessEvent;
+      };
+    }
+  | {
+      event: "adapter.error";
+      data: {
+        session_id: string;
+        command_id?: string;
+        code: string;
+        message: string;
+        trace_id: string;
+      };
+    };

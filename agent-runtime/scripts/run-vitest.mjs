@@ -5,9 +5,12 @@ import { resolve } from "node:path";
 const tempDir = resolve("node_modules/.glaux-tmp");
 mkdirSync(tempDir, { recursive: true });
 
+const args = process.argv.slice(2);
+if (!args.includes("--exclude")) args.push("--exclude", "dist/**");
+
 const child = spawn(
   process.execPath,
-  [resolve("node_modules/vitest/vitest.mjs"), ...process.argv.slice(2)],
+  [resolve("node_modules/vitest/vitest.mjs"), ...args],
   {
     env: {
       ...process.env,

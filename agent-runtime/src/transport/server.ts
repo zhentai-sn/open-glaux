@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 
 import { RuntimeError, safeError } from "../errors.js";
+import type { RouteDependencies } from "./routes.js";
+import { registerRoutes } from "./routes.js";
 import { redact } from "../security/redact.js";
 
 export interface BuildServerOptions {
   healthCheck?: () => Promise<Record<string, unknown>>;
+  routes?: RouteDependencies;
 }
 
 export function buildServer(options: BuildServerOptions = {}) {
@@ -36,6 +39,19 @@ export function buildServer(options: BuildServerOptions = {}) {
     storage: "ok",
     ...((await options.healthCheck?.()) ?? {}),
   }));
+  if (options.routes) registerRoutes(server, options.routes);
+
+  server.setNotFoundHandler((request, reply) => {
+    const traceId = request.id || randomUUID();
+    return reply
+      .status(404)
+      .send(
+        safeError(
+          new RuntimeError("not_found", "The requested Runtime route was not found.", 404),
+          traceId,
+        ),
+      );
+  });
 
   server.setErrorHandler((error, request, reply) => {
     const traceId = request.id || randomUUID();

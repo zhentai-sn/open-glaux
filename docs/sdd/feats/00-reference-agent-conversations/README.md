@@ -60,6 +60,8 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 | Model | 是 | 来自现有 Agent 连接配置 |
 | API Key | 视 Provider 而定 | 每次运行临时传入 Runtime，不持久化、不记录日志 |
 | Base URL | 否 | OpenAI-compatible、本地 Ollama/LM Studio 等连接可使用 |
+| Context Window | 自定义模型必填 | Pi 内置目录已知的模型可省略；否则提供模型上下文上限 |
+| Max Output Tokens | 自定义模型必填 | Pi 内置目录已知的模型可省略；否则提供单次输出上限 |
 | 权限模式 | 是 | `observe`、`suggest`、`controlled`、`autonomous`；首期默认 `controlled` |
 
 ### 4.2 系统输入
@@ -75,6 +77,9 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 - 同一 Pi Session 同一时刻至多有一个非 `idle` 的 `AgentHarness` 操作。
 - 归档会话只读；恢复为 `active` 后方可继续发送。
 - API Key 只能存在于请求处理所需的内存中，禁止写入 SQLite、事件、错误详情和应用日志。
+- Runtime 优先从 Pi 内置 model catalog 解析模型元数据。无法解析的自定义模型必须同时提供
+  `context_window` 与 `max_tokens`；`context_window >= 1024`、`max_tokens >= 1` 且
+  `max_tokens < context_window`，禁止由 Glaux 静默猜测默认值。
 - Glaux 不直接读写 Pi SQLite 内部表；所有 transcript、消息树和 compaction 操作必须通过 Pi Session/Harness API。
 
 ## 5. 输出
@@ -188,6 +193,8 @@ sequenceDiagram
     "provider": "openai-compatible",
     "model": "example-model",
     "base_url": "http://127.0.0.1:1234/v1",
+    "context_window": 32768,
+    "max_tokens": 4096,
     "credential": "ephemeral-api-key"
   }
 }
@@ -199,6 +206,8 @@ sequenceDiagram
 - `regenerate` 不接收任意目标 ID，只操作活动路径上的最近一条 assistant 回答。
 - `abort` 不包含 `content` 或 `connection`。
 - `credential` 仅存在于该命令的内存生命周期中，不得出现在响应、日志、事件或数据库。
+- `context_window` 与 `max_tokens` 对 Pi 内置目录已知模型可省略；自定义模型必须成对提供并满足
+  §4.3 的数值约束。
 - `command_id` 关联 Pi namespaced `glaux.command.accepted/settled` entries，用于避免网络重试产生重复 prompt。
 
 SSE 只定义三种 Adapter 事件，不复制 Pi 完整事件体系：
@@ -236,7 +245,9 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 7. 切换会话不得调用 `abort()`；仍在运行的 Harness 必须保留在 Runtime registry 中。
 8. 停止生成调用 Pi `abort()`；部分回答是否形成 session entry 以锁定版本的 Pi 行为为准，Glaux 不自行拼接持久化。
 9. 仅活动路径上的最近一条 assistant 消息可重新生成，且其前一条活动 entry 必须为 user。
-10. 重新生成使用 Pi 原生消息树：保存原 leaf，导航到最近 user entry 后生成新分支；成功后新分支成为活动路径，失败或取消时恢复原 leaf。
+10. 重新生成使用 Pi 原生消息树：保存原 leaf，导航到最近 user entry 的 parent，再以原 user 文本调用
+    `prompt()` 生成新分支；成功后新分支成为活动路径，失败或取消时恢复原 leaf。该 replay 只用于内部
+    分支生成，活动路径最终仍只包含一份该 user 消息。
 11. 历史 user 消息不可编辑；任何“编辑后重发”能力必须作为未来分支 Feature 另行立项。
 12. Adapter 在 `prompt`/`regenerate` 前、Harness 为 `idle` 时调用 Pi `shouldCompact`；命中后先完成 `AgentHarness.compact()` 再生成。触发阈值、cut point、摘要和 retained tail 全部使用锁定版本的 Pi 默认设置。
 13. Glaux 不维护独立摘要表、不自行删除消息，也不规定与 Pi 默认值不同的 70%/50% 阈值。
@@ -304,6 +315,8 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.provider` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.model` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.base_url` | text nullable | 自定义 Provider 可用 |
+| `connection.context_window` | integer nullable | 自定义模型必填；Pi 内置目录已知模型可省略 |
+| `connection.max_tokens` | integer nullable | 自定义模型必填；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
 
 ## 10. 幂等性
@@ -372,6 +385,7 @@ Pi 原生事件只用于当前 SSE 连接和 UI 更新，不额外持久化。`m
 | `provider_auth_failed` | `401/403` | 提示检查连接凭据 | 打开现有连接配置重新验证 |
 | `provider_rate_limited` | `429` | 显示可重试提示 | 等待后重试 |
 | `provider_unreachable` | 网络/本地模型不可达 | 显示 Provider 与脱敏地址 | 启动本地模型或检查网络 |
+| `model_metadata_required` | 自定义模型缺少上下文/输出上限 | 在连接配置中补充两个数值 | 查询模型服务或模型说明 |
 | `context_overflow` | Pi compaction 后仍超过限制 | 保留 Pi Session 并说明上下文过长 | 新建会话 |
 | `session_busy` | Harness phase 非 `idle` | `409`，聚焦当前生成 | 停止当前生成或等待完成 |
 | `idempotency_conflict` | command ID 被不同内容复用 | `409` | 生成新的 command ID |
@@ -474,6 +488,8 @@ erDiagram
 - [ ] 三个 Pi 包使用当前维护的包名并由 lockfile 锁定精确版本；依赖树中不存在 `@mariozechner/pi-agent-core` 和 `@earendil-works/pi-server`。
 - [ ] Pi API/Event compatibility test 覆盖 Harness 创建、prompt、abort、compaction、Session reopen 和 SQLite migration。
 - [ ] `glaux.command.*` entries 不出现在模型输入和聊天消息列表中。
+- [ ] Pi 内置目录已知模型可直接生成；自定义模型缺少 `context_window`/`max_tokens` 时返回
+  `model_metadata_required`，不得使用 Glaux 自定义默认值。
 - [ ] 编辑器、左侧栏、底部面板及 Dock 布局行为无回归。
 - [ ] Agent 面板仍位于右侧 Dock，默认宽度为 `340px`，用户调整后的 Dock 布局可恢复。
 - [ ] Python FastAPI、`science-core` 与现有 `/task/*` 行为无需修改即可通过既有测试。
@@ -509,6 +525,8 @@ erDiagram
 | D-016 | 2026-07-27 | 不自建 Message、Run、ContextSummary、RuntimeEvent 表 | 这些能力已由 Pi Session/Harness/Storage 提供，重复建设会产生双事实来源 |
 | D-017 | 2026-07-27 | SSE 原样承载 Pi AgentHarnessEvent | 降低映射成本并避免维护第二套 Agent 事件 taxonomy |
 | D-018 | 2026-07-27 | Glaux companion storage 只持久化标题、归档状态、权限模式 | 传输 receipt 使用 Pi namespaced custom entries，companion table 只保存 Pi 不负责的产品语义 |
+| D-019 | 2026-07-27 | 自定义模型显式提供 context window 与 max output tokens | Pi `Model` 强制需要两项元数据，官方 custom model 配置也要求显式声明；静默猜测会破坏压缩与溢出判断 |
+| D-020 | 2026-07-27 | regenerate 导航到最近 user 的 parent 后 replay 原文 | Pi 0.82.1 `AgentHarness` 没有公开 continue API；`prompt()` 会自行追加 user entry，该方式在不使用私有 API 的前提下生成等价新分支 |
 
 ## 17. 开放问题
 
