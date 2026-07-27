@@ -1200,6 +1200,361 @@ canvas {
   border-color: var(--agent-line);
 }
 
+/* ---- reference agent conversations (right dock only) ---- */
+.agent-conversation {
+  position: relative;
+  overflow: hidden;
+}
+.agent-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 43px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.agent-iconbtn {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  color: var(--mid);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 15px;
+}
+.agent-iconbtn:hover:not(:disabled) {
+  color: var(--bright);
+  background: var(--hover);
+  border-color: var(--line2);
+}
+.agent-iconbtn:disabled {
+  opacity: 0.4;
+}
+.agent-title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+}
+.agent-title b {
+  overflow: hidden;
+  color: var(--bright);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connection-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.connection-dot.online {
+  background: var(--good);
+  box-shadow: 0 0 0 2px rgba(78, 201, 138, 0.14);
+}
+.agent-configbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.08);
+}
+.agent-configbar > button {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--mid);
+  font-size: 10.5px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-configbar > button span {
+  color: var(--agent);
+  font-family: var(--mono);
+}
+.agent-configbar label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--faint);
+  font-size: 10px;
+}
+.agent-configbar select {
+  max-width: 86px;
+  padding: 2px 3px;
+  color: var(--mid);
+  border: 1px solid var(--line2);
+  border-radius: 4px;
+  background: var(--input);
+  font-size: 10px;
+}
+.context-usage {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+.agent-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  color: var(--crit);
+  border-bottom: 1px solid rgba(247, 109, 109, 0.3);
+  background: rgba(247, 109, 109, 0.1);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.agent-error button {
+  color: inherit;
+}
+.conversation-stream {
+  gap: 14px;
+}
+.turn.assistant {
+  align-items: flex-start;
+}
+.turn.assistant .abody,
+.turn.user .bubble {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.turn.assistant .abody {
+  width: 100%;
+}
+.agent-regenerate {
+  padding: 2px 5px;
+  color: var(--faint);
+  border-radius: 4px;
+  font-size: 10px;
+}
+.agent-regenerate:hover {
+  color: var(--agent);
+  background: var(--agent-dim);
+}
+.agent-empty {
+  display: flex;
+  flex: 1;
+  min-height: 130px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  padding: 18px;
+  color: var(--faint);
+  text-align: center;
+  font-size: 11.5px;
+}
+.agent-empty > span {
+  color: var(--agent);
+  font-size: 25px;
+}
+.agent-empty b {
+  color: var(--mid);
+  font-size: 13px;
+}
+.agent-empty p {
+  margin: 0;
+  line-height: 1.5;
+}
+.agent-readonly {
+  padding: 5px 10px;
+  color: var(--warn);
+  border-top: 1px solid rgba(233, 180, 76, 0.2);
+  background: rgba(233, 180, 76, 0.08);
+  font-size: 10.5px;
+}
+.conversation-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--line);
+}
+.conversation-composer textarea {
+  width: 100%;
+  min-height: 64px;
+  max-height: 160px;
+  resize: vertical;
+  padding: 8px 9px;
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  outline: none;
+  background: var(--input);
+  font: 12.5px/1.45 var(--sans);
+}
+.conversation-composer textarea:focus {
+  border-color: var(--agent-line);
+  box-shadow: 0 0 0 1px var(--agent-dim);
+}
+.conversation-composer textarea:disabled {
+  opacity: 0.55;
+}
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.attachment-disabled {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-primary {
+  min-width: 64px;
+  padding: 5px 9px;
+  color: #1a0d2e;
+  border-radius: 6px;
+  background: var(--agent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.composer-primary:disabled {
+  opacity: 0.4;
+}
+.composer-primary.stop {
+  color: var(--crit);
+  border: 1px solid rgba(247, 109, 109, 0.4);
+  background: rgba(247, 109, 109, 0.12);
+}
+.session-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: var(--sidebar);
+}
+.session-drawer-head {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 3px;
+  color: var(--bright);
+  font-size: 13px;
+}
+.session-drawer-head button {
+  color: var(--faint);
+}
+.session-search {
+  width: 100%;
+  margin: 5px 0 9px;
+  padding: 7px 9px;
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  outline: none;
+  background: var(--input);
+  font-size: 12px;
+}
+.session-search:focus {
+  border-color: var(--agent-line);
+}
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.session-group h3 {
+  margin: 10px 4px 5px;
+  color: var(--faint);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.session-item:hover {
+  background: var(--hover);
+}
+.session-item.active {
+  border-color: var(--agent-line);
+  background: var(--agent-dim);
+}
+.session-select {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 5px;
+  text-align: left;
+}
+.session-select span {
+  width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-select small {
+  color: var(--faint);
+  font-size: 9px;
+}
+.session-actions {
+  display: none;
+  flex: 0 0 auto;
+  gap: 1px;
+}
+.session-item:hover .session-actions,
+.session-item:focus-within .session-actions {
+  display: flex;
+}
+.session-actions button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.session-actions button:hover {
+  color: var(--bright);
+  background: var(--input);
+}
+.cfgsel-wide {
+  width: 100%;
+  max-width: none;
+}
+.cfgnum {
+  width: 120px;
+}
+.cfglink {
+  padding: 0;
+  color: var(--agent);
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+
 /* ---- status bar ---- */
 .status {
   display: flex;

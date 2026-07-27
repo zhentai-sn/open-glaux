@@ -25,11 +25,20 @@ export interface Connection {
   baseUrl: string; // "" → 用 provider 默认
   apiKey: string; // 仅本机 localStorage；发请求随 body 传后端
   model: string; // 选定模型 id
+  contextWindow: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
+  maxTokens: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
   models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
   lastTest?: { ok: boolean; at: string; reason?: string };
 }
 
-const CONNECTION_DEFAULTS: Connection = { provider: "anthropic", baseUrl: "", apiKey: "", model: "" };
+const CONNECTION_DEFAULTS: Connection = {
+  provider: "anthropic",
+  baseUrl: "",
+  apiKey: "",
+  model: "",
+  contextWindow: null,
+  maxTokens: null,
+};
 
 /** 载入连接：优先新键 glaux.connection；否则一次性从旧 vlmKey/vlmModel 迁移（旧键保留可回滚）。 */
 function loadConnection(): Connection {
