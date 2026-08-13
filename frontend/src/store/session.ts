@@ -66,6 +66,48 @@ function loadConnection(): Connection {
 
 export type Source = "agent" | "human"; // 当前叠加/测量的来源（模型产出 vs 人工修正）
 
+// ---- 双模式外壳（SDD feats/01）----
+export type UiMode = "focus" | "workbench";
+const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版本，旧键作废回默认
+const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
+
+/** Focus 布局微状态（会话栏/舞台开合）——UI 微状态，非领域字段。 */
+export interface FocusLayout {
+  railOpen: boolean;
+  stageOpen: boolean;
+}
+const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, stageOpen: true };
+
+/** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
+function loadUiMode(): UiMode {
+  try {
+    const raw = localStorage.getItem(UIMODE_KEY);
+    if (raw === "focus" || raw === "workbench") return raw;
+  } catch {
+    /* localStorage 不可用 → 默认 */
+  }
+  return "focus";
+}
+
+function loadFocusLayout(): FocusLayout {
+  try {
+    const raw = localStorage.getItem(FOCUS_LAYOUT_KEY);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        const p = parsed as Partial<FocusLayout>;
+        return {
+          railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
+          stageOpen: typeof p.stageOpen === "boolean" ? p.stageOpen : FOCUS_LAYOUT_DEFAULTS.stageOpen,
+        };
+      }
+    }
+  } catch {
+    /* 损坏 → 默认 */
+  }
+  return { ...FOCUS_LAYOUT_DEFAULTS };
+}
+
 export type View = "explorer" | "market"; // 侧边栏视图：资源管理器 / 插件市场（去掉搜索/源代码管理）
 export type PanelTab = "meas" | "out" | "prob" | "term";
 export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
@@ -91,6 +133,10 @@ type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : n
 type AgentMsg = Extract<Msg, { role: "agent" }>;
 
 interface SessionState {
+  // 外壳模式（SDD feats/01）——Focus/Workbench 是同一状态的两种投影，切换零请求
+  uiMode: UiMode;
+  focusLayout: FocusLayout;
+
   // 侧边栏 / 面板 / 工具
   sidebarView: View;
   panelTab: PanelTab;
@@ -127,8 +173,11 @@ interface SessionState {
 
   // 智能体对话
   messages: Msg[];
+  composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
 
   // actions
+  setUiMode: (m: UiMode) => void;
+  setFocusLayout: (patch: Partial<FocusLayout>) => void;
   setSidebarView: (v: View) => void;
   setPanelTab: (t: PanelTab) => void;
   togglePanel: () => void;
@@ -157,6 +206,7 @@ interface SessionState {
   setIntentBackend: (id: IntentBackendId) => void;
   setIntentBackends: (b: IntentBackendInfo[]) => void;
   setConnection: (patch: Partial<Connection>) => void;
+  setComposerDraft: (v: string) => void;
   pushUser: (text: string) => void;
   pushAgent: (m: DistributiveOmit<AgentMsg, "id" | "role">) => void;
   resetMessages: () => void;
@@ -166,6 +216,9 @@ let _id = 0;
 const nextId = () => ++_id;
 
 export const useSession = create<SessionState>((set) => ({
+  uiMode: loadUiMode(),
+  focusLayout: loadFocusLayout(),
+
   sidebarView: "explorer",
   panelTab: "meas",
   panelCollapsed: false,
@@ -198,7 +251,27 @@ export const useSession = create<SessionState>((set) => ({
   connection: loadConnection(),
 
   messages: [],
+  composerDraft: "",
 
+  setUiMode: (m) =>
+    set(() => {
+      try {
+        localStorage.setItem(UIMODE_KEY, m);
+      } catch {
+        /* 持久化失败不阻塞切换 */
+      }
+      return { uiMode: m };
+    }),
+  setFocusLayout: (patch) =>
+    set((s) => {
+      const next = { ...s.focusLayout, ...patch };
+      try {
+        localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify(next));
+      } catch {
+        /* noop */
+      }
+      return { focusLayout: next };
+    }),
   setSidebarView: (v) => set({ sidebarView: v }),
   setPanelTab: (t) => set({ panelTab: t }),
   togglePanel: () => set((s) => ({ panelCollapsed: !s.panelCollapsed })),
@@ -240,6 +313,7 @@ export const useSession = create<SessionState>((set) => ({
       }
       return { connection: next };
     }),
+  setComposerDraft: (v) => set({ composerDraft: v }),
   pushUser: (text) => set((s) => ({ messages: [...s.messages, { id: nextId(), role: "user", text }] })),
   pushAgent: (m) =>
     set((s) => ({ messages: [...s.messages, { ...m, role: "agent", id: nextId() } as AgentMsg] })),

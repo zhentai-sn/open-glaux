@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { ActivityBar } from "./components/ActivityBar";
+import { FocusShell } from "./components/focus/FocusShell";
 import { Shell } from "./components/Shell";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
@@ -10,6 +11,7 @@ import { loadImages } from "./data/actions";
 import { useSession } from "./store/session";
 
 export function App() {
+  const uiMode = useSession((s) => s.uiMode);
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);
   const setDatasources = useSession((s) => s.setDatasources);
@@ -60,8 +62,11 @@ export function App() {
     // 仅挂载时执行一次（种子只种一次；后续交互驱动）
   }, []);
 
+  // 双模式分叉（SDD feats/01 §6.2）：同一 store 的两种投影；key 强制换树，crossfade 由 CSS 承担。
+  // 数据装载 effect 在上方仅挂载时执行一次，与模式切换解耦——切换零请求由此保证。
+  if (uiMode === "focus") return <FocusShell key="focus" />;
   return (
-    <div className="ide">
+    <div className="ide shell-enter" key="workbench">
       <TitleBar />
       <div className="body">
         <ActivityBar />

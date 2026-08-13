@@ -1,6 +1,5 @@
-import { useState } from "react";
-
 import { useI18n } from "../../i18n";
+import { useSession } from "../../store/session";
 
 interface ConversationComposerProps {
   running: boolean;
@@ -16,7 +15,9 @@ export function ConversationComposer({
   onAbort,
 }: ConversationComposerProps) {
   const { t } = useI18n();
-  const [content, setContent] = useState("");
+  // 草稿在 store（非组件 state）：模式切换会重挂载对话列，未发送内容不得丢（SDD feats/01 §8/§15）。
+  const content = useSession((s) => s.composerDraft);
+  const setContent = useSession((s) => s.setComposerDraft);
 
   const submit = async () => {
     const next = content.trim();

@@ -47,6 +47,14 @@
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
 
+  /* 动效（纲领 §5）——时长/缓动一律走 token，组件内禁止写死 */
+  --motion-fast: 140ms;
+  --motion-base: 240ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* 尺度（设计稿 §2 间距/圆角） */
   --activity-w: 48px;
   --sidebar-w: 250px;

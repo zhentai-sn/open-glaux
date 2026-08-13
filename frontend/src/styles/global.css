@@ -1630,3 +1630,436 @@ canvas {
   --dv-tabs-container-scrollbar-color: #37373d;
   --dv-icon-hover-background-color: var(--hover);
 }
+
+/* ==================== Focus 模式（SDD feats/01 · 纲领 G1–G4 · 动效按纲领 §5） ==================== */
+
+/* 模式切换 crossfade：两分支根节点共用（App 分叉时 key 换树，各自淡入）。 */
+.shell-enter {
+  animation: shellfade var(--motion-slow) var(--ease-in-out);
+}
+@keyframes shellfade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mode-switch {
+  border: 1px solid var(--agent-line);
+  background: var(--agent-dim);
+  color: var(--agent);
+  font-size: 11px;
+  border-radius: 99px;
+  padding: 3px 10px;
+  margin-left: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter var(--motion-fast) var(--ease-out);
+}
+.mode-switch:hover { filter: brightness(1.2); }
+
+.focus-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--editor);
+  color: var(--ink);
+}
+
+/* ---- 顶栏：标识 · 图像上下文 · ⚙ · ⇄（收纳全部次要功能，D7/D8） ---- */
+.focus-topbar {
+  flex: none;
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  background: var(--titlebar);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.focus-topbar .logo { display: grid; place-items: center; }
+.focus-brand { color: var(--bright); font-size: 12.5px; }
+.focus-tagline { color: var(--faint); font-size: 11px; }
+.focus-topbar-grow { flex: 1; }
+/* 顶栏右侧 chip 化（设计稿视图 ①：📁 数据上下文 · ⚙ · ⇄ 统一胶囊语言） */
+.focus-picker { display: flex; align-items: center; gap: 6px; }
+.focus-picker-glyph { font-size: 11.5px; color: var(--mid); }
+.focus-sel {
+  background: var(--editor);
+  color: var(--mid);
+  border: 1px solid var(--line2);
+  border-radius: 99px;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  max-width: 180px;
+}
+.focus-sel:hover { color: var(--bright); border-color: var(--faint); }
+.focus-cfg-anchor { position: relative; display: flex; }
+.focus-cfg-anchor .cfgpop { top: 30px; right: 0; } /* 弹层锚到 ⚙ 下方（默认锚 agent 面板） */
+.focus-cfg-anchor > .focus-iconbtn {
+  width: auto;
+  height: auto;
+  border: 1px solid var(--line2);
+  border-radius: 99px;
+  background: var(--editor);
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+.focus-iconbtn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  color: var(--mid);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.focus-iconbtn:hover { background: var(--hover); color: var(--bright); }
+.focus-iconbtn:disabled { opacity: 0.45; cursor: default; }
+
+.focus-body { flex: 1; display: flex; min-height: 0; }
+
+/* ---- 会话栏：收窄条 ⇄ 展开（宽度过渡 --motion-base，退场同宽度过渡） ---- */
+.focus-rail {
+  flex: none;
+  width: 40px;
+  display: flex;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+  transition: width var(--motion-base) var(--ease-out);
+  overflow: hidden;
+}
+.focus-rail.open { width: 236px; }
+.focus-rail-strip {
+  width: 40px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+}
+.focus-rail-body { flex: 1; min-width: 0; }
+/* SessionDrawer 原为对话面板内的绝对浮层；rail 内常驻填充。 */
+.focus-rail-body .session-drawer { position: static; inset: auto; height: 100%; }
+/* 其头部 ✕ 驱动 agentSessions.drawerOpen，与 rail 的 railOpen 无关——rail 作用域内隐藏，收起走 « 按钮。
+   （作用域覆盖备案：实现计划 §5；上游类名变更需同 PR 修正。） */
+.focus-rail-body .session-drawer-head button { display: none; }
+
+/* ---- 对话列：Focus 主体。流/配置条/Composer 居中列宽 ≤720px（纲领模式层尺度） ---- */
+.focus-conversation {
+  flex: 1.15;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-right: 1px solid var(--line);
+}
+.focus-conversation .agent { flex: 1; min-height: 0; background: var(--editor); }
+/* AgentConversation 自带的 SessionDrawer 浮层与空态占位在 Focus 内由 SessionRail / FocusHero 接管；
+   其顶部工具条（☰/标题/＋/⋯）在 Focus 内整条冗余——会话操作归 SessionRail、连接配置归顶栏 ⚙（G3）。 */
+.focus-conversation .agent .session-drawer { display: none; }
+.focus-conversation .agent-empty { display: none; }
+.focus-conversation .agent-toolbar { display: none; }
+.focus-conversation .conversation-stream,
+.focus-conversation .agent-configbar,
+.focus-conversation .agent-error,
+.focus-conversation .conversation-composer {
+  width: 100%;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 连接/权限条移到输入框下方（Claude Code 式状态行）：flex order 重排 + 弱化为无边框小字。
+   Workbench 不受影响（作用域仅 .focus-conversation）。
+   注意：opacity<1 会创建 stacking context 且本条 DOM 序在 composer 之前——必须抬 z-index，
+   否则其内的上下文 tooltip 上弹时被 composer 盖住。 */
+.focus-conversation .agent > * { order: 0; }
+.focus-conversation .agent-configbar {
+  order: 2;
+  position: relative;
+  z-index: 5;
+  overflow: visible; /* 基础样式为 hidden，会把上弹的上下文 tooltip 裁掉 */
+  border-top: none;
+  border-bottom: none;
+  padding: 3px 10px 8px;
+  min-height: 0;
+  opacity: 0.75;
+}
+.focus-conversation .agent-configbar:hover { opacity: 1; }
+/* Composer 在 Focus 内始终是「输入框卡片」：发送/附件收进卡内同一行，聚焦整卡亮紫色光晕。 */
+.focus-conversation .conversation-composer {
+  order: 1;
+  border-top: none;
+  background: var(--sidebar);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 2px;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+.focus-conversation .conversation-composer:focus-within {
+  border-color: var(--agent-line);
+  box-shadow: 0 0 0 3px var(--agent-dim);
+}
+.focus-conversation .conversation-composer textarea {
+  background: transparent;
+  border: none;
+  padding: 2px 2px 8px;
+}
+.focus-conversation .conversation-composer textarea:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+.focus-conversation .attachment-disabled {
+  font-size: 11px;
+  color: var(--faint);
+  border: 1px dashed var(--line2);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+/* 空状态：hero → 输入框卡片 → 示例卡，整组垂直居中（顺序按设计稿视图 ①）。
+   用 margin-auto 而非 justify-content:center：内容超高时降级为顶对齐可滚动，不裁切顶部。 */
+.focus-conversation.empty { overflow-y: auto; }
+.focus-conversation.empty .focus-hero { margin-top: auto; }
+.focus-conversation.empty > .focus-cards { flex: none; margin-bottom: auto; padding-bottom: 12px; }
+.focus-conversation.empty .conversation-stream { display: none; }
+/* 空状态的连接/权限条隐藏：模型信息经顶栏 ⚙，开聊后配置条再出现。 */
+.focus-conversation.empty .agent-configbar { display: none; }
+/* 空状态只管布局（卡片外观/光晕/透明 textarea 已泛化到上方 Focus 通用段）。 */
+.focus-conversation.empty .agent {
+  flex: none;
+  height: auto;
+  min-height: auto;
+  width: min(680px, 92%);
+  margin: 16px auto 0;
+}
+
+/* ---- 空状态 hero + 示例卡（G2：示例即教学；布局按设计稿视图 ①） ---- */
+.focus-hero { flex: none; padding: 12px 24px 0; }
+.focus-hero-logo { display: flex; justify-content: center; margin-bottom: 10px; }
+.focus-hero h2 {
+  text-align: center;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--bright);
+}
+.focus-hero p {
+  text-align: center;
+  font-size: 13px;
+  color: var(--mid);
+  margin-top: 6px;
+}
+.focus-cards {
+  display: flex;
+  gap: 10px;
+  width: min(680px, 92%);
+  margin: 12px auto 0;
+}
+.focus-card {
+  flex: 1;
+  text-align: left;
+  background: var(--sidebar);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out);
+}
+.focus-card:hover { border-color: var(--agent-line); background: var(--hover); }
+.focus-card b { display: block; font-size: 12.5px; color: var(--bright); margin-bottom: 4px; }
+.focus-card span { display: block; font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+.focus-card .m {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--agent);
+}
+
+/* ---- 图像舞台：入场自右滑入（因果：结果从对话流向舞台，M1/M2） ---- */
+.focus-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #161616;
+  animation: stagein var(--motion-base) var(--ease-out);
+}
+@keyframes stagein {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+.focus-stage-tools {
+  flex: none;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.focus-tool {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--mid);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.focus-tool:hover { background: var(--hover); color: var(--bright); }
+.focus-tool[aria-pressed="true"] { background: var(--agent-dim); color: var(--agent); }
+.focus-stage-grow { flex: 1; }
+.focus-stage-busy { color: var(--agent); font-size: 11px; }
+.focus-stage-metrics {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.focus-metric { display: flex; align-items: baseline; gap: 4px; }
+.focus-metric b { font-size: 15px; color: var(--bright); font-variant-numeric: tabular-nums; }
+.focus-metric i { font-style: normal; font-size: 10.5px; color: var(--faint); }
+.focus-metric > span { font-size: 10.5px; color: var(--mid); }
+.focus-src {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--agent);
+  background: var(--agent-dim);
+  border: 1px solid var(--agent-line);
+  border-radius: 99px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.focus-src.human {
+  color: var(--warn);
+  background: rgba(233, 180, 76, 0.12);
+  border-color: rgba(233, 180, 76, 0.35);
+}
+.focus-stage-canvas { flex: 1; min-height: 0; position: relative; }
+.focus-stage-meta {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  z-index: 8;
+  font-size: 10.5px;
+  color: var(--faint);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+}
+.focus-stage-reopen {
+  flex: none;
+  writing-mode: vertical-rl;
+  border: none;
+  border-left: 1px solid var(--line);
+  background: var(--sidebar);
+  color: var(--mid);
+  font-size: 11px;
+  padding: 10px 6px;
+  cursor: pointer;
+}
+.focus-stage-reopen:hover { color: var(--bright); background: var(--hover); }
+
+/* ---- 上下文用量环形图（Claude Code 式；hover/focus 弹出精确数字） ---- */
+.context-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  outline: none;
+}
+.context-ring svg { display: block; }
+.context-ring-tip {
+  position: absolute;
+  right: 0;
+  top: 19px;
+  z-index: 30;
+  white-space: nowrap;
+  background: var(--activity);
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--bright);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.context-ring:hover .context-ring-tip,
+.context-ring:focus-visible .context-ring-tip { opacity: 1; }
+/* Focus 内配置行贴底，tooltip 向上弹 */
+.focus-conversation .context-ring-tip { top: auto; bottom: 19px; }
+.who svg { flex: none; }
+
+/* ---- 对话消息 Markdown 渲染（feats/00 §5.1；react-markdown，无原始 HTML） ---- */
+.md { font-size: 12.5px; line-height: 1.65; color: var(--ink); }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 6px 0; }
+.md h1, .md h2, .md h3, .md h4 {
+  margin: 12px 0 6px;
+  color: var(--bright);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.md h1 { font-size: 15px; }
+.md h2 { font-size: 14px; }
+.md h3, .md h4 { font-size: 13px; }
+.md strong { color: var(--bright); }
+.md em { color: var(--mid); }
+.md ul, .md ol { margin: 6px 0; padding-left: 20px; }
+.md li { margin: 3px 0; }
+.md li::marker { color: var(--faint); }
+.md code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.md pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: #141414;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.md pre code { background: none; padding: 0; font-size: 11.5px; }
+.md blockquote {
+  margin: 8px 0;
+  padding: 2px 12px;
+  border-left: 3px solid var(--agent-line);
+  color: var(--mid);
+}
+.md a { color: var(--accent2); text-decoration: none; }
+.md a:hover { text-decoration: underline; }
+.md hr { border: none; border-top: 1px solid var(--line2); margin: 10px 0; }
+.md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--line2); padding: 4px 9px; }
+.md th { color: var(--bright); background: var(--sidebar); }
+
+/* ---- M5：reduced-motion 下位移/缩放动效全关，仅保状态瞬时切换 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .shell-enter,
+  .focus-stage { animation: none; }
+  .focus-rail,
+  .focus-card,
+  .mode-switch { transition: none; }
+}

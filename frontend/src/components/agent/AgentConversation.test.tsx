@@ -82,9 +82,10 @@ describe("AgentConversation", () => {
     expect(screen.getByText("Explain this scan")).toBeInTheDocument();
     expect(screen.getByText("What is visible?")).toBeInTheDocument();
     expect(screen.getByText("A concise observation.")).toBeInTheDocument();
-    expect(screen.getByTitle("Context usage")).toHaveTextContent(
-      "128 / 32,768",
-    );
+    // 上下文用量为环形图，精确数字在 aria-label/tooltip 里（Claude Code 式）
+    expect(
+      screen.getByLabelText(/Context usage 128 \/ 32,768/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveValue("controlled");
     expect(screen.getByRole("textbox", { name: "Instruct the agent…" })).toBeEnabled();
   });

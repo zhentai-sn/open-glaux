@@ -8,7 +8,9 @@ import { useSession } from "../../store/session";
 import type { PermissionMode } from "../../agent/runtime/types";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
+import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
+import { OwlLogo } from "../OwlLogo";
 
 const PERMISSION_MODES: PermissionMode[] = [
   "observe",
@@ -16,6 +18,62 @@ const PERMISSION_MODES: PermissionMode[] = [
   "controlled",
   "autonomous",
 ];
+
+// 上下文用量环形图（Claude Code 式）：环弧 = 已用 / 窗口；悬停/聚焦弹出精确数字。
+// 窗口未知时只给灰环 + tokens 数（无单位裸数不上屏，G7）。用量语义色：≥90% crit、≥70% warn。
+function ContextRing({
+  tokens,
+  windowSize,
+  label,
+}: {
+  tokens: number | null;
+  windowSize: number | null;
+  label: string;
+}) {
+  const pct =
+    tokens != null && windowSize ? Math.min(1, tokens / windowSize) : null;
+  const R = 5;
+  const C = 2 * Math.PI * R;
+  const tone =
+    pct == null
+      ? "var(--mid)"
+      : pct >= 0.9
+        ? "var(--crit)"
+        : pct >= 0.7
+          ? "var(--warn)"
+          : "var(--agent)";
+  const pctText =
+    pct == null ? "" : pct > 0 && pct * 100 < 0.1 ? "<0.1%" : `${(pct * 100).toFixed(1)}%`;
+  const tip =
+    tokens == null
+      ? `${label} —`
+      : windowSize
+        ? `${label} ${tokens.toLocaleString()} / ${windowSize.toLocaleString()} · ${pctText}`
+        : `${label} ${tokens.toLocaleString()} tokens`;
+  return (
+    <span className="context-ring" tabIndex={0} aria-label={tip}>
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <circle cx="7" cy="7" r={R} fill="none" stroke="var(--line2)" strokeWidth="2.4" />
+        {pct != null && pct > 0 && (
+          <circle
+            cx="7"
+            cy="7"
+            r={R}
+            fill="none"
+            stroke={tone}
+            strokeWidth="2.4"
+            strokeDasharray={`${Math.max(C * pct, 0.9)} ${C}`}
+            strokeLinecap="round"
+            transform="rotate(-90 7 7)"
+          />
+        )}
+      </svg>
+      <span className="context-ring-tip" role="tooltip">
+        {tip}
+      </span>
+    </span>
+  );
+}
 
 export function AgentConversation() {
   const { t } = useI18n();
@@ -85,11 +143,8 @@ export function AgentConversation() {
       ? -1
       : messages.length - reversedAssistantIndex - 1;
   const context = view?.context_usage;
-  const contextLabel = context
-    ? context.context_window
-      ? `${context.tokens.toLocaleString()} / ${context.context_window.toLocaleString()}`
-      : context.tokens.toLocaleString()
-    : "—";
+  // 窗口大小：运行时回传优先，缺省回退连接配置里的 contextWindow（自定义模型必填）。
+  const contextWindow = context?.context_window ?? connection.contextWindow ?? null;
 
   return (
     <aside className="agent agent-conversation">
@@ -156,9 +211,11 @@ export function AgentConversation() {
             ))}
           </select>
         </label>
-        <span className="context-usage" title={t("agent_context")}>
-          ◔ {contextLabel}
-        </span>
+        <ContextRing
+          tokens={context?.tokens ?? null}
+          windowSize={contextWindow}
+          label={t("agent_context")}
+        />
       </div>
 
       {(!connected || error) && (
@@ -196,13 +253,16 @@ export function AgentConversation() {
               key={`${role}-${index}-${text.slice(0, 24)}`}
             >
               {role === "assistant" && (
-                <div className="who">
-                  <span className="d" />
-                  {t("agent_name")}
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
                 </div>
               )}
               <div className={role === "user" ? "bubble" : "abody plain"}>
-                {text || (running ? "…" : "")}
+                {role === "assistant" && text ? (
+                  <Markdown text={text} />
+                ) : (
+                  text || (running ? "…" : "")
+                )}
               </div>
               {role === "assistant" &&
                 index === lastAssistantIndex &&

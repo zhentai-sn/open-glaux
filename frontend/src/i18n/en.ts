@@ -144,6 +144,31 @@ export const en = {
   // VLM key 持久化提示
   vlm_key_persist_note: "Stored in this browser's local storage. Clear after use on shared machines; the proper long-term fix is a server-side session.",
   vlm_key_clear: "Clear",
+  // 双模式外壳（SDD feats/01）
+  mode_to_workbench: "Workbench",
+  mode_to_focus: "Focus",
+  focus_tagline: "turn images into verifiable insight",
+  focus_hero_title: "Describe your research goal",
+  focus_hero_sub: "Turn biomedical images of any modality into verifiable, reproducible insight.",
+  focus_pick_image: "Select image…",
+  focus_stage: "Image stage",
+  focus_stage_collapse: "Hide stage",
+  focus_stage_show: "Show stage",
+  focus_rail_collapse: "Collapse sessions",
+  focus_src_agent: "source · agent",
+  focus_src_human: "source · human",
+  focus_example_1_title: "Measure carotid IMT",
+  focus_example_1_desc: "Segment the intima-media and measure thickness; flag low-confidence segments",
+  focus_example_1_meta: "carotid_imt · CUBS",
+  focus_example_1_prompt: "Segment the intima-media on this carotid ultrasound and measure the IMT. Flag any low-confidence segments for me to review.",
+  focus_example_2_title: "Fetal head circumference",
+  focus_example_2_desc: "Fit the HC ellipse on the ultrasound and report millimetres",
+  focus_example_2_meta: "fetal_hc · HC18",
+  focus_example_2_prompt: "Fit the head-circumference ellipse on this fetal ultrasound and report HC in millimetres.",
+  focus_example_3_title: "Trial a small batch first",
+  focus_example_3_desc: "Run 10 images first, review them together, then scale to the full set",
+  focus_example_3_meta: "the first step of trust",
+  focus_example_3_prompt: "Run the analysis on a small batch of 10 images first so I can review the results before we run the full set.",
 } as const;
 
 export type I18nKey = keyof typeof en;
