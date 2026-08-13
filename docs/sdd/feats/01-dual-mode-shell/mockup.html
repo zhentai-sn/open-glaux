@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glaux 设计稿 · 双模式外壳(Focus / Workbench)</title>
+<style>
+  /* ===== 设计 Token(与 frontend/src/styles/tokens.css 对齐)===== */
+  :root {
+    --editor:#1e1e1e; --sidebar:#252526; --activity:#2d2d30; --titlebar:#323233;
+    --input:#3c3c3c; --line:#2b2b2b; --line2:#3c3c3c; --hover:#2a2d2e;
+    --ink:#cccccc; --mid:#9d9d9d; --faint:#6e7681; --bright:#e7e7e7;
+    --accent:#0e70c0; --accent2:#3794ff; --status:#6a3fb0;
+    --agent:#b58bf2; --agent-dim:rgba(181,139,242,.14); --agent-line:rgba(181,139,242,.34);
+    --li:#4fb0ff; --ma:#ff8a5b; --roi:#2dd4bf;
+    --good:#4ec98a; --warn:#e9b44c; --crit:#f76d6d;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#141416; color:var(--ink); font-family:var(--sans); padding:28px 16px 64px; }
+  .wrap { max-width:1240px; margin:0 auto; }
+
+  /* ===== 页眉与视图切换 ===== */
+  h1 { font-size:20px; color:var(--bright); font-weight:600; }
+  .sub { color:var(--mid); font-size:13px; margin:6px 0 18px; line-height:1.6; }
+  .sub code { font-family:var(--mono); color:var(--agent); font-size:12px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab { background:var(--sidebar); border:1px solid var(--line2); color:var(--mid);
+         padding:7px 14px; border-radius:6px; font-size:13px; cursor:pointer; }
+  .tab.on { background:var(--agent-dim); border-color:var(--agent-line); color:var(--agent); }
+  .tab:hover { color:var(--bright); }
+
+  /* ===== 应用画框 ===== */
+  .frame { border:1px solid var(--line2); border-radius:10px; overflow:hidden;
+           box-shadow:0 18px 48px rgba(0,0,0,.5); background:var(--editor); }
+  .screen { display:none; }
+  .screen.on { display:block; }
+
+  /* 顶栏(两模式共用) */
+  .tbar { height:38px; background:var(--titlebar); display:flex; align-items:center;
+          padding:0 12px; gap:10px; border-bottom:1px solid var(--line); }
+  .tbar b { font-size:12.5px; color:var(--bright); }
+  .tbar .dim { font-size:11px; color:var(--faint); }
+  .tbar .grow { flex:1; }
+  .chip { font-size:11.5px; color:var(--mid); background:var(--editor); border:1px solid var(--line2);
+          padding:3px 10px; border-radius:99px; cursor:pointer; }
+  .chip:hover { color:var(--bright); border-color:var(--faint); }
+  .chip.switch { color:var(--agent); border-color:var(--agent-line); background:var(--agent-dim); }
+  .owl { display:inline-flex; }
+
+  /* 标注圆点 */
+  .dot { display:inline-flex; width:17px; height:17px; border-radius:50%; background:var(--agent);
+         color:#17121f; font-size:11px; font-weight:700; align-items:center; justify-content:center;
+         font-family:var(--mono); flex:none; }
+  .dot.abs { position:absolute; z-index:9; box-shadow:0 0 0 3px rgba(181,139,242,.25); }
+
+  /* ===== Focus · 空状态 ===== */
+  .f-empty { height:640px; display:flex; position:relative; }
+  .rail { width:44px; background:var(--sidebar); border-right:1px solid var(--line);
+          display:flex; flex-direction:column; align-items:center; padding-top:10px; gap:8px; }
+  .rail .s { width:26px; height:26px; border-radius:6px; background:var(--hover);
+             display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--faint); }
+  .rail .s.on { background:var(--agent-dim); color:var(--agent); }
+  .f-main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+            gap:22px; padding:32px; position:relative; }
+  .hero { text-align:center; }
+  .hero .logo { margin-bottom:10px; }
+  .hero h2 { font-size:19px; color:var(--bright); font-weight:600; }
+  .hero p { font-size:13px; color:var(--mid); margin-top:6px; }
+  .composer { width:min(680px,90%); background:var(--sidebar); border:1px solid var(--line2);
+              border-radius:12px; padding:14px 16px; position:relative; }
+  .composer:focus-within, .composer.glow { border-color:var(--agent-line); box-shadow:0 0 0 3px var(--agent-dim); }
+  .composer .ph { color:var(--faint); font-size:13.5px; }
+  .composer .row { display:flex; align-items:center; margin-top:14px; gap:8px; }
+  .mini { font-size:11px; color:var(--faint); border:1px dashed var(--line2); padding:2px 8px; border-radius:6px; }
+  .send { margin-left:auto; width:28px; height:28px; border-radius:8px; background:var(--agent);
+          color:#17121f; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .cards { display:flex; gap:10px; width:min(680px,90%); flex-wrap:wrap; }
+  .card { flex:1 1 200px; background:var(--sidebar); border:1px solid var(--line2); border-radius:10px;
+          padding:12px 14px; cursor:pointer; }
+  .card:hover { border-color:var(--agent-line); background:var(--hover); }
+  .card b { display:block; font-size:12.5px; color:var(--bright); font-weight:600; margin-bottom:4px; }
+  .card span { font-size:11.5px; color:var(--faint); line-height:1.5; display:block; }
+  .card .m { font-size:10.5px; color:var(--agent); font-family:var(--mono); }
+
+  /* ===== Focus · 结果态 ===== */
+  .f-result { height:640px; display:flex; position:relative; }
+  .sess { width:196px; background:var(--sidebar); border-right:1px solid var(--line);
+          padding:10px 8px; display:flex; flex-direction:column; gap:4px; }
+  .sess .hd { font-size:10.5px; color:var(--faint); letter-spacing:.08em; padding:0 8px 6px; }
+  .sess .it { font-size:12px; color:var(--mid); padding:7px 9px; border-radius:6px; cursor:pointer;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sess .it.on { background:var(--agent-dim); color:var(--bright); }
+  .sess .it:hover { background:var(--hover); }
+  .sess .new { margin-top:auto; font-size:12px; color:var(--agent); border:1px dashed var(--agent-line);
+               border-radius:6px; padding:6px; text-align:center; cursor:pointer; }
+  .chat { flex:1.15; display:flex; flex-direction:column; border-right:1px solid var(--line); min-width:0; }
+  .msgs { flex:1; overflow:hidden; padding:18px 20px; display:flex; flex-direction:column; gap:12px; }
+  .mu { align-self:flex-end; max-width:86%; background:var(--sel, #094771); background:#0d3a5c;
+        border:1px solid #14567f; color:var(--bright); font-size:12.5px; line-height:1.55;
+        padding:8px 12px; border-radius:10px 10px 2px 10px; }
+  .ma { align-self:flex-start; max-width:92%; font-size:12.5px; color:var(--ink); line-height:1.6;
+        display:flex; gap:8px; }
+  .ma .av { width:22px; height:22px; border-radius:6px; background:var(--agent-dim);
+            border:1px solid var(--agent-line); display:flex; align-items:center; justify-content:center;
+            font-size:11px; flex:none; margin-top:2px; }
+  .trun { align-self:stretch; background:var(--sidebar); border:1px solid var(--line2);
+          border-left:3px solid var(--agent); border-radius:8px; padding:10px 12px; position:relative; }
+  .trun .t { font-size:11px; color:var(--agent); font-family:var(--mono); margin-bottom:8px; }
+  .trun .g { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .kv b { display:block; font-family:var(--mono); font-size:14px; color:var(--bright); font-variant-numeric:tabular-nums; }
+  .kv span { font-size:10.5px; color:var(--faint); }
+  .kv .ok { color:var(--good); } .kv .wr { color:var(--warn); }
+  .trun .foot { margin-top:8px; font-size:10.5px; color:var(--faint); display:flex; gap:10px; }
+  .trun .foot i { font-style:normal; color:var(--mid); cursor:pointer; }
+  .trun .foot i:hover { color:var(--bright); }
+  .compose2 { border-top:1px solid var(--line); padding:12px 16px; }
+  .compose2 .box { background:var(--sidebar); border:1px solid var(--line2); border-radius:10px;
+                   padding:10px 12px; font-size:12.5px; color:var(--faint); display:flex; align-items:center; }
+  .stage { flex:1; display:flex; flex-direction:column; background:#161616; min-width:0; position:relative; }
+  .stage .tools { height:34px; display:flex; align-items:center; gap:6px; padding:0 10px;
+                  border-bottom:1px solid var(--line); }
+  .tool { font-size:11px; color:var(--mid); padding:3px 9px; border-radius:5px; cursor:pointer; }
+  .tool.on { background:var(--agent-dim); color:var(--agent); }
+  .tool:hover { color:var(--bright); background:var(--hover); }
+  .stage .cv { flex:1; position:relative; overflow:hidden; }
+  .stage .meta { position:absolute; left:10px; bottom:8px; font-family:var(--mono); font-size:10.5px;
+                 color:var(--faint); background:rgba(0,0,0,.45); padding:3px 8px; border-radius:5px; }
+  .stage .src { position:absolute; right:10px; top:8px; font-size:10.5px; color:var(--agent);
+                background:var(--agent-dim); border:1px solid var(--agent-line); padding:2px 8px; border-radius:99px; }
+  .stage .fold { position:absolute; right:10px; bottom:8px; font-size:10.5px; color:var(--faint); cursor:pointer; }
+
+  /* ===== Workbench(现状缩略) ===== */
+  .wb { height:640px; display:flex; flex-direction:column; }
+  .wb-body { flex:1; display:flex; min-height:0; }
+  .wb-act { width:42px; background:var(--activity); border-right:1px solid var(--line);
+            display:flex; flex-direction:column; align-items:center; padding-top:8px; gap:10px; }
+  .wb-act .i { width:24px; height:24px; border-radius:5px; display:flex; align-items:center;
+               justify-content:center; color:var(--faint); font-size:13px; }
+  .wb-act .i.on { color:var(--bright); border-left:2px solid var(--agent); border-radius:0; }
+  .wb-side { width:200px; background:var(--sidebar); border-right:1px solid var(--line); padding:8px; }
+  .wb-side .hd { font-size:10.5px; color:var(--faint); letter-spacing:.08em; padding:2px 6px 8px; }
+  .wb-side .f { font-size:11.5px; color:var(--mid); padding:3px 6px; font-family:var(--mono); }
+  .wb-side .f.on { background:#094771; color:var(--bright); border-radius:4px; }
+  .wb-cen { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .wb-ed { flex:1; position:relative; background:#101010; overflow:hidden; }
+  .wb-tabs { height:30px; background:var(--sidebar); border-bottom:1px solid var(--line);
+             display:flex; align-items:center; }
+  .wb-tab { font-size:11.5px; color:var(--bright); background:var(--editor); height:100%;
+            display:flex; align-items:center; padding:0 14px; border-right:1px solid var(--line); }
+  .wb-pan { height:132px; border-top:1px solid var(--line); background:var(--editor); }
+  .wb-pan .ph { display:flex; gap:14px; padding:6px 12px; border-bottom:1px solid var(--line); }
+  .wb-pan .ph span { font-size:10.5px; color:var(--faint); letter-spacing:.06em; }
+  .wb-pan .ph span.on { color:var(--bright); border-bottom:1px solid var(--agent); padding-bottom:4px; }
+  .wb-pan table { border-collapse:collapse; margin:8px 12px; font-family:var(--mono); font-size:11px; }
+  .wb-pan td { color:var(--mid); padding:2px 18px 2px 0; font-variant-numeric:tabular-nums; }
+  .wb-pan td.v { color:var(--bright); }
+  .wb-agent { width:270px; border-left:1px solid var(--line); background:var(--sidebar);
+              display:flex; flex-direction:column; }
+  .wb-agent .hd { font-size:11px; color:var(--agent); padding:8px 10px; border-bottom:1px solid var(--line); }
+  .wb-agent .bd { flex:1; padding:10px; font-size:11.5px; color:var(--mid); line-height:1.6; }
+  .wb-status { height:22px; background:var(--status); display:flex; align-items:center; gap:14px;
+               padding:0 10px; font-size:10.5px; color:#e8ddf7; font-family:var(--mono); }
+
+  /* ===== 标注说明区 ===== */
+  .notes { margin-top:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:10px; }
+  .note { background:#1b1b1e; border:1px solid var(--line2); border-radius:8px; padding:11px 13px;
+          font-size:12.5px; color:var(--mid); line-height:1.6; display:flex; gap:10px; }
+  .note b { color:var(--bright); font-weight:600; }
+  .hint { margin-top:14px; font-size:12px; color:var(--faint); }
+  .hint kbd { background:var(--sidebar); border:1px solid var(--line2); border-radius:4px;
+              padding:1px 6px; font-family:var(--mono); font-size:11px; color:var(--agent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🦉 Glaux 设计稿 · 双模式外壳</h1>
+  <p class="sub">
+    对应 <code>docs/sdd/feats/01-dual-mode-shell</code>(需求)与 <code>docs/designs/2026-08-13-001</code>(设计)。
+    三个视图可点下方页签切换;<b style="color:var(--bright)">画面里的「⇄」按钮和示例任务卡也是可点的</b>,用来体验真实切换流。
+  </p>
+
+  <div class="tabs">
+    <button class="tab on" data-v="fe">① Focus · 空状态(B 的第一眼)</button>
+    <button class="tab" data-v="fr">② Focus · 结果态(对话 + 舞台)</button>
+    <button class="tab" data-v="wb">③ Workbench(现状,仅顶栏加切换)</button>
+  </div>
+
+  <div class="frame">
+
+    <!-- ========== ① Focus 空状态 ========== -->
+    <section class="screen on" id="v-fe">
+      <div class="tbar">
+        <span class="owl">🦉</span><b>Glaux</b><span class="dim">· 把图像变成可验证的洞察</span>
+        <span class="grow"></span>
+        <span class="dot abs" style="position:static">4</span>
+        <span class="chip">📁 CUBS-tech · 未选图</span>
+        <span class="chip">⚙</span>
+        <span class="chip switch" onclick="go('wb')">⇄ 工作台</span>
+      </div>
+      <div class="f-empty">
+        <div class="rail">
+          <span class="dot abs" style="left:12px; top:56px;">3</span>
+          <div class="s on">💬</div><div class="s">+</div>
+        </div>
+        <div class="f-main">
+          <div class="hero">
+            <div class="logo">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                <circle cx="8" cy="10" r="3.2" stroke="#B58BF2" stroke-width="1.7"/>
+                <circle cx="16" cy="10" r="3.2" stroke="#B58BF2" stroke-width="1.7"/>
+                <circle cx="8" cy="10" r="1" fill="#4FB0FF"/><circle cx="16" cy="10" r="1" fill="#4FB0FF"/>
+                <path d="M6 16.4c1.6 1.4 4 1.4 6 1.4s4.4 0 6-1.4" stroke="#B58BF2" stroke-width="1.4" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2>描述你的研究目标</h2>
+            <p>把任意模态的生物医学图像,变成可验证、可复现的洞察。</p>
+          </div>
+          <div class="composer glow">
+            <span class="dot abs" style="left:-8px; top:-8px;">1</span>
+            <div class="ph">例如:分割这批颈动脉超声的内中膜,测量 IMT 并标出存疑的图…</div>
+            <div class="row">
+              <span class="mini">📎 选择图像</span><span class="mini">✦ VLM 已连接</span>
+              <div class="send">➤</div>
+            </div>
+          </div>
+          <div class="cards">
+            <span class="dot abs" style="margin-left:-8px; margin-top:-8px;">2</span>
+            <div class="card" onclick="go('fr')"><b>测量颈动脉 IMT</b><span>分割内中膜并测厚度,标出低置信项</span><span class="m">carotid_imt · CUBS</span></div>
+            <div class="card" onclick="go('fr')"><b>胎儿头围测量</b><span>超声图上拟合头围椭圆,输出 HC 毫米值</span><span class="m">fetal_hc · HC18</span></div>
+            <div class="card" onclick="go('fr')"><b>先小批试跑核对</b><span>先跑 10 张,人工点选核对后再跑全量</span><span class="m">信任的第一步</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== ② Focus 结果态 ========== -->
+    <section class="screen" id="v-fr">
+      <div class="tbar">
+        <span class="owl">🦉</span><b>Glaux</b>
+        <span class="chip">📁 cubs_0142.tiff · CUBS-tech</span>
+        <span class="grow"></span>
+        <span class="chip">⚙</span>
+        <span class="chip switch" onclick="go('wb')">⇄ 工作台</span>
+      </div>
+      <div class="f-result">
+        <div class="sess">
+          <div class="hd">会话</div>
+          <div class="it on">颈动脉 IMT · 批次 A</div>
+          <div class="it">胎儿 HC 试跑</div>
+          <div class="it">CT 腹部分割探索</div>
+          <div class="new">+ 新会话</div>
+        </div>
+        <div class="chat">
+          <div class="msgs">
+            <div class="mu">分割这张颈动脉超声的内中膜,测一下 IMT。</div>
+            <div class="ma"><div class="av">🦉</div>
+              <div>好的。用 caroSegDeep 对 cubs_0142 做内中膜分割,已完成测量——结果和叠加在右侧,存疑区段已标出:</div>
+            </div>
+            <div class="trun">
+              <span class="dot abs" style="left:-9px; top:-9px;">5</span>
+              <div class="t">▸ 任务 · carotid_imt · caroSegDeep v0.4.2</div>
+              <div class="g">
+                <div class="kv"><b>0.74 <i style="font-style:normal;font-size:10px;color:var(--faint)">mm</i></b><span>IMT 均值</span></div>
+                <div class="kv"><b class="ok">高</b><span>整体置信</span></div>
+                <div class="kv"><b class="wr">2 段</b><span>存疑区段</span></div>
+              </div>
+              <div class="foot">来源 agent · 可复现 ✓ · <i>展开明细</i> · <i>在舞台中核对存疑段 →</i></div>
+            </div>
+            <div class="ma"><div class="av">🦉</div>
+              <div>建议先核对右端存疑段(回声不均)。在舞台上<b style="color:var(--bright)">点选修正</b>后,我会以人工来源重新计量。</div>
+            </div>
+          </div>
+          <div class="compose2"><div class="box">继续对话,或圈画舞台后描述修正意图… <span style="margin-left:auto" class="send">➤</span></div></div>
+        </div>
+        <div class="stage">
+          <div class="tools">
+            <span class="dot abs" style="left:-9px; top:8px;">6</span>
+            <span class="tool on">◇ 光标</span><span class="tool">✎ 点选修正</span><span class="tool">◯ 圈画</span><span class="tool">↺ 重置</span>
+            <span class="grow" style="flex:1"></span>
+          </div>
+          <div class="cv">
+            <svg width="100%" height="100%" viewBox="0 0 520 560" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <radialGradient id="us" cx="50%" cy="30%" r="90%">
+                  <stop offset="0%" stop-color="#3a3a3c"/><stop offset="45%" stop-color="#232325"/><stop offset="100%" stop-color="#0d0d0e"/>
+                </radialGradient>
+                <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="t"/>
+                  <feColorMatrix in="t" type="matrix" values="0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.06 0"/>
+                  <feComposite operator="over" in2="SourceGraphic"/></filter>
+              </defs>
+              <rect width="520" height="560" fill="url(#us)" filter="url(#n)"/>
+              <path d="M0,205 C120,195 300,215 520,200 L520,150 C300,165 120,145 0,155 Z" fill="#4a4a4e" opacity=".55"/>
+              <path d="M0,360 C150,372 340,352 520,368 L520,415 C340,400 150,420 0,408 Z" fill="#454549" opacity=".5"/>
+              <path d="M0,205 C120,195 300,215 520,200" stroke="#4fb0ff" stroke-width="2.4" fill="none"/>
+              <path d="M0,232 C120,224 300,244 520,230" stroke="#ff8a5b" stroke-width="2.4" fill="none"/>
+              <path d="M370,207 C420,210 470,206 512,203" stroke="#e9b44c" stroke-width="5" fill="none" stroke-dasharray="7 6" opacity=".95"/>
+              <rect x="356" y="186" width="164" height="64" fill="none" stroke="#e9b44c" stroke-width="1.4" stroke-dasharray="4 4" rx="6"/>
+              <text x="366" y="180" fill="#e9b44c" font-size="12" font-family="ui-monospace,monospace">存疑 · 请核对</text>
+              <line x1="60" y1="205" x2="60" y2="232" stroke="#2dd4bf" stroke-width="1.6"/>
+              <text x="68" y="224" fill="#2dd4bf" font-size="12" font-family="ui-monospace,monospace">0.74 mm</text>
+            </svg>
+            <span class="src">来源 · agent</span>
+            <span class="meta">cubs_0142.tiff · 0.061 mm/px · x:212 y:207</span>
+            <span class="fold">收起舞台 ⟶</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== ③ Workbench 现状 ========== -->
+    <section class="screen" id="v-wb">
+      <div class="tbar">
+        <span class="owl">🦉</span><b>Glaux</b><span class="dim">· Agentic IMT · MVP</span>
+        <span class="grow"></span>
+        <span class="dot abs" style="position:static">7</span>
+        <span class="chip switch" onclick="go('fr')">⇄ 专注模式</span>
+      </div>
+      <div class="wb">
+        <div class="wb-body">
+          <div class="wb-act">
+            <div class="i on">🗂</div><div class="i">🧩</div>
+          </div>
+          <div class="wb-side">
+            <div class="hd">资源管理器 · CUBS-TECH</div>
+            <div class="f">cubs_0139.tiff</div><div class="f">cubs_0140.tiff</div>
+            <div class="f">cubs_0141.tiff</div><div class="f on">cubs_0142.tiff</div>
+            <div class="f">cubs_0143.tiff</div><div class="f">cubs_0144.tiff</div>
+          </div>
+          <div class="wb-cen">
+            <div class="wb-tabs"><div class="wb-tab">cubs_0142.tiff</div></div>
+            <div class="wb-ed">
+              <svg width="100%" height="100%" viewBox="0 0 640 330" preserveAspectRatio="xMidYMid slice">
+                <rect width="640" height="330" fill="#151516"/>
+                <path d="M0,128 C160,120 380,136 640,126 L640,95 C380,105 160,89 0,97 Z" fill="#48484c" opacity=".55"/>
+                <path d="M0,128 C160,120 380,136 640,126" stroke="#4fb0ff" stroke-width="2" fill="none"/>
+                <path d="M0,150 C160,144 380,158 640,148" stroke="#ff8a5b" stroke-width="2" fill="none"/>
+              </svg>
+            </div>
+            <div class="wb-pan">
+              <div class="ph"><span class="on">测量</span><span>输出</span><span>问题</span><span>终端</span></div>
+              <table>
+                <tr><td>IMT mean</td><td class="v">0.74 mm</td><td>IMT max</td><td class="v">0.91 mm</td></tr>
+                <tr><td>置信</td><td class="v" style="color:var(--good)">高</td><td>存疑段</td><td class="v" style="color:var(--warn)">2</td></tr>
+                <tr><td>模型</td><td class="v">caroSegDeep v0.4.2</td><td>来源</td><td class="v">agent</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="wb-agent">
+            <div class="hd">✦ Agent · 颈动脉 IMT</div>
+            <div class="bd">对话面板(现状)。Focus 模式把这一栏升格为界面主体,其余面板按需浮现。</div>
+          </div>
+        </div>
+        <div class="wb-status"><span>◈ carotid_imt</span><span>0.061 mm/px</span><span>x:212 y:207</span><span style="margin-left:auto">caroSegDeep v0.4.2</span></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== 标注说明 ===== -->
+  <div class="notes" id="n-fe">
+    <div class="note"><span class="dot">1</span><div><b>意图入口唯一且显眼。</b>空状态就是一个输入框——B 不需要理解任何界面分区,只需要会描述研究目标。这是 Codex 式空状态的直接移植。</div></div>
+    <div class="note"><span class="dot">2</span><div><b>示例即教学。</b>3 张示例任务卡替代 onboarding 文档,点击即填入输入框(设计稿里点击直接演示到结果态)。第三张卡刻意放"先小批试跑核对"——需求清单 §2 的信任第一步。</div></div>
+    <div class="note"><span class="dot">3</span><div><b>会话列表收起为窄条。</b>复用现有 SessionDrawer;历史会话不抢第一眼注意力。</div></div>
+    <div class="note"><span class="dot">4</span><div><b>顶栏收纳全部次要功能。</b>图像上下文选择器(开放问题 Q2)、⚙ 连接配置弹层、⇄ 模式切换。无活动栏、无侧栏、无状态栏、无底部面板。</div></div>
+  </div>
+  <div class="notes" id="n-fr" style="display:none">
+    <div class="note"><span class="dot">5</span><div><b>度量在任务卡片里,不在常驻面板里。</b>taskrun 卡片给摘要(IMT 均值、置信、存疑数),明细可展开;卡片与舞台叠加联动——"在舞台中核对存疑段"直接跳转。</div></div>
+    <div class="note"><span class="dot">6</span><div><b>舞台 = 对话之外唯一的一等区域,修正手势不可省。</b>点选/圈画工具条是现有 Tool 集子集;存疑段黄色高亮引导 B 十分钟核对,修正后来源标记切为 human。舞台可整体收起回到纯对话。</div></div>
+    <div class="note"><span class="dot">·</span><div><b>与 Codex 的刻意分野:</b>Codex 是"提交后走开"的异步任务农场;Glaux 的 B 场景是同步核对回路,所以舞台是一等公民而非附件预览。</div></div>
+  </div>
+  <div class="notes" id="n-wb" style="display:none">
+    <div class="note"><span class="dot">7</span><div><b>Workbench 逐像素保留,唯一改动是顶栏切换按钮。</b>专家与内部开发一键获得全量视图(市场/底部面板/终端/dockview 拖拽);切换共享同一 store,往返无损、零请求。</div></div>
+    <div class="note"><span class="dot">·</span><div><b>反长回规则:</b>后续新能力默认只进 Workbench;进 Focus 必须显式设计并更新 Feature SDD——防止 Focus 三个月后长回一个 IDE。</div></div>
+  </div>
+
+  <p class="hint">评审要点(对应 Feature SDD §17):<kbd>Q1</kbd> 整体方向 · <kbd>Q2</kbd> 顶栏图像选择器去留 · <kbd>Q3</kbd> StatusBar 是否移除(信息移入舞台角落) · <kbd>Q4</kbd> 老用户是否也默认 Focus</p>
+</div>
+
+<script>
+  const views = ['fe','fr','wb'];
+  function go(v){
+    views.forEach(x=>{
+      document.getElementById('v-'+x).classList.toggle('on', x===v);
+      document.getElementById('n-'+x).style.display = x===v ? '' : 'none';
+      document.querySelector('.tab[data-v="'+x+'"]').classList.toggle('on', x===v);
+    });
+  }
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>go(t.dataset.v)));
+</script>
+</body>
+</html>
