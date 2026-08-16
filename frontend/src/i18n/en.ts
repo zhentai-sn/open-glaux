@@ -98,6 +98,7 @@ export const en = {
   agent_stop: "Stop",
   agent_send: "Send",
   agent_regenerate: "Regenerate",
+  agent_tool_call: "Calling {tool}",
   agent_attachment_unavailable: "Attachments unavailable",
   agent_loading: "Loading conversations…",
   agent_no_sessions: "No matching conversations.",

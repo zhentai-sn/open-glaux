@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { messageRole, messageText } from "../../agent/runtime/events";
+import {
+  messageRole,
+  messageText,
+  messageToolCalls,
+  type MessageToolCall,
+} from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
@@ -18,6 +23,22 @@ const PERMISSION_MODES: PermissionMode[] = [
   "controlled",
   "autonomous",
 ];
+
+// 工具调用状态行（退役 orchestration P3）："⚙ 调用 run_task"，让智能体的工具动作可见；
+// 悬停显示入参。工具结果本身不在此渲染——run_task 的产出经 toolBridge 写回查看器。
+function ToolCallLine({ call }: { call: MessageToolCall }) {
+  const { t } = useI18n();
+  const args = Object.entries(call.arguments)
+    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join("  ");
+  return (
+    <div className="tool-call" title={args || undefined}>
+      <span className="tool-call-icon" aria-hidden="true">⚙</span>
+      <span>{t("agent_tool_call", { tool: call.name })}</span>
+      {args && <span className="tool-call-args mono">{args}</span>}
+    </div>
+  );
+}
 
 // 上下文用量环形图（Claude Code 式）：环弧 = 已用 / 窗口；悬停/聚焦弹出精确数字。
 // 窗口未知时只给灰环 + tokens 数（无单位裸数不上屏，G7）。用量语义色：≥90% crit、≥70% warn。
@@ -247,6 +268,22 @@ export function AgentConversation() {
           const role = messageRole(message);
           if (!role) return null;
           const text = messageText(message);
+          const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
+          // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
+          if (role === "assistant" && !text && toolCalls.length) {
+            return (
+              <div className="turn assistant tool" key={`tool-${index}-${toolCalls[0].id}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <div className="tool-calls">
+                  {toolCalls.map((call) => (
+                    <ToolCallLine key={call.id || call.name} call={call} />
+                  ))}
+                </div>
+              </div>
+            );
+          }
           return (
             <div
               className={`turn ${role === "user" ? "user" : "assistant"}`}
@@ -258,6 +295,13 @@ export function AgentConversation() {
                 </div>
               )}
               <div className={role === "user" ? "bubble" : "abody plain"}>
+                {toolCalls.length > 0 && (
+                  <div className="tool-calls">
+                    {toolCalls.map((call) => (
+                      <ToolCallLine key={call.id || call.name} call={call} />
+                    ))}
+                  </div>
+                )}
                 {role === "assistant" && text ? (
                   <Markdown text={text} />
                 ) : (

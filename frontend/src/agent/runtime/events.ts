@@ -66,6 +66,34 @@ export function messageText(message: unknown): string {
     .join("\n");
 }
 
+export interface MessageToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** assistant 消息里的工具调用块（pi-ai `toolCall` content）；无则空数组。 */
+export function messageToolCalls(message: unknown): MessageToolCall[] {
+  if (!message || typeof message !== "object") return [];
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block) => {
+    if (!block || typeof block !== "object") return [];
+    const value = block as { type?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
+    if (value.type !== "toolCall" || typeof value.name !== "string") return [];
+    return [
+      {
+        id: typeof value.id === "string" ? value.id : "",
+        name: value.name,
+        arguments:
+          value.arguments && typeof value.arguments === "object"
+            ? (value.arguments as Record<string, unknown>)
+            : {},
+      },
+    ];
+  });
+}
+
 export function piEventType(event: unknown): string | null {
   if (!event || typeof event !== "object") return null;
   const type = (event as { type?: unknown }).type;

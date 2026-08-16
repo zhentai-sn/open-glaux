@@ -1334,6 +1334,43 @@ canvas {
 .turn.assistant .abody {
   width: 100%;
 }
+/* 工具调用状态行——比正文更淡、更小的一行"⚙ 调用 run_task"，不占气泡 */
+.turn.assistant.tool {
+  gap: 8px;
+}
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.abody .tool-calls {
+  margin-bottom: 8px;
+}
+.tool-call {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-call-icon {
+  color: var(--agent);
+}
+.tool-call-args {
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .agent-regenerate {
   padding: 2px 5px;
   color: var(--faint);

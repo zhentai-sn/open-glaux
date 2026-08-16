@@ -91,6 +91,7 @@ export const zh: Record<I18nKey, string> = {
   agent_stop: "停止",
   agent_send: "发送",
   agent_regenerate: "重新生成",
+  agent_tool_call: "调用 {tool}",
   agent_attachment_unavailable: "附件暂未开放",
   agent_loading: "正在加载会话…",
   agent_no_sessions: "没有匹配的会话。",
