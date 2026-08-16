@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glaux — 生物医学影像洞察智能体环境</title>
+  <meta name="description" content="用自然语言描述研究目标，把任意模态的生物医学图像变成可验证、可复现的洞察。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F8FAFB;
+      --bg-tertiary: #F1F5F9;
+      --bg-dark: #0A1628;
+      --bg-dark-deeper: #060E1A;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-tertiary: #94A3B8;
+      --accent: #1E3A5F;
+      --accent-light: #2D5A8E;
+      --accent-glow: #3B82F6;
+      --emerald: #059669;
+      --emerald-light: #D1FAE5;
+      --amber: #D97706;
+      --amber-light: #FEF3C7;
+      --violet: #7C3AED;
+      --violet-light: #EDE9FE;
+      --rose: #E11D48;
+      --rose-light: #FFE4E6;
+      --border: #E2E8F0;
+      --border-light: #F1F5F9;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --radius-pill: 9999px;
+      --max-width: 1200px;
+      --font-sans: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    /* 固定导航下的锚点偏移 */
+    [id] { scroll-margin-top: 80px; }
+
+    /* 键盘可见焦点 */
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: 4px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== NAV ===== */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px;
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-light);
+      transition: background 0.3s;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 20px; font-weight: 700; color: var(--text-primary);
+      text-decoration: none;
+    }
+    .nav-brand .owl-icon {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+    }
+    .owl-icon svg { width: 100%; height: 100%; }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a {
+      font-size: 14px; font-weight: 500; color: var(--text-secondary);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-cta {
+      padding: 8px 20px; border-radius: var(--radius-pill);
+      background: var(--accent); color: white;
+      font-size: 14px; font-weight: 500; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--accent-light); }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 140px 32px 80px;
+      text-align: center;
+      background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    }
+    .hero > * { position: relative; z-index: 1; }
+    .hero-canvas {
+      position: absolute; inset: 0; z-index: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    /* 口号：纯净淡入淡出交叉，切换时只显示一句 */
+    .slogan-viewport {
+      position: relative;
+      height: 1.3em;
+      font-size: clamp(30px, 4.5vw, 48px);
+      font-weight: 800; letter-spacing: -0.02em;
+      color: var(--text-primary);
+      max-width: 800px;
+      margin: 0 auto 18px;
+      text-wrap: balance;
+    }
+    .slogan-item {
+      position: absolute; inset: 0;
+      line-height: 1.3;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(0.25em);
+      transition: opacity 0.9s ease, transform 0.9s ease;
+    }
+    .slogan-item.is-active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .slogan-item { transition: opacity 0.3s ease; transform: none; }
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: var(--radius-pill);
+      background: var(--emerald-light); color: var(--emerald);
+      font-size: 13px; font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--emerald);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-size: clamp(26px, 3.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      color: var(--text-secondary);
+      max-width: 800px;
+      margin: 0 auto 24px;
+      text-wrap: balance;
+    }
+    .hero h1 .gradient-text {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 50%, var(--emerald) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      font-size: clamp(16px, 2vw, 20px);
+      color: var(--text-secondary);
+      max-width: 640px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: var(--radius-pill);
+      background: var(--accent); color: white;
+      font-size: 15px; font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none; cursor: pointer;
+    }
+    .btn-primary:hover { background: var(--accent-light); transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: var(--radius-pill);
+      background: transparent; color: var(--text-primary);
+      font-size: 15px; font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--text-tertiary); background: var(--bg-secondary); }
+
+    /* ===== DEMO PREVIEW ===== */
+    .demo-section {
+      padding: 0 32px 80px;
+      display: flex; justify-content: center;
+    }
+    .demo-frame {
+      max-width: 1100px; width: 100%;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .demo-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border);
+    }
+    .demo-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .demo-dot.red { background: #EF4444; }
+    .demo-dot.yellow { background: #F59E0B; }
+    .demo-dot.green { background: #10B981; }
+    .demo-content {
+      display: grid;
+      grid-template-columns: 260px 1fr 240px;
+      height: 480px;
+    }
+    .demo-sidebar {
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      background: white;
+    }
+    .demo-sidebar-title {
+      font-size: 12px; font-weight: 600; color: var(--text-tertiary);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    .demo-task-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      margin-bottom: 4px; cursor: default;
+      font-size: 13px; color: var(--text-secondary);
+      transition: background 0.15s;
+    }
+    .demo-task-item:hover { background: var(--bg-secondary); }
+    .demo-task-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 500; }
+    .demo-task-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .demo-main {
+      padding: 24px;
+      background: white;
+      overflow-y: auto;
+    }
+    .demo-chat-msg {
+      display: flex; gap: 12px; margin-bottom: 20px;
+    }
+    .demo-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600; color: white;
+    }
+    .demo-avatar.user { background: var(--accent); }
+    .demo-avatar.agent { background: var(--emerald); }
+    .demo-chat-bubble {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 14px; line-height: 1.6;
+      color: var(--text-primary);
+      max-width: 480px;
+    }
+    .demo-chat-bubble.agent-bubble { background: var(--bg-tertiary); }
+    .demo-tool-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: var(--radius-pill);
+      background: var(--violet-light); color: var(--violet);
+      font-size: 11px; font-weight: 600;
+      margin-top: 8px;
+    }
+    .demo-right {
+      border-left: 1px solid var(--border);
+      padding: 16px;
+      background: white;
+    }
+    .demo-result-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .demo-result-label {
+      font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .demo-result-value {
+      font-size: 20px; font-weight: 700; color: var(--text-primary);
+    }
+    .demo-result-sub {
+      font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+    }
+    .demo-progress {
+      height: 4px; border-radius: 2px; background: var(--bg-tertiary);
+      margin-top: 8px; overflow: hidden;
+    }
+    .demo-progress-bar {
+      height: 100%; border-radius: 2px;
+      background: var(--emerald);
+      width: 92%;
+    }
+
+    /* ===== SECTION COMMON ===== */
+    .section {
+      padding: 80px 32px;
+    }
+    .section-alt {
+      background: var(--bg-secondary);
+    }
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 56px;
+    }
+    .section-label {
+      font-size: 13px; font-weight: 600; color: var(--accent-glow);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 3.5vw, 40px);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+      text-wrap: balance;
+    }
+    .section-desc {
+      font-size: 16px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* ===== VALUE PROPS ===== */
+    .values-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+    .value-card {
+      padding: 32px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: white;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+    }
+    .value-card:hover {
+      border-color: var(--accent-glow);
+      box-shadow: 0 8px 30px rgba(59,130,246,0.08);
+      transform: translateY(-2px);
+    }
+    .value-art {
+      width: 100%; height: 180px; object-fit: cover;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      background: white;
+      margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+    .value-card:hover .value-art { transform: scale(1.02); }
+    .value-card h3 {
+      font-size: 18px; font-weight: 700; margin-bottom: 8px;
+    }
+    .value-card p {
+      font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+    }
+
+    /* ===== ARCHITECTURE · 编辑式排版 ===== */
+    .arch-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+    .arch-diagram {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+      margin-bottom: 64px;
+    }
+    .arch-box {
+      position: relative;
+      padding: 16px 8px 0;
+      border-top: 1px solid var(--border);
+    }
+    .arch-num {
+      position: absolute; top: -11px; left: 8px;
+      padding-right: 12px;
+      background: var(--bg-primary);
+      font-size: 13px; letter-spacing: 0.12em;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+    .arch-box h4 {
+      font-size: 19px; font-weight: 700;
+      margin: 8px 0 12px;
+      letter-spacing: -0.01em;
+    }
+    .arch-box p {
+      font-size: 14px; color: var(--text-secondary);
+      line-height: 1.8;
+      text-wrap: pretty;
+    }
+    .arch-stack {
+      margin-top: 16px;
+      font-size: 12px; letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+    .arch-flow {
+      display: flex; align-items: baseline; justify-content: center;
+      gap: 10px; flex-wrap: wrap;
+      padding: 8px 0;
+    }
+    .arch-flow-step {
+      font-size: 15px; font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: 0.02em;
+    }
+    .arch-flow-arrow {
+      color: var(--text-tertiary);
+      font-size: 15px;
+    }
+
+    /* ===== MODALITIES ===== */
+    .modality-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .modality-card {
+      padding: 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: white;
+      text-align: center;
+      transition: border-color 0.25s ease, transform 0.25s ease;
+    }
+    .modality-card:hover {
+      border-color: var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .modality-img {
+      width: 128px; height: 128px; object-fit: cover;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: white;
+      margin-bottom: 16px;
+      transition: transform 0.3s ease;
+    }
+    .modality-card:hover .modality-img { transform: scale(1.05) rotate(1.5deg); }
+    .modality-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .modality-card p { font-size: 12px; color: var(--text-secondary); }
+
+    /* ===== BOUNDARY · 黑白编辑式双栏 ===== */
+    .boundary-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .boundary-table {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+    }
+    .boundary-col {
+      padding-top: 4px;
+    }
+    .boundary-col h4 {
+      font-size: 13px; font-weight: 600;
+      letter-spacing: 0.14em;
+      color: var(--text-tertiary);
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .boundary-col ul {
+      list-style: none; padding: 0;
+    }
+    .boundary-col li {
+      font-size: 15px; color: var(--text-secondary);
+      line-height: 1.7;
+      padding: 10px 0 10px 26px;
+      position: relative;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .boundary-col li:last-child { border-bottom: none; }
+    .boundary-col li::before {
+      position: absolute; left: 0; top: 11px;
+      font-size: 13px; line-height: 1.6;
+    }
+    .boundary-col.in-scope li::before {
+      content: '·';
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+    .boundary-col.out-scope li {
+      color: var(--text-tertiary);
+    }
+    .boundary-col.out-scope li::before {
+      content: '—';
+      color: var(--text-tertiary);
+    }
+
+    /* ===== CTA ===== */
+    .cta-section {
+      padding: 100px 32px;
+      text-align: center;
+      background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    }
+    .cta-section h2 {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+    .cta-section p {
+      font-size: 18px; color: var(--text-secondary);
+      max-width: 560px; margin: 0 auto 32px;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      background: var(--bg-dark);
+      color: rgba(255,255,255,0.7);
+      padding: 64px 32px 32px;
+    }
+    .footer-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 48px;
+    }
+    .footer-brand h3 {
+      font-size: 20px; font-weight: 700; color: white;
+      margin-bottom: 12px;
+    }
+    .footer-brand p {
+      font-size: 14px; line-height: 1.7; max-width: 360px;
+    }
+    .footer-col h4 {
+      font-size: 13px; font-weight: 600; color: white;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+    .footer-col a {
+      display: block; font-size: 14px; color: rgba(255,255,255,0.6);
+      text-decoration: none; padding: 4px 0;
+      transition: color 0.2s;
+    }
+    .footer-col a:hover { color: white; }
+    .footer-bottom {
+      max-width: var(--max-width);
+      margin: 40px auto 0;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px;
+    }
+    .footer-bottom a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .footer-bottom a:hover { color: white; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .demo-content { grid-template-columns: 1fr; height: auto; }
+      .demo-sidebar, .demo-right { display: none; }
+      .arch-diagram { grid-template-columns: 1fr; gap: 36px; }
+      .boundary-table { grid-template-columns: 1fr; gap: 40px; }
+      .footer-inner { grid-template-columns: 1fr; gap: 32px; }
+      .nav-links { display: none; }
+    }
+    @media (max-width: 600px) {
+      .hero { padding: 120px 20px 60px; }
+      .section { padding: 60px 20px; }
+      .hero-actions { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-brand">
+    <span class="owl-icon">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 8 L5.5 3.5 L10.5 6"/>
+        <path d="M25 8 L26.5 3.5 L21.5 6"/>
+        <circle cx="16" cy="17" r="11"/>
+        <circle cx="11.5" cy="14.5" r="3.2"/>
+        <circle cx="20.5" cy="14.5" r="3.2"/>
+        <circle cx="11.5" cy="14.5" r="0.7" fill="currentColor"/>
+        <circle cx="20.5" cy="14.5" r="0.7" fill="currentColor"/>
+        <path d="M14.5 19 L16 21.5 L17.5 19"/>
+        <path d="M10 26.5 Q16 29.5 22 26.5"/>
+      </svg>
+    </span>
+    Glaux
+  </a>
+  <div class="nav-links">
+    <a href="#features">核心能力</a>
+    <a href="#architecture">架构</a>
+    <a href="#modalities">支持模态</a>
+  </div>
+  <a href="https://github.com/pre-tech/open-glaux" class="nav-cta">GitHub</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas class="hero-canvas" id="hero-particles" aria-hidden="true"></canvas>
+  <div class="hero-badge">
+    <span class="dot"></span>
+    Pre-alpha · 开源 · Apache-2.0
+  </div>
+  <div class="slogan-viewport" role="heading" aria-level="1" aria-live="off">
+    <span class="slogan-item is-active">在黑暗中也看得清</span>
+    <span class="slogan-item" aria-hidden="true">雅典娜的小鸮，智慧之鸟</span>
+    <span class="slogan-item" aria-hidden="true">开源 · 可扩展 · 为科研而生</span>
+  </div>
+  <h1>
+    用自然语言，把任意模态的生物医学影像<br>
+    变成<span class="gradient-text">可验证的洞察</span>
+  </h1>
+  <p class="hero-subtitle">
+    Glaux 是生物医学影像洞察的 Agent 原生环境——智能体在这里规划、执行、验证，
+    把显微镜、超声、CT 等任意模态的图像，变成可核对、可复现的科学结果。
+  </p>
+  <div class="hero-actions">
+    <a href="https://github.com/pre-tech/open-glaux" class="btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      开始使用
+    </a>
+    <a href="#architecture" class="btn-secondary">
+      了解架构 →
+    </a>
+  </div>
+</section>
+
+<!-- DEMO PREVIEW -->
+<section class="demo-section">
+  <div class="demo-frame">
+    <div class="demo-titlebar">
+      <span class="demo-dot red"></span>
+      <span class="demo-dot yellow"></span>
+      <span class="demo-dot green"></span>
+    </div>
+    <div class="demo-content">
+      <div class="demo-sidebar">
+        <div class="demo-sidebar-title">研究任务</div>
+        <div class="demo-task-item active">颈动脉内膜厚度测量</div>
+        <div class="demo-task-item">细胞核检测与计数</div>
+        <div class="demo-task-item">CT 肺部体积分割</div>
+        <div class="demo-task-item">胎儿头围分割测量</div>
+      </div>
+      <div class="demo-main">
+        <div class="demo-chat-msg">
+          <div class="demo-avatar user">U</div>
+          <div class="demo-chat-bubble">
+            量一下这批超声图里颈动脉内膜的厚度，需要带物理单位校准。
+          </div>
+        </div>
+        <div class="demo-chat-msg">
+          <div class="demo-avatar agent">G</div>
+          <div class="demo-chat-bubble agent-bubble">
+            好的，我正在执行：<br>
+            1. 读取超声图像序列（已校准像素-物理单位映射）<br>
+            2. 分割颈动脉内膜结构<br>
+            3. 测量内膜厚度（mm），并计算统计量<br>
+            4. 交叉验证结果一致性
+            <div class="demo-tool-badge">run_task · segmentation</div>
+            <div class="demo-tool-badge" style="background:#D1FAE5;color:#059669;">verification passed</div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-right">
+        <div class="demo-result-card">
+          <div class="demo-result-label">平均内膜厚度</div>
+          <div class="demo-result-value">0.82 mm</div>
+          <div class="demo-result-sub">SD: 0.14 mm · n=128</div>
+        </div>
+        <div class="demo-result-card">
+          <div class="demo-result-label">Dice 一致性</div>
+          <div class="demo-result-value">0.94</div>
+          <div class="demo-progress"><div class="demo-progress-bar"></div></div>
+        </div>
+        <div class="demo-result-card">
+          <div class="demo-result-label">Provenance</div>
+          <div class="demo-result-sub">4 步操作已记录<br>可复现 · 可审计</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALUES / FOUR LAYERS -->
+<section class="section section-alt" id="features">
+  <div class="section-header">
+    <div class="section-label">环境四层</div>
+    <h2 class="section-title">模型越强，环境越值钱</h2>
+    <p class="section-desc">
+      Glaux 的核心价值不在某个智能体，而在智能体赖以工作的环境——
+      眼、手、裁判、经验，四层能力让模型真正发挥价值。
+    </p>
+  </div>
+  <div class="values-grid">
+    <div class="value-card">
+      <img class="value-art" src="assets/eye.png" alt="猫头鹰凝视显微镜的线稿插画" width="280" height="180" loading="lazy">
+      <h3>表征层 · 眼</h3>
+      <p>把显微镜、超声、CT、病理切片等任意模态解码成统一的可计算表征——智能体看到的不是像素，而是结构化的科学对象。</p>
+    </div>
+    <div class="value-card">
+      <img class="value-art" src="assets/hand.png" alt="手持圆规测量超声轮廓的线稿插画" width="280" height="180" loading="lazy">
+      <h3>动作层 · 手</h3>
+      <p>分割、测量、重建作为一等操作，每个结果都带物理单位、尺度校准和模态护栏——不是返回一个 mask，而是给出可信的数值。</p>
+    </div>
+    <div class="value-card">
+      <img class="value-art" src="assets/judge.png" alt="天平与猫头鹰裁判的线稿插画" width="280" height="180" loading="lazy">
+      <h3>验证层 · 裁判</h3>
+      <p>多方法一致性检查、校准过的不确定信号、完整 provenance——每个结论都可追溯、可重跑、经得起同行评审。</p>
+    </div>
+    <div class="value-card">
+      <img class="value-art" src="assets/memory.png" alt="猫头鹰图书馆管理员的线稿插画" width="280" height="180" loading="lazy">
+      <h3>记忆层 · 飞轮</h3>
+      <p>已验证轨迹 + 人工校正 + 领域先验 + Atlas 图谱——环境会积累经验，越用越聪明，这是复利型护城河。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="section" id="architecture">
+  <div class="section-header">
+    <div class="section-label">架构</div>
+    <h2 class="section-title">三进程协作，职责清晰</h2>
+    <p class="section-desc">
+      本地运行由三个进程组成，make -j3 dev 一键拉起。
+      重模型在隔离子进程中运行，主进程不加载 PyTorch。
+    </p>
+  </div>
+  <div class="arch-container">
+    <div class="arch-diagram">
+      <div class="arch-box">
+        <span class="arch-num">01</span>
+        <h4>前端 · IDE 工作台</h4>
+        <p>VS Code 风格的影像标注工作台：与智能体对话、查看图像、核对每一步结果。</p>
+        <div class="arch-stack" translate="no">React 18 · TypeScript · Vite · Cornerstone3D · OpenSeadragon</div>
+      </div>
+      <div class="arch-box">
+        <span class="arch-num">02</span>
+        <h4>智能体运行时</h4>
+        <p>唯一与模型对话的进程——规划、执行、检查、修正，通过工具对环境动手，密钥只在这里。</p>
+        <div class="arch-stack" translate="no">Node.js · Fastify · Pi Agent Core · SSE</div>
+      </div>
+      <div class="arch-box">
+        <span class="arch-num">03</span>
+        <h4>后端 + 科学内核</h4>
+        <p>真正处理图像的部分：读取、分割、测量、重建，每个结果都带核验与操作记录。</p>
+        <div class="arch-stack" translate="no">Python · FastAPI · glaux_core · numpy</div>
+      </div>
+    </div>
+    <div class="arch-flow">
+      <span class="arch-flow-step">图像输入</span>
+      <span class="arch-flow-arrow" aria-hidden="true">—›</span>
+      <span class="arch-flow-step">表征解码</span>
+      <span class="arch-flow-arrow" aria-hidden="true">—›</span>
+      <span class="arch-flow-step">分割 · 测量</span>
+      <span class="arch-flow-arrow" aria-hidden="true">—›</span>
+      <span class="arch-flow-step">验证 · 校准</span>
+      <span class="arch-flow-arrow" aria-hidden="true">—›</span>
+      <span class="arch-flow-step">结构化洞察</span>
+    </div>
+  </div>
+</section>
+
+<!-- MODALITIES -->
+<section class="section section-alt" id="modalities">
+  <div class="section-header">
+    <div class="section-label">模态无关</div>
+    <h2 class="section-title">一种环境，所有成像方式</h2>
+    <p class="section-desc">
+      只要是生物医学图像，处理思路一致。新的成像方式或算法按同一接口接入。
+    </p>
+  </div>
+  <div class="modality-grid">
+    <div class="modality-card">
+      <img class="modality-img" src="assets/wsi.png" alt="显微镜与病理切片的线稿插画" width="128" height="128" loading="lazy">
+      <h4>病理切片 WSI</h4>
+      <p>全幅切片 · 细胞核检测</p>
+    </div>
+    <div class="modality-card">
+      <img class="modality-img" src="assets/ultrasound.png" alt="超声探头与胎儿轮廓的线稿插画" width="128" height="128" loading="lazy">
+      <h4>超声图像</h4>
+      <p>颈动脉 · 胎儿 · 心脏</p>
+    </div>
+    <div class="modality-card">
+      <img class="modality-img" src="assets/ct.png" alt="悬浮 CT 切片堆叠的线稿插画" width="128" height="128" loading="lazy">
+      <h4>CT 体积</h4>
+      <p>TotalSegmentator · 3D 重建</p>
+    </div>
+    <div class="modality-card">
+      <img class="modality-img" src="assets/fluoro.png" alt="培养皿与发光细胞的线稿插画" width="128" height="128" loading="lazy">
+      <h4>荧光显微</h4>
+      <p>Cellpose · 形态分析</p>
+    </div>
+  </div>
+</section>
+
+<!-- BOUNDARY -->
+<section class="section">
+  <div class="section-header">
+    <div class="section-label">能力边界</div>
+    <h2 class="section-title">科研洞察，而非临床决策</h2>
+    <p class="section-desc">
+      Glaux 负责从图像到理解再到可用的结果。边界是刻意划的。
+    </p>
+  </div>
+  <div class="boundary-container">
+    <div class="boundary-table">
+      <div class="boundary-col in-scope">
+        <h4>范围之内</h4>
+        <ul>
+          <li>自然语言驱动的图像分割与测量</li>
+          <li>形态与数量的定量分析</li>
+          <li>三维重建等更丰富的表达</li>
+          <li>脱敏数据的回顾性研究</li>
+          <li>Atlas 图谱参考与经验积累</li>
+        </ul>
+      </div>
+      <div class="boundary-col out-scope">
+        <h4>刻意排除</h4>
+        <ul>
+          <li>临床诊断产品（FDA / NMPA 监管）</li>
+          <li>手术中的实时决策支持</li>
+          <li>手术规划 / 模拟作为核心承诺</li>
+          <li>未伦理审查的临床数据</li>
+          <li>辅助决策（远期目标，非当前）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>开始你的第一个洞察</h2>
+  <p>装好就能用——仓库自带参考智能体，也可以换上你自己的模型。</p>
+  <div class="hero-actions">
+    <a href="https://github.com/pre-tech/open-glaux" class="btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      在 GitHub 上查看
+    </a>
+    <a href="https://github.com/pre-tech/open-glaux/blob/main/README.zh-CN.md" class="btn-secondary">
+      阅读文档 →
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <h3>
+        <span class="owl-icon" style="display:inline-flex; width:22px; height:22px; vertical-align:-4px; margin-right:6px; color:inherit;">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 8 L5.5 3.5 L10.5 6"/>
+            <path d="M25 8 L26.5 3.5 L21.5 6"/>
+            <circle cx="16" cy="17" r="11"/>
+            <circle cx="11.5" cy="14.5" r="3.2"/>
+            <circle cx="20.5" cy="14.5" r="3.2"/>
+            <circle cx="11.5" cy="14.5" r="0.7" fill="currentColor"/>
+            <circle cx="20.5" cy="14.5" r="0.7" fill="currentColor"/>
+            <path d="M14.5 19 L16 21.5 L17.5 19"/>
+            <path d="M10 26.5 Q16 29.5 22 26.5"/>
+          </svg>
+        </span>Glaux
+      </h3>
+      <p>生物医学影像洞察的 Agent 原生环境。模型越强，环境越值钱。</p>
+    </div>
+    <div class="footer-col">
+      <h4>项目</h4>
+      <a href="https://github.com/pre-tech/open-glaux">GitHub</a>
+      <a href="https://github.com/pre-tech/open-glaux/blob/main/README.zh-CN.md">文档</a>
+      <a href="https://github.com/pre-tech/open-glaux/blob/main/docs/roadmaps/20260705-product-roadmap.zh-CN.md">路线图</a>
+      <a href="https://github.com/pre-tech/open-glaux/blob/main/docs/architecture.zh-CN.md">架构</a>
+    </div>
+    <div class="footer-col">
+      <h4>资源</h4>
+      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs">设计文档</a>
+      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs/researches">调研报告</a>
+      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs/runbooks">操作手册</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Glaux · Apache-2.0 License</span>
+    <a href="https://github.com/pre-tech/open-glaux">pre-tech/open-glaux</a>
+  </div>
+</footer>
+
+<script>
+// ===== 口号交叉淡切：同一时刻只显示一句，纯净切换 =====
+(function () {
+  var items = document.querySelectorAll('.slogan-item');
+  if (items.length < 2) return;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var idx = 0;
+  setInterval(function () {
+    var prev = idx;
+    idx = (idx + 1) % items.length;
+    items[prev].classList.remove('is-active');
+    items[idx].classList.add('is-active');
+    // 非激活句对读屏隐藏
+    items.forEach(function (el, i) {
+      if (i === idx) el.removeAttribute('aria-hidden');
+      else el.setAttribute('aria-hidden', 'true');
+    });
+  }, reduceMotion ? 8000 : 3800);
+})();
+
+// ===== 首屏粒子场景：缓慢上浮 + 鼠标排斥涟漪 + 光标附近星座连线 =====
+(function () {
+  var canvas = document.getElementById('hero-particles');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hero = canvas.parentElement;
+  var W, H, dpr;
+  var particles = [];
+  var mouse = { x: -9999, y: -9999, active: false };
+  var MOUSE_RADIUS = 130;      // 鼠标排斥半径（css px）
+  var LINK_RADIUS = 110;       // 星座连线半径
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = canvas.width = canvas.offsetWidth * dpr;
+    H = canvas.height = canvas.offsetHeight * dpr;
+  }
+
+  function init() {
+    var count = Math.min(150, Math.floor((W * H) / 14000));
+    particles = [];
+    for (var i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: 0, vy: 0,                          // 交互扰动速度（衰减）
+        r: (Math.random() * 1.8 + 0.5) * dpr,
+        baseVy: (Math.random() * 0.26 + 0.06) * dpr,
+        sway: Math.random() * Math.PI * 2,
+        swaySpeed: Math.random() * 0.01 + 0.003,
+        swayAmp: (Math.random() * 0.3 + 0.08) * dpr,
+        baseAlpha: Math.random() * 0.32 + 0.1,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function drawFrame(t) {
+    ctx.clearRect(0, 0, W, H);
+    var mr = MOUSE_RADIUS * dpr;
+    var lr = LINK_RADIUS * dpr;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+
+      // 基础漂移：上浮 + 摇曳
+      p.y -= p.baseVy;
+      p.sway += p.swaySpeed;
+      p.x += Math.sin(p.sway) * p.swayAmp;
+
+      // 鼠标排斥：靠近时被推开，松开后缓慢回稳
+      if (mouse.active) {
+        var dx = p.x - mouse.x, dy = p.y - mouse.y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < mr * mr && d2 > 0.01) {
+          var d = Math.sqrt(d2);
+          var force = (1 - d / mr) * 1.6 * dpr;
+          p.vx += (dx / d) * force;
+          p.vy += (dy / d) * force;
+        }
+      }
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.90; p.vy *= 0.90;
+
+      // 环绕边界
+      if (p.y < -12) { p.y = H + 12; p.x = Math.random() * W; }
+      if (p.y > H + 12) { p.y = -12; p.x = Math.random() * W; }
+      if (p.x < -12) p.x = W + 12;
+      if (p.x > W + 12) p.x = -12;
+
+      // 光标附近变亮
+      var boost = 0;
+      if (mouse.active) {
+        var mdx = p.x - mouse.x, mdy = p.y - mouse.y;
+        var md2 = mdx * mdx + mdy * mdy;
+        if (md2 < mr * mr) boost = (1 - Math.sqrt(md2) / mr) * 0.45;
+      }
+      var twinkle = 0.6 + 0.4 * Math.sin(t * 0.0012 + p.phase);
+      var alpha = Math.min(0.85, p.baseAlpha * twinkle + boost);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(30, 58, 95, ' + alpha.toFixed(3) + ')';
+      ctx.fill();
+
+      // 星座连线：光标周围的粒子之间、以及粒子与光标之间
+      if (mouse.active) {
+        for (var j = i + 1; j < particles.length; j++) {
+          var q = particles[j];
+          var qx = q.x - p.x, qy = q.y - p.y;
+          var qd2 = qx * qx + qy * qy;
+          if (qd2 < lr * lr) {
+            var mx1 = (p.x + q.x) / 2 - mouse.x, my1 = (p.y + q.y) / 2 - mouse.y;
+            var near = 1 - Math.sqrt(mx1 * mx1 + my1 * my1) / (mr * 1.6);
+            if (near > 0) {
+              var la = near * 0.16 * (1 - Math.sqrt(qd2) / lr);
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(q.x, q.y);
+              ctx.strokeStyle = 'rgba(30, 58, 95, ' + la.toFixed(3) + ')';
+              ctx.lineWidth = dpr * 0.7;
+              ctx.stroke();
+            }
+          }
+        }
+        var cmx = p.x - mouse.x, cmy = p.y - mouse.y;
+        var cd2 = cmx * cmx + cmy * cmy;
+        if (cd2 < lr * lr) {
+          var cla = 0.22 * (1 - Math.sqrt(cd2) / lr);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(mouse.x, mouse.y);
+          ctx.strokeStyle = 'rgba(45, 90, 142, ' + cla.toFixed(3) + ')';
+          ctx.lineWidth = dpr * 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function onMove(e) {
+    var rect = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - rect.left) * dpr;
+    mouse.y = (e.clientY - rect.top) * dpr;
+    mouse.active = true;
+  }
+  function onLeave() { mouse.active = false; mouse.x = -9999; mouse.y = -9999; }
+
+  resize();
+  init();
+  window.addEventListener('resize', function () { resize(); init(); });
+  hero.addEventListener('mousemove', onMove);
+  hero.addEventListener('mouseleave', onLeave);
+  hero.addEventListener('touchmove', function (e) {
+    if (e.touches.length) onMove(e.touches[0]);
+  }, { passive: true });
+  hero.addEventListener('touchend', onLeave);
+
+  if (reduceMotion) {
+    drawFrame(0);
+  } else {
+    requestAnimationFrame(function tick(t) {
+      drawFrame(t);
+      requestAnimationFrame(tick);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
