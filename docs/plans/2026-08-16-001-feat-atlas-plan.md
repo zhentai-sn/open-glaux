@@ -67,9 +67,9 @@
 ### T2 · backend 导入解析与 REST（SDD §4 / §6.1 / §6.2 / §13）
 - `app/atlas/parse_pdf.py`：PyMuPDF 遍历页 → `page.get_images()` 抽嵌入图（过滤 < 64px 与纯色）→ 同页文本块中与图 bbox 最近的段落作 `caption` 候选 + 页码；无嵌入图 → `NO_FIGURES_FOUND`。
 - `app/net_guard.py`（重建）+ `app/atlas/parse_web.py`：`assert_url_allowed()` 后 `httpx.get`（超时 10s、最大 10MB、只跟 http(s) 重定向且每跳再校验）→ bs4 抽 `<img>`（跳过 data:/svg/图标尺寸）+ `alt` / `<figcaption>` / 最近 `<p>`；图片 URL 逐个再过守卫再抓；失败码 `FETCH_BLOCKED` / `FETCH_FAILED`。
-- `app/atlas/importer.py`：批次 `import_batch_id`；`create_exemplars(items)`：写图 → 调 runtime `POST /agent-api/v1/atlas/describe`（`GLAUX_AGENT_RUNTIME_URL`，默认 `http://127.0.0.1:8010`；失败不阻塞入库，`description=null` + `describe_status="pending"`）→ 写表；`egress=shareable` 时必须带 `egress_consent`，否则 422。
+- `app/atlas/importer.py`：批次 `import_batch_id`；`create_exemplars(items)`：写图 → 写表（`describe_status="pending"`）；VLM 描述由前端调 runtime 后经 `PUT /exemplars/{id}/description` 写回（凭据不经 backend）；CLI `--describe` 时由 CLI 进程直接调 runtime（`GLAUX_AGENT_RUNTIME_URL`，默认 `http://127.0.0.1:8010`，凭据取环境变量）；`egress=shareable` 时必须带 `egress_consent`，否则 422。
 - `app/atlas/cli.py`：`import-dataset <dir> --format coco|yolo|labelme --tags … --source-name … --license … [--shareable --i-confirm-egress]`；多边形 → 外接框 `roi` + `geometry`；可重跑（幂等键）。
-- `routers/atlas.py`（`prefix="/atlas"`）：`POST /imports/pdf`（multipart）→ 候选列表；`POST /imports/url` → 候选列表；`POST /exemplars`（批量创建）；`GET /exemplars`（list + filters）；`GET /exemplars/search`；`GET /exemplars/{id}`、`/image`、`/crop`；`POST /exemplars/{id}/retire|restore|describe`（重试描述）；`DELETE /exemplars/{id}`；`POST /exemplars/referenced`；`GET /tags`（频次）。
+- `routers/atlas.py`（`prefix="/atlas"`）：`POST /imports/pdf`（multipart）→ 候选列表；`POST /imports/url` → 候选列表；`POST /exemplars`（批量创建）；`GET /exemplars`（list + filters）；`GET /exemplars/search`；`GET /exemplars/{id}`、`/image`、`/crop`；`POST /exemplars/{id}/retire|restore`；`PUT /exemplars/{id}/description`；`DELETE /exemplars/{id}`；`POST /exemplars/referenced`；`GET /tags`（频次）。
 - `main.py`：`app.include_router(atlas_router)`。
 
 ### T3 · frontend Atlas 视图（SDD §5.1 / §8 / D-14）

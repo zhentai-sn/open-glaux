@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, datasource_registry
 from .routers.api import router
+from .routers.atlas import router as atlas_router
 
 # 数据源注册表装配（开发者模式 seed 内置源；产品模式空源起步）——见 datasource_registry。
 datasource_registry.init()
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(atlas_router)  # Atlas · 图谱（SDD 03）
 
 
 @app.get("/health", tags=["meta"])

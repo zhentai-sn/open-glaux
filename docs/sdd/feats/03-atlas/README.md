@@ -83,7 +83,7 @@
 ### 4.3 输入约束
 
 - PDF / 网页解析只抽取图片与其图注/邻近文本，不入库正文全文；扫描版 PDF 不支持（无嵌入图则报 `NO_FIGURES_FOUND`）。
-- 网页抓取走与 agent-runtime 一致的出站守卫规则（解析后 IP 判定 + 私网/fake-ip 拒绝），只抓 http(s)，不执行脚本。
+- 网页抓取走与 agent-runtime 一致的出站守卫规则（解析后 IP 判定 + 私网/链路本地/保留/fake-ip 拒绝，`GLAUX_VLM_HOST_ALLOW` / `GLAUX_VLM_ALLOW_FAKEIP` 同名开关），只抓 http(s)、不执行脚本、不带凭据；与 runtime 唯一差异：公开页面允许明文 http（只读抓取，无凭据可泄）。
 - 标签自由填写，但归一（去首尾空白、全半角、大小写）后入库；不做同义合并。
 - 外发许可缺省为 `local-only`；改为 `shareable` 须勾选"我确认有权将该图发往第三方模型服务"，勾选记录随案例保存（D-16）。
 
@@ -100,9 +100,9 @@
 - backend REST（前缀 `/atlas`）：
   - `POST /imports/pdf`、`POST /imports/url` → 候选插图列表（不入库）；
   - `POST /exemplars`（批量创建）、`GET /exemplars`（列表+筛选）、`GET /exemplars/search`（检索，≤ 10）、`GET /exemplars/{id}`、`GET /exemplars/{id}/image|crop`（PNG）；
-  - `POST /exemplars/{id}/retire|restore|describe`（下架 / 恢复 / 重试描述）、`DELETE /exemplars/{id}`；
+  - `POST /exemplars/{id}/retire|restore`（下架 / 恢复）、`PUT /exemplars/{id}/description`（写入/重试后的 VLM 描述）、`DELETE /exemplars/{id}`；
   - `POST /exemplars/referenced`（runtime 回写"已被会话引用"，用于硬删除门禁）；`GET /tags`（标签频次，供联想）。
-- agent-runtime 内部端点 `POST /agent-api/v1/atlas/describe`（backend 调用，生成 §7.6 描述）。
+- agent-runtime 内部端点 `POST /agent-api/v1/atlas/describe`（**前端或 CLI** 调用，生成 §7.6 描述；凭据不经 backend）。
 - runtime 模块（供 02 `locate_roi` 调用）：`AtlasClient.search()`、`selectExemplars()`（两步中的挑选步）、`atlas.referenced` 事件构造；`locate_roi` 的可选入参 `exemplar_hint` 即其产物。
 
 ### 5.3 输出保证
@@ -130,12 +130,17 @@ sequenceDiagram
     P-->>B: 候选插图列表
     B-->>F: 候选插图（缩略图 + 图注）
     U->>F: 勾选插图、框选 ROI、填标签、编辑图注
-    F->>B: POST /atlas/exemplars (图 + ROI + 标签 + 来源 + 外发许可)
-    B->>V: 生成结构化描述（切面/位置/回声/形态…）
-    V-->>B: 描述 JSON
-    B->>S: 写图像文件 + 案例记录
+    F->>B: POST /atlas/exemplars (候选引用 + ROI + 标签 + 来源 + 外发许可)
+    B->>S: 写图像文件 + 案例记录（describe_status=pending）
     B-->>F: exemplar_id 列表
+    F->>V: POST /agent-api/v1/atlas/describe（裁剪图 + 连接凭据，逐条）
+    V-->>F: 描述 JSON
+    F->>B: PUT /atlas/exemplars/{id}/description
+    B->>S: 更新描述 + 检索文本（describe_status=done）
 ```
+
+凭据边界：VLM 连接凭据只从前端发往 agent-runtime（同 00 的约束），**不经 backend**；backend 只存描述结果。
+CLI 批量导入可选 `--describe`，由 CLI 进程直接调 runtime（凭据取自环境变量），同样不落 backend。
 
 ### 6.2 导入（标注数据集，CLI）
 
@@ -224,7 +229,7 @@ sequenceDiagram
 | 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 `GLAUX_ATLAS_ROOT/db/` + 图像 `GLAUX_ATLAS_ROOT/images/` | 原图与标记分存 |
 | PDF 解析 | backend 依赖 PyMuPDF（`pymupdf`），主进程可用（IO 库，非重模型） | 抽嵌入图 + 同页邻近文本 |
 | 网页解析 | backend：`httpx` + HTML 解析；出站守卫需在 Python 侧按 `agent-runtime/src/security/net-guard.ts` 规则重建（backend 的 `net_guard.py` 已在退役 orchestration P3 删除） | 抽 `<img>` + alt / figcaption / 邻近段落 |
-| VLM 描述生成 | agent-runtime 新增内部端点 `/agent-api/v1/atlas/describe`，backend 调用 | 复用现有 provider 连接 |
+| VLM 描述生成 | agent-runtime 新增端点 `/agent-api/v1/atlas/describe`，由前端（导入向导）或 CLI 调用；结果经 `PUT /atlas/exemplars/{id}/description` 写回 backend | 复用现有 provider 连接；凭据不经 backend |
 | REST | `backend/app/routers/atlas.py`（新增） | §5.2 端点 |
 | 检索先验接入 | `agent-runtime/src/pi/tools/`（02 的 `locate_roi` 内部）| 调 search，拼 few-shot |
 | 会话卡片 | `frontend/src/components/agent/` | "参考图谱 N 条" |
