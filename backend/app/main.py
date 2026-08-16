@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, datasource_registry
+from .routers.annotations import router as annotations_router
 from .routers.api import router
 from .routers.atlas import router as atlas_router
 
@@ -37,6 +38,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(atlas_router)  # Atlas · 图谱（SDD 03）
+app.include_router(annotations_router)  # 统一标注（SDD 04）
 
 
 @app.get("/health", tags=["meta"])

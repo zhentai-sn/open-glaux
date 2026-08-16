@@ -82,6 +82,10 @@ WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_ou
 # --- Atlas · 图谱（SDD 03）：LanceDB 案例表 + 原图/裁剪图目录 ------------------------
 # 独立于数据集根（图谱是跨数据源的人工资产）；下设 db/（LanceDB）与 images/。
 ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", HOME / "glaux_atlas")
+
+# --- 统一标注存储（SDD 04）：annotations.sqlite + masks/ PNG ------------------------
+# 独立于数据集根（标注是跨数据源的人工/agent 资产，对齐 ATLAS_ROOT 惯例）。
+ANNOTATIONS_ROOT = _env_path("GLAUX_ANNOTATIONS_ROOT", HOME / "glaux_annotations")
 # 描述生成走 agent-runtime（主进程无 LLM SDK）；导入期调用，失败不阻塞入库。
 AGENT_RUNTIME_URL = os.environ.get("GLAUX_AGENT_RUNTIME_URL", "http://127.0.0.1:8010")
 
