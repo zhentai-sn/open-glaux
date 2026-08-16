@@ -10,8 +10,6 @@ P6：在 _detect_for_spec 加 "volume" 分支（CT 模态），数据来自 segm
 from __future__ import annotations
 
 import base64
-import os
-import time
 
 import numpy as np
 
@@ -87,38 +85,7 @@ def intent_backends() -> list[dict]:
     ]
 
 
-def vlm_test(provider: str, base_url: str | None, api_key: str | None) -> dict:
-    """连接测试——ping + （成功时）拉模型算 model_count / vision_count（SDD §5）。
-
-    SSRF 守卫在端点侧先行（api._guard_probe）；此处只做探测，不抛栈（异常归 reason）。
-    """
-    from glaux_orchestrator.vlm_providers import make_provider
-
-    # anthropic 无 key 无法探测（SDK 会报错）；本地 openai_compatible 允许空 key。
-    if provider == "anthropic" and not (api_key or os.getenv("ANTHROPIC_API_KEY")):
-        return {"ok": False, "status": None, "latency_ms": None, "reason": "缺少密钥"}
-
-    p = make_provider(provider, base_url, api_key)
-    t0 = time.perf_counter()
-    ok, status, reason = p.ping()
-    latency = int((time.perf_counter() - t0) * 1000)
-    out: dict = {"ok": ok, "status": status, "latency_ms": latency, "reason": reason}
-    if ok:
-        try:
-            models = p.list_models()
-            out["model_count"] = len(models)
-            out["vision_count"] = sum(1 for m in models if m.vision == "yes")
-        except Exception:  # noqa: BLE001 - 计数失败不影响连通结论
-            pass
-    return out
-
-
-def vlm_models(provider: str, base_url: str | None, api_key: str | None) -> list[dict]:
-    """拉取模型列表（全列 + 视觉标注）——SSRF 守卫在端点侧先行。"""
-    from glaux_orchestrator.vlm_providers import make_provider
-
-    p = make_provider(provider, base_url, api_key)
-    return [{"id": m.id, "vision": m.vision} for m in p.list_models()]
+# 连接测试 / 拉模型已迁至 agent-runtime `/agent-api/v1/connection/*`（退役 orchestration P2）。
 
 
 def interpret(

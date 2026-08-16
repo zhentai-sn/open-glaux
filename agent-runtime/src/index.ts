@@ -1,5 +1,6 @@
 import { loadRuntimeConfig } from "./config.js";
 import { CommandService } from "./pi/command-service.js";
+import { createConnectionProbe } from "./pi/connection-probe.js";
 import { HarnessRegistry } from "./pi/harness-registry.js";
 import { SessionService } from "./pi/session-service.js";
 import { buildServer } from "./transport/server.js";
@@ -22,6 +23,7 @@ const server = buildServer({
     return { version: "0.1.0" };
   },
   routes: { sessions, commands, registry, broker },
+  probe: createConnectionProbe(),
 });
 
 const shutdown = async () => {

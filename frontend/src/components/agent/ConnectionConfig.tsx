@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { ApiError, api } from "../../api/client";
+import { AgentRuntimeError, agentRuntimeApi } from "../../agent/runtime/client";
+import { toProbeInput } from "../../agent/useConversation";
 import type { VlmModelInfo, VlmProvider } from "../../api/types";
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
@@ -32,17 +33,13 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
   } | null>(null);
 
   const errorText = (error: unknown) =>
-    error instanceof ApiError ? error.message : String(error);
+    error instanceof AgentRuntimeError ? error.message : String(error);
 
   const testConnection = async () => {
     setTesting(true);
     setStatus(null);
     try {
-      const result = await api.vlmTest(
-        connection.provider,
-        connection.baseUrl || undefined,
-        connection.apiKey || undefined,
-      );
+      const result = await agentRuntimeApi.testConnection(toProbeInput(connection));
       setConnection({
         lastTest: {
           ok: result.ok,
@@ -67,11 +64,7 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
     setFetching(true);
     setStatus(null);
     try {
-      const result = await api.vlmModels(
-        connection.provider,
-        connection.baseUrl || undefined,
-        connection.apiKey || undefined,
-      );
+      const result = await agentRuntimeApi.listModels(toProbeInput(connection));
       setConnection({ models: result.models });
       setStatus({
         tone: result.models.length ? "good" : "warn",

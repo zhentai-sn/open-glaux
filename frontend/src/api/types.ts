@@ -98,27 +98,13 @@ export interface IntentBackendInfo {
   reason: string;
 }
 
-// --- VLM 连接探测（镜像 backend schemas §5 · SDD 2026-07-14-001）---------------
+// --- VLM 连接（前端 store 用；探测结果类型见 agent/runtime/types.ts）-----------------------
 
 export type VlmProvider = "anthropic" | "openai_compatible";
 
 export interface VlmModelInfo {
   id: string;
   vision: "yes" | "no" | "unknown";
-}
-
-export interface VlmTestResult {
-  ok: boolean;
-  status: number | null;
-  latency_ms: number | null;
-  model_count?: number | null;
-  vision_count?: number | null;
-  reason: string;
-}
-
-export interface VlmModelListResult {
-  models: VlmModelInfo[];
-  reason: string;
 }
 
 // --- 统一信封（多模态·P2）——镜像 glaux_core.contracts + /task/* 端点 ---------

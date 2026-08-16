@@ -49,35 +49,7 @@ class IntentBackendInfo(BaseModel):
     reason: str
 
 
-# --- VLM 连接探测（SDD 2026-07-14-001 §5）----------------------------------
-
-class ProbeRequest(BaseModel):
-    """连接测试 / 拉模型的入参——一条连接的 provider + 端点 + 密钥。"""
-
-    provider: Literal["anthropic", "openai_compatible"] = "anthropic"
-    base_url: str | None = None
-    api_key: str | None = None
-
-
-class VlmModelInfo(BaseModel):
-    """一个可选模型 + 视觉能力标注（前端据此 👁 / 灰显）。"""
-
-    id: str
-    vision: Literal["yes", "no", "unknown"]
-
-
-class TestResult(BaseModel):
-    ok: bool
-    status: int | None = None
-    latency_ms: int | None = None
-    model_count: int | None = None
-    vision_count: int | None = None
-    reason: str
-
-
-class ModelListResult(BaseModel):
-    models: list[VlmModelInfo]
-    reason: str = ""
+# VLM 连接探测契约已迁至 agent-runtime（/agent-api/v1/connection/*，退役 orchestration P2）。
 
 
 class IntentResult(BaseModel):

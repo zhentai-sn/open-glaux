@@ -33,6 +33,31 @@ export interface ConnectionInput {
   credential?: string;
 }
 
+// --- 连接探测（/agent-api/v1/connection/*）——镜像 agent-runtime connection-probe -----------
+
+export interface ConnectionProbeInput {
+  provider: ConnectionInput["provider"];
+  base_url?: string;
+  credential?: string;
+}
+
+export interface ConnectionTestResult {
+  ok: boolean;
+  http_status: number | null;
+  reason: string;
+  model_count?: number;
+}
+
+export interface ConnectionModelInfo {
+  id: string;
+  vision: "yes" | "no" | "unknown";
+}
+
+export interface ConnectionModelListResult {
+  models: ConnectionModelInfo[];
+  reason?: string;
+}
+
 export type TransportCommand =
   | {
       command_id: string;

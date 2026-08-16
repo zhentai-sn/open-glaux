@@ -16,9 +16,7 @@ import type {
   TaskSpec,
   TaskType,
   TaskView,
-  VlmModelListResult,
   VlmProvider,
-  VlmTestResult,
 } from "./types";
 
 /** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
@@ -103,21 +101,7 @@ export const api = {
 
   intentBackends: () => get<IntentBackendInfo[]>("/intent/backends"),
 
-  /** 连接测试——ping + 计数（SDD 2026-07-14-001 §5）。 */
-  vlmTest: (provider: VlmProvider, base_url?: string, api_key?: string) =>
-    post<VlmTestResult>("/intent/vlm/test", {
-      provider,
-      base_url: base_url || null,
-      api_key: api_key || null,
-    }),
-
-  /** 拉取模型列表（全列 + 视觉标注）。 */
-  vlmModels: (provider: VlmProvider, base_url?: string, api_key?: string) =>
-    post<VlmModelListResult>("/intent/vlm/models", {
-      provider,
-      base_url: base_url || null,
-      api_key: api_key || null,
-    }),
+  // 连接测试 / 拉模型已迁至 agentRuntimeApi.testConnection / listModels（退役 orchestration P2）。
 
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),

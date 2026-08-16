@@ -1,4 +1,7 @@
 import type {
+  ConnectionModelListResult,
+  ConnectionProbeInput,
+  ConnectionTestResult,
   PermissionMode,
   RuntimeHealth,
   SessionListItem,
@@ -95,6 +98,17 @@ export const agentRuntimeApi = {
         body: JSON.stringify(command),
       },
     ),
+  // 连接探测（退役 orchestration P2：从 backend /intent/vlm/* 迁来，agent-runtime 是唯一模型出口）
+  testConnection: (input: ConnectionProbeInput) =>
+    request<ConnectionTestResult>("/connection/test", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listModels: (input: ConnectionProbeInput) =>
+    request<ConnectionModelListResult>("/connection/models", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };
 
 export type AgentRuntimeClient = typeof agentRuntimeApi;

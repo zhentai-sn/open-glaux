@@ -134,6 +134,15 @@ graph LR
 
 ### 3.2 P2 · 模型连接探测搬到 agent-runtime
 
+> ✅ **已完成（2026-08-16）**。agent-runtime 新增 `security/net-guard.ts`（移植 net_guard.py，含 IPv4/IPv6
+> 分类）、`pi/connection-probe.ts`（移植 vlm_providers.py：anthropic 目录 / Ollama capabilities / 名称启发式）、
+> `transport/connection-routes.ts`（`POST /agent-api/v1/connection/test|models`）；27 项单测覆盖守卫与三条视觉
+> 判定路径。前端 `ConnectionConfig` 改调 `agentRuntimeApi.testConnection/listModels`；backend 删
+> `/intent/vlm/*`、`kernel.vlm_test/vlm_models`、`ProbeRequest/TestResult/ModelListResult/VlmModelInfo`
+> 与两份测试。**与原计划的两点偏差**：① provider 枚举**不改名**——前端 `toConnectionInput/toProbeInput`
+> 已在边界做 `openai_compatible → openai-compatible` 映射，端点也接受两种拼法，改名只增风险；
+> ② `backend/app/net_guard.py` **暂留**至 P3——`/interpret` 的 VLM 路径仍用它，随 `/interpret` 一起删。
+
 **agent-runtime 新增两个端点**（对齐现有 `/agent-api/v1/sessions*` 风格）：
 
 | 端点 | 入参 | 出参 |

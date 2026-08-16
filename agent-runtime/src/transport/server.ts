@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import Fastify, { LogController } from "fastify";
 
 import { RuntimeError, safeError } from "../errors.js";
+import type { ConnectionProbe } from "../pi/connection-probe.js";
+import { registerConnectionRoutes } from "./connection-routes.js";
 import type { RouteDependencies } from "./routes.js";
 import { registerRoutes } from "./routes.js";
 import { redact } from "../security/redact.js";
@@ -10,6 +12,7 @@ import { redact } from "../security/redact.js";
 export interface BuildServerOptions {
   healthCheck?: () => Promise<Record<string, unknown>>;
   routes?: RouteDependencies;
+  probe?: ConnectionProbe;
 }
 
 export function buildServer(options: BuildServerOptions = {}) {
@@ -40,6 +43,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     ...((await options.healthCheck?.()) ?? {}),
   }));
   if (options.routes) registerRoutes(server, options.routes);
+  if (options.probe) registerConnectionRoutes(server, options.probe);
 
   server.setNotFoundHandler((request, reply) => {
     const traceId = request.id || randomUUID();

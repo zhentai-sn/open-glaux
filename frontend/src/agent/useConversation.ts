@@ -1,6 +1,18 @@
 import { useAgentSessions } from "../store/agentSessions";
 import { useSession, type Connection } from "../store/session";
-import type { ConnectionInput } from "./runtime/types";
+import type { ConnectionInput, ConnectionProbeInput } from "./runtime/types";
+
+/** 连接探测入参（测试连接 / 拉模型）——只带 provider / 端点 / 密钥，不带 model。 */
+export function toProbeInput(connection: Connection): ConnectionProbeInput {
+  return {
+    provider:
+      connection.provider === "openai_compatible"
+        ? "openai-compatible"
+        : "anthropic",
+    ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
+    ...(connection.apiKey ? { credential: connection.apiKey } : {}),
+  };
+}
 
 export function toConnectionInput(connection: Connection): ConnectionInput {
   return {
