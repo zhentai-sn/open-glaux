@@ -53,9 +53,7 @@ def _cached(slide_id: str, roi, method: str) -> Path | None:
     return p if p.is_file() else None
 
 
-def _run_live(
-    slide_id: str, roi: tuple[int, int, int, int], method: str, timeout: float
-) -> str:
+def _run_live(slide_id: str, roi: tuple[int, int, int, int], method: str, timeout: float) -> str:
     """主进程抽 ROI + 切 patch → 隔离子进程跑模型 → 主进程加偏移 + 去重 → 写质心 json。
 
     子进程 argv 列表（无 shell=True）；env 最小化。与 segment_ts 同模板。
@@ -92,11 +90,16 @@ def _run_live(
         cmd = [
             str(config.WSI_SEG_PYTHON),
             str(config.WSI_SEG_DRIVER),
-            "--workdir", str(workdir),
-            "--manifest", str(workdir / "manifest.json"),
-            "--output", str(out_json),
-            "--method", method,
-            "--mpp", str(mpp_x),
+            "--workdir",
+            str(workdir),
+            "--manifest",
+            str(workdir / "manifest.json"),
+            "--output",
+            str(out_json),
+            "--method",
+            method,
+            "--mpp",
+            str(mpp_x),
         ]
         env = {
             "MPLBACKEND": "Agg",
@@ -108,14 +111,22 @@ def _run_live(
             "HOME": str(config.HOME),
         }
         result = subprocess.run(
-            cmd, cwd=str(config.WSI_SEG_DRIVER.parent), env=env,
-            timeout=timeout, capture_output=True, text=True, check=False,
+            cmd,
+            cwd=str(config.WSI_SEG_DRIVER.parent),
+            env=env,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         stderr_tail = (getattr(result, "stderr", "") or "")[-2000:]
         if getattr(result, "returncode", 0) != 0:
             log.warning(
                 "segment_wsi_headless 非 0 退出 rc=%s slide=%s method=%s\nstderr:\n%s",
-                getattr(result, "returncode", "?"), slide_id, method, stderr_tail,
+                getattr(result, "returncode", "?"),
+                slide_id,
+                method,
+                stderr_tail,
             )
         if not out_json.is_file():
             return stderr_tail

@@ -291,3 +291,111 @@ def test_search_path_does_not_import_torch(store, images):
     _seed(store, images)
     store.search(q="电子致密物", egress="any")
     assert "torch" not in sys.modules and "tensorflow" not in sys.modules
+
+
+# --- 图册 collection（v1.1，SDD 03 D-20 / §7.5a / §15 v1.1） -----------------------------
+
+
+def test_normalize_collection_segments_fullwidth_and_case():
+    from app.atlas.text import normalize_collection
+
+    assert normalize_collection(None) == ("", "")
+    assert normalize_collection("  ") == ("", "")
+    d, k = normalize_collection(" 肾脏 / 膜性肾病 ／ EDD ")
+    assert d == "肾脏/膜性肾病/EDD"
+    assert k == "肾脏/膜性肾病/edd"
+    assert normalize_collection("肾脏／膜性肾病")[1] == normalize_collection("肾脏/膜性肾病")[1]
+    assert normalize_collection("Kidney/MN")[1] == normalize_collection("kidney/mn")[1]
+    assert normalize_collection("//a//b/")[0] == "a/b"
+
+
+def test_collection_prefix_filter_counts_and_move(store, images):
+    ((a, _),) = store.create([_new(images, png=_png(val=1), collection="肾脏/膜性肾病/EDD")])
+    ((b, _),) = store.create([_new(images, png=_png(val=2), collection="肾脏／膜性肾病")])
+    ((c, _),) = store.create([_new(images, png=_png(val=3), collection="肾脏/IgA")])
+    ((d, _),) = store.create([_new(images, png=_png(val=4))])  # 根目录
+
+    ids = lambda rows: sorted(e.exemplar_id for e in rows)  # noqa: E731
+    assert ids(store.list(collection="肾脏/膜性肾病")) == sorted([a, b])
+    assert ids(store.list(collection="肾脏")) == sorted([a, b, c])
+    assert ids(store.list(collection="肾脏/膜性肾病/EDD")) == [a]
+    assert ids(store.list(collection="")) == sorted([a, b, c, d])  # 根 = 全部
+    assert ids(store.list(collection="", collection_exact=True)) == [d]  # 未分册
+    assert (
+        ids(
+            store.list(
+                collection="肾脏/膜性",
+            )
+        )
+        == []
+    )  # 前缀按段而非字符
+
+    # search 也按图册限定范围
+    hit = store.search(q="电子致密物", egress="any", collection="肾脏/IgA")
+    assert ids(hit) == [c]
+
+    counts = {k: (disp, n) for disp, k, n in store.collection_counts()}
+    assert counts["肾脏/膜性肾病/edd"] == ("肾脏/膜性肾病/EDD", 1)
+    assert counts["肾脏/膜性肾病"][1] == 1
+    assert counts[""][1] == 1
+
+    # 移动：id 不变、幂等键不变（重复导入仍返回同 id）、引用不变
+    store.mark_referenced([d], "t1")
+    moved = store.set_collection(d, "肾脏/膜性肾病")
+    assert moved.exemplar_id == d and moved.collection == "肾脏/膜性肾病"
+    assert ids(store.list(collection="肾脏/膜性肾病")) == sorted([a, b, d])
+    ((again, created),) = store.create([_new(images, png=_png(val=4), collection="别的图册")])
+    assert (again, created) == (d, False)
+    assert store.is_referenced(d)
+
+
+def test_old_table_without_collection_column_is_migrated(tmp_path, images):
+    """旧库（v1 schema，无 collection 列）打开时补列，旧案例落在根目录（未分册）。"""
+    import lancedb
+
+    from app.atlas import store as store_mod
+
+    root = tmp_path / "atlas"
+    (root / "db").mkdir(parents=True)
+    old_schema = store_mod._EXEMPLARS_SCHEMA.remove(
+        store_mod._EXEMPLARS_SCHEMA.get_field_index("collection_key")
+    )
+    old_schema = old_schema.remove(old_schema.get_field_index("collection"))
+    db = lancedb.connect(str(root / "db"))
+    tbl = db.create_table("exemplars", schema=old_schema)
+    ref, sha, _ = images.save_original(_png(val=9))
+    tbl.add(
+        [
+            {
+                "exemplar_id": "old-1",
+                "dedupe_key": "k",
+                "image_ref": ref,
+                "crop_ref": "",
+                "image_sha256": sha,
+                "roi": [1, 1, 5, 5],
+                "geometry_json": "",
+                "tags": ["tem"],
+                "tags_raw": ["TEM"],
+                "caption": "old",
+                "notes": "",
+                "description_json": "",
+                "describe_status": "pending",
+                "search_text": "old",
+                "source_type": "textbook",
+                "source_json": "{}",
+                "egress": "local-only",
+                "egress_consent_json": "",
+                "status": "active",
+                "created_at": "2026-08-15T00:00:00+00:00",
+                "import_batch_id": "b0",
+            }
+        ]
+    )
+    db.create_table("exemplar_refs", schema=store_mod._REFS_SCHEMA)
+
+    s = AtlasStore(root).open()
+    assert "collection" in s.exemplars.schema.names
+    ex = s.get("old-1")
+    assert ex is not None and ex.collection == "" and ex.collection_key == ""
+    assert [e.exemplar_id for e in s.list(collection="", collection_exact=True)] == ["old-1"]
+    assert s.collection_counts() == [("", "", 1)]

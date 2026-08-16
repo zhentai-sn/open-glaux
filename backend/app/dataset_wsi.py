@@ -162,7 +162,7 @@ def image_meta(slide_id: str) -> dict:
         "id": slide_id,
         "center": "Pathology",
         "modality": "pathology",
-        "cf": None,               # WSI 走 mpp，不是 cubs_cf
+        "cf": None,  # WSI 走 mpp，不是 cubs_cf
         "methods": ["stardist_he"],
         "mpp_um": mpp_um,
         "dims": [w, h],

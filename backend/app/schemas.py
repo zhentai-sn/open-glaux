@@ -30,6 +30,7 @@ class TaskSpec(BaseModel):
 
 # --- 测量 -------------------------------------------------------------------
 
+
 class IMTResult(BaseModel):
     """对齐口径测量结果（内核 measure 的返回；仅后端内部与金标准对比用）。"""
 
@@ -53,6 +54,7 @@ class TaskMeasureRequest(BaseModel):
 
 # --- 数据集 / 影像 -----------------------------------------------------------
 
+
 class ImageMeta(BaseModel):
     id: str
     center: str
@@ -65,6 +67,7 @@ class ImageMeta(BaseModel):
 
 
 # --- 数据源（注册表 · 文件夹导入） ------------------------------------------
+
 
 class DataSourceInfo(BaseModel):
     """一个已注册的数据源（builtin / imported / connector）——``GET/POST /datasources`` 契约。"""
@@ -83,11 +86,14 @@ class DatasourceImportRequest(BaseModel):
 
     path: str
     modality: Modality
-    calibration: dict | None = Field(default=None, description="标定提示，如 {\"mpp\":[0.5,0.5]}；缺则 needs_calibration")
+    calibration: dict | None = Field(
+        default=None, description='标定提示，如 {"mpp":[0.5,0.5]}；缺则 needs_calibration'
+    )
     name: str | None = None
 
 
 # --- 模型（扩展=适配器） -----------------------------------------------------
+
 
 class ModelInfo(BaseModel):
     id: str
@@ -99,6 +105,7 @@ class ModelInfo(BaseModel):
 
 
 # --- 能力（「插件市场」的统一抽象，§5） --------------------------------------
+
 
 class Capability(BaseModel):
     """一条能力清单——把模型/数据集/连接器/skill/MCP/知识库用「环境四层」本体收成一套。
@@ -121,4 +128,3 @@ class Capability(BaseModel):
 
 
 # --- 修正回流 ----------------------------------------------------------------
-

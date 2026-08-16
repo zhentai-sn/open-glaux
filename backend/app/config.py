@@ -32,7 +32,9 @@ if _SCIENCE_CORE.is_dir() and str(_SCIENCE_CORE) not in sys.path:
     sys.path.insert(0, str(_SCIENCE_CORE))
 
 # --- 数据集路径（CUBS-tech） -------------------------------------------------
-DATA_ROOT = _env_path("GLAUX_DATA_ROOT", HOME / "glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech")
+DATA_ROOT = _env_path(
+    "GLAUX_DATA_ROOT", HOME / "glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech"
+)
 IMAGES_DIR = DATA_ROOT / "images"
 CF_DIR = DATA_ROOT / "CF"
 SEG_DIR = DATA_ROOT / "LIMA-Profiles"
@@ -97,7 +99,11 @@ def root_has_data(modality: str, root: Path) -> bool:
     ``*_available`` 的目录检查，只是把 root 参数化。
     """
     if modality == "carotid_imt":
-        return (root / "images").is_dir() and (root / "CF").is_dir() and (root / "LIMA-Profiles").is_dir()
+        return (
+            (root / "images").is_dir()
+            and (root / "CF").is_dir()
+            and (root / "LIMA-Profiles").is_dir()
+        )
     if modality == "fetal_hc":
         return (root / "training_set/training_set").is_dir() and (
             root / "training_set_pixel_size_and_HC.csv"

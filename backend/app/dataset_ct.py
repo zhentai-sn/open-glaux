@@ -131,7 +131,7 @@ def image_meta(volume_id: str) -> dict:
         "id": volume_id,
         "center": "CT",
         "modality": "ct_abdomen",  # 与 TaskPlugin.modality 对齐（前端 /images 路由）
-        "cf": None,                 # CT 走 voxel_spacing，不是 cubs_cf
+        "cf": None,  # CT 走 voxel_spacing，不是 cubs_cf
         "methods": ["totalsegmentator_v2"],
         "voxel_spacing_mm": [sx, sy, sz],
     }
@@ -139,13 +139,16 @@ def image_meta(volume_id: str) -> dict:
 
 # --- 画笔编辑 patch (U4) ---------------------------------------------------
 
+
 def labelmap_nib(volume_id: str, method: str = "totalsegmentator_v2") -> nib.Nifti1Image:
     """读 labelmap NIfTI 句柄（callers 改完要调 commit_labelmap 写回）。"""
     path = segment_ts.labelmap_path(volume_id, method)
     return nib.load(str(path))
 
 
-def commit_labelmap(volume_id: str, labelmap: nib.Nifti1Image, method: str = "totalsegmentator_v2") -> str:
+def commit_labelmap(
+    volume_id: str, labelmap: nib.Nifti1Image, method: str = "totalsegmentator_v2"
+) -> str:
     """写回 labelmap 到缓存（覆盖同 vid+method 路径）。返回 path。"""
     out = segment_ts.labelmap_path(volume_id, method)
     nib.save(labelmap, str(out))
@@ -168,7 +171,9 @@ def patch_labelmap(
     if not slices:
         # 无 slices → 不改 labelmap，但确保缓存存在（否则端点返 404 误导调用方）
         labelmap = labelmap_nib(volume_id, method)
-        return str(segment_ts.labelmap_path(volume_id, method)), np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
+        return str(segment_ts.labelmap_path(volume_id, method)), np.asarray(
+            labelmap.dataobj
+        ).astype(np.int32, copy=False)
 
     labelmap = labelmap_nib(volume_id, method)
     arr = np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
@@ -179,6 +184,7 @@ def patch_labelmap(
     # 验证：所有 class_id 在白名单内（防止 paint class_id=999 这种越权）
     if class_id_to_role is None:
         from glaux_core.tasks import LIVER_KIDNEY_CLASSES
+
         class_id_to_role = {c.class_id: c.role for c in LIVER_KIDNEY_CLASSES}  # type: ignore[name-defined]
     valid_class_ids = set(class_id_to_role.keys())
     for s in slices:
