@@ -8,7 +8,7 @@
 | 端点 | 映射内核 | M0 状态 |
 | --- | --- | --- |
 | `POST /interpret` | `orchestrator.intent`（三态守卫） | mock（规则分类，行为对齐） |
-| `POST /run` | `orchestrator.run_spec` | mock |
+| `POST /run` | `kernel.py`（读 `glaux_core.tasks.REGISTRY`） | mock |
 | `POST /measure` | `measurement.pdm.imt`（共同支撑+对称 PDM） | mock |
 | `GET /images` | `io.cubs.read_dataset` | mock |
 | `GET /image/{id}` | tiff→PNG | mock（stdlib 合成 PNG） |

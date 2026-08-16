@@ -328,7 +328,7 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
     """P6 U4：画笔编辑回流——patch labelmap + 重 measure + 返回新 metrics。"""
     from glaux_core.contracts import VolumeMask
     from glaux_core.calibration.calibration import resolve_ct_calibration
-    from glaux_orchestrator.tasks import REGISTRY as _REG, LIVER_KIDNEY_CLASSES, TaskType as _TT
+    from glaux_core.tasks import REGISTRY as _REG, LIVER_KIDNEY_CLASSES, TaskType as _TT
     from glaux_core.measurement.ct import measure_liver_kidney as _measure_lk
 
     if not KERNEL_OK:
@@ -402,8 +402,8 @@ def volume_verify(
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
     if not dataset_ct.is_ct(volume_id):
         raise HTTPException(404, f"非 CT volume id：{volume_id}")
+    from glaux_core.tasks import LIVER_KIDNEY_CLASSES
     from glaux_core.verification.dice import dice_per_class
-    from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES
 
     # pred = 当前 labelmap 缓存；ref = ship 的 reproducibility reference
     pred_path = segment_ts.labelmap_path(volume_id, method)

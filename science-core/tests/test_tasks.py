@@ -1,4 +1,7 @@
-"""任务插件注册表测试——注册完整性、信号路由、测量原语、/tasks 视图。"""
+"""任务注册表测试——TaskSpec 校验、注册完整性、信号路由、测量原语、/tasks 视图。
+
+由 ``orchestration/tests/test_tasks.py`` 迁入（2026-08-16，退役 orchestration P1）。
+"""
 
 from __future__ import annotations
 
@@ -7,27 +10,50 @@ import json
 import numpy as np
 import pytest
 
-from glaux_core.calibration.calibration import CFSource, CalibrationResult, resolve_ct_calibration
+from glaux_core.calibration.calibration import (
+    CalibrationResult,
+    CFSource,
+    resolve_ct_calibration,
+    resolve_wsi_calibration,
+)
 from glaux_core.contracts import (
-    ClassSpec,
     Detection,
     EllipseShape,
+    PointSet,
     Polyline,
     VolumeMask,
 )
-from glaux_orchestrator.spec import TaskType
-from glaux_core.calibration.calibration import resolve_wsi_calibration
-from glaux_core.contracts import PointSet
-from glaux_core.measurement.nuclei import measure_nuclei
-from glaux_orchestrator.tasks import (
+from glaux_core.tasks import (
     LIVER_KIDNEY_CLASSES,
     NUCLEI_CLASSES,
     REGISTRY,
+    TaskSpec,
+    TaskType,
     measure_hc,
     measure_imt,
     plugin_to_view,
     task_for_signals,
 )
+
+
+# --- 规范校验 ---------------------------------------------------------------
+
+
+def test_taskspec_validates_roi_and_cf():
+    ok = TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.06, roi=(50, 150))
+    assert ok.task is TaskType.FAR_WALL_CCA_IMT
+    with pytest.raises(ValueError):
+        TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, roi=(150, 50))  # x1<=x0
+    with pytest.raises(ValueError):
+        TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.0)  # 非正
+
+
+def test_taskspec_rejects_unknown_task_type():
+    with pytest.raises(ValueError):
+        TaskSpec(task="not_a_task")  # type: ignore[arg-type]
+
+
+# --- 注册表完整性与信号路由 ---------------------------------------------------
 
 
 def test_registry_covers_all_task_types():
@@ -50,6 +76,9 @@ def test_task_for_signals_routes():
     assert task_for_signals("这张病理切片数一下细胞核") is TaskType.NUCLEI_DETECTION
     assert task_for_signals("count nuclei in this WSI") is TaskType.NUCLEI_DETECTION
     assert task_for_signals("hello world") is None
+
+
+# --- 测量原语 ---------------------------------------------------------------
 
 
 def _cal(cf: float = 0.06):
@@ -83,6 +112,9 @@ def test_measure_hc_from_detection():
     assert meas.metrics["BPD"].value == pytest.approx(2 * 60 * 0.1)  # 短轴
     assert meas.metrics["OFD"].value == pytest.approx(2 * 80 * 0.1)  # 长轴
     assert set(meas.metrics) == {"HC", "BPD", "OFD", "area"}
+
+
+# --- /tasks 视图 --------------------------------------------------------------
 
 
 def test_plugin_to_view_is_json_native_without_callable():
@@ -156,6 +188,9 @@ def test_nuclei_classes_constant():
     assert NUCLEI_CLASSES[0].color == "#7BE0AD"
 
 
+# --- 经注册表调用测量原语 -----------------------------------------------------
+
+
 def test_measure_nuclei_via_registry():
     """通过 REGISTRY 调 measure_nuclei：500 点 + 1000×1000 ROI + mpp (0.25,0.25)。"""
     points = tuple((float(i), float(i)) for i in range(500))
@@ -176,7 +211,7 @@ def test_measure_nuclei_via_registry():
 
 def test_measure_liver_kidney_via_registry(tmp_path):
     """通过 REGISTRY 调 measure_liver_kidney：写一个 10³ 假 labelmap + (1,1,1) 标定。"""
-    import nibabel as nib
+    nib = pytest.importorskip("nibabel")  # 数据 IO 依赖：science-core 不强依赖，缺则跳过
 
     arr = np.zeros((10, 10, 10), dtype=np.int32)
     arr[2:8, 2:8, 2:8] = 1  # 肝 216 体素

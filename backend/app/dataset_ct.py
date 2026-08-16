@@ -178,7 +178,7 @@ def patch_labelmap(
 
     # 验证：所有 class_id 在白名单内（防止 paint class_id=999 这种越权）
     if class_id_to_role is None:
-        from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES
+        from glaux_core.tasks import LIVER_KIDNEY_CLASSES
         class_id_to_role = {c.class_id: c.role for c in LIVER_KIDNEY_CLASSES}  # type: ignore[name-defined]
     valid_class_ids = set(class_id_to_role.keys())
     for s in slices:

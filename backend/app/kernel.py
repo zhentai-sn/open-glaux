@@ -54,15 +54,18 @@ from glaux_orchestrator.intent import (  # noqa: E402
     RuleBasedBackend,
 )
 from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
-from glaux_orchestrator.spec import TaskType as _TaskType  # noqa: E402
-from glaux_orchestrator.tasks import LIVER_KIDNEY_CLASSES, REGISTRY as _REGISTRY  # noqa: E402
-from glaux_orchestrator.tasks import plugin_to_view as _plugin_to_view  # noqa: E402
+from glaux_core.tasks import (  # noqa: E402
+    LIVER_KIDNEY_CLASSES,
+    NUCLEI_CLASSES,
+    REGISTRY as _REGISTRY,
+    TaskType as _TaskType,
+    plugin_to_view as _plugin_to_view,
+)
 from glaux_core.contracts import PointSet, VolumeMask  # noqa: E402
 from glaux_core.calibration.calibration import (  # noqa: E402
     resolve_ct_calibration,
     resolve_wsi_calibration,
 )
-from glaux_orchestrator.tasks import NUCLEI_CLASSES  # noqa: E402
 
 _rule = RuleBasedBackend()
 _vlm = ClaudeVLMBackend()
@@ -192,7 +195,7 @@ def measure(
 def tasks() -> list[dict]:
     """任务注册表视图——前端 ``GET /tasks`` 的单一真相源（模态/查看器/工具/度量字段）。
 
-    直接下发 :data:`glaux_orchestrator.tasks.REGISTRY` 的可序列化视图（不含 measure 可调用）。
+    直接下发 :data:`glaux_core.tasks.REGISTRY` 的可序列化视图（不含 measure 可调用）。
     前端据此渲染任务切换器 / 工具栏 / 测量面板，**不再硬编码 if 模态**。
     """
     return [_plugin_to_view(p) for p in _REGISTRY.values()]

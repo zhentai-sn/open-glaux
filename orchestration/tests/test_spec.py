@@ -1,29 +1,18 @@
-"""U9：结构化规范校验 + NL→规范三类落域 + 意图基线 + 规范/NL 驱动内核 e2e。"""
+"""意图层测试——IntentResult 不变量、NL→规范三类落域、意图基线、VLM 后端可用性。
 
-import numpy as np
+``TaskSpec`` 校验与规范驱动内核的 e2e 已随注册表迁入 ``science-core/tests/test_tasks.py``
+（2026-08-16，退役 orchestration P1）；本文件剩余用例随意图层在 P3 退役。
+"""
+
 import pytest
 
-from glaux_core.contracts import TaskOutput
-from glaux_core.errors import HardReject
-from glaux_core.io.contour import Ellipse
-from glaux_core.segmentation.contour import EllipseContourStub
-from glaux_core.segmentation.stub import ConstantThicknessAdapter
+from glaux_core.tasks import TaskSpec, TaskType
 
 from glaux_orchestrator.intent import ClaudeVLMBackend, IntentBackendUnavailable, RuleBasedBackend
-from glaux_orchestrator.run import interpret_and_run, run_spec
-from glaux_orchestrator.spec import IntentResult, Scope, TaskSpec, TaskType
+from glaux_orchestrator.spec import IntentResult, Scope
 
 
-# --- 规范校验 ---------------------------------------------------------------
-
-def test_taskspec_validates_roi_and_cf():
-    ok = TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.06, roi=(50, 150))
-    assert ok.task is TaskType.FAR_WALL_CCA_IMT
-    with pytest.raises(ValueError):
-        TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, roi=(150, 50))  # x1<=x0
-    with pytest.raises(ValueError):
-        TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.0)  # 非正
-
+# --- 意图结果不变量 ------------------------------------------------------------
 
 def test_intent_result_invariants():
     with pytest.raises(ValueError):  # IN_SCOPE 必须带 spec
@@ -83,66 +72,6 @@ def test_intent_baseline_accuracy():
     backend = RuleBasedBackend()
     hits = sum(backend.interpret(nl).scope is exp for nl, exp in _CASES)
     assert hits == len(_CASES), f"意图基线 {hits}/{len(_CASES)}"
-
-
-# --- 规范 / NL 驱动内核 e2e（stub 适配器） ----------------------------------
-
-def _image():
-    return np.zeros((120, 200), dtype=np.uint8)
-
-
-def test_spec_drives_kernel_e2e():
-    spec = TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=0.06)
-    adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
-    res = run_spec(spec, adapter, _image())
-    assert isinstance(res, TaskOutput)
-    assert res.metrics["IMT_mean"].value == pytest.approx(0.48)  # 8px × 0.06
-    assert res.calibration.source.value == "cubs"
-
-
-def test_interpret_and_run_in_scope_executes():
-    adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
-    res = interpret_and_run("测这张图远壁颈动脉 IMT", adapter, _image(), cubs_cf=0.06)
-    assert isinstance(res, TaskOutput) and res.metrics["IMT_mean"].value == pytest.approx(0.48)
-
-
-def test_interpret_and_run_out_of_scope_does_not_touch_kernel():
-    adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
-    res = interpret_and_run("分割乳腺肿瘤", adapter, _image(), cubs_cf=0.06)
-    assert isinstance(res, IntentResult) and res.scope is Scope.OUT_OF_SCOPE
-
-
-def test_spec_without_calibration_hard_rejects():
-    spec = TaskSpec(task=TaskType.FAR_WALL_CCA_IMT, cubs_cf=None)  # 无 CF
-    adapter = ConstantThicknessAdapter(li_y=50.0, thickness_px=8.0)
-    with pytest.raises(HardReject):
-        run_spec(spec, adapter, _image())
-
-
-# --- 多模态：HC 闭合轮廓任务驱动内核 e2e ------------------------------------
-
-def test_hc_spec_drives_contour_kernel_e2e():
-    ell = Ellipse(cx=100, cy=90, a=80, b=60, theta=0.0)  # cf=0.1 → HC=周长×0.1 mm
-    spec = TaskSpec(task=TaskType.FETAL_HC, cubs_cf=0.1, method="ellipse-fit")
-    res = run_spec(spec, EllipseContourStub(ell), _image())
-    assert isinstance(res, TaskOutput)
-    assert res.metrics["HC"].value == pytest.approx(ell.circumference() * 0.1, rel=1e-6)
-    assert res.metrics["BPD"].value == pytest.approx(2 * 60 * 0.1)  # 短轴
-    assert res.metrics["OFD"].value == pytest.approx(2 * 80 * 0.1)  # 长轴
-    assert res.calibration.source.value == "cubs"
-
-
-def test_hc_wrong_adapter_type_rejected():
-    spec = TaskSpec(task=TaskType.FETAL_HC, cubs_cf=0.1)
-    with pytest.raises(TypeError):  # HC 需轮廓适配器，给壁线对适配器应显式失败
-        run_spec(spec, ConstantThicknessAdapter(), _image())
-
-
-def test_interpret_and_run_hc_end_to_end():
-    ell = Ellipse(cx=110, cy=95, a=90, b=65, theta=0.2)
-    res = interpret_and_run("测这张胎儿超声的头围", EllipseContourStub(ell), _image(), cubs_cf=0.12)
-    assert isinstance(res, TaskOutput)
-    assert res.metrics["HC"].value == pytest.approx(ell.circumference() * 0.12, rel=1e-6)
 
 
 # --- VLM 后端：可用性探测 + 不可用时显式失败（不臆造、不静默） ---------------
