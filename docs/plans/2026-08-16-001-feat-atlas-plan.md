@@ -40,7 +40,7 @@
 | 证据 | 现状 | 对计划的约束 |
 | --- | --- | --- |
 | [routers/api.py:35](../../backend/app/routers/api.py) / [main.py:37](../../backend/app/main.py) | 单一 `APIRouter()` 无前缀，`app.include_router(router)`；路径扁平按 `tags` 分组 | 新建 `routers/atlas.py` 独立 `APIRouter(prefix="/atlas", tags=["atlas"])`，`main.py` 第二个 `include_router` |
-| [config.py:21-38](../../backend/app/config.py) | `_env_path()` 模式；`GLAUX_DATA_ROOT` → `DATA_ROOT` | 加 `GLAUX_ATLAS_ROOT`（默认 `DATA_ROOT/atlas`），下设 `db/`（LanceDB）与 `images/` |
+| [config.py:21-38](../../backend/app/config.py) | `_env_path()` 模式；`GLAUX_DATA_ROOT` → `DATA_ROOT` | 加 `GLAUX_ATLAS_ROOT`（默认 `~/glaux_atlas`，**不**放 DATA_ROOT 下——那是 CUBS 数据集根），下设 `db/` 与 `images/` |
 | [routers/api.py:340-349](../../backend/app/routers/api.py) | `GET /image/{id}` 返回 `Response(media_type="image/png")`；前端 `imageUrl()` 只拼 URL | Atlas 原图/裁剪图照此：`GET /atlas/exemplars/{id}/image|crop`，前端 URL builder |
 | [pyproject.toml:6-31](../../backend/pyproject.toml) | 运行依赖无 httpx（仅 dev）；注明"主进程无 LLM SDK / 无 TF" | `lancedb pymupdf httpx beautifulsoup4` 进 `dependencies`，注释说明为 IO 库 |
 | [tests/test_api.py:9-16](../../backend/tests/test_api.py) | 模块级 `TestClient(app)`，无 conftest | Atlas 测试用 `tmp_path` + monkeypatch `config.ATLAS_ROOT` |
@@ -62,7 +62,7 @@
 - `app/atlas/images.py`：原图与裁剪图落 `ATLAS_ROOT/images/<sha256[:2]>/<sha256>.png`，裁剪按 `roi` 生成；返回相对路径。
 - `app/atlas/search.py`：标签归一（`normalize_tag`：trim / NFKC 全半角 / casefold）；`search(tags, q, egress, limit=10)`：用 LanceDB 原生 FTS（BM25，`FTS(base_tokenizer="ngram", ngram_min_length=2, ngram_max_length=3, prefix_only=False)`，中英文皆可分词——见 §5 核实记录）对合成列 `search_text = caption + description.summary + findings[].name + extra.values` 检索，`where` 预过滤 `status='active'` + `array_has_any(tags, …)` + egress → 截断 10；`q` 为空时退化为仅过滤 + 按 `created_at` 倒序。不自写计分、不引模型。
 - `app/atlas/referenced.py`：`mark_referenced(exemplar_ids)`（runtime 在 `atlas.referenced` 时回调 `POST /atlas/exemplars/referenced`），落一张小表 `exemplar_refs`，硬删除前检查。
-- `config.py`：`ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", DATA_ROOT / "atlas")`。
+- `config.py`：`ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", HOME / "glaux_atlas")`、`AGENT_RUNTIME_URL`。
 
 ### T2 · backend 导入解析与 REST（SDD §4 / §6.1 / §6.2 / §13）
 - `app/atlas/parse_pdf.py`：PyMuPDF 遍历页 → `page.get_images()` 抽嵌入图（过滤 < 64px 与纯色）→ 同页文本块中与图 bbox 最近的段落作 `caption` 候选 + 页码；无嵌入图 → `NO_FIGURES_FOUND`。

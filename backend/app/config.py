@@ -79,6 +79,12 @@ WSI_SEG_DRIVER = _env_path("GLAUX_WSI_SEG_DRIVER", WSI_SEG_ROOT / "run_headless.
 WSI_SEG_WEIGHTS = _env_path("GLAUX_WSI_SEG_WEIGHTS", WSI_SEG_ROOT / "weights")
 WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_out")
 
+# --- Atlas · 图谱（SDD 03）：LanceDB 案例表 + 原图/裁剪图目录 ------------------------
+# 独立于数据集根（图谱是跨数据源的人工资产）；下设 db/（LanceDB）与 images/。
+ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", HOME / "glaux_atlas")
+# 描述生成走 agent-runtime（主进程无 LLM SDK）；导入期调用，失败不阻塞入库。
+AGENT_RUNTIME_URL = os.environ.get("GLAUX_AGENT_RUNTIME_URL", "http://127.0.0.1:8010")
+
 # WSI vendor 格式后缀（OpenSlide 支持面的子集；v0 走 .svs demo）。
 _WSI_SUFFIXES = (".svs", ".ndpi", ".tif", ".tiff", ".mrxs", ".scn", ".vms", ".bif")
 

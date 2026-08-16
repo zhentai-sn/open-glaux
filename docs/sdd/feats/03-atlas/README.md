@@ -78,7 +78,7 @@
 
 - 现有 VLM 连接配置（agent-runtime 探测与调用），用于导入期生成结构化描述。
 - 现有影像查看器（cornerstone3D）用于导入预览与 ROI 框选。
-- `GLAUX_DATA_ROOT` 数据目录约定（backend `config.py`），Atlas 图像存储位于其下独立子目录。
+- `GLAUX_ATLAS_ROOT`（backend `config.py`，默认 `~/glaux_atlas`，与 `~/glaux_datasets`/`~/glaux_models` 同级约定）：下设 `db/`（LanceDB）与 `images/`。不放在 `GLAUX_DATA_ROOT` 下——那是 CUBS 数据集根，图谱是跨数据源的人工资产。
 
 ### 4.3 输入约束
 
@@ -221,7 +221,7 @@ sequenceDiagram
 | Atlas 页面（Workbench） | `frontend/src/components/atlas/`（新增）；`store/session.ts` 的 `View` 增加 `"atlas"`；ActivityBar 新增入口 | 左侧侧栏视图：列表 / 详情 / 导入向导 |
 | Atlas 页面（Focus） | `frontend/src/components/focus/` 右侧拓展视图（参考 Codex 桌面端右侧面板的设计） | 同一组件在 Focus 模式下挂到右侧拓展区 |
 | ROI 框选 | 复用 `CornerstoneViewer` 的矩形标注工具 | 导入预览中框选 |
-| 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 + `GLAUX_DATA_ROOT/atlas/images/` | 原图与标记分存 |
+| 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 `GLAUX_ATLAS_ROOT/db/` + 图像 `GLAUX_ATLAS_ROOT/images/` | 原图与标记分存 |
 | PDF 解析 | backend 依赖 PyMuPDF（`pymupdf`），主进程可用（IO 库，非重模型） | 抽嵌入图 + 同页邻近文本 |
 | 网页解析 | backend：`httpx` + HTML 解析；出站守卫需在 Python 侧按 `agent-runtime/src/security/net-guard.ts` 规则重建（backend 的 `net_guard.py` 已在退役 orchestration P3 删除） | 抽 `<img>` + alt / figcaption / 邻近段落 |
 | VLM 描述生成 | agent-runtime 新增内部端点 `/agent-api/v1/atlas/describe`，backend 调用 | 复用现有 provider 连接 |
