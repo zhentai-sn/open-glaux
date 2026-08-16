@@ -3,7 +3,7 @@ import { useI18n } from "../i18n";
 import { useSession, type View } from "../store/session";
 
 // 侧边栏入口——只留 资源管理器 + 插件市场（去掉搜索/源代码管理，见设计稿 §6）。
-const VIEWS: { id: View; key: "av_explorer" | "av_market"; icon: JSX.Element }[] = [
+const VIEWS: { id: View; key: "av_explorer" | "av_market" | "av_atlas"; icon: JSX.Element }[] = [
   {
     id: "explorer",
     key: "av_explorer",
@@ -23,6 +23,17 @@ const VIEWS: { id: View; key: "av_explorer" | "av_market"; icon: JSX.Element }[]
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <path d="M17.5 14v7M14 17.5h7" />
+      </svg>
+    ),
+  },
+  {
+    // 图谱（SDD feats/03）：打开的书
+    id: "atlas",
+    key: "av_atlas",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M12 6c-1.5-1.3-3.5-2-6-2H4v14h2c2.5 0 4.5.7 6 2 1.5-1.3 3.5-2 6-2h2V4h-2c-2.5 0-4.5.7-6 2z" />
+        <path d="M12 6v14" />
       </svg>
     ),
   },

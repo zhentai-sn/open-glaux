@@ -74,9 +74,9 @@
 
 ### T3 · frontend Atlas 视图（SDD §5.1 / §8 / D-14）
 - `store/session.ts`：`View` 加 `"atlas"`；`FocusLayout` 加 `rightView`（loader 损坏回退 `stage`）；`setFocusLayout` 已有。
-- `api/client.ts`：`api.atlas` 命名空间与类型（`Exemplar`、`ImportCandidate`、`SearchResult`）。
+- `api/atlas.ts`（独立模块，避免与 client.ts 循环引用）：`atlasApi.*` 与类型（`Exemplar`、`ImportCandidate`、`ImportSession`、`ExemplarInput`、`AtlasApiError` 带后端错误码）；`agent/runtime/client.ts` 加 `atlasDescribe`。
 - `components/atlas/AtlasView.tsx`：搜索框 + 标签筛选条（`GET /tags`）+ 状态筛选（active/retired）+ `ExemplarList`；点击进 `ExemplarDetail`（原图 + ROI 叠加 canvas + 图注 + description 表格 + 来源 + egress 徽标 + 下架/恢复/删除/重试描述）。
-- `components/atlas/ImportWizard.tsx`：三步——① 选 PDF 或填 URL → 候选网格（缩略图 + 图注，勾选）；② 逐图 `RoiPicker`（复用 `CornerstoneViewer` 矩形工具；一图多框，每框独立标签输入 + 已有标签联想）；③ 来源信息 + 外发许可（默认 local-only；切 shareable 弹出协议文本 + 勾选框，未勾不能提交）→ 提交 → 结果摘要。
+- `components/atlas/ImportWizard.tsx`：三步——① 选 PDF 或填 URL → 候选网格（缩略图 + 图注，勾选）；② 逐图 `RoiPicker`（轻量 DOM 矩形叠加，SDD D-18；一图多框，每框独立标签输入 + 已有标签联想）；③ 来源信息 + 外发许可（默认 local-only；切 shareable 弹出协议文本 + 勾选框，未勾不能提交）→ 提交 → 结果摘要。
 - Workbench：`ActivityBar` 加 Atlas 入口（图标：打开的书）；`SideBar` 加 `view === "atlas"` 分支；`Shell.tsx` 标题改查表。
 - Focus：`FocusShell` 右列按 `focusLayout.rightView` 渲染 `StagePanel` 或 `AtlasPanel`（同一 `AtlasView`，窄版样式）；`FocusTopBar` 加"图谱"切换钮（参考 Codex 右侧面板：常驻可折叠、与舞台互斥）。
 - `components/agent/AtlasRefCard.tsx`：渲染 `atlas.referenced` 事件（候选 N、选中 K、被外发排除 M；点开跳 `ExemplarDetail`；案例已下架/删除时显示快照缩略图 + 标记）。本期只做组件与事件类型解析，会话中出现依赖 02。
@@ -149,3 +149,4 @@
 
 - **2026-08-16**：v1，依据 `ready` SDD 制定；§1.3-1 记录 `locate_roi` 接线延后到 02、§1.3-2 记录图像入模型为新能力。
 - **2026-08-16**：v1.1，开工前核实三项待确认（pi-ai 图像块、LanceDB+PyMuPDF 在 WSL 可用性、LanceDB FTS 中文分词），结论回写 §3-T1/T5 与 §5；T1 文本检索改用 LanceDB 原生 FTS(ngram)。
+- **2026-08-16**：v1.2，T3/T4 落地时的两处调整回写 SDD（D-18 RoiPicker 不复用 cornerstone；D-19 Focus 右侧 rightView 互斥 + 会话卡片跳转），`api.atlas` 改为独立 `api/atlas.ts`；导入向导 NO_FIGURES_FOUND / FETCH_BLOCKED / FETCH_FAILED 三类错误分别呈现，手动上传作为兜底路径。

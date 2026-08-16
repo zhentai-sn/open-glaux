@@ -12,6 +12,7 @@ import {
 } from "../data/actions";
 import { useI18n, type I18nKey } from "../i18n";
 import { useSession } from "../store/session";
+import { AtlasView } from "./atlas/AtlasView";
 
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
@@ -349,6 +350,7 @@ export function SideBar() {
     <aside className="sidebar">
       {view === "explorer" && <ExplorerView />}
       {view === "market" && <MarketplaceView />}
+      {view === "atlas" && <AtlasView />}
     </aside>
   );
 }

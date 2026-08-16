@@ -14,7 +14,7 @@
 
 进入 `ready` 的依据：心智模型（"一本带插画的教科书"）、数据来源（教科书 PDF / 网页 / 标注数据集）、
 存储（LanceDB 在 backend、原图与标记分存）、检索链（标签过滤 → 候选 ≤ 10 → VLM 先挑
-1–3 张再定位）、下架机制、页面位置、首个场景与外发许可（勾选确认制）均已拍板（§16 D-1～D-17），
+1–3 张再定位）、下架机制、页面位置、首个场景与外发许可（勾选确认制）均已拍板（§16 D-1～D-19），
 §17 开放问题为零。实现计划见 [2026-08-16-001-feat-atlas-plan](../../../plans/2026-08-16-001-feat-atlas-plan.md)。
 
 ## 1. 负责人
@@ -225,7 +225,7 @@ sequenceDiagram
 | --- | --- | --- |
 | Atlas 页面（Workbench） | `frontend/src/components/atlas/`（新增）；`store/session.ts` 的 `View` 增加 `"atlas"`；ActivityBar 新增入口 | 左侧侧栏视图：列表 / 详情 / 导入向导 |
 | Atlas 页面（Focus） | `frontend/src/components/focus/` 右侧拓展视图（参考 Codex 桌面端右侧面板的设计） | 同一组件在 Focus 模式下挂到右侧拓展区 |
-| ROI 框选 | 复用 `CornerstoneViewer` 的矩形标注工具 | 导入预览中框选 |
+| ROI 框选 | `frontend/src/components/atlas/RoiPicker.tsx`：轻量 canvas/DOM 矩形叠加（候选插图为静态 PNG，不上 cornerstone 栈；D-18） | 导入预览中框选，一图多框，坐标换算回图像像素 |
 | 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 `GLAUX_ATLAS_ROOT/db/` + 图像 `GLAUX_ATLAS_ROOT/images/` | 原图与标记分存 |
 | PDF 解析 | backend 依赖 PyMuPDF（`pymupdf`），主进程可用（IO 库，非重模型） | 抽嵌入图 + 同页邻近文本 |
 | 网页解析 | backend：`httpx` + HTML 解析；出站守卫需在 Python 侧按 `agent-runtime/src/security/net-guard.ts` 规则重建（backend 的 `net_guard.py` 已在退役 orchestration P3 删除） | 抽 `<img>` + alt / figcaption / 邻近段落 |
@@ -296,7 +296,7 @@ stateDiagram-v2
 | 事件 | 触发时机 | payload 要点 |
 | --- | --- | --- |
 | `atlas.import.completed` | 一次导入批次结束 | batch_id、条数、source_type、trace_id |
-| `atlas.referenced` | agent 在一次 `locate_roi` 中使用了案例 | 候选 exemplar_id 列表、VLM 选中的 1–3 条、被外发限制排除的条数、trace_id |
+| `atlas.referenced` | agent 在一次 `locate_roi` 中使用了案例 | 候选 exemplar_id 列表、VLM 选中的 1–3 条、被外发限制排除的条数、trace_id、选中案例快照（caption/tags，供案例删除后降级展示）。runtime 侧类型 `AtlasReferencedPayload`（`contracts.ts`）；进入会话的载体：`locate_roi` 工具结果 `details = {kind: "glaux.atlas_referenced", payload}`，前端 `AtlasRefCard.parseAtlasReferenced` 解析（02 接线时沿用） |
 | `atlas.exemplar.retired` / `.restored` | 用户下架 / 恢复 | exemplar_id、trace_id |
 | `atlas.exemplar.deleted` | 用户硬删除 | exemplar_id、trace_id |
 
@@ -360,6 +360,8 @@ stateDiagram-v2
 
 | D-16 | 外发许可：缺省 `local-only`；导入时可逐条/逐批改为 `shareable`，但必须勾选确认"我确认有权将该图发往第三方模型服务"，勾选记录（时间、批次）随案例保存 | 强制 `local-only` 仅本地 VLM；按网页许可证自动判定 | TEM 首场景种子几乎全来自教科书/网页，强制 local-only 会让托管 VLM 下图谱无案例可用；责任交给用户显式承担 | 2026-08-16 |
 | D-17 | 价值验证方式：固定 10 张自有 TEM 图，比较有/无图谱时 VLM 定位 bbox 与人工框的 IoU；种子规模不预设，以此度量迭代 | 预设种子条数 | 无法先验知道多少图例够用 | 2026-08-16 |
+| D-18 | 导入预览 ROI 框选用轻量 DOM 矩形叠加（`RoiPicker`），不复用 cornerstone 矩形工具 | 复用 `CornerstoneViewer` | 候选插图是静态 PNG，cornerstone 栈解决的是医学影像渲染/坐标系问题，这里没有；轻量实现可在 Focus 窄栏与 jsdom 测试中直接跑 | 2026-08-16 |
+| D-19 | Focus 右侧拓展区图谱与舞台互斥（`FocusLayout.rightView`），顶栏 📖 钮切换；从会话卡片"打开"时按当前外壳模式自动亮出图谱面板 | 图谱作为舞台内标签 | 参考 Codex 右侧面板：一次只看一件事；图谱不依赖活动图像 | 2026-08-16 |
 
 ## 17. 待确认问题
 

@@ -1,4 +1,6 @@
 import type {
+  AtlasDescribeInput,
+  AtlasDescribeResult,
   ConnectionModelListResult,
   ConnectionProbeInput,
   ConnectionTestResult,
@@ -106,6 +108,12 @@ export const agentRuntimeApi = {
     }),
   listModels: (input: ConnectionProbeInput) =>
     request<ConnectionModelListResult>("/connection/models", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  // 图谱描述生成（SDD feats/03 §6.1）：凭据只发 runtime，不经 backend；结果由前端写回 backend。
+  atlasDescribe: (input: AtlasDescribeInput) =>
+    request<AtlasDescribeResult>("/atlas/describe", {
       method: "POST",
       body: JSON.stringify(input),
     }),

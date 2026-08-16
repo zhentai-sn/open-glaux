@@ -19,12 +19,14 @@ import { useSession } from "../store/session";
 // 交给 dockview 托管：可拖拽重排、可停靠、可缩放、布局持久化。活动栏仍是固定左轨（非停靠）。
 // 「加一块面板 = COMPONENTS 加一行 + onReady 里 addPanel 一行」，与任务/能力的可插拔同构。
 
-// 侧栏面板：dockview 标签跟随「资源管理器 ↔ 插件市场」切换（活动栏驱动），故 SideBar 内部不再自绘标题栏。
+const SIDEBAR_TITLE = { explorer: "av_explorer", market: "av_market", atlas: "av_atlas" } as const;
+
+// 侧栏面板：dockview 标签跟随「资源管理器 ↔ 插件市场 ↔ 图谱」切换（活动栏驱动），故 SideBar 内部不再自绘标题栏。
 function SidebarPane({ api }: IDockviewPanelProps) {
   const view = useSession((s) => s.sidebarView);
   const { t } = useI18n();
   useEffect(() => {
-    api.setTitle(t(view === "explorer" ? "av_explorer" : "av_market"));
+    api.setTitle(t(SIDEBAR_TITLE[view]));
   }, [view, t, api]);
   return <SideBar />;
 }

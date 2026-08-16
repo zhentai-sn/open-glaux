@@ -58,6 +58,37 @@ export interface ConnectionModelListResult {
   reason?: string;
 }
 
+// --- 图谱描述生成（/agent-api/v1/atlas/describe，SDD feats/03 §5.2 / §7.6）------------------
+
+export interface AtlasDescribeInput {
+  image_base64: string;
+  mime_type?: string;
+  hint?: string;
+  connection: ConnectionInput;
+}
+
+export interface AtlasDescribeResult {
+  description: {
+    modality: string;
+    subject: string;
+    findings: { name: string; location?: string; appearance?: string }[];
+    pattern: string;
+    summary: string;
+    extra: Record<string, unknown>;
+  };
+  statement_version: string;
+}
+
+// --- 会话事件 atlas.referenced 的 payload（SDD feats/03 §12；由 02 locate_roi 产出）------------
+
+export interface AtlasReferencedPayload {
+  trace_id: string;
+  candidate_ids: string[];
+  selected_ids: string[];
+  excluded_by_egress: number;
+  snapshots: { exemplar_id: string; caption: string; tags: string[] }[];
+}
+
 /** 查看器当前上下文——随 prompt 下发，供 agent-runtime 的 `run_task` 工具缺省取当前图 / 当前任务。 */
 export interface ViewerContext {
   image_id?: string;

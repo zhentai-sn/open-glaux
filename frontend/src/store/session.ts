@@ -65,12 +65,16 @@ export type UiMode = "focus" | "workbench";
 const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版本，旧键作废回默认
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
-/** Focus 布局微状态（会话栏/舞台开合）——UI 微状态，非领域字段。 */
+/** Focus 右侧拓展区渲染什么（SDD feats/03 §9 / D-14）：图像舞台或图谱。 */
+export type FocusRightView = "stage" | "atlas";
+
+/** Focus 布局微状态（会话栏/舞台开合/右侧视图）——UI 微状态，非领域字段。 */
 export interface FocusLayout {
   railOpen: boolean;
   stageOpen: boolean;
+  rightView: FocusRightView;
 }
-const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, stageOpen: true };
+const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, stageOpen: true, rightView: "stage" };
 
 /** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
 function loadUiMode(): UiMode {
@@ -93,6 +97,10 @@ function loadFocusLayout(): FocusLayout {
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
           stageOpen: typeof p.stageOpen === "boolean" ? p.stageOpen : FOCUS_LAYOUT_DEFAULTS.stageOpen,
+          rightView:
+            p.rightView === "stage" || p.rightView === "atlas"
+              ? p.rightView
+              : FOCUS_LAYOUT_DEFAULTS.rightView,
         };
       }
     }
@@ -102,7 +110,7 @@ function loadFocusLayout(): FocusLayout {
   return { ...FOCUS_LAYOUT_DEFAULTS };
 }
 
-export type View = "explorer" | "market"; // 侧边栏视图：资源管理器 / 插件市场（去掉搜索/源代码管理）
+export type View = "explorer" | "market" | "atlas"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD feats/03）
 export type PanelTab = "meas" | "out" | "prob" | "term";
 export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
 
