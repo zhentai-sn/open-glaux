@@ -1,5 +1,6 @@
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Viewer } from "./Viewer";
+import { ViewerChrome } from "./ViewerChrome";
 import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
@@ -17,13 +18,11 @@ export function Editor() {
   const center = useSession((s) => s.imageMeta?.center ?? "dataset");
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const loading = useSession((s) => s.loading);
-  const tool = useSession((s) => s.tool);
   const setTool = useSession((s) => s.setTool);
   const modelVersion = useSession((s) => s.modelVersion);
 
-  // 当前模态对应任务（注册表）——工具栏/标签/查看器全从这里来，不再 if 模态。
+  // 当前模态对应任务（注册表）——标签从这里来；工具栏/选项条由 ViewerChrome 统一渲染，不再 if 模态。
   const tv = tasks.find((tk) => tk.modality === modality);
-  const tools = tv?.tools ?? [];
   const label = tv?.label[lang] ?? "";
 
   // reset：回光标 + 重跑活动模型（结果直接体现在叠加/度量面板，不再叙事）
@@ -61,19 +60,7 @@ export function Editor() {
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
               {loading && <span className="tagpill" style={{ color: "var(--agent)" }}>…</span>}
             </div>
-            <div className="etools" role="toolbar">
-              {tools.map((tl) => (
-                <button
-                  key={tl.id}
-                  className={"etool" + (tl.id === "editli" || tl.id === "editma" ? " " + tl.id : "")}
-                  aria-pressed={tool === tl.id}
-                  onClick={() => onTool(tl.id as Tool)}
-                >
-                  {tl.glyph}
-                  <span className="tip">{tl.label[lang]}</span>
-                </button>
-              ))}
-            </div>
+            <ViewerChrome onTool={onTool} />
             {modelVersion && <span className="repr">{modelVersion}</span>}
             {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t("running")}</span>}
           </>
