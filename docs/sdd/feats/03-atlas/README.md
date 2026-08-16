@@ -4,7 +4,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（2026-08-16 开发侧自查见 §15.1；待维护者端到端验收） |
+| SDD 状态 | `ready`（v1.1 修订：图册 collection + Focus 右侧栏接入，2026-08-16 立项待实现；v1 已 `implemented`，§15.1 自查结论不变，待维护者端到端验收） |
 | 创建日期 | 2026-08-16 |
 | 最近更新 | 2026-08-16 |
 | 目标阶段 | 第一阶段：人工导入的图谱 + agent 检索先验（VLM 两步 few-shot） |
@@ -14,7 +14,7 @@
 
 进入 `ready` 的依据：心智模型（"一本带插画的教科书"）、数据来源（教科书 PDF / 网页 / 标注数据集）、
 存储（LanceDB 在 backend、原图与标记分存）、检索链（标签过滤 → 候选 ≤ 10 → VLM 先挑
-1–3 张再定位）、下架机制、页面位置、首个场景与外发许可（勾选确认制）均已拍板（§16 D-1～D-19），
+1–3 张再定位）、下架机制、页面位置、首个场景与外发许可（勾选确认制）均已拍板（§16 D-1～D-20），
 §17 开放问题为零。实现计划见 [2026-08-16-001-feat-atlas-plan](../../../plans/2026-08-16-001-feat-atlas-plan.md)。
 
 ## 1. 负责人
@@ -70,6 +70,7 @@
 | 标注数据集目录 | 三选一 | 图像 + 多边形/检测框标注文件（COCO / YOLO / LabelMe JSON）+ 元数据；经 CLI 导入 |
 | ROI 框选 | 教科书/网页来源必填 | 用户在导入预览中框出目标结构；一图可多框 |
 | 标签 | 是 | 模态 / 部位 / 目标结构 / 任务，自由填写，导入器联想已有标签 |
+| 图册（collection） | 否 | 路径式归属，如 `肾脏/膜性肾病/EDD`（`/` 分级），像教科书的章节；缺省为空 = 根目录"未分册"；导入器联想已有图册（v1.1，D-20） |
 | 图注 / 说明 | 否 | 教科书图注默认带入，可编辑 |
 | 来源信息 | 是 | 书名 / 版次 / 页码，或数据集名 / 许可证 |
 | 外发许可 | 是 | `shareable`（可作 few-shot 外发给托管 VLM）/ `local-only`（仅本地使用）；缺省 `local-only`，改为 `shareable` 须勾选确认（D-16） |
@@ -91,7 +92,7 @@
 
 ### 5.1 用户可见输出
 
-- Atlas 页面：案例列表（按标签分组/筛选）、案例详情（原图 + ROI 叠加 + 图注 + VLM 描述 + 来源）、导入向导。
+- Atlas 页面：**图册树**（v1.1，路径式层级 + 计数，点节点看该子树）+ 案例列表（标签/状态/文本筛选）、案例详情（原图 + ROI 叠加 + 图注 + VLM 描述 + 来源 + 图册，可移动到其它图册）、导入向导（含图册输入）。
 - 会话中：agent 引用案例时显示"参考图谱 N 条"卡片，可点开对应案例。
 
 ### 5.2 系统输出
@@ -101,7 +102,8 @@
   - `POST /imports/pdf`、`POST /imports/url` → 候选插图列表（不入库）；
   - `POST /exemplars`（批量创建）、`GET /exemplars`（列表+筛选）、`GET /exemplars/search`（检索，≤ 10）、`GET /exemplars/{id}`、`GET /exemplars/{id}/image|crop`（PNG）；
   - `POST /exemplars/{id}/retire|restore`（下架 / 恢复）、`PUT /exemplars/{id}/description`（写入/重试后的 VLM 描述）、`DELETE /exemplars/{id}`；
-  - `POST /exemplars/referenced`（runtime 回写"已被会话引用"，用于硬删除门禁）；`GET /tags`（标签频次，供联想）。
+  - `POST /exemplars/referenced`（runtime 回写"已被会话引用"，用于硬删除门禁）；`GET /tags`（标签频次，供联想）；
+  - v1.1：`GET /collections`（图册路径 + 直属计数，前端拼树）、`PUT /exemplars/{id}/collection`（移动到图册）；`GET /exemplars` 与 `GET /exemplars/search` 增加 `collection` 前缀过滤（等于该路径或其子路径）；`POST /exemplars` 条目接受 `collection`。
 - agent-runtime 内部端点 `POST /agent-api/v1/atlas/describe`（**前端或 CLI** 调用，生成 §7.6 描述；凭据不经 backend）。
 - runtime 模块（供 02 `locate_roi` 调用）：`AtlasClient.search()`、`selectExemplars()`（两步中的挑选步）、`atlas.referenced` 事件构造；`locate_roi` 的可选入参 `exemplar_hint` 即其产物。
 
@@ -176,7 +178,7 @@ sequenceDiagram
 
 ### 7.2 检索规则
 
-1. 先按标签精确过滤（归一后相等）；无标签命中时退化为仅文本匹配。
+1. 先按标签精确过滤（归一后相等）；无标签命中时退化为仅文本匹配。v1.1：若请求带 `collection`，先限定在该图册及其子图册内（前缀匹配），再做标签/文本步——图册是**范围**，标签是**维度**。
 2. 文本匹配对象：图注 + VLM 结构化描述 + 用户填写的说明；查询词来自 agent 的目标描述。
 3. 结果按（命中标签数, 文本相关度）排序，截断为 ≤ 10。
 4. 检索不调用任何模型，只返回 `active` 态案例；VLM 精看/挑选由 agent 侧完成（§6.3 两步）。
@@ -198,6 +200,13 @@ sequenceDiagram
 
 - 自由填写；导入器提示已有标签（按使用频次）。
 - 入库前归一：trim、全角转半角、大小写折叠；原文另存以便展示。
+
+### 7.5a 图册规则（v1.1，D-20）
+
+- 图册是路径字符串，`/` 分级：各段 trim、去空段、全角斜杠转半角；不区分大小写归一另存（`collection_key`）用于过滤，原文用于展示。空字符串 = 根目录（页面上显示为"未分册"）。
+- 一条案例只属于一个图册（像文件属于一个文件夹）；标签仍可跨图册检索。
+- 图册**不是**受控词表：任何路径都可以直接写出来，不需要预先创建；图册树由现有案例的路径派生（`GET /collections`），删完案例的图册自然消失。
+- 移动案例到另一图册不改 `exemplar_id`、不影响幂等键与引用记录。
 
 ### 7.6 VLM 结构化描述模板
 
@@ -259,16 +268,18 @@ sequenceDiagram
 | `image_sha256` | string | 是 | 原图内容哈希（幂等键组成部分，§10） |
 | `created_at` | datetime | 是 | 导入时间 |
 | `import_batch_id` | string | 是 | 同一次导入的批次号（幂等与批量下架） |
+| `collection` | string | 是（可为空） | 图册路径原文，如 `肾脏/膜性肾病/EDD`；空 = 根目录（v1.1，D-20） |
+| `collection_key` | string | 是（可为空） | 归一后的图册路径（casefold），用于前缀过滤与分组 |
 
 一图多标记：同一 `image_ref` 可对应多条记录（不同 `roi`/`tags`）。
 
 引用记录（表 `exemplar_refs`）：`exemplar_id`、`trace_id`、`referenced_at`；由 runtime 经 `POST /atlas/exemplars/referenced` 写入，硬删除前查询是否存在（§7.7）。
 
-前端状态：`FocusLayout` 新增 `rightView: "stage" | "atlas"`（默认 `stage`，损坏回退 `stage`），决定 Focus 右侧拓展区渲染舞台还是图谱（D-14）。
+前端状态：`FocusLayout.rightView` 增加 `"atlas"` 取值——v1.1 起该字段由 [01-dual-mode-shell v1.1](../01-dual-mode-shell/README.md) §9 定义为 Focus 右侧栏的当前标签（`"stage" | "files" | "atlas"`），图谱是三个标签之一（D-19 v2）。
 
 ## 10. 幂等规则
 
-- 导入幂等键：`(source_type, source, image_sha256, roi)`；重复导入相同项返回已有 `exemplar_id`，不新建。
+- 导入幂等键：`(source_type, source, image_sha256, roi)`；重复导入相同项返回已有 `exemplar_id`，不新建。`collection` 不参与幂等键——同一项以不同图册重复导入仍返回已有记录（图册以首次为准，需移动请用 `PUT /exemplars/{id}/collection`）。
 - CLI 批量导入可重跑；同一 `import_batch_id` 重跑只补缺不重复。
 - 检索为只读，无幂等问题。
 
@@ -338,6 +349,15 @@ stateDiagram-v2
 - [x] VLM 描述生成失败时案例仍入库，页面显示"待补描述"并可重试；成功时 `description` 含 §7.6 全部固定字段且 `extra` 为对象。
 - [x] 检索链路不加载任何本地模型（backend 进程无 torch 导入）。
 
+v1.1（图册 + Focus 右侧栏）：
+
+- [ ] 导入向导与 CLI `--collection` 可给案例指定图册路径；页面图册树按路径分级显示并带直属/子树计数；点节点后列表只显示该图册及子图册的案例；未填图册的案例出现在"未分册"。
+- [ ] `GET /exemplars/search?collection=肾脏/膜性肾病` 只返回该路径及子路径下的案例；`selectExemplars` 透传 `collection`。
+- [ ] 图册路径 `肾脏 / 膜性肾病`（段内空格）、`肾脏／膜性肾病`（全角斜杠）与 `肾脏/膜性肾病` 归为同一图册。
+- [ ] 详情页可把案例移动到另一图册：`exemplar_id` 不变、幂等键与引用记录不变、树计数即时更新。
+- [ ] 旧库（无 `collection` 列）打开时自动补列为空字符串，旧案例出现在"未分册"，不需要重建。
+- [ ] Focus 下图谱作为右侧栏"图谱"标签呈现（01 v1.1）；会话卡片"在图谱中打开"展开右侧栏并切到该标签的对应案例。
+
 ### 15.1 开发侧自查（2026-08-16，实现完成后；端到端验收由维护者执行）
 
 **已完成（自动化测试 + 浏览器走查覆盖）**
@@ -389,7 +409,8 @@ stateDiagram-v2
 | D-16 | 外发许可：缺省 `local-only`；导入时可逐条/逐批改为 `shareable`，但必须勾选确认"我确认有权将该图发往第三方模型服务"，勾选记录（时间、批次）随案例保存 | 强制 `local-only` 仅本地 VLM；按网页许可证自动判定 | TEM 首场景种子几乎全来自教科书/网页，强制 local-only 会让托管 VLM 下图谱无案例可用；责任交给用户显式承担 | 2026-08-16 |
 | D-17 | 价值验证方式：固定 10 张自有 TEM 图，比较有/无图谱时 VLM 定位 bbox 与人工框的 IoU；种子规模不预设，以此度量迭代 | 预设种子条数 | 无法先验知道多少图例够用 | 2026-08-16 |
 | D-18 | 导入预览 ROI 框选用轻量 DOM 矩形叠加（`RoiPicker`），不复用 cornerstone 矩形工具 | 复用 `CornerstoneViewer` | 候选插图是静态 PNG，cornerstone 栈解决的是医学影像渲染/坐标系问题，这里没有；轻量实现可在 Focus 窄栏与 jsdom 测试中直接跑 | 2026-08-16 |
-| D-19 | Focus 右侧拓展区图谱与舞台互斥（`FocusLayout.rightView`），顶栏 📖 钮切换；从会话卡片"打开"时按当前外壳模式自动亮出图谱面板 | 图谱作为舞台内标签 | 参考 Codex 右侧面板：一次只看一件事；图谱不依赖活动图像 | 2026-08-16 |
+| D-19 | v1：Focus 右侧图谱与舞台互斥、顶栏 📖 切换。**v2（2026-08-16 同日修订）**：图谱是 Focus 右侧栏三个标签（舞台/文件/图谱）之一，右侧栏由 [01 v1.1 D10–D13](../01-dual-mode-shell/README.md) 定义；顶栏 📖 移除；从会话卡片"打开"时展开右侧栏并切到图谱标签 | 图谱作为舞台内标签 | v1 是过渡形态；Codex 式常驻可折叠右侧栏让"舞台 / 文件 / 图谱"成为同一位置的三种视角 | 2026-08-16 |
+| D-20 | 图谱增加**图册（collection）**路径式层级作为整理维度：一案例属一图册，`/` 分级，缺省根目录；标签继续负责检索维度；`search` 可按图册限定范围 | 仅用标签分面树；固定两级分类 | 平铺 + 自由标签是 D-10 的副作用——标签是检索维度不是整理维度；"图册 = 教科书章节"与心智模型同构；路径式不需要预建目录，零受控词表 | 2026-08-16 |
 
 ## 17. 待确认问题
 

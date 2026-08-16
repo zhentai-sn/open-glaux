@@ -2148,10 +2148,17 @@ canvas {
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  min-width: 0;
   font-size: 12px;
   color: var(--ink);
   overflow-y: auto;
+  overflow-x: hidden;
+  /* 卡片网格 auto-fill 依赖容器宽度；滚动条出现/消失会改宽度 → 重排 → 高度变 → 滚动条再切换，
+     形成抖动环（内容高度恰好接近容器高度时最明显，如全屏）。固定预留滚动槽即可切断。 */
+  scrollbar-gutter: stable;
 }
+.atlas-view::-webkit-scrollbar { width: 8px; }
+.atlas-view::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 4px; }
 .atlas-head {
   display: flex;
   align-items: center;
