@@ -12,9 +12,16 @@ docs/
 ├── sdd/               # 规范驱动开发：Feature 边界、契约、状态机与验收
 ├── brainstorms/       # 脑暴 / 需求文档（按任务，right-sized）
 ├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
+├── designs/           # 架构 / UI 设计文档（按日期；status 走 draft → reviewed → implemented / superseded）
+├── plans/             # 实现计划（按日期；承接 SDD/设计的 HOW）
+├── runbooks/          # 操作手册（活文档：随代码同步修订）
+├── todo/              # 代码评审待办清单（按日期）
 └── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
     └── charter.zh-CN.md  # 纲领：Glaux 的身份与一切决策的组织原则（先读这份）；路线图从纲领派生，故与路线图同属一族
 ```
+
+> 历史文档（带日期的 designs / plans / todo）保留当时形态，不因后续重构改写；当前真相以
+> `architecture.zh-CN.md`、`runbooks/`、SDD 与最新 design 为准，被取代的 design 在 frontmatter 标 `superseded`。
 
 ## 核心文档
 
@@ -54,6 +61,7 @@ docs/
 | --- | --- | --- | --- |
 | [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河） |
 | [20260705-02-research-ultrasound-benchmarks.zh-CN.md](researches/20260705-02-research-ultrasound-benchmarks.zh-CN.md) | 2026-07-05 | research | 公开超声图像基准调研（数据集 / 许可证 / 短名单推荐） |
+| [20260816-01-tech-annotation-exemplar-store.zh-CN.md](researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | tech | 图像标注案例库技术调研（LanceDB / BiomedCLIP·DINOv2 / 检索增强分割；含已拍板决策） |
 
 ## 二、路线图 roadmaps/
 
@@ -104,7 +112,9 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 
 | Feature | 状态 | 主题 |
 | --- | --- | --- |
-| [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `ready` | 内置参考智能体与本地会话管理 |
+| [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `implemented` | 内置参考智能体与本地会话管理 |
+| [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `accepted` | 双模式外壳 Focus / Workbench |
+| [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `draft` | 智能体图像标注能力 |
 
 ## 通用约定
 

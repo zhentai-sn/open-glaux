@@ -100,11 +100,11 @@ scope: feat/multimodal-arch (vs main)
 - [ ] 子进程重模型调用无并发上限 —— [backend/app/segment_proc.py:43-68](../../backend/app/segment_proc.py)、[backend/app/hc_real.py:84-103](../../backend/app/hc_real.py)。
   N 个并发未缓存请求会同时拉起 N 个 TF/torch 子进程，有资源耗尽风险，建议加信号量/队列上限。
 
-- [ ] 规则后端里任务信号词命中即刻判 in_scope，忽略同句里的 OOS 词 —— [orchestration/glaux_orchestrator/intent.py:75-93](../../orchestration/glaux_orchestrator/intent.py)。
+- [x] ~~规则后端里任务信号词命中即刻判 in_scope~~ （意图层已于 2026-08-16 随 orchestration/ 退役，见 docs/designs/2026-08-16-001-retire-orchestration；本条失效） ，忽略同句里的 OOS 词 —— [orchestration/glaux_orchestrator/intent.py:75-93](../../orchestration/glaux_orchestrator/intent.py)。
   `has_oos` 在信号词命中分支里根本不会被求值；本该判 ambiguous 的"一句话里既有任务词又有明确超范围词"
   的情况被静默吃掉。
 
-- [ ] IMT/HC 信号词同句命中时静默判给注册顺序在前者 —— [orchestration/glaux_orchestrator/tasks.py:193-199](../../orchestration/glaux_orchestrator/tasks.py)（`task_for_signals`）。
+- [ ] IMT/HC 信号词同句命中时静默判给注册顺序在前者 —— [science-core/glaux_core/tasks.py（`task_for_signals`，2026-08-16 自 orchestration 迁入）](../../science-core/glaux_core/tasks.py)（`task_for_signals`）。
   遍历 `REGISTRY`（dict，插入序 IMT 先于 HC）返回第一个匹配任务而非"唯一匹配"，两个任务的信号词同时命中
   时不会触发 ambiguous——注册表本该顺序无关，这里悄悄引入了隐式优先级。
 
@@ -148,10 +148,10 @@ scope: feat/multimodal-arch (vs main)
 - [ ] `backend/app/kernel.py:174` vs `:156-158` contour(HC) 分支的硬拒绝保护是隐式跨文件耦合（依赖 `hc18.py` 的 dict 查找必然命中），不像 wall_pair(IMT) 分支那样局部显式 `if not cf: raise`。
 - [ ] `backend/app/routers/api.py:83` `job: str | None = None` 查询参数声明了但函数体从未读取，死参数。
 - [ ] `backend/app/routers/api.py:118-155` 三个 `/task/*` handler 重复同一套 `KERNEL_OK` 守卫 + try/except 脚手架，可提取共享装饰器。
-- [ ] `orchestration/glaux_orchestrator/run.py:56-73` `interpret_and_run` 的 `has_image` 恒为 `True` 但从未真正传 `image_b64`，若被 `ClaudeVLMBackend` 走这条路径会静默退化为纯文本判断（目前没有调用方这样用，是接口误用陷阱而非活跃 bug）。
-- [ ] `orchestration/glaux_orchestrator/intent.py:121-137` VLM tool-use schema 无置信度字段，三态守卫对"模型自信但判断错误"没有结构性防线，只靠 prompt 软约束。
-- [ ] `orchestration/glaux_orchestrator/intent.py:41-52` `IntentBackend` 抽象签名与 `ClaudeVLMBackend` 具体实现（多了 `api_key`/`model` 参数）不一致，多态调用方结构上传不了这两个参数。
-- [ ] `orchestration/glaux_orchestrator/tasks.py:169-172` HC 的 `"hc"` 信号词是纯子串匹配，非单词边界，理论上任何含相邻字母 "h"+"c" 的文本都会误触发（实践中碰撞窗口很窄）。
+- [x] ~~`orchestration/glaux_orchestrator/run.py:56-73`~~ （意图层已于 2026-08-16 随 orchestration/ 退役，见 docs/designs/2026-08-16-001-retire-orchestration；本条失效）  `interpret_and_run` 的 `has_image` 恒为 `True` 但从未真正传 `image_b64`，若被 `ClaudeVLMBackend` 走这条路径会静默退化为纯文本判断（目前没有调用方这样用，是接口误用陷阱而非活跃 bug）。
+- [x] ~~`orchestration/glaux_orchestrator/intent.py:121-137`~~ （意图层已于 2026-08-16 随 orchestration/ 退役，见 docs/designs/2026-08-16-001-retire-orchestration；本条失效）  VLM tool-use schema 无置信度字段，三态守卫对"模型自信但判断错误"没有结构性防线，只靠 prompt 软约束。
+- [x] ~~`orchestration/glaux_orchestrator/intent.py:41-52`~~ （意图层已于 2026-08-16 随 orchestration/ 退役，见 docs/designs/2026-08-16-001-retire-orchestration；本条失效）  `IntentBackend` 抽象签名与 `ClaudeVLMBackend` 具体实现（多了 `api_key`/`model` 参数）不一致，多态调用方结构上传不了这两个参数。
+- [ ] `science-core/glaux_core/tasks.py`（原 orchestration/tasks.py:169-172，2026-08-16 迁入）HC 的 `"hc"` 信号词是纯子串匹配，非单词边界，理论上任何含相邻字母 "h"+"c" 的文本都会误触发（实践中碰撞窗口很窄）。
 - [ ] `frontend/src/components/Shell.tsx:90-96` `api.onDidLayoutChange` 订阅从未在卸载时释放（`Shell` 是顶层单例，正常使用不受影响，但给后续加面板立了个坏先例）。
 - [ ] `frontend/src/components/CornerstoneViewer.tsx:344-348` `setCoords` 在每次 `pointermove` 都写全局 store，无节流，拖拽/平移时 `StatusBar` 以鼠标事件速率重渲染。
 - [ ] `frontend/package.json:16` `@cornerstonejs/tools` 声明了依赖但整个 diff 里从未 import（设计上刻意不用 CS3D 内置标注工具），属死依赖体积。
