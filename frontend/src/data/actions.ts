@@ -4,7 +4,7 @@
 // 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
 import type { Modality, TaskType } from "../api/types";
-import { useSession } from "../store/session";
+import { TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
 
 /** 当前模态对应的任务类型（注册表真相源）；未就绪则 null。 */
 function currentTask(): TaskType | null {
@@ -19,6 +19,7 @@ function clearOverlays(): void {
   s.setPrimitives([]);
   s.setSource("agent");
   s.setModelVersion("");
+  s.setAnnotations([]); // SDD 04：标注随对象切走，由查看器重新拉取
 }
 
 /** 载入当前模态的数据集列表（Explorer）；若无选中图则选第一张。 */
@@ -58,6 +59,11 @@ export async function switchModality(modality: Modality): Promise<void> {
   s.setImageMeta(null);
   clearOverlays();
   s.setTool("cursor");
+  // SDD 04：工具参数随模态复位（brush/voi 不跨模态泄漏）
+  s.setToolOptions({
+    brush: { ...TOOL_OPTIONS_DEFAULTS.brush },
+    voi: { ...TOOL_OPTIONS_DEFAULTS.voi },
+  });
   // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
   const pick = s.models.find((m) => m.modality === modality && m.active);
   if (pick) useSession.setState({ activeModel: pick.id });

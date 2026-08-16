@@ -1,5 +1,8 @@
 // 类型化 API 客户端。走同源 /api（dev 由 Vite 反代到 FastAPI:8000，生产同源部署）。
 import type {
+  Annotation,
+  AnnotationCreated,
+  AnnotationInput,
   Capability,
   DataSource,
   ImageMeta,
@@ -65,6 +68,39 @@ async function get<T>(path: string): Promise<T> {
   const r = await fetch(BASE + path);
   if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
   return r.json() as Promise<T>;
+}
+
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(BASE + path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = `${r.status}`;
+    try {
+      const j = await r.json();
+      if (j?.detail) detail = String(j.detail);
+    } catch {
+      /* 非 JSON 错误体 */
+    }
+    throw new ApiError(r.status, detail);
+  }
+  return r.json() as Promise<T>;
+}
+
+async function del(path: string): Promise<void> {
+  const r = await fetch(BASE + path, { method: "DELETE" });
+  if (!r.ok) {
+    let detail = `${r.status}`;
+    try {
+      const j = await r.json();
+      if (j?.detail) detail = String(j.detail);
+    } catch {
+      /* 非 JSON 错误体 */
+    }
+    throw new ApiError(r.status, detail);
+  }
 }
 
 export const api = {
@@ -134,4 +170,23 @@ export const api = {
   /** 由编辑后的图元重测（泛型替代 measure + hcMeasure）。 */
   taskMeasure: (task: TaskType, primitives: Primitive[], cf: number) =>
     post<MeasurementResult>("/task/measure", { task, primitives, cf }),
+
+  // --- 统一标注（SDD 04）——bbox/polygon/brush 产物的持久化面 -----------------
+  annotations: {
+    /** 列出某对象（可选 z 层）的全部标注。 */
+    list: (imageId: string, z?: number | null) =>
+      get<{ annotations: Annotation[] }>(
+        `/annotations?image_id=${encodeURIComponent(imageId)}${z != null ? `&z=${z}` : ""}`,
+      ),
+    /** 创建标注；on_commit 钩子产物在 hook_result/hook_error。 */
+    create: (input: AnnotationInput) => post<AnnotationCreated>("/annotations", input),
+    /** 更新几何/标签（base_seq 乐观并发；过期 → 409）。 */
+    update: (
+      id: string,
+      body: { base_seq: number; primitive?: unknown; mask_png_b64?: string; label?: string; class_id?: number | null },
+    ) => patch<{ annotation: Annotation }>(`/annotations/${encodeURIComponent(id)}`, body),
+    /** 删除（base_seq 乐观并发；mask 文件连带删）。 */
+    remove: (id: string, baseSeq: number) =>
+      del(`/annotations/${encodeURIComponent(id)}?base_seq=${baseSeq}`),
+  },
 };

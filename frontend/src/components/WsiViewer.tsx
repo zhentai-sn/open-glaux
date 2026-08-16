@@ -2,18 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OpenSeadragon, makeWsiTileSource, makeWsiViewer } from "../viewer/openseadragon";
 import { api } from "../api/client";
-import { runWsiTask } from "../data/actions";
+import { createAnnotation, loadAnnotations, patchAnnotation } from "../annotation/bridge";
+import {
+  annotationToW3c,
+  initAnnotator,
+  w3cToPrimitive,
+  type OsdAnnotator,
+  type W3cAnnotation,
+} from "../annotation/wsiAnno";
 import { useSession } from "../store/session";
 import type { ClassSpec, Primitive } from "../api/types";
 
-// WsiViewer（P7 楔子）——OpenSeadragon 深缩放 + ROI 框选 + 核质心 overlay。
+// WsiViewer（P7 楔子，SDD 04 T7 迁移）——OpenSeadragon 深缩放 + Annotorious 通用标注 + 核质心 overlay。
 //
-// 关键差异 vs raster_2d/volume_3d：瓦片按需（DZI 金字塔，永不整片下发）；深缩放（不是切 z）；
-// 核检测按**框选 ROI**推理（整片不可行）。质心存 level-0 px，overlay 经 imageToViewerElement 跟随。
-// 坐标三套：level-0 px（真相）↔ DeepZoom level（瓦片路由，OSD 内部）↔ OSD viewport（渲染）。
+// 关键差异 vs raster_2d/volume_3d：瓦片按需（DZI 金字塔，永不整片下发）；深缩放（不是切 z）。
+// bbox/polygon 绘制与顶点编辑由 Annotorious 承担；产物经 annotationBridge 落 /annotations，
+// bbox 的 on_commit 核检测由后端派发（hook_result 回流 Detection 通道）——前端不再自持框选逻辑。
+// 质心存 level-0 px，overlay 经 imageToViewerElement 跟随（只读展示，非标注）。
 
 const NUCLEUS_R = 2.5; // 质心点半径（CSS px）
-const MIN_ROI = 24; // 最小 ROI 边长（level-0 px）——防误触极小框
 
 type PointSetPrim = Extract<Primitive, { kind: "point_set" }>;
 
@@ -21,7 +28,7 @@ export function WsiViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
-  const drawRef = useRef<{ x0: number; y0: number; x1: number; y1: number; on: boolean } | null>(null);
+  const annoRef = useRef<OsdAnnotator | null>(null);
   const [ready, setReady] = useState(false);
   const [verify, setVerify] = useState<{ f1: number; count_pred: number; count_ref: number } | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -35,7 +42,7 @@ export function WsiViewer() {
   const modality = useSession((s) => s.modality);
   const wsiRoi = useSession((s) => s.wsiRoi);
   const loading = useSession((s) => s.loading);
-  const setTool = useSession((s) => s.setTool);
+  const annotations = useSession((s) => s.annotations);
   const notify = useSession((s) => s.notify);
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
@@ -96,15 +103,7 @@ export function WsiViewer() {
       ctx.setLineDash([]);
     }
 
-    // 3) 正在拖的框（元素 px，直接画）
-    const d = drawRef.current;
-    if (d && d.on) {
-      ctx.strokeStyle = "rgba(255,180,90,0.95)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
-    }
-
-    // 4) 计数
+    // 3) 计数
     if (pointSet) {
       ctx.fillStyle = "rgba(230,234,240,0.95)";
       ctx.font = "bold 12px ui-monospace,monospace";
@@ -116,11 +115,36 @@ export function WsiViewer() {
   const drawOverlayRef = useRef(drawOverlay);
   drawOverlayRef.current = drawOverlay;
 
-  // 一次性 init OSD + 绑视口更新重绘
+  // 一次性 init OSD + Annotorious + 绑视口更新重绘
   useEffect(() => {
     if (!containerRef.current) return;
     const viewer = makeWsiViewer(containerRef.current);
     viewerRef.current = viewer;
+    const anno = initAnnotator(viewer);
+    annoRef.current = anno;
+    anno.on("createAnnotation", (wa: W3cAnnotation) => {
+      // W3C → 契约 → annotationBridge（乐观渲染 + 落库 + on_commit 钩子产物回流）
+      const prim = w3cToPrimitive(wa);
+      const slide = useSession.getState().activeSlide;
+      if (!prim || !slide) return;
+      void createAnnotation({ image_id: slide, primitive: prim }).then((saved) => {
+        // 服务端落库成功后由 store 回灌 effect 用真 id 重渲染 Annotorious；
+        // bbox 同步 wsiRoi（agent 上下文 roi_box / 重跑通道仍读它）
+        if (saved && saved.primitive.kind === "bbox") {
+          const b = saved.primitive;
+          useSession.getState().setWsiRoi([b.x0, b.y0, b.x1, b.y1]);
+        }
+      });
+    });
+    anno.on("updateAnnotation", (wa: W3cAnnotation) => {
+      const s = useSession.getState();
+      const slide = s.activeSlide;
+      if (!wa.id || !slide) return;
+      const local = s.annotations.find((a) => a.id === wa.id);
+      const prim = w3cToPrimitive(wa);
+      if (!local || !prim) return;
+      void patchAnnotation(local.id, local.seq, { primitive: prim });
+    });
     const redraw = () => drawOverlayRef.current();
     viewer.addHandler("update-viewport", redraw);
     viewer.addHandler("animation", redraw);
@@ -136,12 +160,35 @@ export function WsiViewer() {
     };
   }, []);
 
-  // 切 slide / 有 dims → open 新 tileSource
+  // 切 slide / 有 dims → open 新 tileSource + 拉取该 slide 的标注
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!ready || !viewer || !activeSlide || !dims) return;
     viewer.open(makeWsiTileSource(activeSlide, dims[0], dims[1]));
+    void loadAnnotations(activeSlide);
   }, [ready, activeSlide, dims]);
+
+  // store.annotations → Annotorious 渲染（唯一真相源回灌；临时 id 不下发避免与本地重复）
+  useEffect(() => {
+    const anno = annoRef.current;
+    if (!anno) return;
+    anno.setAnnotations(annotations.filter((a) => !a.id.startsWith("tmp-")).map(annotationToW3c).filter(Boolean));
+  }, [annotations]);
+
+  // 统一工具集合 → Annotorious 绘制态（bbox/polygon；brush 在 WSI 无能力位，ViewerChrome 已禁）
+  useEffect(() => {
+    const anno = annoRef.current;
+    if (!anno) return;
+    if (tool === "bbox") {
+      anno.setDrawingTool("rectangle");
+      anno.setDrawingEnabled(true);
+    } else if (tool === "polygon") {
+      anno.setDrawingTool("polygon");
+      anno.setDrawingEnabled(true);
+    } else {
+      anno.setDrawingEnabled(false);
+    }
+  }, [tool, ready]);
 
   // 元素尺寸变化 → 重绘 overlay
   useEffect(() => {
@@ -157,56 +204,6 @@ export function WsiViewer() {
     drawOverlayRef.current();
   }, [pointSet, wsiRoi, drawOverlay]);
 
-  // --- ROI 框选（仅 tool==="roi" 时 overlay 拦截指针；否则 OSD 处理平移/缩放）----------
-  const elPoint = (e: React.PointerEvent): [number, number] => {
-    const rect = containerRef.current!.getBoundingClientRect();
-    return [e.clientX - rect.left, e.clientY - rect.top];
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (tool !== "roi" || loading) return;
-    e.preventDefault();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    const [x, y] = elPoint(e);
-    drawRef.current = { x0: x, y0: y, x1: x, y1: y, on: true };
-    drawOverlay();
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drawRef.current;
-    if (!d || !d.on) return;
-    const [x, y] = elPoint(e);
-    d.x1 = x;
-    d.y1 = y;
-    drawOverlay();
-  };
-  const onPointerUp = async () => {
-    const d = drawRef.current;
-    const viewer = viewerRef.current;
-    if (!d || !d.on || !viewer || !activeSlide || !dims) return;
-    d.on = false;
-    const vp = viewer.viewport;
-    // 元素 px → level-0 image px（两角）
-    const a = vp.viewerElementToImageCoordinates(new OpenSeadragon.Point(d.x0, d.y0));
-    const b = vp.viewerElementToImageCoordinates(new OpenSeadragon.Point(d.x1, d.y1));
-    const clamp = (v: number, hi: number) => Math.max(0, Math.min(hi, v));
-    const x0 = clamp(Math.round(Math.min(a.x, b.x)), dims[0]);
-    const y0 = clamp(Math.round(Math.min(a.y, b.y)), dims[1]);
-    const x1 = clamp(Math.round(Math.max(a.x, b.x)), dims[0]);
-    const y1 = clamp(Math.round(Math.max(a.y, b.y)), dims[1]);
-    drawRef.current = null;
-    if (x1 - x0 < MIN_ROI || y1 - y0 < MIN_ROI) {
-      drawOverlay();
-      notify("info", "ROI 太小，请拖一个更大的框（≥24px）");
-      return;
-    }
-    setTool("cursor"); // 框完切回平移，避免误画
-    const ok = await runWsiTask(activeSlide, [x0, y0, x1, y1]);
-    if (!ok) {
-      notify("crit", "核检测未产出（隔离环境不可用或子进程失败）");
-    }
-    drawOverlay();
-  };
-
   const onVerify = async () => {
     if (!activeSlide || verifying) return;
     setVerifying(true);
@@ -221,21 +218,18 @@ export function WsiViewer() {
   };
   const f1Color = verify ? (verify.f1 >= 0.95 ? "#7BE0AD" : verify.f1 >= 0.85 ? "#FFC85A" : "#FF6B6B") : "#aaa";
 
-  const cursor = tool === "roi" ? "crosshair" : "default";
-  const overlayPointer = tool === "roi" ? "auto" : "none";
+  const drawing = tool === "bbox" || tool === "polygon";
+  const cursor = drawing ? "crosshair" : "default";
+  // overlay 永远放行指针：绘制交互由 OSD 容器内的 Annotorious 层承接，overlay 只读展示
   const density = metrics?.nuclei_density_mm2?.value;
   const area = metrics?.roi_area_mm2?.value;
 
   return (
     <div className="frame" style={{ position: "relative", width: "100%", height: "100%" }}>
-      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }} />
+      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", cursor }} />
       <canvas
         ref={overlayRef}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor, pointerEvents: overlayPointer, touchAction: "none" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", touchAction: "none" }}
       />
       {/* 信息条 */}
       <div style={_infoBar}>
@@ -261,7 +255,9 @@ export function WsiViewer() {
       ) : (
         !pointSet && (
           <div style={_hint}>
-            {tool === "roi" ? "在切片上拖一个框，松开即检测细胞核" : "点工具栏「▭ 框选 ROI」，再在切片上拖框检测"}
+            {tool === "bbox"
+              ? "在切片上拖一个框，松开即保存（自动触发核检测）"
+              : "工具栏选「▭ 框选」或「⬠ 多边形」，在切片上绘制标注"}
           </div>
         )
       )}

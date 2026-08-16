@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import type {
+  Annotation,
   Capability,
   DataSource,
   ImageMeta,
@@ -112,7 +113,19 @@ function loadFocusLayout(): FocusLayout {
 
 export type View = "explorer" | "market" | "atlas"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD feats/03）
 export type PanelTab = "meas" | "out" | "prob" | "term";
-export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
+/** SDD 04：统一工具集合——替代旧的 editli/editma/roi（任务专属编辑并入 polygon/bbox 语义）。 */
+export type Tool = "cursor" | "bbox" | "polygon" | "brush" | "reset";
+
+/** SDD 04：工具参数（随 switchModality 复位）——从查看器本地 state 提升为全局真相源。 */
+export interface ToolOptions {
+  brush: { mode: "paint" | "erase"; classId: number; radius: number };
+  voi: { ww: number; wl: number };
+}
+
+export const TOOL_OPTIONS_DEFAULTS: ToolOptions = {
+  brush: { mode: "erase", classId: 1, radius: 3 },
+  voi: { ww: 400, wl: 40 }, // CT 腹部软组织窗（与 nifti loader 默认一致）
+};
 
 /**
  * 查看器侧的一条即时提示（错误 / 提示）——单槽，最新覆盖最旧，由 <Notice/> 在两种外壳里渲染。
@@ -135,6 +148,8 @@ interface SessionState {
   panelTab: PanelTab;
   panelCollapsed: boolean;
   tool: Tool;
+  toolOptions: ToolOptions; // SDD 04：工具参数（brush/voi）——查看器不再自持本地 state
+  annotations: Annotation[]; // SDD 04：当前对象的标注（/annotations）——与 primitives（Detection）分离
 
   // 领域
   tasks: TaskView[]; // 任务注册表（GET /tasks）——切换器/工具/度量的真相源
@@ -172,6 +187,10 @@ interface SessionState {
   setPanelTab: (t: PanelTab) => void;
   togglePanel: () => void;
   setTool: (t: Tool) => void;
+  setToolOptions: (patch: Partial<{ brush: Partial<ToolOptions["brush"]>; voi: Partial<ToolOptions["voi"]> }>) => void;
+  setAnnotations: (a: Annotation[]) => void;
+  upsertAnnotation: (a: Annotation) => void;
+  removeAnnotation: (id: string) => void;
   setTasks: (t: TaskView[]) => void;
   setModality: (m: Modality) => void;
   setActiveImage: (id: string | null) => void;
@@ -209,6 +228,8 @@ export const useSession = create<SessionState>((set) => ({
   panelTab: "meas",
   panelCollapsed: false,
   tool: "cursor",
+  toolOptions: { brush: { ...TOOL_OPTIONS_DEFAULTS.brush }, voi: { ...TOOL_OPTIONS_DEFAULTS.voi } },
+  annotations: [],
 
   tasks: [],
   modality: "carotid_imt",
@@ -259,6 +280,24 @@ export const useSession = create<SessionState>((set) => ({
   setPanelTab: (t) => set({ panelTab: t }),
   togglePanel: () => set((s) => ({ panelCollapsed: !s.panelCollapsed })),
   setTool: (t) => set({ tool: t }),
+  setToolOptions: (patch) =>
+    set((s) => ({
+      toolOptions: {
+        brush: { ...s.toolOptions.brush, ...(patch.brush ?? {}) },
+        voi: { ...s.toolOptions.voi, ...(patch.voi ?? {}) },
+      },
+    })),
+  setAnnotations: (a) => set({ annotations: a }),
+  upsertAnnotation: (a) =>
+    set((s) => {
+      const i = s.annotations.findIndex((x) => x.id === a.id);
+      if (i < 0) return { annotations: [...s.annotations, a] };
+      const next = [...s.annotations];
+      next[i] = a;
+      return { annotations: next };
+    }),
+  removeAnnotation: (id) =>
+    set((s) => ({ annotations: s.annotations.filter((x) => x.id !== id) })),
   setTasks: (t) => set({ tasks: t }),
   setModality: (m) => set({ modality: m }),
   setActiveImage: (id) => set({ activeImage: id }),

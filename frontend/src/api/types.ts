@@ -99,6 +99,8 @@ export type Primitive =
   | { kind: "polyline"; id: string; role: string; points: number[][]; closed: boolean }
   | { kind: "ellipse"; id: string; role: string; cx: number; cy: number; a: number; b: number; theta: number }
   | { kind: "mask"; id: string; role: string; ref: string }
+  /** SDD 04：轴对齐包围框（通用标注）。镜像 glaux_core.contracts.Bbox。 */
+  | { kind: "bbox"; id: string; role: string; x0: number; y0: number; x1: number; y1: number }
   | {
       /** P6：3D 体掩膜（CT labelmap，多类器官，顶层一体）。镜像 glaux_core.contracts.VolumeMask。 */
       kind: "volume_mask";
@@ -178,4 +180,48 @@ export interface TaskView {
   metrics: TaskMetricDef[];
   tools: TaskToolDef[];
   overlays: TaskOverlaySpec[];
+  /** SDD 04：引擎能力位——该任务可用的通用标注工具（wsi 无 brush）。 */
+  capabilities: string[];
+  /** SDD 04：标注落库后的任务联动钩子（如 WSI bbox → run_task）；无则 null。 */
+  on_commit?: Record<string, { action: string }> | null;
+}
+
+// --- 统一标注（SDD 04）——/annotations 契约，镜像后端 routers/annotations ------
+
+/** 标注几何原语（bbox / 闭合多边形 / mask 引用）——Annotation 专用，不含任务图元。 */
+export type AnnotationPrimitive =
+  | { kind: "bbox"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "polyline"; closed: true; points: number[][] }
+  | { kind: "mask"; ref: string };
+
+/** 一条标注（人工/agent 的自由产物，与 Detection 任务结果分离）。 */
+export interface Annotation {
+  id: string;
+  image_id: string;
+  z?: number | null;
+  primitive: AnnotationPrimitive;
+  label: string;
+  class_id?: number | null;
+  status: "draft" | "confirmed" | "suggested" | "rejected";
+  source: "manual" | "model" | "agent";
+  seq: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** POST /annotations 请求体（mask 的 PNG 走 mask_png_b64）。 */
+export interface AnnotationInput {
+  image_id: string;
+  z?: number | null;
+  primitive: AnnotationPrimitive | { kind: "mask" };
+  mask_png_b64?: string;
+  label?: string;
+  class_id?: number | null;
+}
+
+/** POST /annotations 响应——hook_result/hook_error 为 on_commit 钩子产物（SDD 04 §7.3）。 */
+export interface AnnotationCreated {
+  annotation: Annotation;
+  hook_result?: TaskOutput | null;
+  hook_error?: string | null;
 }

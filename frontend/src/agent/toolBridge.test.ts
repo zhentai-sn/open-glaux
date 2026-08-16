@@ -13,6 +13,8 @@ const IMT_TASK: TaskView = {
   metrics: [],
   tools: [],
   overlays: [],
+  capabilities: ["bbox", "polygon", "brush"],
+  on_commit: null,
 };
 
 async function fresh() {

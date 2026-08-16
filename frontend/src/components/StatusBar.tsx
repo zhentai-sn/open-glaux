@@ -1,16 +1,6 @@
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
-const TOOL_LABEL = {
-  cursor: "tl_cursor",
-  editli: "tl_editli",
-  editma: "tl_editma",
-  roi: "tl_roi",
-  reset: "tl_reset",
-} as const;
-
-const TOOL_GLYPH = { cursor: "▸", editli: "◠", editma: "◡", roi: "▭", reset: "⟲" } as const;
-
 export function StatusBar() {
   const { t, lang, toggle } = useI18n();
   const tool = useSession((s) => s.tool);
@@ -26,6 +16,8 @@ export function StatusBar() {
   // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
   const tv = tasks.find((tk) => tk.modality === modality);
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
+  // SDD 04：工具展示改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）
+  const toolDef = tv?.tools.find((x) => x.id === tool);
 
   return (
     <div className="status">
@@ -36,7 +28,7 @@ export function StatusBar() {
         <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
       </button>
       <span className="item">
-        {TOOL_GLYPH[tool]} <span>{t(TOOL_LABEL[tool])}</span>
+        {toolDef?.glyph ?? "▸"} <span>{toolDef ? toolDef.label[lang] : t("tl_cursor")}</span>
       </span>
       <span className="sp" />
       <span className="item mono">
