@@ -124,7 +124,7 @@ export function normalizeDescription(raw: unknown): AtlasDescription {
   };
 }
 
-async function completeJson(
+export async function completeJson(
   rt: VisionRuntime,
   systemPrompt: string,
   content: (TextContent | ImageContent)[],

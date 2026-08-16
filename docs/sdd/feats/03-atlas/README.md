@@ -4,7 +4,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `ready` |
+| SDD 状态 | `implemented`（2026-08-16 开发侧自查见 §15.1；待维护者端到端验收） |
 | 创建日期 | 2026-08-16 |
 | 最近更新 | 2026-08-16 |
 | 目标阶段 | 第一阶段：人工导入的图谱 + agent 检索先验（VLM 两步 few-shot） |
@@ -323,20 +323,48 @@ stateDiagram-v2
 
 ## 15. 验收标准
 
-- [ ] 导入一份含嵌入图的文字版 PDF，Atlas 页面出现候选插图与邻近文本；勾选、框 ROI、填标签后，案例出现在列表中，`source_type = textbook`。
-- [ ] 导入一个扫描版 PDF，返回 `NO_FIGURES_FOUND` 并提示手动上传，无残留记录。
-- [ ] 输入一个公网网页 URL，页面内图片与 alt/figcaption 出现在候选列表；输入私网/fake-ip 地址返回 `FETCH_BLOCKED`，无对外请求。
-- [ ] 用 CLI 导入一个 COCO 多边形标注目录，`geometry` 为多边形、`roi` 为其外接框；重跑同一命令不产生重复记录。
-- [ ] 同一图重复导入相同 ROI，返回同一 `exemplar_id`。
-- [ ] 标签"电子致密物"与"电子致密物 "（尾空格）/ 全角输入检索结果一致。
-- [ ] `search` 请求 `egress=shareable` 时结果不含任何 `local-only` 案例；不含任何 `retired` 案例。
+- [x] 导入一份含嵌入图的文字版 PDF，Atlas 页面出现候选插图与邻近文本；勾选、框 ROI、填标签后，案例出现在列表中，`source_type = textbook`。
+- [x] 导入一个扫描版 PDF，返回 `NO_FIGURES_FOUND` 并提示手动上传，无残留记录。
+- [x] 输入一个公网网页 URL，页面内图片与 alt/figcaption 出现在候选列表；输入私网/fake-ip 地址返回 `FETCH_BLOCKED`，无对外请求。
+- [x] 用 CLI 导入一个 COCO 多边形标注目录，`geometry` 为多边形、`roi` 为其外接框；重跑同一命令不产生重复记录。
+- [x] 同一图重复导入相同 ROI，返回同一 `exemplar_id`。
+- [x] 标签"电子致密物"与"电子致密物 "（尾空格）/ 全角输入检索结果一致。
+- [x] `search` 请求 `egress=shareable` 时结果不含任何 `local-only` 案例；不含任何 `retired` 案例。
 - [ ] `locate_roi` 在图谱中有 ≥ 4 条匹配候选时，先出现一次 VLM 挑选调用（返回 1–3 个 exemplar_id），再出现一次带这些案例的定位调用；会话中出现"参考图谱 N 条"卡片，可点开对应案例。
 - [ ] `locate_roi` 在图谱无匹配时行为与无 Atlas 时一致，无额外 VLM 调用与错误。
 - [ ] 外发开关关闭时，任何案例都不发往外部 VLM，卡片提示被排除数量。
-- [ ] 下架案例后，它不再出现在检索与默认列表，引用它的历史会话卡片仍可打开；恢复后重新可检索。
-- [ ] 对被会话引用过的案例执行硬删除被拒绝；从未引用过的可硬删除。
-- [ ] VLM 描述生成失败时案例仍入库，页面显示"待补描述"并可重试；成功时 `description` 含 §7.6 全部固定字段且 `extra` 为对象。
-- [ ] 检索链路不加载任何本地模型（backend 进程无 torch 导入）。
+- [x] 下架案例后，它不再出现在检索与默认列表，引用它的历史会话卡片仍可打开；恢复后重新可检索。
+- [x] 对被会话引用过的案例执行硬删除被拒绝；从未引用过的可硬删除。
+- [x] VLM 描述生成失败时案例仍入库，页面显示"待补描述"并可重试；成功时 `description` 含 §7.6 全部固定字段且 `extra` 为对象。
+- [x] 检索链路不加载任何本地模型（backend 进程无 torch 导入）。
+
+### 15.1 开发侧自查（2026-08-16，实现完成后；端到端验收由维护者执行）
+
+**已完成（自动化测试 + 浏览器走查覆盖）**
+
+| 验收项 | 证据 |
+| --- | --- |
+| 文字版 PDF → 候选 → 框 ROI/标签 → 入库 `textbook` | backend `test_atlas_parse.py`（PyMuPDF 现场生成含图 PDF 抽出）+ `test_atlas_api.py`（imports/pdf → exemplars）；前端 `ImportWizard.test.tsx` 三步流；浏览器走查向导渲染与创建/详情/下架/删除链路 |
+| 扫描版 PDF → `NO_FIGURES_FOUND`，无残留 | `test_atlas_parse.py` 纯文本 PDF；`ImportWizard.test.tsx` 呈现手动上传引导，`Next` 不可用；暂存会话在向导卸载时 `DELETE /imports/{id}` |
+| 公网 URL 出候选；私网/fake-ip → `FETCH_BLOCKED` 无对外请求 | `test_net_guard.py`（9 项）+ `test_atlas_parse.py` 网页抽图（含重定向）+ `test_atlas_api.py`（monkeypatch 断言未发请求）；本机 fake-ip 代理下浏览器实测返回 `FETCH_BLOCKED` 并在向导中提示 |
+| CLI 导入 COCO 多边形，`geometry`/`roi` 正确，重跑幂等 | `test_atlas_cli.py`（4 项） |
+| 同图同 ROI 重复导入同 id | `test_atlas_store.py` 幂等键 |
+| 标签归一检索一致 | `test_atlas_store.py`（尾空格 / 全角 / 大小写） |
+| `egress=shareable` 不含 local-only 与 retired | `test_atlas_store.py` + `test_atlas_api.py` |
+| 下架不可检索、历史卡片可开、恢复可检索 | `test_atlas_store.py` retire/restore；`AtlasRefCard.test.tsx` 已下架/已删除案例降级展示且可点开 |
+| 被引用过的不可硬删；未引用可硬删 | `test_atlas_store.py`（`mark_referenced` 后 delete → `REFERENCED`） |
+| describe 失败仍入库可重试；成功含全部固定字段且 `extra` 为对象 | agent-runtime `atlas-vision.test.ts`（一次重试 / `describe_failed` / 规整）+ `atlas-api.test.ts`（502 且凭据不落 body、请求后 dispose）；backend `PUT /description` 测试；前端详情页"生成描述"按钮 |
+| 检索链路无 torch | `test_atlas_store.py::test_search_path_does_not_import_torch` |
+
+**未完成**
+
+- 首个场景（膜性肾病 EDD TEM）的**种子内容**尚未导入：需维护者自有 TEM 图 / 教科书插图；`agent-runtime/scripts/atlas-eval.ts` 已就绪但**首轮 IoU 数字未产出**（需 10 张自有测试图 + 人工框 + 一个视觉模型连接）。
+
+**无法验证（依赖 SDD 02 `locate_roi`，本 SDD 不修改 02 契约）**
+
+- ≥ 4 候选时"先挑选后定位"与会话中出现"参考图谱 N 条"卡片——挑选步 `selectExemplars` 与卡片组件均已实现并有测试（`atlas-select.test.ts` 覆盖 0 / ≤3 / ≥4 / 退化四条路径；`AtlasRefCard.test.tsx` 覆盖三种数量），但 `locate_roi` 尚不存在，会话中不会出现该调用与卡片。
+- 图谱无匹配时行为与无 Atlas 一致——`selectExemplars` 候选 0 直返且不调模型（有测试），接线后自然成立。
+- 外发开关关闭时案例不外发、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`（有测试），`excluded_by_egress` 计数与卡片提示已实现；02 §7.4 的 `GLAUX_ANNOT_ALLOW_EGRESS` 门控由 02 接线时叠加。
 
 ## 16. 决策记录
 

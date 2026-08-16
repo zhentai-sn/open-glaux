@@ -28,7 +28,8 @@ stateDiagram-v2
 | 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented` | Glaux 项目维护者 | 2026-07-27 |
 | 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `accepted` | Glaux 项目维护者 | 2026-08-13 |
 | 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `draft` | Glaux 项目维护者 | 2026-08-13 |
-| 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `ready` | Glaux 项目维护者 | 2026-08-16 |
+| 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-16 |
+| 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `ready` | Glaux 项目维护者 | 2026-08-16 |
 
 ## 维护约定
 
