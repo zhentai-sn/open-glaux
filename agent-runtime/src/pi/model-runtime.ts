@@ -117,7 +117,8 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
     provider: providerId,
     baseUrl,
     reasoning: knownAnthropic?.reasoning ?? false,
-    input: knownAnthropic?.input ?? ["text"],
+    // 非内置目录模型：按连接声明的视觉能力补 "image"（否则工具结果里的图会被 pi-ai 静默丢弃）。
+    input: knownAnthropic?.input ?? (connection.vision ? ["text", "image"] : ["text"]),
     cost: knownAnthropic?.cost ?? ZERO_COST,
     contextWindow: metadata.contextWindow,
     maxTokens: metadata.maxTokens,

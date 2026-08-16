@@ -4,6 +4,7 @@ import Fastify, { LogController } from "fastify";
 
 import { RuntimeError, safeError } from "../errors.js";
 import type { ConnectionProbe } from "../pi/connection-probe.js";
+import { registerAtlasRoutes, type AtlasRouteDependencies } from "./atlas-routes.js";
 import { registerConnectionRoutes } from "./connection-routes.js";
 import type { RouteDependencies } from "./routes.js";
 import { registerRoutes } from "./routes.js";
@@ -13,6 +14,7 @@ export interface BuildServerOptions {
   healthCheck?: () => Promise<Record<string, unknown>>;
   routes?: RouteDependencies;
   probe?: ConnectionProbe;
+  atlas?: AtlasRouteDependencies;
 }
 
 export function buildServer(options: BuildServerOptions = {}) {
@@ -44,6 +46,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   }));
   if (options.routes) registerRoutes(server, options.routes);
   if (options.probe) registerConnectionRoutes(server, options.probe);
+  if (options.atlas) registerAtlasRoutes(server, options.atlas);
 
   server.setNotFoundHandler((request, reply) => {
     const traceId = request.id || randomUUID();

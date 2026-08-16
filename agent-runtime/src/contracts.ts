@@ -59,6 +59,27 @@ export interface ConnectionInput {
   context_window?: number;
   max_tokens?: number;
   credential?: string;
+  /**
+   * 模型是否具备视觉输入（前端由 /connection/models 的 vision 判定填入；Atlas describe 恒为 true）。
+   * 只影响 pi-ai 对**工具结果**中图像块的转换（用户消息中的图像块无条件转换）。
+   */
+  vision?: boolean;
+}
+
+/**
+ * SDD 03 §12：agent 在一次 `locate_roi` 中查阅了图谱。由 runtime 侧 `selectExemplars()` 构造，
+ * 经现有 `pi.event` 通道下发；前端渲染为"参考图谱 N 条"卡片（AtlasRefCard）。
+ */
+export interface AtlasReferencedPayload {
+  trace_id: string;
+  /** 检索命中的候选（≤ 10） */
+  candidate_ids: string[];
+  /** VLM 从候选中挑出的 1–3 条（候选 ≤ 3 时等于候选） */
+  selected_ids: string[];
+  /** 因外发限制（local-only）被检索层排除的条数——backend 已过滤，此处由 runtime 用 `egress=any` 对比得出 */
+  excluded_by_egress: number;
+  /** 供卡片降级展示的快照（案例被下架/删除后仍可显示） */
+  snapshots: { exemplar_id: string; caption: string; tags: string[] }[];
 }
 
 /**

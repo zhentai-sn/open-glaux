@@ -2,6 +2,7 @@ import { loadRuntimeConfig } from "./config.js";
 import { CommandService } from "./pi/command-service.js";
 import { createConnectionProbe } from "./pi/connection-probe.js";
 import { HarnessRegistry } from "./pi/harness-registry.js";
+import { createModelRuntime } from "./pi/model-runtime.js";
 import { SessionService } from "./pi/session-service.js";
 import { buildServer } from "./transport/server.js";
 import { SseBroker } from "./transport/sse-broker.js";
@@ -24,6 +25,7 @@ const server = buildServer({
   },
   routes: { sessions, commands, registry, broker },
   probe: createConnectionProbe(),
+  atlas: { runtimeFactory: createModelRuntime },
 });
 
 const shutdown = async () => {
