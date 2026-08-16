@@ -1,7 +1,8 @@
 """§5 后端契约的 pydantic 模型——前后端共享的数据形状（单一事实源）。
 
-这些形状映射 science-core / orchestration 的领域对象（`TaskSpec` / `IntentResult` /
-`IMTResult` / `Boundary`）。M0 阶段路由返回 mock，但形状即最终契约，M1 只换实现不换形状。
+这些形状映射 science-core 的领域对象（`glaux_core.tasks.TaskSpec` / `IMTResult` / `Boundary`）。
+M0 阶段路由返回 mock，但形状即最终契约，M1 只换实现不换形状。
+意图层契约（Scope / InterpretRequest / IntentResult / IntentBackendInfo）已于 2026-08-16 退役。
 """
 
 from __future__ import annotations
@@ -10,9 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-# --- 意图 / 规范 -------------------------------------------------------------
+# --- 规范 -------------------------------------------------------------------
 
-Scope = Literal["in_scope", "ambiguous", "out_of_scope", "chat"]
 TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney", "nuclei_detection"]
 Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology"]
 
@@ -26,39 +26,6 @@ class TaskSpec(BaseModel):
     roi: tuple[int, int] | None = None  # US：列窗 (x0, x1)
     roi_box: tuple[int, int, int, int] | None = None  # P7 WSI：框选 (x0, y0, x1, y1) level-0 px
     method: str | None = None
-
-
-class InterpretRequest(BaseModel):
-    nl: str
-    lang: Literal["en", "zh"] = "en"
-    has_image: bool = False
-    image_id: str | None = None
-    cubs_cf: float | None = None
-    backend: Literal["rule", "vlm"] = "rule"  # 意图后端：关键词规则 / VLM
-    api_key: str | None = None  # VLM 密钥（UI 填入；缺省用服务端 env）
-    model: str | None = None  # VLM 模型覆盖
-    # VLM provider 维度（SDD 2026-07-14-001 §3）：anthropic 官方/代理 | openai 兼容（含本地 Ollama）
-    provider: Literal["anthropic", "openai_compatible"] = "anthropic"
-    base_url: str | None = None  # 自定义端点；None → provider 默认
-
-
-class IntentBackendInfo(BaseModel):
-    id: Literal["rule", "vlm"]
-    name: str
-    available: bool
-    reason: str
-
-
-# VLM 连接探测契约已迁至 agent-runtime（/agent-api/v1/connection/*，退役 orchestration P2）。
-
-
-class IntentResult(BaseModel):
-    """三态守卫的结果——非 in_scope 不带 spec（不静默错跑）。"""
-
-    scope: Scope
-    spec: TaskSpec | None = None
-    reason: str
-    backend: str = "rule_based"
 
 
 # --- 测量 -------------------------------------------------------------------

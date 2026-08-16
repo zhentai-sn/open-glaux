@@ -95,6 +95,10 @@ export class CommandService {
           }
           await regenerateLatest(harness, activeSession);
         },
+        {
+          permissionMode: current.permission_mode,
+          ...(command.type === "prompt" && command.viewer ? { viewer: command.viewer } : {}),
+        },
       );
       void completion.then(
         () => this.settle(sessionId, command, digest, "completed"),

@@ -5,7 +5,6 @@ import { FocusShell } from "./components/focus/FocusShell";
 import { Shell } from "./components/Shell";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
-import { useAgent } from "./agent/useAgent";
 import { api } from "./api/client";
 import { loadImages } from "./data/actions";
 import { useSession } from "./store/session";
@@ -16,8 +15,6 @@ export function App() {
   const setCapabilities = useSession((s) => s.setCapabilities);
   const setDatasources = useSession((s) => s.setDatasources);
   const setTasks = useSession((s) => s.setTasks);
-  const setIntentBackends = useSession((s) => s.setIntentBackends);
-  const { seedFromCurrent } = useAgent();
 
   useEffect(() => {
     void (async () => {
@@ -45,21 +42,14 @@ export function App() {
       } catch {
         /* 后端未起时不阻塞外壳 */
       }
-      // 意图后端可用性（VLM 配置面板显示服务端密钥状态）
-      try {
-        setIntentBackends(await api.intentBackends());
-      } catch {
-        /* 忽略 */
-      }
-      // 载数据集 → 选首图 → 真实分割+测量；就绪后用真实结果种四步提议
+      // 载数据集 → 选首图 → 真实分割+测量
       try {
         await loadImages();
-        seedFromCurrent();
       } catch {
         /* 无数据时外壳仍可用 */
       }
     })();
-    // 仅挂载时执行一次（种子只种一次；后续交互驱动）
+    // 仅挂载时执行一次；后续交互驱动
   }, []);
 
   // 双模式分叉（SDD feats/01 §6.2）：同一 store 的两种投影；key 强制换树，crossfade 由 CSS 承担。

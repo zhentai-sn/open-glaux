@@ -2,8 +2,8 @@
 
     uvicorn app.main:app --reload --port 8000
 
-设计不变量（继承内核）：测量确定性 · 意图守卫（三态显式） · 标定硬拒绝。
-后端只做编排/IO/进程隔离的 HTTP 外壳，业务在 science-core / orchestration。
+设计不变量（继承内核）：测量确定性 · 标定硬拒绝 · 主进程无 TF / 无 LLM SDK。
+后端只做 IO / 进程隔离的 HTTP 外壳，业务在 science-core；自然语言理解归 agent-runtime。
 """
 
 from __future__ import annotations

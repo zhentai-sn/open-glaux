@@ -12,8 +12,7 @@ dependencies = [
     "Pillow>=10.0",
     # P6：CT NIfTI 读（voxel_spacing/labelmap patch）。数据 IO 库（非重模型，主进程允许）。
     "nibabel>=5.0",
-    # Claude VLM 意图后端（看图+NL→受约束三态判定）；主进程用，无 TF。
-    "anthropic>=0.40",
+    # 注意：不含任何 LLM SDK——与模型说话的唯一进程是 agent-runtime（退役 orchestration，2026-08-16）。
     # P7：病理 WSI 瓦片服务——OpenSlide 读 .svs/.ndpi + DeepZoom 出瓦片。数据 IO C 库
     # （同 nibabel，非重模型，主进程允许）；openslide-bin 是自带 libopenslide 的 wheel，免系统装。
     "openslide-python>=1.3",
@@ -21,7 +20,7 @@ dependencies = [
 ]
 
 # 说明：主进程刻意不依赖 TensorFlow / caroSegDeep。
-# /segment 经隔离子进程（.venv-csd, py3.8/TF2.4）调用；science-core / orchestration
+# /segment 经隔离子进程（.venv-csd, py3.8/TF2.4）调用；science-core
 # 经 app/config.py 挂到 sys.path 接入（不改其打包），主进程只用其纯计算部分。
 
 [project.optional-dependencies]

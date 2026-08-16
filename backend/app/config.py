@@ -1,4 +1,4 @@
-"""M1 真实接入配置——路径、science-core/orchestration 装配、可用性判定。
+"""M1 真实接入配置——路径、science-core 装配、可用性判定。
 
 一切路径可用环境变量覆盖；缺省指向本机 2026-07-06 下载/验证的真实资产：
 - CUBS-tech 数据集：``~/glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech``
@@ -6,8 +6,9 @@
 - caroSegDeep 真实产出缓存（eval 100 图 tech_401–500）：``~/glaux_models/csd_out``
 
 数据不可用时端点回退 mock（见 mock.py），使外壳/CI 无数据也能起。
-主进程只 import science-core / orchestration（纯 numpy/PIL），**绝不引入 TF**——
+主进程只 import science-core（纯 numpy/PIL），**绝不引入 TF**——
 TF 隔离在 caroSegDeep 的 .venv-csd 子进程（见 segment_proc.py）。
+主进程也不含任何 LLM SDK：与模型说话的唯一进程是 agent-runtime（退役 orchestration，2026-08-16）。
 """
 
 from __future__ import annotations
@@ -25,12 +26,10 @@ def _env_path(key: str, default: Path) -> Path:
 HOME = Path.home()
 REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/app/config.py → repo/
 
-# --- 源码装配：把 science-core / orchestration 挂上 sys.path（不改其打包） -----
+# --- 源码装配：把 science-core 挂上 sys.path（不改其打包） ---------------------
 _SCIENCE_CORE = _env_path("GLAUX_SCIENCE_CORE", REPO_ROOT / "science-core")
-_ORCHESTRATION = _env_path("GLAUX_ORCHESTRATION", REPO_ROOT / "orchestration")
-for _p in (_SCIENCE_CORE, _ORCHESTRATION):
-    if _p.is_dir() and str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+if _SCIENCE_CORE.is_dir() and str(_SCIENCE_CORE) not in sys.path:
+    sys.path.insert(0, str(_SCIENCE_CORE))
 
 # --- 数据集路径（CUBS-tech） -------------------------------------------------
 DATA_ROOT = _env_path("GLAUX_DATA_ROOT", HOME / "glaux_datasets/cubs_data/tech_extract/DATASET_CUBS_tech")

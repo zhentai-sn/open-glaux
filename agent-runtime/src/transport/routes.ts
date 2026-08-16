@@ -6,6 +6,7 @@ import {
   type CreateSessionInput,
   type PatchSessionInput,
   type TransportCommand,
+  type ViewerContext,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import type { CommandService } from "../pi/command-service.js";
@@ -193,11 +194,13 @@ function parseCommand(value: unknown): TransportCommand {
     if (typeof body.content !== "string" || !body.content.trim()) {
       throw new RuntimeError("invalid_request", "Prompt content is required.", 400);
     }
+    const viewer = parseViewer(body.viewer);
     return {
       command_id: body.command_id,
       type: "prompt",
       content: body.content,
       connection,
+      ...(viewer ? { viewer } : {}),
     };
   }
   if (body.content !== undefined) {
@@ -238,6 +241,39 @@ function parseConnection(value: unknown) {
       ? { credential: connection.credential }
       : {}),
   };
+}
+
+/** 查看器上下文：缺省 undefined；给了必须是对象，字段逐个校验类型，未知字段忽略。 */
+function parseViewer(value: unknown): ViewerContext | undefined {
+  if (value === undefined || value === null) return undefined;
+  const v = asObject(value);
+  const out: ViewerContext = {};
+  for (const key of ["image_id", "task", "modality", "method"] as const) {
+    if (v[key] !== undefined) {
+      if (typeof v[key] !== "string") {
+        throw new RuntimeError("invalid_request", `viewer.${key} must be a string.`, 400);
+      }
+      out[key] = v[key];
+    }
+  }
+  if (v.cubs_cf !== undefined) {
+    if (typeof v.cubs_cf !== "number" || !Number.isFinite(v.cubs_cf)) {
+      throw new RuntimeError("invalid_request", "viewer.cubs_cf must be a number.", 400);
+    }
+    out.cubs_cf = v.cubs_cf;
+  }
+  if (v.roi_box !== undefined) {
+    const box = v.roi_box;
+    if (
+      !Array.isArray(box) ||
+      box.length !== 4 ||
+      !box.every((n) => typeof n === "number" && Number.isFinite(n))
+    ) {
+      throw new RuntimeError("invalid_request", "viewer.roi_box must be [x, y, w, h].", 400);
+    }
+    out.roi_box = box as [number, number, number, number];
+  }
+  return out;
 }
 
 function asObject(value: unknown): Record<string, unknown> {

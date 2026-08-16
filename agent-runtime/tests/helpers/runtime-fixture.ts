@@ -11,7 +11,10 @@ import {
 
 import type { ConnectionInput } from "../../src/contracts.js";
 import { CommandService } from "../../src/pi/command-service.js";
-import { HarnessRegistry } from "../../src/pi/harness-registry.js";
+import {
+  HarnessRegistry,
+  type HarnessToolFactory,
+} from "../../src/pi/harness-registry.js";
 import { SessionService } from "../../src/pi/session-service.js";
 import { SseBroker } from "../../src/transport/sse-broker.js";
 
@@ -29,6 +32,8 @@ export async function createRuntimeFixture(
   options: {
     contextWindow?: number;
     tokensPerSecond?: number;
+    /** 缺省无工具（测试不触 backend）；需要时注入。 */
+    toolFactory?: HarnessToolFactory;
   } = {},
 ) {
   const dataDir = await mkdtemp(join(tmpdir(), "glaux-runtime-fixture-"));
@@ -61,7 +66,7 @@ export async function createRuntimeFixture(
       model: faux.getModel(),
       disposeCredential() {},
     };
-  });
+  }, options.toolFactory ?? (() => []));
   const commands = new CommandService(sessions, registry);
   const broker = new SseBroker(registry);
 

@@ -61,12 +61,26 @@ export interface ConnectionInput {
   credential?: string;
 }
 
+/**
+ * 前端查看器当前上下文——随 prompt 命令下发，供领域工具（`run_task`）默认取"当前打开的图 / 当前任务"。
+ * SDD 02 §4.2「当前影像上下文由前端随会话上下文提供」的首次接线；字段全部可选。
+ */
+export interface ViewerContext {
+  image_id?: string;
+  task?: string;
+  modality?: string;
+  method?: string;
+  cubs_cf?: number;
+  roi_box?: [number, number, number, number];
+}
+
 export type TransportCommand =
   | {
       command_id: string;
       type: "prompt";
       content: string;
       connection: ConnectionInput;
+      viewer?: ViewerContext;
     }
   | {
       command_id: string;

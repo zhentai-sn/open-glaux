@@ -1,6 +1,5 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
-export type Scope = "in_scope" | "ambiguous" | "out_of_scope" | "chat";
 export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
 export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology";
 
@@ -12,13 +11,6 @@ export interface TaskSpec {
   /** P7 WSI：框选 ROI (x0, y0, x1, y1) level-0 px（核检测按 ROI 推理，整片不可行）。 */
   roi_box?: [number, number, number, number] | null;
   method?: string | null;
-}
-
-export interface IntentResult {
-  scope: Scope;
-  spec?: TaskSpec | null;
-  reason: string;
-  backend: string;
 }
 
 export interface ImageMeta {
@@ -89,13 +81,6 @@ export interface HCEllipse {
 export interface CorrectionResult {
   ok: boolean;
   provenance: Record<string, unknown>;
-}
-
-export interface IntentBackendInfo {
-  id: "rule" | "vlm";
-  name: string;
-  available: boolean;
-  reason: string;
 }
 
 // --- VLM 连接（前端 store 用；探测结果类型见 agent/runtime/types.ts）-----------------------

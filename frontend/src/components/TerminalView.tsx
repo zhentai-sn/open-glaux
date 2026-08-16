@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useAgent } from "../agent/useAgent";
+import { useConversation } from "../agent/useConversation";
 import { useSession } from "../store/session";
 
 // 底部 CLI 终端（设计稿 §6）——轻量自绘命令行「起壳」：输出区 + 输入行，内置几条命令读注册表 /
@@ -20,7 +20,8 @@ export function TerminalView() {
   const [input, setInput] = useState("");
   const outRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
-  const { run } = useAgent();
+  // `run <nl>` 投递到当前智能体会话（与 Focus / Agent 面板同一条对话路径；退役 orchestration P3）
+  const { send } = useConversation();
 
   useEffect(() => {
     if (outRef.current) outRef.current.scrollTop = outRef.current.scrollHeight;
@@ -62,7 +63,9 @@ export function TerminalView() {
           break;
         }
         emit([{ text: `→ dispatching to agent: ${arg}`, kind: "dim" }]);
-        void run(arg);
+        void send(arg).catch((e: unknown) =>
+          emit([{ text: `agent: ${e instanceof Error ? e.message : String(e)}`, kind: "err" }]),
+        );
         break;
       case "echo":
         emit([{ text: arg, kind: "out" }]);

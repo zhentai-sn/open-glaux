@@ -11,12 +11,14 @@ import {
   piEventType,
   type EventConnector,
 } from "../agent/runtime/events";
+import { applyToolExecutionEvent } from "../agent/toolBridge";
 import type {
   ConnectionInput,
   PermissionMode,
   SessionListItem,
   SessionStatus,
   SessionView,
+  ViewerContext,
 } from "../agent/runtime/types";
 
 interface LiveSession {
@@ -46,7 +48,11 @@ interface AgentSessionsState {
     permissionMode: PermissionMode,
   ) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
-  sendPrompt: (content: string, connection: ConnectionInput) => Promise<void>;
+  sendPrompt: (
+    content: string,
+    connection: ConnectionInput,
+    viewer?: ViewerContext,
+  ) => Promise<void>;
   regenerate: (connection: ConnectionInput) => Promise<void>;
   abort: () => Promise<void>;
   setDrawerOpen: (open: boolean) => void;
@@ -238,7 +244,7 @@ export function createAgentSessionsStore(
         });
       },
 
-      sendPrompt: async (content, connection) => {
+      sendPrompt: async (content, connection, viewer) => {
         const sessionId = get().currentSessionId;
         if (!sessionId) return;
         set((state) => ({
@@ -254,6 +260,7 @@ export function createAgentSessionsStore(
             type: "prompt",
             content,
             connection,
+            ...(viewer ? { viewer } : {}),
           });
           get().applySnapshot(snapshot);
           ensureEvents(sessionId, store);
@@ -315,6 +322,11 @@ export function createAgentSessionsStore(
       applyPiEvent: (sessionId, event) => {
         const type = piEventType(event);
         if (!type) return;
+        if (type === "tool_execution_end") {
+          // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge
+          applyToolExecutionEvent(event);
+          return;
+        }
         if (type === "message_update") {
           const message = (event as { message?: unknown }).message;
           if (messageRole(message) === "assistant") {

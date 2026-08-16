@@ -6,14 +6,17 @@ import {
   estimateContextTokens,
   shouldCompact,
   type AgentHarnessEvent,
+  type AgentHarnessTool,
   type Session,
 } from "@earendil-works/pi-agent-core";
 import type { Model, Models } from "@earendil-works/pi-ai";
 
 import type {
   ConnectionInput,
+  PermissionMode,
   SessionPhase,
   TransportEvent,
+  ViewerContext,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import type { SessionService } from "./session-service.js";
@@ -21,9 +24,47 @@ import {
   createModelRuntime,
   type ModelRuntime,
 } from "./model-runtime.js";
+import { createRunTaskTool } from "./tools/run-task.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
+}
+
+/** 每次 start 的领域上下文——工具集据此构造（当前图 / 当前任务 / 权限模式）。 */
+export interface HarnessStartOptions {
+  viewer?: ViewerContext;
+  permissionMode?: PermissionMode;
+}
+
+export type HarnessTool = AgentHarnessTool<undefined>;
+
+export interface HarnessToolFactory {
+  (options: HarnessStartOptions): HarnessTool[];
+}
+
+/**
+ * 缺省工具集：`observe` 模式下无工具（SDD 02 §7.3——只能文字描述）；其它模式挂 `run_task`。
+ * 更细的逐次批准门控随 SDD 02 的 beforeToolCall 落地。
+ */
+export const defaultToolFactory: HarnessToolFactory = ({ viewer, permissionMode }) => {
+  if (permissionMode === "observe") return [];
+  return [createRunTaskTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool];
+};
+
+const SYSTEM_PROMPT =
+  "You are Glaux's built-in reference assistant for biomedical image insight. " +
+  "Glaux is the environment you act in: it decodes images, runs calibrated segmentation and measurement, " +
+  "and verifies results. When the user asks to measure, segment, or analyse the current image, call the " +
+  "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
+  "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.";
+
+function systemPromptFor(viewer: ViewerContext | undefined): string {
+  if (!viewer?.image_id) return `${SYSTEM_PROMPT} No image is currently open in the viewer.`;
+  const parts = [`image_id=${viewer.image_id}`];
+  if (viewer.task) parts.push(`task=${viewer.task}`);
+  if (viewer.modality) parts.push(`modality=${viewer.modality}`);
+  if (viewer.method) parts.push(`method=${viewer.method}`);
+  return `${SYSTEM_PROMPT} Viewer context: ${parts.join(", ")}.`;
 }
 
 interface HarnessSlot {
@@ -45,6 +86,7 @@ export class HarnessRegistry {
   constructor(
     private readonly sessions: SessionService,
     private readonly runtimeFactory: HarnessRuntimeFactory = createModelRuntime,
+    private readonly toolFactory: HarnessToolFactory = defaultToolFactory,
   ) {}
 
   getPhase(sessionId: string): SessionPhase {
@@ -70,6 +112,7 @@ export class HarnessRegistry {
     commandId: string,
     connection: ConnectionInput,
     operation: (harness: AgentHarness, session: Session) => Promise<void>,
+    options: HarnessStartOptions = {},
   ): Promise<{ completion: Promise<void> }> {
     if (this.getPhase(sessionId) !== "idle") {
       throw new RuntimeError("session_busy", "Session is already generating.", 409);
@@ -82,7 +125,8 @@ export class HarnessRegistry {
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: "You are Glaux's built-in reference assistant.",
+      systemPrompt: systemPromptFor(options.viewer),
+      tools: this.toolFactory(options),
     });
     const unsubscribeHarness = harness.subscribe((event) => {
       this.emitPiEvent(sessionId, commandId, event);

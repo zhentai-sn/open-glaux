@@ -3,7 +3,7 @@ title: Glaux 仓库骨架总览
 type: architecture
 status: living
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-16（orchestration/ 退役完成后）
 scope: 全仓库——根目录各文件/目录职责、运行时拓扑、技术栈速查
 ---
 
@@ -25,26 +25,27 @@ graph LR
         FE["frontend<br/>Vite :5173<br/>React + TS"]
     end
 
-    subgraph Python
-        BE["backend<br/>FastAPI :8000<br/>Python 3.12"]
-        SC["science-core<br/>glaux_core"]
-        OC["orchestration<br/>glaux_orchestrator"]
+    subgraph "Node.js · 唯一与模型说话的进程"
+        AR["agent-runtime<br/>Fastify :8010<br/>连接探测 · 会话 · 工具 · SSE"]
+    end
+
+    subgraph "Python · 无 LLM SDK"
+        BE["backend<br/>FastAPI :8000<br/>REST 薄壳"]
+        SC["science-core<br/>glaux_core（含 tasks.REGISTRY）"]
         MD["models/*<br/>隔离 venv/子进程"]
     end
 
-    subgraph Node.js
-        AR["agent-runtime<br/>Fastify :8010<br/>Node ≥22"]
-    end
-
-    FE -- "/api/*" --> BE
-    FE -- "/agent-api/*" --> AR
+    FE -- "/agent-api/*（对话 · 连接配置）" --> AR
+    FE -- "/api/*（查看器数据）" --> BE
+    AR -- "run_task 工具 → POST /task/run" --> BE
     BE -- "import" --> SC
-    BE -- "import" --> OC
-    OC -- "import" --> SC
     BE -- "subprocess" --> MD
 ```
 
 前端 Vite 反向代理把 `/api` 转发到 backend :8000、`/agent-api` 转发到 agent-runtime :8010。
+三条不变量（[退役设计](designs/2026-08-16-001-retire-orchestration.zh-CN.md)）：
+**只有 agent-runtime 与模型说话**（backend / science-core 不含 LLM SDK、不持密钥）；
+**`glaux_core.tasks.REGISTRY` 是能力清单单一事实源**；**前端只有一条对话路径**（经 agent-runtime 会话）。
 重模型（caroSegDeep / TotalSegmentator / HC-CSM / StarDist-HE）一律在隔离子进程中运行，
 主 FastAPI 进程不 import TensorFlow/PyTorch。
 
@@ -60,12 +61,11 @@ open-glaux/
 ├── .gitattributes               # 跨 WSL/Windows 强制 LF；标记二进制类型
 │
 ├── frontend/                    # React + Vite IDE 前端（VS Code 风格影像标注工作台）
-├── backend/                     # FastAPI 薄壳（REST 端点桥接到 science-core / orchestration / 隔离模型）
-├── agent-runtime/               # 本地参考智能体运行时（Pi Agent Core · Fastify · SSE）
+├── backend/                     # FastAPI 薄壳（REST 端点桥接到 science-core / 隔离模型；无 LLM SDK）
+├── agent-runtime/               # 本地参考智能体运行时（Pi Agent Core · Fastify · SSE · 连接探测 · run_task 工具）
 │
 ├── science-core/                # 无头科学内核（环境四层：表征 / 动作 / 验证 / 记忆）+ 任务注册表
-├── orchestration/               # 意图层（退役中：注册表已迁出，余下按 P2/P3 迁出或删除）
-├── models/                      # 隔离模型运行时资产（独立 venv，不被主进程 import）
+├── models/                     # 隔离模型运行时资产（独立 venv，不被主进程 import）
 │   └── hc_seg/                  #   胎儿头围分割 CSM（HuggingFace, Apache-2.0）
 │
 ├── data/                        # 数据集存储（二进制 gitignore，仅跟踪 README）
@@ -111,11 +111,12 @@ VS Code 风格的生物医学影像标注工作台。
 
 ### `backend/` — FastAPI 薄壳
 
-将 REST 端点（`/interpret`, `/run`, `/measure`, `/segment` 等）桥接到 science-core / orchestration / 隔离模型。
+将 REST 端点（`/tasks`, `/task/run`, `/task/measure`, `/images`, `/volume/*`, `/wsi/*` 等）桥接到
+science-core / 隔离模型。既是前端查看器的数据面，也是 agent-runtime 工具（`run_task`）的执行面。
 
 | 关键点 | 说明 |
 | --- | --- |
-| 技术栈 | Python ≥ 3.10, FastAPI, Pydantic, uv, hatchling |
+| 技术栈 | Python ≥ 3.10, FastAPI, Pydantic, uv, hatchling；**不含任何 LLM SDK** |
 | 数据源 | CUBS 超声、HC18 胎儿超声、CT NIfTI、WSI 病理（可插拔注册表） |
 | 分割 | 全部走隔离子进程（`segment_proc.py` / `segment_ts.py` / `segment_wsi.py`） |
 | 测试 | pytest + httpx |
@@ -128,11 +129,13 @@ VS Code 风格的生物医学影像标注工作台。
 | --- | --- |
 | 技术栈 | Node.js ≥ 22.19, TypeScript, Fastify 5, Vitest |
 | 核心能力 | Pi 模型运行时、会话管理（SQLite）、SSE 推送 |
-| 安全 | 凭据/密钥脱敏（`security/redact.ts`） |
+| 连接探测 | `/agent-api/v1/connection/test\|models`——测试连通 / 列模型 / 视觉能力标注（`pi/connection-probe.ts`） |
+| 工具 | `run_task`（`pi/tools/run-task.ts`）：调 backend `/task/run` 执行当前任务，结果经 `tool_execution_end` 事件写回前端查看器；`observe` 权限模式下不挂工具 |
+| 安全 | 凭据/密钥脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`） |
 
 ### `science-core/` — 无头科学内核
 
-环境四层（表征 / 动作 / 验证 / 记忆）的纯计算引擎，不含 HTTP——被 backend 和 orchestration 调用。
+环境四层（表征 / 动作 / 验证 / 记忆）的纯计算引擎，不含 HTTP——被 backend 调用。
 
 | 关键点 | 说明 |
 | --- | --- |
@@ -153,22 +156,6 @@ graph LR
     VER --> ART["artifacts/<br/>结构化产物"]
     ART --> MEM["memory/<br/>溯源"]
 ```
-
-### `orchestration/` — 意图层（**退役中**）
-
-把自然语言（+ 图像）翻译成结构化 `TaskSpec`。
-三态守卫：`in_scope`（执行）/ `ambiguous`（澄清）/ `out_of_scope`（拒绝）。
-
-> ⚠ 该目录早于 agent-runtime 建立，职责与参考智能体重叠。按
-> [退役设计](designs/2026-08-16-001-retire-orchestration.zh-CN.md) 三步拆除：
-> **P1 已完成（2026-08-16）**——任务注册表已迁入 `glaux_core/tasks.py`，此处只剩兼容重导出；
-> **P2** 模型连接探测（`vlm_providers.py`）迁入 agent-runtime；**P3** 意图解析交还 agent，目录删除。
-
-| 关键点 | 说明 |
-| --- | --- |
-| 包名 | `glaux_orchestrator` |
-| 意图解析 | 规则 + Claude VLM 双后端（`intent.py`） |
-| VLM 集成 | `vlm_providers.py`（Anthropic Claude SDK） |
 
 ### `models/` — 隔离模型运行时
 

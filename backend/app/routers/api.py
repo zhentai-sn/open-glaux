@@ -1,8 +1,7 @@
-"""后端契约端点——真实接入（science-core / orchestration / caroSegDeep）。
+"""后端契约端点——真实接入（science-core / caroSegDeep）。
 
 真实资产不可用时优雅回退 mock（见 mock.py），使无数据环境/CI 也能起。
-- /interpret    → orchestrator.intent（真实三态守卫）
-- /tasks        → 任务注册表（多模态前端的单一真相源）
+- /tasks       → 任务注册表（多模态前端的单一真相源）
 - /task/run     → 统一驱动：取数 → 测量 → TaskOutput（多模态通吃）
 - /task/detect  → 只出几何原语（不测量）
 - /task/measure → 由编辑后的图元重测（泛型替代旧 /measure + /hc/measure）
@@ -22,7 +21,6 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Response
 
 from .. import config, datasource_registry as dsreg, mock
-from ..net_guard import UrlNotAllowed, assert_url_allowed
 from ..schemas import (
     Capability,
     CorrectionRequest,
@@ -30,9 +28,6 @@ from ..schemas import (
     DataSourceInfo,
     DatasourceImportRequest,
     ImageMeta,
-    IntentBackendInfo,
-    InterpretRequest,
-    IntentResult,
     Modality,
     ModelInfo,
     TaskMeasureRequest,
@@ -42,19 +37,14 @@ from ..schemas import (
 log = logging.getLogger("glaux.api")
 router = APIRouter()
 
-# 内核/编排是否可 import（纯 numpy/PIL）；数据端点再叠加 data_available()。
+# 内核是否可 import（纯 numpy/PIL）；数据端点再叠加 data_available()。
 try:
-    from glaux_orchestrator.intent import IntentBackendUnavailable
-
     from .. import dataset, dataset_ct, hc_dataset, kernel, segment_ts
 
     KERNEL_OK = True
 except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
     log.warning("内核不可用，端点回退 mock：%s", exc)
     KERNEL_OK = False
-
-    class IntentBackendUnavailable(Exception):  # 降级占位，保证 except 名可解析
-        ...
 
     # P6: 缺 science-core 时也让 import 不挂——KERNEL_OK=False 已足以让 ct 端点走 503
     segment_ts = None  # type: ignore[assignment]
@@ -86,46 +76,9 @@ def _has_data() -> bool:
     return KERNEL_OK and config.data_available()
 
 
-@router.get("/intent/backends", response_model=list[IntentBackendInfo], tags=["intent"])
-def intent_backends() -> list[IntentBackendInfo]:
-    """意图后端及可用性（rule 恒可用；vlm 需 anthropic + 密钥）。"""
-    if KERNEL_OK:
-        return [IntentBackendInfo(**b) for b in kernel.intent_backends()]
-    return [IntentBackendInfo(id="rule", name="Rule-based", available=True, reason="mock")]
-
-
-def _guard_endpoint(provider: str, base_url: str | None) -> None:
-    """公共守卫——openai_compatible 必须给 base_url；给了则过 SSRF 守卫。"""
-    if base_url:
-        try:
-            assert_url_allowed(base_url)
-        except UrlNotAllowed as e:
-            raise HTTPException(400, f"base_url 被拒：{e}") from e
-    elif provider == "openai_compatible":
-        raise HTTPException(400, "openai_compatible 需要 base_url")
-
-
-@router.post("/interpret", response_model=IntentResult, tags=["intent"])
-def interpret(req: InterpretRequest) -> IntentResult:
-    if req.backend == "vlm":
-        _guard_endpoint(req.provider, req.base_url)  # VLM + 自定义端点 → SSRF 守卫先行
-    if KERNEL_OK:
-        try:
-            return kernel.interpret(
-                req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf,
-                backend=req.backend, api_key=req.api_key, model=req.model,
-                provider=req.provider, base_url=req.base_url,
-            )
-        except IntentBackendUnavailable as e:
-            # VLM 被选中但不可用 → 显式 503（不静默退化到规则）
-            raise HTTPException(503, f"意图后端不可用：{e}") from e
-        except Exception:  # pragma: no cover
-            log.exception("interpret 内核失败，回退 mock")
-    return mock.classify(req.nl, image_id=req.image_id, cubs_cf=req.cubs_cf)
-
-
-# /intent/vlm/test 与 /intent/vlm/models 已迁至 agent-runtime /agent-api/v1/connection/*
-# （退役 orchestration P2）。
+# 意图层已退役（2026-08-16，见 docs/designs/2026-08-16-001-retire-orchestration）：
+# /interpret、/intent/backends、/intent/vlm/* 全部移除。NL 由 agent-runtime 的参考智能体理解，
+# 经 run_task 工具调 /task/run；连接探测在 /agent-api/v1/connection/*。
 
 
 # --- 数据源注册表（表征层 · 文件夹导入） ------------------------------------

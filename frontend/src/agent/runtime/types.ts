@@ -58,12 +58,23 @@ export interface ConnectionModelListResult {
   reason?: string;
 }
 
+/** 查看器当前上下文——随 prompt 下发，供 agent-runtime 的 `run_task` 工具缺省取当前图 / 当前任务。 */
+export interface ViewerContext {
+  image_id?: string;
+  task?: string;
+  modality?: string;
+  method?: string;
+  cubs_cf?: number;
+  roi_box?: [number, number, number, number];
+}
+
 export type TransportCommand =
   | {
       command_id: string;
       type: "prompt";
       content: string;
       connection: ConnectionInput;
+      viewer?: ViewerContext;
     }
   | {
       command_id: string;

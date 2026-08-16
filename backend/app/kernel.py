@@ -1,15 +1,14 @@
-"""确定性内核的薄封装（F8/F9）——真实 orchestrator 意图 + pdm 测量 + 模型注册表。
+"""确定性内核的薄封装（F8/F9）——pdm 测量 + 模型注册表 + 泛型任务驱动。
 
-后端不搬业务：意图判定用 orchestration 的 RuleBasedBackend，测量用 science-core 的
-对齐口径 imt（共同支撑 + 对称 PDM）。此处只做 HTTP schema ↔ 领域对象 的映射。
+后端不搬业务：测量用 science-core 的对齐口径 imt（共同支撑 + 对称 PDM），任务契约读
+glaux_core.tasks.REGISTRY。此处只做 HTTP schema ↔ 领域对象 的映射。
+意图解析已退役（2026-08-16）：NL 由 agent-runtime 的参考智能体理解，经 run_task 工具调 /task/run。
 
 P6：在 _detect_for_spec 加 "volume" 分支（CT 模态），数据来自 segment_ts + dataset_ct，
 组装成 VolumeMask + voxel_spacing 标定。
 """
 
 from __future__ import annotations
-
-import base64
 
 import numpy as np
 
@@ -27,12 +26,11 @@ from . import (
 )
 from .schemas import (
     IMTResult,
-    IntentResult,
     ModelInfo,
     TaskSpec,
 )
 
-# science-core / orchestration（经 config 挂上 sys.path）
+# science-core（经 config 挂上 sys.path）
 from glaux_core.calibration.calibration import CalibrationResult, CFSource  # noqa: E402
 from glaux_core.contracts import (  # noqa: E402
     Detection,
@@ -46,12 +44,6 @@ from glaux_core.contracts import (  # noqa: E402
 )
 from glaux_core.io.boundaries import Boundary  # noqa: E402
 from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
-from glaux_orchestrator.intent import (  # noqa: E402
-    ClaudeVLMBackend,
-    OpenAICompatVLMBackend,
-    RuleBasedBackend,
-)
-from glaux_orchestrator.spec import Scope as _Scope  # noqa: E402
 from glaux_core.tasks import (  # noqa: E402
     LIVER_KIDNEY_CLASSES,
     NUCLEI_CLASSES,
@@ -64,78 +56,6 @@ from glaux_core.calibration.calibration import (  # noqa: E402
     resolve_ct_calibration,
     resolve_wsi_calibration,
 )
-
-_rule = RuleBasedBackend()
-_vlm = ClaudeVLMBackend()
-_vlm_openai = OpenAICompatVLMBackend()
-
-_SCOPE_STR = {
-    _Scope.IN_SCOPE: "in_scope",
-    _Scope.AMBIGUOUS: "ambiguous",
-    _Scope.OUT_OF_SCOPE: "out_of_scope",
-}
-
-
-def intent_backends() -> list[dict]:
-    """意图后端注册表（供 UI 选择/显示可用性）。"""
-    vlm_ok, vlm_reason = ClaudeVLMBackend.available()
-    return [
-        {"id": "rule", "name": "Rule-based", "available": True, "reason": "keyword classifier"},
-        {"id": "vlm", "name": "Claude VLM", "available": vlm_ok, "reason": vlm_reason},
-    ]
-
-
-# 连接测试 / 拉模型已迁至 agent-runtime `/agent-api/v1/connection/*`（退役 orchestration P2）。
-
-
-def interpret(
-    nl: str,
-    *,
-    image_id: str | None,
-    cubs_cf: float | None,
-    backend: str = "rule",
-    api_key: str | None = None,
-    model: str | None = None,
-    provider: str = "anthropic",
-    base_url: str | None = None,
-) -> IntentResult:
-    """NL(+图) → 三态守卫（真实 orchestrator）。非 in_scope 不带 spec。
-
-    backend="vlm" 时用 VLM 看图判定：provider="anthropic"（默认，可 base_url 覆盖）或
-    "openai_compatible"（含本地 Ollama/LM Studio）。密钥取 UI 传入或服务端 env；不可用则抛
-    IntentBackendUnavailable（不静默退化）。
-    """
-    if backend == "vlm":
-        image_b64 = None
-        if image_id and config.data_available():
-            try:
-                image_b64 = base64.b64encode(dataset.image_png(image_id)).decode()
-            except Exception:
-                image_b64 = None
-        vlm = _vlm_openai if provider == "openai_compatible" else _vlm
-        r = vlm.interpret(
-            nl, image_path=image_id, cubs_cf=cubs_cf,
-            has_image=image_b64 is not None, image_b64=image_b64,
-            api_key=api_key, model=model, base_url=base_url,
-        )
-    else:
-        r = _rule.interpret(nl, image_path=image_id, cubs_cf=cubs_cf, has_image=image_id is not None)
-    spec = None
-    if r.spec is not None:
-        spec = TaskSpec(
-            task=r.spec.task.value,  # 多模态：透传路由到的任务（IMT / HC），不硬编码
-            image_id=image_id,
-            cubs_cf=cubs_cf,
-            roi=tuple(r.spec.roi) if r.spec.roi is not None else None,
-            method=r.spec.method,
-        )
-    return IntentResult(
-        scope=_SCOPE_STR[r.scope],
-        spec=spec,
-        reason=r.reason,
-        backend=getattr(r, "backend", None) or backend,
-    )
-
 
 def _boundary(name: str, pts: list[list[float]]) -> Boundary:
     arr = np.asarray(pts, dtype=float)

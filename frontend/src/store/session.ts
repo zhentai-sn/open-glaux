@@ -5,19 +5,15 @@ import type {
   Capability,
   DataSource,
   ImageMeta,
-  IntentBackendInfo,
   Measure,
   Modality,
   ModelInfo,
   Primitive,
-  Scope,
   TaskType,
   TaskView,
   VlmModelInfo,
   VlmProvider,
 } from "../api/types";
-
-export type IntentBackendId = "rule" | "vlm";
 
 /** 一条 VLM 连接（SDD 2026-07-14-001 §4）——provider + 端点 + 密钥 + 选定模型。 */
 export interface Connection {
@@ -162,13 +158,10 @@ interface SessionState {
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
   source: Source; // 当前叠加来源（agent 模型产出 / human 人工修正）
   modelVersion: string; // 当前结果的模型版本（供卡片/输出栏展示）
-  lastScope: Scope | null;
   loading: boolean; // 分割/测量进行中
   coords: { x: number; y: number }; // 画布光标坐标（状态栏读出）
 
-  // 意图后端（VLM 配置）
-  intentBackend: IntentBackendId;
-  intentBackends: IntentBackendInfo[]; // 服务端可用性
+  // VLM 连接（智能体连接配置）
   connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
 
   // 智能体对话
@@ -200,11 +193,8 @@ interface SessionState {
   setPrimitives: (p: Primitive[]) => void;
   setSource: (s: Source) => void;
   setModelVersion: (v: string) => void;
-  setLastScope: (s: Scope | null) => void;
   setLoading: (v: boolean) => void;
   setCoords: (x: number, y: number) => void;
-  setIntentBackend: (id: IntentBackendId) => void;
-  setIntentBackends: (b: IntentBackendInfo[]) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
   pushUser: (text: string) => void;
@@ -242,12 +232,9 @@ export const useSession = create<SessionState>((set) => ({
   primitives: [],
   source: "agent",
   modelVersion: "",
-  lastScope: null,
   loading: false,
   coords: { x: 0, y: 0 },
 
-  intentBackend: "rule",
-  intentBackends: [],
   connection: loadConnection(),
 
   messages: [],
@@ -298,11 +285,8 @@ export const useSession = create<SessionState>((set) => ({
   setPrimitives: (p) => set({ primitives: p }),
   setSource: (v) => set({ source: v }),
   setModelVersion: (v) => set({ modelVersion: v }),
-  setLastScope: (s) => set({ lastScope: s }),
   setLoading: (v) => set({ loading: v }),
   setCoords: (x, y) => set({ coords: { x, y } }),
-  setIntentBackend: (id) => set({ intentBackend: id }),
-  setIntentBackends: (b) => set({ intentBackends: b }),
   setConnection: (patch) =>
     set((s) => {
       const next = { ...s.connection, ...patch };

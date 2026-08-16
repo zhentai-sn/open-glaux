@@ -5,8 +5,6 @@ import type {
   DataSource,
   Detection,
   ImageMeta,
-  IntentBackendInfo,
-  IntentResult,
   Measure,
   MeasurementResult,
   Modality,
@@ -16,7 +14,6 @@ import type {
   TaskSpec,
   TaskType,
   TaskView,
-  VlmProvider,
 } from "./types";
 
 /** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
@@ -73,35 +70,8 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  interpret: (
-    nl: string,
-    lang: "en" | "zh",
-    opts?: {
-      image_id?: string;
-      cubs_cf?: number;
-      backend?: "rule" | "vlm";
-      api_key?: string;
-      model?: string;
-      provider?: VlmProvider;
-      base_url?: string;
-    },
-  ) =>
-    post<IntentResult>("/interpret", {
-      nl,
-      lang,
-      has_image: !!opts?.image_id,
-      image_id: opts?.image_id,
-      cubs_cf: opts?.cubs_cf,
-      backend: opts?.backend ?? "rule",
-      api_key: opts?.api_key || null,
-      model: opts?.model || null,
-      provider: opts?.provider ?? "anthropic",
-      base_url: opts?.base_url || null,
-    }),
-
-  intentBackends: () => get<IntentBackendInfo[]>("/intent/backends"),
-
-  // 连接测试 / 拉模型已迁至 agentRuntimeApi.testConnection / listModels（退役 orchestration P2）。
+  // 意图解析（/interpret）与连接探测（/intent/vlm/*）已退役：NL 走 agent-runtime 会话，
+  // 智能体经 run_task 工具调 /task/run；连接测试见 agentRuntimeApi.testConnection / listModels。
 
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),

@@ -67,7 +67,7 @@ function OutputView() {
   const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
   return (
     <div>
-      {logline(<>interpret → <span className="ok">in_scope</span> {tv.task}</>, "i")}
+      {logline(<>task → <span className="ok">{tv.task}</span></>, "i")}
       {logline(<>calibrate → CF {cf ?? "—"} mm/px</>, "c")}
       {logline(<>detect → {modelVersion || "—"}</>, "s")}
       {logline(<>measure → {tv.label[lang]} · <span className="ok">{head ? `${fmt(head.value)} ${head.unit}` : "—"}</span></>, "m")}

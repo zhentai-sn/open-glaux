@@ -1,4 +1,4 @@
-import { useAgent } from "../agent/useAgent";
+import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type View } from "../store/session";
 
@@ -29,18 +29,11 @@ const VIEWS: { id: View; key: "av_explorer" | "av_market"; icon: JSX.Element }[]
 ];
 
 export function ActivityBar() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const view = useSession((s) => s.sidebarView);
   const setView = useSession((s) => s.setSidebarView);
   const nInstalled = useSession((s) => s.models.length);
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
-  const { run } = useAgent();
-  // Run 按钮：跑当前模态的任务（提示词由注册表标签生成，命中意图信号），不硬编码 seed。
-  const seedPrompt = () => {
-    const label = tasks.find((tk) => tk.modality === modality)?.label[lang] ?? "";
-    return t("seed_task", { task: label });
-  };
+  // Run 按钮：直接重跑当前模态的活动模型（退役 orchestration P3：不再绕道 NL 意图闸门）。
 
   return (
     <nav className="activity">
@@ -56,7 +49,7 @@ export function ActivityBar() {
           {v.id === "market" && nInstalled > 0 && <span className="badge">{nInstalled}</span>}
         </button>
       ))}
-      <button className="act" onClick={() => run(seedPrompt())}>
+      <button className="act" onClick={() => void reRunActiveModel()}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path d="M7 5l12 7-12 7V5z" />
         </svg>

@@ -1,12 +1,18 @@
 ---
 title: "SDD · 智能体连接配置 —— 类 ChatBox 的自定义端点 / 连接测试 / 模型列表"
 type: design
-status: draft
+status: superseded
 created: 2026-07-14
+superseded_by: 2026-08-16-001-retire-orchestration.zh-CN.md
 scope: frontend AgentPanel/IntentConfig + backend intent/连接探测（分支 TBD）
 ---
 
 # SDD · 智能体连接配置（VLM 端点管理）
+
+> ⚠ **已被取代（2026-08-16）**：本文 §5 的 backend 探测端点（`/intent/vlm/test|models`）与 SSRF 守卫已迁至
+> agent-runtime（`/agent-api/v1/connection/test|models`、`security/net-guard.ts`），backend 不再持有任何模型
+> 出口；`IntentConfig` / 意图后端选择随意图层一并退役。交互设计（§3）与数据模型（§4）仍有效。
+> 见 [退役设计](2026-08-16-001-retire-orchestration.zh-CN.md)。
 
 > **用途**：把当前 `IntentConfig`（后端二选一 + 单 key + 单 model 文本框）升级为**类 ChatBox / Cherry Studio 的连接管理**——支持自定义 `base_url`、**连接测试**、**拉取模型列表**下拉选择。让"自带智能体（自配 API/模型）"这条产品承诺（见 [README](../../README.zh-CN.md#为什么是-glaux)）从"只能填 Anthropic key"扩到"任意 OpenAI 兼容 / Anthropic 端点"。
 > **日期**：2026-07-14 · **状态**：draft（待评审） · **依据**：[多模态架构](2026-07-07-glaux-multimodal-architecture.zh-CN.md) · 现状代码 `frontend/src/components/AgentPanel.tsx` / `backend/app/kernel.py` `ClaudeVLMBackend`

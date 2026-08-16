@@ -1,9 +1,10 @@
-"""F4/F5–F9 端点测试：契约形状 + 三态守卫 + 真实数据接入 + 主进程无 TF。
+"""F4/F5–F9 端点测试：契约形状 + 真实数据接入 + 主进程无 TF / 无 LLM SDK。
 
 数据可用时测真实接入；不可用时测 mock 回退——两条路径的契约形状一致。
 """
 
 import importlib.util
+import sys
 
 from fastapi.testclient import TestClient
 
@@ -36,15 +37,18 @@ def test_no_tf_importable_in_main_process():
     assert importlib.util.find_spec("tensorflow") is None
 
 
-def test_interpret_three_states():
-    assert client.post("/interpret", json={"nl": "测远壁颈动脉 IMT"}).json()["scope"] == "in_scope"
-    assert client.post("/interpret", json={"nl": "分析一下这张图"}).json()["scope"] == "ambiguous"
-    assert client.post("/interpret", json={"nl": "计算左心室射血分数"}).json()["scope"] == "out_of_scope"
+def test_intent_endpoints_retired():
+    """意图层已退役（2026-08-16）：/interpret 与 /intent/* 不再存在——NL 由 agent-runtime 处理。"""
+    assert client.post("/interpret", json={"nl": "测远壁颈动脉 IMT"}).status_code == 404
+    assert client.get("/intent/backends").status_code == 404
+    assert client.post("/intent/vlm/test", json={"provider": "anthropic"}).status_code == 404
 
 
-def test_interpret_non_in_scope_has_no_spec():
-    r = client.post("/interpret", json={"nl": "分割乳腺肿瘤"}).json()
-    assert r["scope"] == "out_of_scope" and r["spec"] is None
+def test_no_llm_sdk_loaded_in_main_process():
+    """不变量：只有 agent-runtime 与模型说话；backend 主进程不加载任何 LLM SDK / 意图层。"""
+    # 只查"已加载"而非"可安装"——旧 venv 可能残留 anthropic 包，但主进程绝不能 import 它。
+    assert "anthropic" not in sys.modules
+    assert "glaux_orchestrator" not in sys.modules
 
 
 def test_tasks_registry_exposed():
@@ -179,11 +183,6 @@ def test_task_run_rejects_non_hc_id():
     """HC 任务喂颈动脉图 id → 硬拒绝（422，不在错模态上瞎跑）。"""
     r = client.post("/task/run", json={"task": "fetal_hc", "image_id": "tech_401"})
     assert r.status_code == 422
-
-
-def test_hc_intent_routes_to_fetal_task():
-    r = client.post("/interpret", json={"nl": "测这张胎儿颅脑图的头围"}).json()
-    assert r["scope"] == "in_scope" and r["spec"]["task"] == "fetal_hc"
 
 
 def test_models_include_both_modalities():

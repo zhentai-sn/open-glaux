@@ -1,7 +1,7 @@
 ---
 title: "设计 · 退役 orchestration/ —— 注册表归 science-core、模型连接归 agent-runtime、意图层交还 agent"
 type: design
-status: draft
+status: implemented
 created: 2026-08-16
 updated: 2026-08-16
 scope: orchestration/ 全部；backend intent/vlm 端点与 anthropic 依赖；agent-runtime 新增连接探测；frontend 连接配置与双聊天路径合并
@@ -11,7 +11,7 @@ supersedes: 2026-07-14-001-agent-connection-config.zh-CN.md（后端探测端点
 # 设计 · 退役 `orchestration/`
 
 > **用途**：按奥卡姆剃刀清理仓库骨架——`orchestration/` 是 agent-runtime 出现之前建的"意图→任务"层，如今与参考智能体职责重叠。本文给出目标形态、把它拆成三块各归其位的方案、以及三阶段落地顺序。
-> **日期**：2026-08-16 · **状态**：draft（待评审） · **依据**：[纲领](../roadmaps/charter.zh-CN.md)（agent 是引擎、Glaux 是环境）· [仓库骨架总览](../architecture.zh-CN.md) · [SDD 00 参考智能体](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 智能体标注](../sdd/feats/02-agent-image-annotation/README.md) · 现状代码 `orchestration/glaux_orchestrator/*`、`backend/app/kernel.py`、`frontend/src/agent/useAgent.ts`
+> **日期**：2026-08-16 · **状态**：implemented（P1–P3 已落地，待验收） · **依据**：[纲领](../roadmaps/charter.zh-CN.md)（agent 是引擎、Glaux 是环境）· [仓库骨架总览](../architecture.zh-CN.md) · [SDD 00 参考智能体](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 智能体标注](../sdd/feats/02-agent-image-annotation/README.md) · 现状代码 `orchestration/glaux_orchestrator/*`、`backend/app/kernel.py`、`frontend/src/agent/useAgent.ts`
 > **半衰期提醒**：本文引用的文件路径与行号对应 2026-08-16 的 `main`；P3 的触发条件绑定 SDD 02 的第一个工具落地，若 SDD 02 方向变化需复核 §5。
 
 ---
@@ -171,6 +171,18 @@ graph LR
 
 ### 3.3 P3 · 退役意图层与 `orchestration/`
 
+> ✅ **已完成（2026-08-16）**。触发条件按 §5-Q1 以**过渡工具 `run_task`** 满足：agent-runtime 新增
+> `pi/tools/run-task.ts`（封装 backend `POST /task/run`，结果放 `tool_execution_end.result.details`），
+> `harness-registry` 挂工具集（`observe` 模式无工具，SDD 02 §7.3 首次接线）；prompt 命令新增可选
+> `viewer` 上下文（`ViewerContext`：image_id / task / modality / method / cubs_cf / roi_box），系统提示词随之带上
+> 当前图。前端 `useConversation.send` 随 prompt 下发 `toViewerContext()`，新增 `agent/toolBridge.ts` 把
+> `run_task` 产出写回查看器（仅当 image_id 仍是当前活动对象）；删 `useAgent.ts`，ActivityBar Run →
+> `reRunActiveModel()`，终端 `run <nl>` → 会话；`session.ts` 去掉 intentBackend(s)/lastScope。backend 删
+> `/interpret`、`/intent/backends`、`kernel.interpret/intent_backends`、`mock.classify`、`net_guard.py`、
+> `InterpretRequest/IntentResult/IntentBackendInfo/Scope`、`config.py` 的 orchestration sys.path、`anthropic` 依赖及
+> 三份测试；新增不变量测试 `test_no_llm_sdk_loaded_in_main_process`。`orchestration/` 整目录删除。
+> 验证：agent-runtime 62 ✓ · frontend 22 ✓（tsc/eslint 清） · backend 114 ✓（ruff 41 < 基线 42）· science-core 167 ✓。
+
 **触发条件**：agent-runtime 已有第一个能触发任务执行的工具（SDD 02 的 `segment_region`/`propose_annotation`，或一个更小的过渡工具 `run_task(task, image_id)`——直接封装 backend `/task/run`）。在此之前 Workbench 的 NL 入口不能删。
 
 **删除清单**：
@@ -200,7 +212,7 @@ graph LR
 
 ## 5. 开放问题
 
-- [ ] **Q1** P3 的过渡工具 `run_task` 是否值得做？若 SDD 02 的工具能在 P2 完成后一个迭代内落地，则不做，直接等；否则做一个最小版避免 Workbench 空窗。
+- [x] **Q1** P3 的过渡工具 `run_task` 是否值得做？——**已做**（2026-08-16）：SDD 02 仍为 `draft`，为避免 Workbench 空窗实现了最小版 `run_task`（见 §3.3 完成记录）；SDD 02 落地细粒度工具后由其取代。
 - [ ] **Q2** 连接状态合并后的持久化：沿用 localStorage（现状）还是随 SDD 00 的会话元数据落 agent-runtime SQLite？本设计不改现状（localStorage），留给 SDD 00 后续修订。
 - [ ] **Q3** `LIVER_KIDNEY_CLASSES` / `NUCLEI_CLASSES` 这类常量随 `tasks.py` 一起进 `glaux_core.tasks`，还是各归 `glaux_core.measurement.ct` / `.nuclei`？倾向前者（保持"注册表一处改"），评审时定。
 

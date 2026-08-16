@@ -1,7 +1,8 @@
-"""M0 mock 数据与规则意图分类——形状即最终契约，M1 换实现不换形状。
+"""M0 mock 数据——形状即最终契约，M1 换实现不换形状。
 
 数值取自 2026-07-06 真数据端到端验证（见 eval/README）：IMT 0.918mm、vs A1 |bias| 66.6µm、
 CF 0.0559 mm/px。绝不用凭空假数字冒充测量结果（见设计稿 §8）。
+（规则意图分类 mock 已随意图层退役，2026-08-16。）
 """
 
 from __future__ import annotations
@@ -10,48 +11,7 @@ import math
 import struct
 import zlib
 
-from .schemas import ImageMeta, IntentResult, ModelInfo, TaskSpec
-
-# --- 规则意图分类（镜像 orchestration.intent.RuleBasedBackend 的关键词表） -----
-# M1 会由后端直接 import glaux_orchestrator，此处 mock 保持行为一致以便前端联调三态。
-
-_CAROTID = ("imt", "intima", "media", "内中膜", "颈动脉", "cca", "carotid", "far wall", "远壁", "内膜")
-_MEASURE = ("measure", "测", "量", "分割", "segment", "厚度", "thickness")
-_OUT_OF_SCOPE = (
-    "心脏", "cardiac", "ef", "ejection", "射血", "左心室", "乳腺", "breast", "肿瘤",
-    "tumor", "lesion", "甲状腺", "thyroid", "结节", "nodule", "胎儿", "fetal",
-    "head circumference", "头围", "肝", "liver", "肾", "kidney", "斑块", "plaque",
-)
-
-
-def _has(text: str, words: tuple[str, ...]) -> bool:
-    return any(w in text for w in words)
-
-
-def classify(nl: str, *, image_id: str | None = None, cubs_cf: float | None = None) -> IntentResult:
-    """三态守卫：out_of_scope / ambiguous / in_scope（不静默错跑）。"""
-    t = nl.lower().strip()
-    if not t:
-        return IntentResult(scope="ambiguous", reason="empty instruction", backend="rule_based")
-    if _has(t, _OUT_OF_SCOPE):
-        return IntentResult(
-            scope="out_of_scope",
-            reason="v0 只测远壁 CCA IMT；该请求超出能力范围，未触发内核。",
-            backend="rule_based",
-        )
-    if not _has(t, _CAROTID):
-        # 有测量意图但无目标解剖 → 澄清；否则也澄清
-        return IntentResult(
-            scope="ambiguous",
-            reason="识别到指令，但未指明目标解剖。是否要测颈动脉远壁 IMT？",
-            backend="rule_based",
-        )
-    return IntentResult(
-        scope="in_scope",
-        spec=TaskSpec(task="far_wall_cca_imt", image_id=image_id, cubs_cf=cubs_cf),
-        reason="识别为远壁 CCA IMT。",
-        backend="rule_based",
-    )
+from .schemas import ImageMeta, ModelInfo
 
 
 # --- 数据集（mock CUBS-tech 切片） -------------------------------------------
