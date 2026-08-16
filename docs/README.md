@@ -62,6 +62,7 @@ docs/
 | [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河） |
 | [20260705-02-research-ultrasound-benchmarks.zh-CN.md](researches/20260705-02-research-ultrasound-benchmarks.zh-CN.md) | 2026-07-05 | research | 公开超声图像基准调研（数据集 / 许可证 / 短名单推荐） |
 | [20260816-01-tech-annotation-exemplar-store.zh-CN.md](researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | tech | 图像标注案例库技术调研（LanceDB / BiomedCLIP·DINOv2 / 检索增强分割；含已拍板决策） |
+| [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；待评审） |
 
 ## 二、路线图 roadmaps/
 
@@ -94,17 +95,9 @@ docs/
 
 ## 三、脑暴 brainstorms/
 
-### 命名规约
+需求文档（脑暴产出），按任务/特性一份，供调研、SDD 或实现计划承接 HOW。
 
-`<YYYYMMDD>-<NN>-<topic>.<lang>.md` —— 一个任务 / 特性一份，right-sized 需求文档（脑暴产出，供 ce-plan 承接 HOW）。`topic` 用英文 kebab-case。
-
-**示例**：`20260705-01-cubs-imt-first-task.zh-CN.md`
-
-### 现有脑暴
-
-| 文件 | 日期 | 主题 |
-| --- | --- | --- |
-| [20260705-01-cubs-imt-first-task.zh-CN.md](brainstorms/20260705-01-cubs-imt-first-task.zh-CN.md) | 2026-07-05 | 第一个任务：CUBS 颈动脉 IMT 分割→测量 |
+详见 **[brainstorms/README.md](brainstorms/README.md)**——含生命周期定义、需求跟踪表（状态与去向）、命名规约。
 
 ## 四、规范驱动开发 sdd/
 
