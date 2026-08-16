@@ -19,7 +19,6 @@ export function StagePanel() {
   const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
   const setTool = useSession((s) => s.setTool);
-  const pushAgent = useSession((s) => s.pushAgent);
   const metrics = useSession((s) => s.metrics);
   const source = useSession((s) => s.source);
   const modelVersion = useSession((s) => s.modelVersion);
@@ -29,19 +28,11 @@ export function StagePanel() {
   const tv = tasks.find((tk) => tk.modality === modality);
   const tools = tv?.tools ?? [];
 
-  // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型 + 智能体回话头条度量
+  // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {
     if (id === "reset") {
       setTool("cursor");
-      void reRunActiveModel().then(() => {
-        const st = useSession.getState();
-        const head = tv && st.metrics ? st.metrics[tv.metrics[0]?.key] : undefined;
-        if (head) {
-          const v = Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1);
-          const hl = lang === "zh" ? head.label_zh : head.label_en;
-          pushAgent({ variant: "plain", key: "reset_done", vars: { v: `${hl} ${v} ${head.unit}` } });
-        }
-      });
+      void reRunActiveModel();
       return;
     }
     setTool(id);

@@ -1,18 +1,8 @@
-// 英文字典。键名冻结（= mockup data-i18n 键，见设计稿 §4）。
-// 含 HTML 的值（refuse/clarify/steps…）由 <Rich> 渲染；智能体动态发言也走字典。
+// 英文字典。键名冻结（= mockup data-i18n 键，见设计稿 §4）；未被引用的键随功能退役一并删除。
 export const en = {
-  // title bar menus
-  m_file: "File",
-  m_edit: "Edit",
-  m_sel: "Selection",
-  m_view: "View",
-  m_run: "Run",
-  m_help: "Help",
-  // activity bar / sidebar titles
+  // activity bar
   av_explorer: "Explorer",
   av_run: "Run & Measure",
-  av_settings: "Settings",
-  // marketplace cards reuse these two for the activatable-model badge
   ext_active: "active",
   ext_enable: "enable",
   // plugin marketplace (capability registry · 4 layers)
@@ -25,27 +15,12 @@ export const en = {
   cap_installed: "installed",
   cap_planned: "planned",
   // editor hud / tools
-  tip_select: "Pan (drag) · zoom (scroll)",
-  tip_editli: "Edit LI",
-  tip_editma: "Edit MA",
-  tip_roi: "Move ROI",
-  tip_reset: "Reset to model",
-  tip_redetect: "Re-detect skull",
   empty_editor: "Select an image from the Explorer to begin.",
   running: "running…",
-  wip: "in development",
-  wip_badge: "WIP",
-  cfg_title: "Agent · intent backend",
-  cfg_rule: "Rule-based",
-  cfg_vlm: "VLM (vision)",
-  cfg_rule_desc: "Deterministic keyword classifier (no image).",
-  cfg_vlm_desc: "A VLM reads the image + your words to classify intent (Claude / OpenAI-compatible / local Ollama).",
+  cfg_title: "Agent · connection",
   cfg_key: "API key",
   cfg_key_ph: "sk-ant-… (stored in this browser only)",
   cfg_model: "Model (optional)",
-  cfg_server_key: "server env key",
-  cfg_available: "available",
-  cfg_unavailable: "unavailable",
   cfg_provider: "Provider",
   cfg_openai_compat: "OpenAI-compatible",
   cfg_quickfill: "Quick fill",
@@ -56,9 +31,7 @@ export const en = {
   cfg_fetch_models: "Fetch models",
   cfg_connected: "Connected",
   cfg_n_models: "{n} models",
-  cfg_n_vision: "{n} vision",
   cfg_no_models: "No models available",
-  cfg_vis_legend: "👁 vision · · unknown · ⊘ no vision",
   cfg_context_window: "Context window",
   cfg_max_tokens: "Max output tokens",
   cfg_model_meta_note:
@@ -105,41 +78,12 @@ export const en = {
   agent_new_title: "New conversation",
   agent_archived_readonly: "Archived conversations are read-only.",
   agent_model_required: "Choose a model in connection settings to chat.",
-  chip1: "measure far-wall CCA IMT",
-  chip2: "analyze this image",
-  chip3: "compute left-ventricle EF",
-  chip_hc1: "measure fetal head circumference",
-  // status bar tool labels
   tl_cursor: "Select",
   tl_editli: "Edit LI",
   tl_editma: "Edit MA",
   tl_roi: "Move ROI",
   tl_reset: "Reset",
-  // agent dynamic speech — 泛型，插值 {task} {model} {cf} {w} {v}
-  refuse:
-    'Beyond scope: only registered tasks are supported. Refused — kernel not triggered.<div class="tagline">scope = out_of_scope · never silently mis-run</div>',
-  clarify:
-    'Measurement intent detected, but no target anatomy. Which registered task did you mean?<div class="tagline">scope = ambiguous · needs clarification</div>',
-  task_intro: "Recognized as {task}. Ran the kernel's four steps:",
-  st_interpret: '<b>Interpret</b> → TaskSpec(<span class="mono">{task}</span>)',
-  st_calibrate: '<b>Calibrate</b> → CF <span class="mono">{cf}</span> mm/px',
-  st_detect: "<b>Detect</b> → {model}",
-  st_measure: "<b>Measure</b> → common support · aligned caliber",
-  conf: "● confident",
-  psub: "vs A1 |bias| 66.6 µm",
-  pmax: "max 1.041 · n 598",
-  accept: "Accept",
-  correct: "Correct boundaries",
-  accepted: "Accepted. Result + provenance written to the cohort queue.",
-  switch_edit: "Edit mode on. Drag the handles; I'll re-measure live.",
-  seed_task: "measure {task}",
-  remeasure:
-    "Correction on {w} detected. Re-measured (common support · symmetric caliber): <b>{v}</b>. Saved to memory with provenance.",
-  reset_done: "Reset to model output. {v}.",
-  switch_task: "That's a {task} task. Switch the modality (sidebar) to run it.",
-  switched_model: "Segmentation model switched to <b>{model}</b>.",
-  // 修正回流失败：note 变体走 {m.text} 纯文本（不经过 <Rich>），不能用 <b>——会原样输出。
-  // 422（被内核拒绝，校准/解剖范围外）vs 500/超时/网络 → 两种文案。
+  // viewer notices — 插值 {w} {why}
   measure_rejected: "Correction on {w} was rejected by the kernel ({why}). Reverted to the previous geometry; nothing was saved.",
   measure_failed: "Correction on {w} failed to reach the kernel ({why}). Reverted to the previous geometry; nothing was saved.",
   // VLM key 持久化提示

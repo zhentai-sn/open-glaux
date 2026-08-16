@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-import type { I18nKey } from "../i18n";
 import type {
   Capability,
   DataSource,
@@ -9,7 +8,6 @@ import type {
   Modality,
   ModelInfo,
   Primitive,
-  TaskType,
   TaskView,
   VlmModelInfo,
   VlmProvider,
@@ -108,25 +106,16 @@ export type View = "explorer" | "market"; // 侧边栏视图：资源管理器 /
 export type PanelTab = "meas" | "out" | "prob" | "term";
 export type Tool = "cursor" | "editli" | "editma" | "roi" | "reset";
 
-// 智能体消息以 i18n 键 + 变量存储（非解析后的字符串），切语言即重译、历史不丢（设计稿 §4/R8）。
-export type Msg =
-  | { id: number; role: "user"; text: string }
-  | { id: number; role: "agent"; variant: "plain" | "refuse" | "clarify"; key: I18nKey; vars?: Record<string, string> }
-  | { id: number; role: "agent"; variant: "note"; text: string; tone: "crit" | "plain" }
-  | {
-      // 泛型任务运行卡片（多模态·替代逐模态 run/hcrun）——携任务 + 模型 + 度量快照，
-      // 卡片按注册表（label/metrics/overlays）渲染，加任务零改。
-      id: number;
-      role: "agent";
-      variant: "taskrun";
-      task: TaskType;
-      model: string;
-      metrics: Record<string, Measure>;
-    };
-
-// 联合上的 Omit 需分布，否则各成员的判别字段会坍塌（TS 会误判字面量缺属性）。
-type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
-type AgentMsg = Extract<Msg, { role: "agent" }>;
+/**
+ * 查看器侧的一条即时提示（错误 / 提示）——单槽，最新覆盖最旧，由 <Notice/> 在两种外壳里渲染。
+ * 取代已退役的旧聊天状态 `messages/pushAgent`（那条通道自 SDD 01 起无 UI 渲染，错误会静默丢失）。
+ * 智能体对话本身走 agent-runtime 会话（store/agentSessions），与此无关。
+ */
+export interface Notice {
+  id: number;
+  tone: "info" | "crit";
+  text: string;
+}
 
 interface SessionState {
   // 外壳模式（SDD feats/01）——Focus/Workbench 是同一状态的两种投影，切换零请求
@@ -164,8 +153,8 @@ interface SessionState {
   // VLM 连接（智能体连接配置）
   connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
 
-  // 智能体对话
-  messages: Msg[];
+  // 即时提示 + Composer 草稿
+  notice: Notice | null;
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
 
   // actions
@@ -197,9 +186,8 @@ interface SessionState {
   setCoords: (x: number, y: number) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
-  pushUser: (text: string) => void;
-  pushAgent: (m: DistributiveOmit<AgentMsg, "id" | "role">) => void;
-  resetMessages: () => void;
+  notify: (tone: Notice["tone"], text: string) => void;
+  dismissNotice: (id?: number) => void;
 }
 
 let _id = 0;
@@ -237,7 +225,7 @@ export const useSession = create<SessionState>((set) => ({
 
   connection: loadConnection(),
 
-  messages: [],
+  notice: null,
   composerDraft: "",
 
   setUiMode: (m) =>
@@ -298,8 +286,8 @@ export const useSession = create<SessionState>((set) => ({
       return { connection: next };
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
-  pushUser: (text) => set((s) => ({ messages: [...s.messages, { id: nextId(), role: "user", text }] })),
-  pushAgent: (m) =>
-    set((s) => ({ messages: [...s.messages, { ...m, role: "agent", id: nextId() } as AgentMsg] })),
-  resetMessages: () => set({ messages: [] }),
+  notify: (tone, text) => set({ notice: { id: nextId(), tone, text } }),
+  // 带 id 只关闭对应那条（避免定时器关掉后来的新提示）；不带 id 强制关闭。
+  dismissNotice: (id) =>
+    set((s) => (id === undefined || s.notice?.id === id ? { notice: null } : {})),
 }));

@@ -1,7 +1,7 @@
 // 真实数据编排（F5/F6/F8 + 多模态）——载数据集、切模态、选图、统一驱动 /task/run。
 // 单一泛型入口 runCurrentTask：按注册表取当前模态的任务 → api.taskRun → 设 metrics/primitives/
 // source/modelVersion。加任务/模态零改（不再 segmentAndMeasure vs hcDetectAndMeasure 逐模态）。
-// 不推送智能体发言（静默载入）；智能体叙事在 useAgent 里叠加。
+// 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
 import type { Modality, TaskType } from "../api/types";
 import { useSession } from "../store/session";

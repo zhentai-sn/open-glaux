@@ -5,6 +5,7 @@ import { useI18n, type I18nKey } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
 import { AgentPanel } from "../AgentPanel";
+import { Notice } from "../Notice";
 import { OwlLogo } from "../OwlLogo";
 import { FocusTopBar } from "./FocusTopBar";
 import { SessionRail } from "./SessionRail";
@@ -98,6 +99,7 @@ export function FocusShell() {
           </button>
         )}
       </div>
+      <Notice />
     </div>
   );
 }

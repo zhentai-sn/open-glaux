@@ -1334,6 +1334,46 @@ canvas {
 .turn.assistant .abody {
   width: 100%;
 }
+/* 查看器即时提示（Notice）——底部居中单槽胶囊 */
+.notice-host {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: none;
+}
+.notice {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(72vw, 640px);
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  text-align: left;
+}
+.notice-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--agent);
+  flex: none;
+}
+.notice.crit {
+  border-color: color-mix(in srgb, var(--crit) 55%, var(--line));
+}
+.notice.crit .notice-dot {
+  background: var(--crit);
+}
+
 /* 工具调用状态行——比正文更淡、更小的一行"⚙ 调用 run_task"，不占气泡 */
 .turn.assistant.tool {
   gap: 8px;

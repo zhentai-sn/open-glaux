@@ -72,10 +72,6 @@ def models() -> list[ModelInfo]:
     ]
 
 
-def n_installed() -> int:
-    return len(models())
-
-
 # --- 合成边界 / 测量（mock；形状与 measurement.pdm 一致） --------------------
 
 def _boundary(kind: str, x0: int = 84, x1: int = 630, n: int = N_COLUMNS) -> list[list[float]]:

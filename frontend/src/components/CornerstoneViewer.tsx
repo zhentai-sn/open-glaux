@@ -391,31 +391,21 @@ export function CornerstoneViewer() {
       st.setMetrics(m);
       st.setPrimitives(edited);
       st.setSource("human"); // 编辑后来源翻人工
-      // 智能体重测回话——头条度量（首个注册表度量）；泛型，加任务零改
-      const tvNow = st.tasks.find((x) => x.task === taskType);
-      const head = tvNow ? m[tvNow.metrics[0]?.key] : undefined;
-      if (head) {
-        const v = Math.abs(head.value) < 10 ? head.value.toFixed(3) : head.value.toFixed(1);
-        st.pushAgent({ variant: "plain", key: "remeasure", vars: { w: d.role, v: `${v} ${head.unit}` } });
-      }
     } catch (e) {
       // 服务端拒绝（校准缺失 / 解剖范围外 → 422）或网络失败（500 / 超时）→ 必须回滚到拖动前，
       // 否则画布新位置与面板旧值不一致，用户看不出修正没生效（医学测量硬伤）。
       // 序列号守卫：若本编辑之后又有新 onPointerUp 触发（editSeqRef 已递增），跳过回滚——
-      // 否则晚到的失败响应会盖掉 B 修正成功后已生效的状态。useAgent.ts 的 VLM 错误处理无此守卫。
+      // 否则晚到的失败响应会盖掉 B 修正成功后已生效的状态。
       if (mySeq !== editSeqRef.current) return;
       // 1) 还原画布工作副本 + 同步到 store（store.primitives 的 effect 会再触发一次完整同步，双保险）
       work.current = clonePrims(d.prePrims);
       useSession.getState().setPrimitives(d.prePrims);
-      // 2) 显式提示——沿用现有 pushAgent 失败回话通道，与 useAgent.ts 的 VLM 错误一致
-      const st = useSession.getState();
+      // 2) 显式提示（Notice 胶囊）
       const isReject = e instanceof ApiError && e.status === 422;
       const why = e instanceof ApiError ? e.message : (e instanceof Error ? e.message : String(e));
-      st.pushAgent({
-        variant: "note",
-        tone: "crit",
-        text: t(isReject ? "measure_rejected" : "measure_failed", { w: d.role, why }),
-      });
+      useSession
+        .getState()
+        .notify("crit", t(isReject ? "measure_rejected" : "measure_failed", { w: d.role, why }));
     }
   };
 

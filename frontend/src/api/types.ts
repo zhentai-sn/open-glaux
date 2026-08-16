@@ -70,19 +70,6 @@ export interface DataSource {
 
 // --- 胎儿头围（HC，闭合轮廓模态） ------------------------------------------
 
-export interface HCEllipse {
-  cx: number;
-  cy: number;
-  a: number; // 半长轴
-  b: number; // 半短轴
-  theta: number; // 长轴相对 +x 的旋转（弧度）
-}
-
-export interface CorrectionResult {
-  ok: boolean;
-  provenance: Record<string, unknown>;
-}
-
 // --- VLM 连接（前端 store 用；探测结果类型见 agent/runtime/types.ts）-----------------------
 
 export type VlmProvider = "anthropic" | "openai_compatible";
@@ -138,13 +125,6 @@ export interface ClassSpec {
   label: Bilingual;
   color: string;
   measurable: boolean;
-}
-
-export interface Detection {
-  primitives: Primitive[];
-  model_version: string;
-  roi_used: [number, number] | null;
-  meta: Record<string, unknown>;
 }
 
 /** 驱动层产物——度量字典 + 待绘几何 + 标定 + provenance（POST /task/run）。 */

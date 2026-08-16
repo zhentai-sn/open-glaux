@@ -1,9 +1,7 @@
 // 类型化 API 客户端。走同源 /api（dev 由 Vite 反代到 FastAPI:8000，生产同源部署）。
 import type {
   Capability,
-  CorrectionResult,
   DataSource,
-  Detection,
   ImageMeta,
   Measure,
   MeasurementResult,
@@ -83,27 +81,12 @@ export const api = {
   volumes: () => get<ImageMeta[]>(`/volumes`),
   /** 原始 NIfTI 字节流（CS3D DICOM image loader 走 wadouri: scheme）。 */
   volumeUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}`,
-  /** labelmap NIfTI 字节流（VolumeMask.ref 即此 URL，CS3D SegmentIndex 拉此做渲染）。 */
-  volumeLabelmapUrl: (id: string, task: string, method: string) =>
-    `${BASE}/volume/${encodeURIComponent(id)}/labelmap?task=${encodeURIComponent(task)}&method=${encodeURIComponent(method)}`,
-  /** raw CT NIfTI 引用（用于画笔编辑参考；HU mean 计算走 backend）。 */
-  volumeRawUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}/raw`,
-  /** 触发 /volume/{id} 的子进程分割（异步返回 task_id 或直接落缓存后返 labelmap_ref）。 */
-  volumeSegment: (id: string, task: string, method: string) =>
-    post<{ labelmap_ref: string; model_version: string }>(
-      `/volume/${encodeURIComponent(id)}/segment`,
-      { task, method },
-    ),
+  // labelmap 字节流由后端在 VolumeMask.ref 里直接下发绝对 URL，前端不拼；分割统一走 taskRun。
   /** 画笔编辑回流（U4）：patch labelmap + 度量重算 + 返回 metrics。 */
   volumeMaskEdit: (id: string, payload: VolumeMaskEditRequest) =>
     post<{ metrics: Record<string, Measure>; labelmap_ref: string; seq: number }>(
       `/volume/${encodeURIComponent(id)}/mask-edit`,
       payload,
-    ),
-  /** Reproducibility Dice 验证（U5）：per-class Dice vs ship 的 reference labelmap。 */
-  volumeVerify: (id: string, task: string) =>
-    get<{ per_class: Record<string, number> }>(
-      `/volume/${encodeURIComponent(id)}/verify?task=${encodeURIComponent(task)}`,
     ),
 
   // --- P7：病理 WSI ---------------------------------------------------------
@@ -112,8 +95,6 @@ export const api = {
   /** DeepZoom 瓦片 URL（OSD 自定义 tileSource 的 getTileUrl 用；level/col/row 为 DeepZoom 坐标）。 */
   wsiTileUrl: (id: string, level: number, col: number, row: number) =>
     `${BASE}/wsi/${encodeURIComponent(id)}/tile/${level}/${col}/${row}`,
-  /** 整片缩略图 URL（OSD 导航图 / discovery 卡片）。 */
-  wsiThumbnailUrl: (id: string) => `${BASE}/wsi/${encodeURIComponent(id)}/thumbnail`,
   /** Reproducibility 验证（U5）：与 ship 的 reference（canonical ROI 检测）比质心匹配 F1。 */
   wsiVerify: (id: string, method = "stardist_he") =>
     get<{
@@ -145,16 +126,11 @@ export const api = {
       return r.json() as Promise<{ ok: boolean; removed: string }>;
     }),
 
-  correction: (image_id: string, which: "LI" | "MA", points: number[][], imt: number) =>
-    post<CorrectionResult>("/correction", { image_id, which, points, imt }),
-
   // --- 统一驱动（多模态·P2）——注册表 + /task/*，逐步取代上面的逐模态方法 -----
   /** 任务注册表：模态切换器/工具栏/度量字段的单一真相源。 */
   tasks: () => get<TaskView[]>("/tasks"),
   /** 统一驱动：取数 → 测量 → TaskOutput（多模态通吃）。 */
   taskRun: (spec: TaskSpec) => post<TaskOutput>("/task/run", spec),
-  /** 只检测几何原语（不测量）。 */
-  taskDetect: (spec: TaskSpec) => post<Detection>("/task/detect", spec),
   /** 由编辑后的图元重测（泛型替代 measure + hcMeasure）。 */
   taskMeasure: (task: TaskType, primitives: Primitive[], cf: number) =>
     post<MeasurementResult>("/task/measure", { task, primitives, cf }),

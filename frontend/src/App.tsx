@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { ActivityBar } from "./components/ActivityBar";
 import { FocusShell } from "./components/focus/FocusShell";
+import { Notice } from "./components/Notice";
 import { Shell } from "./components/Shell";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
@@ -63,6 +64,7 @@ export function App() {
         <Shell />
       </div>
       <StatusBar />
+      <Notice />
     </div>
   );
 }

@@ -393,13 +393,13 @@ export function VolumeViewer() {
       drawOverlay();
     } catch (err) {
       if (mySeq !== editSeqRef.current) return;
-      // 失败回滚：丢弃本地笔迹（服务端未变），提示用户（note/crit，纯文本不经 Rich）
+      // 失败回滚：丢弃本地笔迹（服务端未变），提示用户（Notice 胶囊）
       editMaskRef.current = null;
       drawOverlay();
       const msg = err instanceof ApiError && err.status === 409
         ? "编辑冲突：labelmap 已被其他编辑超越，请刷新后重试"
         : "画笔编辑未生效（后端失败），已丢弃本次修正";
-      st.pushAgent({ variant: "note", tone: "crit", text: msg });
+      st.notify("crit", msg);
     } finally {
       setBusy(false);
     }

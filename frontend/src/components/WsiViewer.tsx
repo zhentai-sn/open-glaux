@@ -36,7 +36,7 @@ export function WsiViewer() {
   const wsiRoi = useSession((s) => s.wsiRoi);
   const loading = useSession((s) => s.loading);
   const setTool = useSession((s) => s.setTool);
-  const pushAgent = useSession((s) => s.pushAgent);
+  const notify = useSession((s) => s.notify);
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
   const pointSet = useMemo<PointSetPrim | null>(
@@ -196,13 +196,13 @@ export function WsiViewer() {
     drawRef.current = null;
     if (x1 - x0 < MIN_ROI || y1 - y0 < MIN_ROI) {
       drawOverlay();
-      pushAgent({ variant: "note", tone: "plain", text: "ROI 太小，请拖一个更大的框（≥24px）" });
+      notify("info", "ROI 太小，请拖一个更大的框（≥24px）");
       return;
     }
     setTool("cursor"); // 框完切回平移，避免误画
     const ok = await runWsiTask(activeSlide, [x0, y0, x1, y1]);
     if (!ok) {
-      pushAgent({ variant: "note", tone: "crit", text: "核检测未产出（隔离环境不可用或子进程失败）" });
+      notify("crit", "核检测未产出（隔离环境不可用或子进程失败）");
     }
     drawOverlay();
   };
@@ -214,7 +214,7 @@ export function WsiViewer() {
       const r = await api.wsiVerify(activeSlide);
       setVerify({ f1: r.f1, count_pred: r.count_pred, count_ref: r.count_ref });
     } catch {
-      pushAgent({ variant: "note", tone: "crit", text: "复现验证不可用（缺 reference 或隔离环境）" });
+      notify("crit", "复现验证不可用（缺 reference 或隔离环境）");
     } finally {
       setVerifying(false);
     }

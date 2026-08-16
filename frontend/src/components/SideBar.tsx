@@ -259,7 +259,6 @@ function MarketplaceView() {
   const models = useSession((s) => s.models);
   const datasources = useSession((s) => s.datasources);
   const activate = useSession((s) => s.activateModel);
-  const pushAgent = useSession((s) => s.pushAgent);
   const modelById = new Map(models.map((m) => [m.id, m]));
   // 数据源 id → origin（用于导入源可删 + dev-mode 标识）。capability id 形如 dataset:<source_id>。
   const dsById = new Map(datasources.map((d) => [d.id, d]));
@@ -306,7 +305,6 @@ function MarketplaceView() {
                   onClick={() => {
                     if (!activatable || active) return;
                     activate(c.id);
-                    pushAgent({ variant: "plain", key: "switched_model", vars: { model: c.id } });
                     void reRunActiveModel();
                   }}
                 >

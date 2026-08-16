@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 
 import { RuntimeError } from "../errors.js";
+import { parseProviderId } from "../pi/compatibility.js";
 import type { ConnectionProbe, ProbeInput } from "../pi/connection-probe.js";
 
 /**
@@ -25,10 +26,8 @@ function parseProbeInput(value: unknown): ProbeInput {
     throw new RuntimeError("invalid_request", "A JSON object is required.", 400);
   }
   const body = value as Record<string, unknown>;
-  // 兼容前端历史枚举 `openai_compatible`（下划线），统一落到 runtime 的 `openai-compatible`。
-  const provider =
-    body.provider === "openai_compatible" ? "openai-compatible" : body.provider;
-  if (provider !== "anthropic" && provider !== "openai-compatible") {
+  const provider = parseProviderId(body.provider); // 兼容前端历史枚举 openai_compatible
+  if (!provider) {
     throw new RuntimeError(
       "invalid_request",
       `Unsupported provider: ${String(body.provider)}`,

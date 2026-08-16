@@ -18,8 +18,9 @@ import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 
 import { RuntimeError } from "../errors.js";
 import { assertUrlAllowed, type ResolveHost } from "../security/net-guard.js";
+import type { RuntimeProviderId } from "./compatibility.js";
 
-export type ProbeProvider = "anthropic" | "openai-compatible";
+export type ProbeProvider = RuntimeProviderId;
 export type Vision = "yes" | "no" | "unknown";
 
 export interface ProbeInput {
