@@ -1,14 +1,14 @@
 """后端契约端点——真实接入（science-core / caroSegDeep）。
 
 真实资产不可用时优雅回退 mock（见 mock.py），使无数据环境/CI 也能起。
-- /tasks       → 任务注册表（多模态前端的单一真相源）
-- /task/run     → 统一驱动：取数 → 测量 → TaskOutput（多模态通吃）
-- /task/detect  → 只出几何原语（不测量）
+- /tasks        → 任务注册表（多模态前端的单一真相源）
+- /task/run     → 统一驱动：取数 → 测量 → TaskOutput（多模态通吃；也是 run_task 工具的执行面）
 - /task/measure → 由编辑后的图元重测（泛型替代旧 /measure + /hc/measure）
 - /images       → dataset.list_ids（tech_401–500 演示队列）
 - /image        → 真实 tiff→PNG（PIL；主进程无 TF）
 - /models       → 真实方法注册表（caroSegDeep + 参考方法 + HC）
-- /correction   → 记忆层占位（U7 schema 落地在 M2/F11）
+- /volume/*、/wsi/* → CT / 病理查看器数据面（labelmap、mask-edit、tile、verify）
+只保留前端或 agent-runtime 实际调用的端点；孤儿端点已于 2026-08-16 清理。
 """
 
 from __future__ import annotations
@@ -17,14 +17,11 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
 from fastapi import APIRouter, HTTPException, Response
 
 from .. import config, datasource_registry as dsreg, mock
 from ..schemas import (
     Capability,
-    CorrectionRequest,
-    CorrectionResult,
     DataSourceInfo,
     DatasourceImportRequest,
     ImageMeta,
@@ -164,7 +161,7 @@ def volume_stream(volume_id: str) -> Response:
 
 @router.get("/volume/{volume_id}/labelmap", tags=["dataset"])
 def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2") -> Response:
-    """P6：流式返回 labelmap NIfTI 字节（缓存命中直返；未命中 → 422 提示先 POST /volume/{id}/segment）。"""
+    """P6：流式返回 labelmap NIfTI 字节（缓存命中直返；未命中 → 404 提示先跑 /task/run）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
     if not dataset_ct.is_ct(volume_id):
@@ -173,7 +170,7 @@ def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method:
     if not Path(labelmap_path).is_file():
         raise HTTPException(
             404,
-            f"labelmap 缓存未命中：{volume_id} {method}——先调 POST /volume/{volume_id}/segment",
+            f"labelmap 缓存未命中：{volume_id} {method}——先跑 POST /task/run",
         )
     with open(labelmap_path, "rb") as f:
         data = f.read()
@@ -189,43 +186,7 @@ def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method:
     )
 
 
-@router.get("/volume/{volume_id}/raw", tags=["dataset"])
-def volume_raw(volume_id: str) -> Response:
-    """P6：流式返回原始 CT NIfTI 字节——kernel measure 算 HU mean 用、前端画笔参考用。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):
-        raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    try:
-        path = dataset_ct.nifti_path(volume_id)
-    except FileNotFoundError as e:
-        raise HTTPException(404, str(e)) from e
-    with open(path, "rb") as f:
-        data = f.read()
-    return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={"X-Glaux-Volume-Id": volume_id, "Content-Length": str(len(data))},
-    )
-
-
-@router.post("/volume/{volume_id}/segment", tags=["dataset"])
-def volume_segment(volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2") -> dict:
-    """P6 U2/U4：触发子进程跑 TotalSegmentator（缓存命中直返）→ 返回 labelmap URL。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):
-        raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    try:
-        labelmap_path, mv = segment_ts.segment(volume_id, method)
-    except segment_ts.TsSegmentUnavailable as e:
-        raise HTTPException(503, str(e)) from e
-    return {
-        "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={task}&method={method}",
-        "model_version": mv,
-        "labelmap_path": labelmap_path,
-        "seq": dataset_ct.current_edit_seq(volume_id, method),  # 客户端首笔编辑的 base_seq
-    }
+# /volume/{id}/raw 与 /volume/{id}/segment 已删（2026-08-16，前端从未调用；分割统一走 /task/run）。
 
 
 # --- P6 U4：画笔编辑 ---------------------------------------------------------
@@ -308,71 +269,8 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
     }
 
 
-# --- P6 U5：Reproducibility Dice 验证 ----------------------------------------
-
-
-@router.get("/volume/{volume_id}/verify", tags=["dataset"])
-def volume_verify(
-    volume_id: str,
-    task: str = "totalseg_liver_kidney",
-    method: str = "totalsegmentator_v2",
-) -> dict:
-    """P6 U5：与 ship 的 reference labelmap（TotalSegmentator 公开 demo 预测）算 per-class Dice。
-
-    **非真 GT 比较**——reference 是 TotalSegmentator 官方 demo 的 labelmap；Dice 衡量
-    「我们的 pipeline 能否复现上游 demo」，复现好 = 0.95+ 是好信号，复现差 = 排查
-    measure/标定/缓存逻辑，**不**代表临床正确性。
-
-    缺 GT 时 422 + 解释。
-    """
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):
-        raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    from glaux_core.tasks import LIVER_KIDNEY_CLASSES
-    from glaux_core.verification.dice import dice_per_class
-
-    # pred = 当前 labelmap 缓存；ref = ship 的 reproducibility reference
-    pred_path = segment_ts.labelmap_path(volume_id, method)
-    if not Path(pred_path).is_file():
-        raise HTTPException(404, f"labelmap 缓存未命中：{volume_id} {method}——先调 /segment")
-    # reproducibility reference 与 CT 同名（不带 method 后缀）放 data/ct/{vid}_ref.nii.gz
-    ref_path = config.CT_ROOT / f"{volume_id}_ref.nii.gz"
-    if not ref_path.is_file():
-        raise HTTPException(
-            422,
-            f"reproducibility reference 缺失：{ref_path}——"
-            f"按 data/ct/README.md 手工下载 TotalSegmentator demo 案例的官方预测作 reference；"
-            f"本接口非真 GT 比较",
-        )
-    import nibabel as nib
-    pred = np.asarray(nib.load(str(pred_path)).dataobj).astype(np.int32, copy=False)
-    ref = np.asarray(nib.load(str(ref_path)).dataobj).astype(np.int32, copy=False)
-    class_ids = [c.class_id for c in LIVER_KIDNEY_CLASSES]
-    try:
-        per = dice_per_class(pred, ref, class_ids)
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
-    # 翻译 class_id → role/label 给前端
-    by_id = {c.class_id: c for c in LIVER_KIDNEY_CLASSES}
-    out: dict[str, dict] = {}
-    for cid, d in per.items():
-        cls = by_id.get(cid)
-        if cls is None:
-            continue
-        out[cls.role] = {
-            "dice": d,
-            "label_zh": cls.label_zh,
-            "label_en": cls.label_en,
-            "class_id": cid,
-        }
-    return {
-        "task": task,
-        "method": method,
-        "per_class": out,
-        "mean_dice": sum(v["dice"] for v in out.values()) / max(len(out), 1),
-        "note": "reproducibility check vs ship reference（非真 GT）",
-    }
+# /volume/{id}/verify（P6 复现 Dice）已删（2026-08-16，前端从未接线）；Dice 逻辑仍在
+# glaux_core.verification.dice，参考数据 data/ct/{vid}_ref.nii.gz 保留，需要时补一条路由即可。
 
 
 # --- P7：病理 WSI 瓦片服务（OpenSlide + DeepZoom；数据 IO，无 science-core 依赖）------
@@ -382,15 +280,6 @@ def slides() -> list[ImageMeta]:
     """P7：WSI slide 列表——与 /images?modality=pathology 同源；分端点便于前端 discovery。"""
     _wsi_ready()
     return [ImageMeta(**dataset_wsi.image_meta(i)) for i in dataset_wsi.list_ids()]
-
-
-@router.get("/wsi/{slide_id}/dzi", tags=["dataset"])
-def wsi_dzi(slide_id: str) -> Response:
-    """P7：DZI XML 描述（金字塔 Width/Height/TileSize/Overlap/Format）——OSD tileSource 源。"""
-    _wsi_ready()
-    if not dataset_wsi.is_wsi(slide_id):  # 白名单守卫（防路径穿越 + 错模态）
-        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    return Response(content=dataset_wsi.dzi_descriptor(slide_id), media_type="application/xml")
 
 
 @router.get("/wsi/{slide_id}/tile/{level}/{col}/{row}", tags=["dataset"])
@@ -406,31 +295,8 @@ def wsi_tile(slide_id: str, level: int, col: int, row: int) -> Response:
     return Response(content=data, media_type="image/jpeg")
 
 
-@router.get("/wsi/{slide_id}/thumbnail", tags=["dataset"])
-def wsi_thumbnail(slide_id: str, max_size: int = 512) -> Response:
-    """P7：整片缩略图 JPEG（discovery 卡片 / OSD 导航图）。"""
-    _wsi_ready()
-    if not dataset_wsi.is_wsi(slide_id):
-        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    return Response(content=dataset_wsi.thumbnail(slide_id, max_size), media_type="image/jpeg")
-
-
-@router.get("/wsi/{slide_id}/region", tags=["dataset"])
-def wsi_region(slide_id: str, x: int, y: int, w: int, h: int, level: int = 0) -> Response:
-    """P7：读一块 region → JPEG（level-0 px 坐标；模型抽块 / 调试）。越界 → 422。"""
-    _wsi_ready()
-    if not dataset_wsi.is_wsi(slide_id):
-        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    from PIL import Image
-
-    try:
-        arr = dataset_wsi.read_region(slide_id, x, y, w, h, level)
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
-    import io as _io
-    buf = _io.BytesIO()
-    Image.fromarray(arr).save(buf, format="JPEG", quality=85)
-    return Response(content=buf.getvalue(), media_type="image/jpeg")
+# /wsi/{id}/dzi、/thumbnail、/region 已删（2026-08-16，前端从未调用；
+# OSD 走 /tile 自定义 tileSource）。
 
 
 @router.get("/wsi/{slide_id}/verify", tags=["dataset"])
@@ -512,19 +378,6 @@ def task_run(spec: TaskSpec) -> dict:
         raise HTTPException(503, f"检测/运行不可用：{e}") from e
 
 
-@router.post("/task/detect", tags=["task"])
-def task_detect(spec: TaskSpec) -> dict:
-    """只检测几何原语（不测量）——供渲染/未测状态。返回 Detection（primitives + model_version）。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "统一检测需 science-core（未装配）")
-    try:
-        return kernel.detect_task(spec)
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
-    except Exception as e:
-        raise HTTPException(503, f"检测不可用：{e}") from e
-
-
 @router.post("/task/measure", tags=["task"])
 def task_measure(req: TaskMeasureRequest) -> dict:
     """统一测量：由前端编辑后的图元重测（泛型替代 /measure + /hc/measure）。"""
@@ -549,17 +402,3 @@ def capabilities() -> list[Capability]:
     if not KERNEL_OK:
         raise HTTPException(503, "能力注册表需 science-core（未装配）")
     return [Capability(**c) for c in kernel.capabilities()]
-
-
-@router.post("/correction", response_model=CorrectionResult, tags=["correction"])
-def correction(req: CorrectionRequest) -> CorrectionResult:
-    return CorrectionResult(
-        ok=True,
-        provenance={
-            "image_id": req.image_id,
-            "which": req.which,
-            "source": "human",
-            "n_points": len(req.points),
-            "imt_mm": req.imt,
-        },
-    )

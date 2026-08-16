@@ -103,14 +103,6 @@ def test_image_returns_png():
     assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_correction_provenance():
-    corr = client.post(
-        "/correction",
-        json={"image_id": "tech_437", "which": "MA", "points": [[0, 1]], "imt": 0.92},
-    ).json()
-    assert corr["ok"] and corr["provenance"]["source"] == "human"
-
-
 # --- 真实数据接入专项（无数据环境跳过） -------------------------------------
 
 def test_real_dataset_cohort():
@@ -215,14 +207,6 @@ def test_task_run_unified_hc_shape():
     assert out["metrics"]["OFD"]["value"] > out["metrics"]["BPD"]["value"]  # 长轴 > 短轴
     assert out["metrics"]["vs_GT"]["value"] < 10.0  # 贴近参考（真模型端到端 MAE≈1mm，留裕度）
     assert any(p["kind"] == "ellipse" for p in out["primitives"])
-
-
-def test_task_detect_returns_primitives_only():
-    r = client.post("/task/detect", json={"task": "fetal_hc", "image_id": _an_hc_id()})
-    assert r.status_code == 200, r.text
-    d = r.json()
-    assert d["model_version"] and any(p["kind"] == "ellipse" for p in d["primitives"])
-    assert "metrics" not in d  # detect 只出几何，不测量
 
 
 def test_task_measure_reflows_from_edited_primitives():

@@ -41,16 +41,6 @@ def test_slides_lists_slide_001():
     assert meta["dims"] is not None and len(meta["dims"]) == 2
 
 
-def test_dzi_descriptor_xml():
-    r = client.get("/wsi/slide_001/dzi")
-    assert r.status_code == 200
-    assert "xml" in r.headers["content-type"]
-    body = r.text
-    assert "<Image" in body
-    assert 'TileSize="256"' in body
-    assert 'Overlap="1"' in body
-
-
 def test_tile_jpeg_and_cache_hit(tmp_path, monkeypatch):
     """瓦片 JPEG magic；二次请求走磁盘缓存（缓存文件存在）。"""
     monkeypatch.setattr(config, "WSI_CACHE", tmp_path / "tiles")
@@ -78,27 +68,6 @@ def test_tile_out_of_range_404():
     assert r.status_code == 404
 
 
-def test_region_jpeg():
-    r = client.get("/wsi/slide_001/region", params={"x": 0, "y": 0, "w": 256, "h": 256})
-    assert r.status_code == 200
-    assert r.content[:2] == b"\xff\xd8"
-
-
-def test_region_out_of_bounds_422():
-    w, h = dataset_wsi.dims("slide_001")
-    r = client.get(
-        "/wsi/slide_001/region",
-        params={"x": w - 10, "y": 0, "w": 1000, "h": 100},  # 越出右边界
-    )
-    assert r.status_code == 422
-
-
-def test_thumbnail_jpeg():
-    r = client.get("/wsi/slide_001/thumbnail")
-    assert r.status_code == 200
-    assert r.content[:2] == b"\xff\xd8"
-
-
 def test_mpp_reads_positive():
     mx, my = dataset_wsi.mpp("slide_001")
     assert mx > 0 and my > 0
@@ -106,8 +75,6 @@ def test_mpp_reads_positive():
 
 def test_unknown_slide_404():
     for path in [
-        "/wsi/slide_999/dzi",
-        "/wsi/slide_999/thumbnail",
         "/wsi/nonexist/tile/5/0/0",
     ]:
         assert client.get(path).status_code == 404

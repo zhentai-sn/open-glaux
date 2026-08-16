@@ -119,8 +119,8 @@ VITE v5.4.21  ready in 250 ms
 1. **切模态** → 右侧 ActivityBar 找 "肝+双肾"（**插件市场** 或 **侧栏** 任一处会暴露新模态），
    切到 `ct_abdomen`。
 2. **选体积** → 资源管理器 / 切片列表面板选 `ct_001`。
-3. **首跑** → ActivityBar 的 **Run & Measure** 点 "Run"；首次会触发
-   `POST /volume/ct_001/segment`：
+3. **首跑** → ActivityBar 的 **Run & Measure** 点 "Run"（或在对话里让智能体测，走 `run_task` 工具）；
+   首次会触发 `POST /task/run`（`task=totalseg_liver_kidney`；旧 `/volume/{id}/segment` 已于 2026-08-16 删除）：
    - 后端读 `data/ct/ct_001.nii.gz` → 调 `segment_ts._run_live` → 启 `.venv-ts/bin/python`
      跑 `run_headless.py --input ct_001.nii.gz --output ct_001_totalsegmentator_v2.nii.gz`
    - 子进程读 → 调 `totalsegmentator(task="liver_kidney", ml=True)` → 落盘
@@ -133,11 +133,20 @@ VITE v5.4.21  ready in 250 ms
    - 后端 `POST /volume/ct_001/mask-edit` 接受
    - 度量重算 → 肝体积下降
    - 状态条实时更新
-6. **Reproducibility Dice** → 调 `curl` 验证：
+6. **Reproducibility Dice** → `/volume/{id}/verify` 端点已于 2026-08-16 删除（前端从未接线）；
+   要做复现校验直接调内核（reference 仍在 `data/ct/ct_001_ref.nii.gz`）：
    ```bash
-   curl http://localhost:8000/volume/ct_001/verify?task=totalseg_liver_kidney
+   cd backend && uv run python - <<'EOF'
+   import nibabel as nib, numpy as np
+   from glaux_core.verification.dice import dice_per_class
+   from glaux_core.tasks import LIVER_KIDNEY_CLASSES
+   from app import config, segment_ts
+   pred = np.asarray(nib.load(segment_ts.labelmap_path("ct_001", "totalsegmentator_v2")).dataobj).astype(np.int32)
+   ref = np.asarray(nib.load(str(config.CT_ROOT / "ct_001_ref.nii.gz")).dataobj).astype(np.int32)
+   print(dice_per_class(pred, ref, [c.class_id for c in LIVER_KIDNEY_CLASSES]))
+   EOF
    ```
-   期望响应（数字会有小差异，shape 一致）：
+   历史期望响应（原端点形状，数字会有小差异）：
    ```json
    {
      "per_class": {

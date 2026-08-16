@@ -37,7 +37,6 @@ from glaux_core.contracts import (  # noqa: E402
     EllipseShape,
     Polyline,
     TaskOutput,
-    detection_to_dict,
     measurement_to_dict,
     primitive_from_dict,
     task_output_to_dict,
@@ -256,12 +255,6 @@ def run_task(spec: TaskSpec) -> dict:
     _enrich_gold(d, spec, plugin, cal)
     _round_metric_values(d)
     return d
-
-
-def detect_task(spec: TaskSpec) -> dict:
-    """只检测出几何原语（不测量）——供渲染/未测状态。"""
-    det, _cal = _detect_for_spec(spec)
-    return detection_to_dict(det)
 
 
 def measure_task(task: str, primitives: list[dict], cf: float) -> dict:

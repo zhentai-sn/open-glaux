@@ -76,7 +76,7 @@ cd ~/code/pre-tech/open-glaux/backend
 # 冒烟：
 curl -s localhost:8000/slides            # [{"id":"slide_001","modality":"pathology","mpp_um":[0.499,0.499],"dims":[2220,2967]...}]
 curl -s localhost:8000/tasks | grep -o nuclei_detection
-curl -s -o /dev/null -w "%{http_code}\n" "localhost:8000/wsi/slide_001/dzi"   # 200
+curl -s -o /dev/null -w "%{http_code}\n" "localhost:8000/wsi/slide_001/tile/8/0/0"   # 200（/dzi 端点已于 2026-08-16 删除，OSD 走 /tile）
 ```
 
 ## 6. 真机跑一次核检测 + 生成 reference（`~10 s`，首次含模型加载）

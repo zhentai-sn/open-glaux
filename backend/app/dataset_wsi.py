@@ -111,11 +111,6 @@ def mpp(slide_id: str) -> tuple[float, float]:
     return mx, my
 
 
-def dzi_descriptor(slide_id: str) -> str:
-    """DZI XML 描述（OSD 的 tileSources）——由 DeepZoomGenerator 直接产出。"""
-    return _deepzoom(slide_id).get_dzi(TILE_FORMAT)
-
-
 def tile(slide_id: str, level: int, col: int, row: int) -> bytes:
     """取一块 DeepZoom 瓦片 JPEG 字节（缓存优先：命中直读，未命中生成 + 落盘）。"""
     cache_dir = config.WSI_CACHE / slide_id / str(level)
@@ -136,14 +131,6 @@ def tile(slide_id: str, level: int, col: int, row: int) -> bytes:
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(data)
     return data
-
-
-def thumbnail(slide_id: str, max_size: int = 512) -> bytes:
-    """整片缩略图 JPEG（前端 discovery 卡片 / OSD 导航图用）。"""
-    img = _open(slide_id).get_thumbnail((max_size, max_size)).convert("RGB")
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=80)
-    return buf.getvalue()
 
 
 def read_region(slide_id: str, x: int, y: int, w: int, h: int, level: int = 0) -> np.ndarray:

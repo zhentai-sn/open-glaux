@@ -5,20 +5,22 @@
 **主进程也不含任何 LLM SDK**——自然语言理解归 agent-runtime；智能体经 `run_task` 工具调本服务的
 `/task/run`（退役 orchestration，2026-08-16，见 `docs/designs/2026-08-16-001-retire-orchestration`）。
 
-## 端点（见 `docs/designs/…-frontend` §5）
+## 端点（2026-08-16 清理后，只保留前端 / agent-runtime 实际调用的）
 
-| 端点 | 映射内核 | M0 状态 |
+| 端点 | 映射内核 | 说明 |
 | --- | --- | --- |
-| ~~`POST /interpret`~~ | 已退役（2026-08-16）——NL 由 agent-runtime 处理 | — |
-| `POST /run` | `kernel.py`（读 `glaux_core.tasks.REGISTRY`） | mock |
-| `POST /measure` | `measurement.pdm.imt`（共同支撑+对称 PDM） | mock |
-| `GET /images` | `io.cubs.read_dataset` | mock |
-| `GET /image/{id}` | tiff→PNG | mock（stdlib 合成 PNG） |
-| `GET /models` | ModelAdapter 注册表 | mock |
-| `POST /segment` | caroSegDeep 隔离子进程 | mock |
-| `POST /correction` | 记忆层 U7 schema | mock |
+| `GET /tasks` | `glaux_core.tasks.REGISTRY` → `plugin_to_view` | 多模态前端的单一真相源 |
+| `POST /task/run` | `kernel.run_task`（取数 → 分割/检测 → 测量 → TaskOutput） | 前端选图/重跑 + agent-runtime `run_task` 工具的执行面 |
+| `POST /task/measure` | `kernel.measure_task`（注册表 `measure` 原语） | 人工修正后由图元重测 |
+| `GET /images` `GET /volumes` `GET /slides` | 各模态 dataset 适配器 | 数据发现 |
+| `GET /image/{id}` | tiff→PNG | 光栅模态 |
+| `GET /volume/{id}` `GET /volume/{id}/labelmap` `POST /volume/{id}/mask-edit` | `dataset_ct` / `segment_ts` | CT：NIfTI 流 + labelmap + 画笔编辑回流 |
+| `GET /wsi/{id}/tile/…` `GET /wsi/{id}/verify` | `dataset_wsi` / `segment_wsi` | 病理：DeepZoom 瓦片 + 复现验证 |
+| `GET /models` `GET /capabilities` `GET/POST/DELETE /datasources` | 注册表 | 插件市场 / 数据源 |
+| ~~`/interpret` `/intent/*`~~ | 已退役——NL 由 agent-runtime 处理 | 见 `docs/designs/2026-08-16-001-retire-orchestration` |
+| ~~`/task/detect` `/correction` `/volume/{id}/segment\|raw\|verify` `/wsi/{id}/dzi\|thumbnail\|region`~~ | 已删（孤儿端点，前端从未调用） | 同上设计 §3.3 后续清理 |
 
-M1 只换实现、不换形状（`app/schemas.py` 即契约单一事实源）。
+`app/schemas.py` 即契约单一事实源；`glaux_core.tasks.TaskSpec` 是内核入口，pydantic 版在 HTTP 边界做校验。
 
 ## 运行
 

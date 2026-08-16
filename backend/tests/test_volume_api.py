@@ -341,45 +341,4 @@ def test_verify_dice_shape_mismatch_rejects():
         dice_per_class(pred, ref, [1])
 
 
-def test_verify_endpoint_with_reference(tmp_path, monkeypatch):
-    """端到端：seed labelmap + ship reference（同 labelmap 拷贝）→ Dice 1.0。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch, Z=10, Y=10, X=10, vox=(1.0, 1.0, 1.0))
-    # ship reference = 同一 labelmap（让 Dice 完美）
-    import nibabel as nib
-    lbl_path = config.TS_CACHE / f"{volume_id}_{method}.nii.gz"
-    ref_path = config.CT_ROOT / f"{volume_id}_ref.nii.gz"
-    ref_img = nib.Nifti1Image(nib.load(str(lbl_path)).get_fdata().astype(np.int32), np.eye(4))
-    nib.save(ref_img, str(ref_path))
-
-    r = client.get(f"/volume/{volume_id}/verify?task=totalseg_liver_kidney&method={method}")
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert "per_class" in data
-    assert "liver" in data["per_class"] and data["per_class"]["liver"]["dice"] == pytest.approx(1.0)
-    assert "lk" in data["per_class"] and data["per_class"]["lk"]["dice"] == pytest.approx(1.0)
-    assert "rk" in data["per_class"] and data["per_class"]["rk"]["dice"] == pytest.approx(1.0)
-    assert data["mean_dice"] == pytest.approx(1.0)
-    assert "reproducibility" in data["note"]
-
-
-def test_verify_endpoint_missing_reference(tmp_path, monkeypatch):
-    """缺 reference → 422 + 提示手工下载路径。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    r = client.get(f"/volume/{volume_id}/verify")
-    assert r.status_code == 422
-    assert "reproducibility reference 缺失" in r.json()["detail"]
-
-
-def test_verify_endpoint_missing_labelmap_cache(tmp_path, monkeypatch):
-    """labelmap 缓存未命中 → 404 提示先 /segment。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    import os
-    os.remove(config.TS_CACHE / f"{volume_id}_{method}.nii.gz")
-    r = client.get(f"/volume/{volume_id}/verify")
-    assert r.status_code == 404
-    assert "labelmap 缓存未命中" in r.json()["detail"]
-
-
-def test_verify_endpoint_non_ct_id(tmp_path, monkeypatch):
-    r = client.get("/volume/ct_999/verify")
-    assert 400 <= r.status_code < 500
+# /volume/{id}/verify 端点已删（2026-08-16，前端从未接线）；dice_per_class 单测保留在上方。

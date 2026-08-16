@@ -122,13 +122,3 @@ class Capability(BaseModel):
 
 # --- 修正回流 ----------------------------------------------------------------
 
-class CorrectionRequest(BaseModel):
-    image_id: str
-    which: Literal["LI", "MA"]
-    points: list[list[float]]
-    imt: float
-
-
-class CorrectionResult(BaseModel):
-    ok: bool
-    provenance: dict
