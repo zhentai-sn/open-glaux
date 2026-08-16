@@ -113,7 +113,12 @@ class OverlaySpec:
 
 @dataclass(frozen=True)
 class TaskPlugin:
-    """一个任务族的完整契约——元数据 + 行为 + 渲染。新增模态在 :data:`REGISTRY` 登记一行。"""
+    """一个任务族的完整契约——元数据 + 行为 + 渲染。新增模态在 :data:`REGISTRY` 登记一行。
+
+    SDD 04：``tools`` 改用统一工具集合（cursor/bbox/polygon/brush/reset）；新增
+    ``capabilities``（引擎能力位：该任务可用的通用标注工具）与 ``on_commit``
+    （标注落库后的任务联动钩子，如 WSI bbox → run_task）。
+    """
 
     task: TaskType
     adapter_kind: str  # 需要的适配器几何族："wall_pair" / "contour" / "mask" / ...
@@ -127,6 +132,8 @@ class TaskPlugin:
     viewer: str  # 前端查看器引擎提示："raster_2d" | "volume_3d" | "wsi" | "video"
     tools: tuple[ToolDef, ...]
     overlays: tuple[OverlaySpec, ...]
+    capabilities: tuple[str, ...] = ()  # SDD 04：引擎能力位（"bbox"/"polygon"/"brush"），wsi 无 brush
+    on_commit: dict | None = None  # SDD 04：标注落库后钩子，如 {"bbox": {"action": "run_task"}}
 
 
 # --- 测量原语（Detection → Measurement），每任务一个 ------------------------
@@ -199,14 +206,16 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         viewer="raster_2d",
         tools=(
             ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
-            ToolDef("editli", "◠", "Edit LI", "编辑 LI"),
-            ToolDef("editma", "◡", "Edit MA", "编辑 MA"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
+            ToolDef("brush", "✎", "Brush", "画笔"),
             ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
         overlays=(
             OverlaySpec("LI", "#4FB0FF", editable=True),
             OverlaySpec("MA", "#FF8A5B", editable=True),
         ),
+        capabilities=("bbox", "polygon", "brush"),
     ),
     TaskType.FETAL_HC: TaskPlugin(
         task=TaskType.FETAL_HC,
@@ -229,11 +238,15 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         viewer="raster_2d",
         tools=(
             ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
+            ToolDef("brush", "✎", "Brush", "画笔"),
             ToolDef("reset", "⟲", "Re-detect", "重新检测"),
         ),
         overlays=(
             OverlaySpec("skull", "#C39BFF", editable=False),
         ),
+        capabilities=("bbox", "polygon", "brush"),
     ),
     # P6 楔子：CT 肝+双肾分割（3 类）。几何族 "volume" 走 VolumeMask Primitive；后端
     # _detect_for_spec 新加 "volume" 分支派发到 segment_ts.subprocess。viewer 走
@@ -261,6 +274,8 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         viewer="volume_3d",
         tools=(
             ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
             ToolDef("brush", "✎", "Brush edit", "画笔编辑"),
             ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
@@ -269,6 +284,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("lk", "#4FB0FF", editable=True),
             OverlaySpec("rk", "#4FB0FF", editable=True),
         ),
+        capabilities=("bbox", "polygon", "brush"),
     ),
     # P7 楔子：病理 WSI 细胞核检测 + 计数/密度。几何族 "wsi" 走 PointSet Primitive；后端
     # _detect_for_spec 新加 "wsi" 分支派发到 segment_wsi.subprocess（ROI 抽块 + 质心去重）。
@@ -293,12 +309,15 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         viewer="wsi",
         tools=(
             ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
-            ToolDef("roi", "▭", "Select ROI", "框选 ROI"),
+            ToolDef("bbox", "▭", "Select ROI", "框选 ROI"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
             ToolDef("reset", "⟲", "Re-detect", "重新检测"),
         ),
         overlays=(
             OverlaySpec("nucleus", "#7BE0AD", editable=False),
         ),
+        capabilities=("bbox", "polygon"),  # brush 无服务端落点，禁用（SDD 04 §7.1）
+        on_commit={"bbox": {"action": "run_task"}},  # bbox 落库后触发核检测（SDD 04 §7.3）
     ),
 }
 
@@ -352,4 +371,6 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
         "overlays": [
             {"role": o.role, "color": o.color, "editable": o.editable} for o in plugin.overlays
         ],
+        "capabilities": list(plugin.capabilities),
+        "on_commit": plugin.on_commit,
     }

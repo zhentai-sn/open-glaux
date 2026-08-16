@@ -124,8 +124,11 @@ def test_plugin_to_view_is_json_native_without_callable():
     assert view["adapter_kind"] == "wall_pair"
     assert view["modality"] == "carotid_imt"
     assert [m["key"] for m in view["metrics"]] == ["IMT_mean", "IMT_max", "IMT_pdm"]
-    assert {t["id"] for t in view["tools"]} == {"cursor", "editli", "editma", "reset"}
+    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "brush", "reset"}
     assert view["overlays"][0] == {"role": "LI", "color": "#4FB0FF", "editable": True}
+    # SDD 04：能力位与钩子随 view 下发
+    assert view["capabilities"] == ["bbox", "polygon", "brush"]
+    assert view["on_commit"] is None
     assert "measure" not in view  # 不下发可调用
     json.dumps(view)  # JSON-native
 
@@ -143,7 +146,9 @@ def test_plugin_to_view_totalseg_liver_kidney():
         "rk_volume_mm3", "rk_hu_mean",
     }
     assert {m["key"] for m in view["metrics"]} == expected_keys
-    assert {t["id"] for t in view["tools"]} == {"cursor", "brush", "reset"}
+    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "brush", "reset"}
+    assert view["capabilities"] == ["bbox", "polygon", "brush"]
+    assert view["on_commit"] is None
     roles = {o["role"] for o in view["overlays"]}
     assert roles == {"liver", "lk", "rk"}
     assert all(o["editable"] for o in view["overlays"])
@@ -162,7 +167,7 @@ def test_liver_kidney_classes_constant():
 
 
 def test_plugin_to_view_nuclei_detection():
-    """P7：WSI 任务 plugin view 应含 wsi viewer + 计数/密度 metric + roi 工具 + 单类 overlay。"""
+    """P7：WSI 任务 plugin view 应含 wsi viewer + 计数/密度 metric + bbox/polygon 工具 + 单类 overlay。"""
     view = plugin_to_view(REGISTRY[TaskType.NUCLEI_DETECTION])
     assert view["task"] == "nuclei_detection"
     assert view["viewer"] == "wsi"
@@ -171,7 +176,10 @@ def test_plugin_to_view_nuclei_detection():
     assert {m["key"] for m in view["metrics"]} == {
         "nuclei_count", "nuclei_density_mm2", "roi_area_mm2",
     }
-    assert {t["id"] for t in view["tools"]} == {"cursor", "roi", "reset"}
+    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "reset"}
+    # SDD 04：wsi 无 brush 能力位；bbox 落库后触发核检测
+    assert view["capabilities"] == ["bbox", "polygon"]
+    assert view["on_commit"] == {"bbox": {"action": "run_task"}}
     assert {o["role"] for o in view["overlays"]} == {"nucleus"}
     assert view["overlays"][0]["editable"] is False  # v0 无核编辑
     assert "measure" not in view

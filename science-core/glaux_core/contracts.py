@@ -21,7 +21,7 @@
   表 + 每点 class_id + 可选 ``roi``（框选区域，算密度用）。前端按 class 上色画质心；
   kernel 数点算计数/密度。
 
-未来模态（BBox / Keypoints / 视频帧掩膜）按需在此追加一个 dataclass +
+未来模态（Keypoints / 视频帧掩膜）按需在此追加一个 dataclass +
 在 :func:`primitive_to_dict` 补一条分支，上层无需改动。
 """
 
@@ -88,11 +88,34 @@ class EllipseShape:
 
 @dataclass(frozen=True)
 class Mask:
-    """栅格掩膜（病理区域 / labelmap）——引用式占位，编码（RLE/PNG）延后落地。"""
+    """栅格掩膜（病理区域 / 2D 分割）——引用式：ref 指向 PNG/RLE 存储，几何不进 JSON 本体。
+
+    自 SDD 04 起为正式原语（不再是占位）：2D brush 产物落 ``/annotations``（kind=mask）时用。
+    """
 
     id: str
     ref: str  # 不透明引用（png 路径 / rle id …）
     role: str = "mask"
+
+
+@dataclass(frozen=True)
+class Bbox:
+    """轴对齐包围框（通用标注）：左上 ``(x0, y0)`` 到右下 ``(x1, y1)``，像素坐标。
+
+    SDD 04 新增：自由标注 bbox 与 WSI 框选（on_commit 触发检测）共用；
+    不参与任务测量（任务绑定几何归 Detection 管线，见 SDD 04 D-14）。
+    """
+
+    id: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    role: str = "bbox"
+
+    def __post_init__(self) -> None:
+        if self.x1 <= self.x0 or self.y1 <= self.y0:
+            raise ValueError(f"Bbox 区间非法：({self.x0}, {self.y0}) → ({self.x1}, {self.y1})")
 
 
 @dataclass(frozen=True)
@@ -155,7 +178,7 @@ class PointSet:
             )
 
 
-Primitive = Union[Polyline, EllipseShape, Mask, VolumeMask, PointSet]
+Primitive = Union[Polyline, EllipseShape, Mask, Bbox, VolumeMask, PointSet]
 
 
 # --- 结果信封 ----------------------------------------------------------------
@@ -214,6 +237,9 @@ def primitive_to_dict(p: Primitive) -> dict:
                 "cx": p.cx, "cy": p.cy, "a": p.a, "b": p.b, "theta": p.theta}
     if isinstance(p, Mask):
         return {"kind": "mask", "id": p.id, "role": p.role, "ref": p.ref}
+    if isinstance(p, Bbox):
+        return {"kind": "bbox", "id": p.id, "role": p.role,
+                "x0": p.x0, "y0": p.y0, "x1": p.x1, "y1": p.y1}
     if isinstance(p, VolumeMask):
         d = {
             "kind": "volume_mask", "id": p.id, "ref": p.ref,
@@ -301,6 +327,13 @@ def primitive_from_dict(d: dict) -> Primitive:
         )
     if kind == "mask":
         return Mask(id=d["id"], ref=d["ref"], role=d.get("role", "mask"))
+    if kind == "bbox":
+        return Bbox(
+            id=d["id"],
+            x0=float(d["x0"]), y0=float(d["y0"]),
+            x1=float(d["x1"]), y1=float(d["y1"]),
+            role=d.get("role", "bbox"),
+        )
     if kind == "volume_mask":
         return VolumeMask(
             id=d["id"],

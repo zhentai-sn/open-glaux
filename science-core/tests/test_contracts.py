@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from glaux_core.calibration.calibration import CalibrationResult, CFSource
 from glaux_core.contracts import (
+    Bbox,
     Detection,
     EllipseShape,
     Mask,
@@ -54,6 +56,24 @@ def test_primitive_to_dict_tagged_by_kind():
     assert primitive_to_dict(poly)["points"] == [[0.0, 1.0], [2.0, 3.0]]
     assert primitive_to_dict(ell)["kind"] == "ellipse"
     assert primitive_to_dict(mask) == {"kind": "mask", "id": "m", "role": "mask", "ref": "mask://123"}
+
+
+def test_bbox_roundtrip_and_validation():
+    """SDD 04：bbox 原语——序列化往返 + 非法区间硬拒绝。"""
+    b = Bbox(id="b1", x0=10.0, y0=20.0, x1=110.0, y1=90.0)
+    d = primitive_to_dict(b)
+    assert d == {"kind": "bbox", "id": "b1", "role": "bbox",
+                 "x0": 10.0, "y0": 20.0, "x1": 110.0, "y1": 90.0}
+    b2 = primitive_from_dict(d)
+    assert b2 == b
+    # role 缺省 bbox，可覆盖
+    b3 = primitive_from_dict({**d, "role": "roi"})
+    assert b3.role == "roi"
+    # 非法区间（退化/反向）构造即报错
+    with pytest.raises(ValueError):
+        Bbox(id="bad", x0=10.0, y0=0.0, x1=10.0, y1=5.0)
+    with pytest.raises(ValueError):
+        Bbox(id="bad2", x0=10.0, y0=9.0, x1=5.0, y1=20.0)
 
 
 def test_measure_to_dict():
