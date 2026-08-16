@@ -4,7 +4,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `ready`（v1.1 修订：图册 collection + Focus 右侧栏接入，2026-08-16 立项待实现；v1 已 `implemented`，§15.1 自查结论不变，待维护者端到端验收） |
+| SDD 状态 | `implemented`（v1.1 图册 collection + Focus 右侧栏接入 2026-08-16 实现完成、自查见 §15 v1.1；v1 §15.1 结论不变；待维护者端到端验收） |
 | 创建日期 | 2026-08-16 |
 | 最近更新 | 2026-08-16 |
 | 目标阶段 | 第一阶段：人工导入的图谱 + agent 检索先验（VLM 两步 few-shot） |
@@ -351,12 +351,12 @@ stateDiagram-v2
 
 v1.1（图册 + Focus 右侧栏）：
 
-- [ ] 导入向导与 CLI `--collection` 可给案例指定图册路径；页面图册树按路径分级显示并带直属/子树计数；点节点后列表只显示该图册及子图册的案例；未填图册的案例出现在"未分册"。
-- [ ] `GET /exemplars/search?collection=肾脏/膜性肾病` 只返回该路径及子路径下的案例；`selectExemplars` 透传 `collection`。
-- [ ] 图册路径 `肾脏 / 膜性肾病`（段内空格）、`肾脏／膜性肾病`（全角斜杠）与 `肾脏/膜性肾病` 归为同一图册。
-- [ ] 详情页可把案例移动到另一图册：`exemplar_id` 不变、幂等键与引用记录不变、树计数即时更新。
-- [ ] 旧库（无 `collection` 列）打开时自动补列为空字符串，旧案例出现在"未分册"，不需要重建。
-- [ ] Focus 下图谱作为右侧栏"图谱"标签呈现（01 v1.1）；会话卡片"在图谱中打开"展开右侧栏并切到该标签的对应案例。
+- [x] 导入向导与 CLI `--collection` 可给案例指定图册路径；页面图册树按路径分级显示并带直属/子树计数；点节点后列表只显示该图册及子图册的案例；未填图册的案例出现在"未分册"。——`ImportWizard.test.tsx` collection 透传、`test_atlas_cli.py`（参数）、`CollectionTree.test.tsx` 拼树/计数/前缀筛选/未分册；浏览器：种子 4 条移入 `肾脏/膜性肾病/EDD` 后右侧栏图谱标签显示树 `肾脏 4 ▸ 膜性肾病 4`
+- [x] `GET /exemplars/search?collection=肾脏/膜性肾病` 只返回该路径及子路径下的案例；`selectExemplars` 透传 `collection`。——`test_atlas_store.py` / `test_atlas_api.py`；runtime `atlas-select.test.ts`；实测 `collection=肾脏/IgA` 0 命中、`肾脏` 4 命中
+- [x] 图册路径 `肾脏 / 膜性肾病`（段内空格）、`肾脏／膜性肾病`（全角斜杠）与 `肾脏/膜性肾病` 归为同一图册。——`test_normalize_collection_segments_fullwidth_and_case`；前端 `normalizeKey` 同规则测试
+- [x] 详情页可把案例移动到另一图册：`exemplar_id` 不变、幂等键与引用记录不变、树计数即时更新。——`test_collection_prefix_filter_counts_and_move`（移动后重复导入仍返回同 id、引用保留）；详情页"移动"按钮 + `bumpRefresh`
+- [x] 旧库（无 `collection` 列）打开时自动补列为空字符串，旧案例出现在"未分册"，不需要重建。——`test_old_table_without_collection_column_is_migrated`；本机 v1 库重启后 `/collections` 返回 `[{"":4}]`
+- [x] Focus 下图谱作为右侧栏"图谱"标签呈现（01 v1.1）；会话卡片"在图谱中打开"展开右侧栏并切到该标签的对应案例。——`FocusSidePanel.test.tsx`、`atlasView.test.ts` revealExemplar
 
 ### 15.1 开发侧自查（2026-08-16，实现完成后；端到端验收由维护者执行）
 

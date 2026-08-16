@@ -56,6 +56,7 @@
 cd backend && uv run python -m app.atlas.cli import-dataset /path/to/dataset --format coco --tags TEM,EDD,GBM --source-name "MN-EDD-v1" --license CC-BY-4.0
 ```
 
+- `--collection 肾脏/膜性肾病/EDD`：归入图册（v1.1，路径式，`/` 分级，缺省根目录 = "未分册"）；页面导入向导第三步同名输入框，详情页可"移动"。
 - `--format coco|yolo|labelme`：多边形 → 外接框 `roi` + 多边形存 `geometry`；检测框直接作 `roi`。
 - `--shareable` 必须同时 `--i-confirm-egress`（等价于页面勾选协议）。
 - `--describe`：CLI 进程直接调 runtime 生成描述（凭据取 `GLAUX_VLM_*` 环境变量，不经 backend）；不带则 `describe_status=skipped`。
@@ -63,7 +64,8 @@ cd backend && uv run python -m app.atlas.cli import-dataset /path/to/dataset --f
 
 ## 检索、下架、删除
 
-- 检索 `GET /atlas/exemplars/search?tags=…&q=…&egress=shareable|any&limit=10`：标签过滤 → FTS(ngram) → 只返回 `active` → egress 过滤 → 排序截断。
+- 检索 `GET /atlas/exemplars/search?tags=…&q=…&egress=shareable|any&limit=10[&collection=肾脏/膜性肾病]`：[图册范围 →] 标签过滤 → FTS(ngram) → 只返回 `active` → egress 过滤 → 排序截断。图册树 `GET /atlas/collections`；移动 `PUT /atlas/exemplars/{id}/collection`。
+- Focus 模式下图谱是右侧栏（舞台 / 文件 / 图谱）的一个标签，可折叠成图标竖条；Workbench 仍在左侧活动栏。
   `egress=any` 只有 runtime 判定连接 base_url 解析为回环（本地模型）时才用；托管 provider 一律 `shareable`。
 - 下架 `POST /atlas/exemplars/{id}/retire`：不参与检索与默认列表，历史会话卡片仍可打开；`restore` 恢复。
 - 硬删除 `DELETE /atlas/exemplars/{id}`：被会话引用过（`POST /atlas/exemplars/referenced` 写入 `exemplar_refs`）的返回 `REFERENCED`，只能下架。
