@@ -1,0 +1,58 @@
+<svg viewBox="0 0 680 640" xmlns="http://www.w3.org/2000/svg" font-family="'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b8f9a"/>
+    </marker>
+  </defs>
+
+  <!-- ── input ─────────────────────────────────────────────── -->
+  <rect x="160" y="16" width="360" height="40" rx="20" fill="#8b8f9a" fill-opacity="0.10" stroke="#8b8f9a" stroke-width="1.2"/>
+  <text x="340" y="41" text-anchor="middle" font-size="13.5" fill="#6b7280">用自然语言描述的研究目标  ·  任意一张生物医学图像</text>
+  <line x1="340" y1="56" x2="340" y2="86" stroke="#8b8f9a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ── agent (swappable engine) ──────────────────────────── -->
+  <rect x="96" y="90" width="488" height="92" rx="14" fill="#6366f1" fill-opacity="0.08" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="340" y="118" text-anchor="middle" font-size="15.5" fill="#6366f1" font-weight="700">智能体(Agent)</text>
+  <text x="340" y="139" text-anchor="middle" font-size="12" fill="#6b7280">仓库自带(agent-runtime · Node.js)  ·  也可接入任意 API / 模型</text>
+  <text x="340" y="160" text-anchor="middle" font-size="12" fill="#6b7280">规划 → 执行 → 检查 → 修正  ·  通过 <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#6366f1">run_task</tspan> 等工具对环境动手</text>
+  <line x1="340" y1="182" x2="340" y2="216" stroke="#8b8f9a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="350" y="203" font-size="10.5" fill="#8b8f9a">驱动</text>
+
+  <!-- ── Glaux environment ────────────────────────────────── -->
+  <rect x="48" y="220" width="584" height="336" rx="16" fill="#8b5cf6" fill-opacity="0.05" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="340" y="248" text-anchor="middle" font-size="15.5" fill="#8b5cf6" font-weight="700">Glaux —— 智能体工作所在的环境</text>
+  <text x="340" y="268" text-anchor="middle" font-size="11.5" fill="#6b7280">Web(React)  ·  REST 后端(FastAPI)  ·  科学内核 science-core(Python)  ·  隔离进程中的模型</text>
+
+  <!-- layer 1: representation -->
+  <rect x="68" y="286" width="544" height="54" rx="10" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="1"/>
+  <rect x="80" y="298" width="112" height="30" rx="8" fill="#8b5cf6" fill-opacity="0.16"/>
+  <text x="136" y="318" text-anchor="middle" font-size="12.5" fill="#8b5cf6" font-weight="700">表征</text>
+  <text x="206" y="309" font-size="12" fill="#6b7280">眼 —— 把任意成像方式解码成同一种可计算的表征</text>
+  <text x="206" y="326" font-size="10.5" fill="#8b8f9a">超声 · CT · 全幅病理切片 · 显微镜</text>
+
+  <!-- layer 2: action -->
+  <rect x="68" y="350" width="544" height="54" rx="10" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="1"/>
+  <rect x="80" y="362" width="112" height="30" rx="8" fill="#8b5cf6" fill-opacity="0.16"/>
+  <text x="136" y="382" text-anchor="middle" font-size="12.5" fill="#8b5cf6" font-weight="700">动作</text>
+  <text x="206" y="373" font-size="12" fill="#6b7280">手 —— 分割 · 测量 · 重建,带真实的物理单位</text>
+  <text x="206" y="390" font-size="10.5" fill="#8b8f9a">一份任务注册表定义环境能做什么;新任务按同一接口接入</text>
+
+  <!-- layer 3: verification -->
+  <rect x="68" y="414" width="544" height="54" rx="10" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="1"/>
+  <rect x="80" y="426" width="112" height="30" rx="8" fill="#8b5cf6" fill-opacity="0.16"/>
+  <text x="136" y="446" text-anchor="middle" font-size="12.5" fill="#8b5cf6" font-weight="700">验证</text>
+  <text x="206" y="437" font-size="12" fill="#6b7280">裁判 —— 每个结果都经过检查、留有记录、可以重跑</text>
+  <text x="206" y="454" font-size="10.5" fill="#8b8f9a">一致性检查 · Dice / MAE · 不确定性 · 操作记录</text>
+
+  <!-- layer 4: memory -->
+  <rect x="68" y="478" width="544" height="54" rx="10" fill="#8b5cf6" fill-opacity="0.07" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="1"/>
+  <rect x="80" y="490" width="112" height="30" rx="8" fill="#8b5cf6" fill-opacity="0.16"/>
+  <text x="136" y="510" text-anchor="middle" font-size="12.5" fill="#8b5cf6" font-weight="700">记忆</text>
+  <text x="206" y="501" font-size="12" fill="#6b7280">经验 —— 图谱(Atlas)参考库 · 已验证的轨迹 · 人工修正</text>
+  <text x="206" y="518" font-size="10.5" fill="#8b8f9a">动手前先查阅相似案例;知识随时间积累</text>
+
+  <!-- ── output ────────────────────────────────────────────── -->
+  <line x1="340" y1="556" x2="340" y2="586" stroke="#8b8f9a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="170" y="590" width="340" height="40" rx="20" fill="#8b8f9a" fill-opacity="0.10" stroke="#8b8f9a" stroke-width="1.2"/>
+  <text x="340" y="615" text-anchor="middle" font-size="13.5" fill="#6b7280">可验证、可复现的洞察  ·  带完整记录</text>
+</svg>
