@@ -1,8 +1,8 @@
 # 统一图像标注工具箱（bbox / polygon / brush）
 
 > **用途**：脑暴 / 需求文档——消灭图像编辑区的工具碎片化，建立跨模态统一的通用标注能力。
-> **日期**：2026-08-16 · **状态**：`review` · **去向**：→ Feature SDD（新立，与 [SDD 02 智能体图像标注](../sdd/feats/02-agent-image-annotation/README.md) 互补）
-> **半衰期**：进入 SDD 后冻结（`promoted`），以 SDD 为准。
+> **日期**：2026-08-16 · **状态**：`promoted` · **去向**：→ [SDD 04 · 统一图像标注工具箱](../sdd/feats/04-unified-annotation-toolbox/README.md)（`ready`，与 [SDD 02 智能体图像标注](../sdd/feats/02-agent-image-annotation/README.md) 互补）
+> **半衰期**：已冻结——后续变更在去向 SDD 中体现（§12 开放问题已收敛为 SDD 04 的 D-8～D-12 决策）。
 
 ## 1. 背景与问题
 
@@ -224,10 +224,10 @@ on_commit={"bbox": {"action": "run_task"}}   # WSI：bbox 落库后触发核检�
 - [ ] `switchModality` 后 toolOptions 复位，无跨模态状态泄漏；
 - [ ] 前端代码中不再有三份 editSeqRef/回滚范式的复制（收敛到共享桥）。
 
-## 12. 开放问题（留给 SDD）
+## 12. 开放问题（已收敛，见 SDD 04 §16）
 
-- Q1：CS3D `PlanarFreehandROITool` 顶点交互是否满足医学标注精度要求，还是需换 `SplineROITool` 或自定义；
-- Q2：2D brush 的 labelmap 在前端的宿主——CS3D segmentation 模块 vs 自持 mask 缓冲（影响与后端 mask 同步策略）；
-- Q3：Annotorious W3C 格式与 Annotation 契约的映射层放前端还是后端；
-- Q4：`ANNOTATIONS_ROOT` 的位置与 `GLAUX_` 环境变量命名（对齐 config.py 现有路径装配惯例）；
-- Q5：标注与 Atlas/记忆层的联动（已验证标注是否沉淀为领域记忆）——远期，本期只留 source/status 字段。
+- Q1 → D-8：polygon 用 `PlanarFreehandROITool`（逐点+自由手绘+顶点编辑），Spline 留作后续并存选项；
+- Q2 → D-9：2D brush 宿主用 CS3D segmentation 模块，提交导出 PNG 走 `/annotations`（kind=mask）；
+- Q3 → D-10：Annotorious W3C → Annotation 契约的映射在前端完成，后端只认一份契约；
+- Q4 → D-11：`GLAUX_ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`（对齐 `GLAUX_ATLAS_ROOT` 惯例）；
+- Q5 → 非目标：Atlas/记忆层联动远期另立，本期仅留 source/status 字段。

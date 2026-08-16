@@ -249,6 +249,10 @@ trace_id；不记录图像内容与 API key。
 - 依赖 [00-reference-agent-conversations](../00-reference-agent-conversations/README.md)：
   会话、SSE 通道、`permission_mode` 字段契约。本 SDD 将其中"权限模式仅存储"升级为
   "在 beforeToolCall 中生效"，属于对该 SDD 预留缝隙的兑现，不构成契约冲突。
+- 依赖 [04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)（`ready`）：
+  §11 "accepted 后归影像标注既有逻辑"的实体与端点由 SDD 04 承接——建议态标注落库走
+  `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status；
+  推进本 SDD 至 `ready` 时应核对 SDD 04 §9 契约并收敛 §17-Q3/Q4。
 - 依赖 backend / science-core 现有分割入口，以及 agent-runtime 的出站守卫与工具挂载点
   （[退役 orchestration 设计](../../../designs/2026-08-16-001-retire-orchestration.zh-CN.md) 已落地；引用代码路径见 §8）。
 - 被未来"Glaux-as-MCP-server"、"外部网页浏览器工具"等 SDD 引用（均未立项）。
