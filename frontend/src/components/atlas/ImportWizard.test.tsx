@@ -61,6 +61,7 @@ async function goToStep3WithOneRegion() {
   fireEvent.change(screen.getByLabelText("tags 1"), { target: { value: "TEM, EDD" } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   fireEvent.change(screen.getByLabelText("Book / site name"), { target: { value: "Example site" } });
+  fireEvent.change(screen.getByLabelText("Collection"), { target: { value: "Kidney/MN/EDD" } });
 }
 
 describe("ImportWizard", () => {
@@ -109,6 +110,7 @@ describe("ImportWizard", () => {
     mockFetch((url, init) => {
       if (url.endsWith("/atlas/imports/url")) return jsonRes(SESSION);
       if (url.endsWith("/atlas/tags?status=all")) return jsonRes([]);
+      if (url.endsWith("/atlas/collections?status=all")) return jsonRes([]);
       if (url.endsWith("/atlas/exemplars") && init?.method === "POST") return jsonRes([{ exemplar_id: "ex-1", created: true }]);
       return jsonRes({ detail: { code: "NOT_FOUND", message: url } }, 404);
     });
@@ -136,6 +138,7 @@ describe("ImportWizard", () => {
         import_id: string;
         figure_index: number;
         caption: string | null;
+        collection: string | null;
       }[];
     };
     expect(body.items).toHaveLength(1);
@@ -148,7 +151,7 @@ describe("ImportWizard", () => {
     expect(it0.tags).toEqual(["TEM", "EDD"]);
     expect(it0.source_type).toBe("web");
     expect(it0.source).toMatchObject({ url: "https://example.org/p", name: "Example site" });
-    expect(it0).toMatchObject({ import_id: "imp-1", figure_index: 0, caption: "Fig 1. EDD" });
+    expect(it0).toMatchObject({ import_id: "imp-1", figure_index: 0, caption: "Fig 1. EDD", collection: "Kidney/MN/EDD" });
     // 未配模型 → 不调 runtime describe
     expect(calls.some((c) => c.url.includes("/agent-api/"))).toBe(false);
   });
@@ -157,6 +160,7 @@ describe("ImportWizard", () => {
     mockFetch((url, init) => {
       if (url.endsWith("/atlas/imports/url")) return jsonRes(SESSION);
       if (url.endsWith("/atlas/tags?status=all")) return jsonRes([]);
+      if (url.endsWith("/atlas/collections?status=all")) return jsonRes([]);
       if (url.endsWith("/atlas/exemplars") && init?.method === "POST") return jsonRes([{ exemplar_id: "ex-1", created: false }]);
       return jsonRes({ detail: { code: "NOT_FOUND", message: url } }, 404);
     });

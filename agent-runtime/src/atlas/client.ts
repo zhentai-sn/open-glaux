@@ -41,6 +41,8 @@ export interface AtlasSearchInput {
   q?: string;
   egress: Egress;
   limit?: number;
+  /** 图册范围（SDD 03 v1.1 D-20）：该路径及子路径；空/缺省 = 全部 */
+  collection?: string;
   signal?: AbortSignal;
 }
 
@@ -76,6 +78,7 @@ export class AtlasClient {
     for (const t of input.tags ?? []) if (t.trim()) params.append("tags", t.trim());
     params.set("egress", input.egress);
     params.set("limit", String(input.limit ?? 10));
+    if (input.collection?.trim()) params.set("collection", input.collection.trim());
     const res = await this.fetchImpl(`${this.baseUrl}/atlas/exemplars/search?${params}`, {
       signal: this.signalFor(input.signal),
     });

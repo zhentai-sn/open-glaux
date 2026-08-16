@@ -115,7 +115,8 @@ export function ExemplarDetail({ id }: { id: string }) {
   const connection = useSession((s) => s.connection);
   const [ex, setEx] = useState<Exemplar | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"" | "retire" | "restore" | "delete" | "describe">("");
+  const [busy, setBusy] = useState<"" | "retire" | "restore" | "delete" | "describe" | "move">("");
+  const [collDraft, setCollDraft] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -191,6 +192,31 @@ export function ExemplarDetail({ id }: { id: string }) {
             <dd>{ex.notes}</dd>
           </>
         )}
+        <dt>{t("atlas_collection")}</dt>
+        <dd className="atlas-coll-edit">
+          <input
+            className="dsin"
+            aria-label={t("atlas_collection")}
+            placeholder={t("atlas_coll_ph")}
+            value={collDraft ?? ex.collection}
+            onChange={(e) => setCollDraft(e.target.value)}
+          />
+          <button
+            type="button"
+            className="atlas-btn"
+            disabled={!!busy || collDraft === null || collDraft.trim() === ex.collection}
+            onClick={() =>
+              void run("move", async () => {
+                const next = await atlasApi.setCollection(ex.exemplar_id, collDraft ?? "");
+                setEx(next);
+                setCollDraft(null);
+                bump();
+              })
+            }
+          >
+            {busy === "move" ? "…" : t("atlas_coll_move")}
+          </button>
+        </dd>
         <dt>{t("atlas_roi")}</dt>
         <dd className="mono">[{ex.roi.join(", ")}]</dd>
         <dt>{t("atlas_source")}</dt>

@@ -2038,18 +2038,7 @@ canvas {
   border-radius: 5px;
   pointer-events: none;
 }
-.focus-stage-reopen {
-  flex: none;
-  writing-mode: vertical-rl;
-  border: none;
-  border-left: 1px solid var(--line);
-  background: var(--sidebar);
-  color: var(--mid);
-  font-size: 11px;
-  padding: 10px 6px;
-  cursor: pointer;
-}
-.focus-stage-reopen:hover { color: var(--bright); background: var(--hover); }
+/* .focus-stage-reopen 已随 SDD 01 v1.1 右侧栏退役（折叠态见 .focus-side.collapsed） */
 
 /* ---- 上下文用量环形图（Claude Code 式；hover/focus 弹出精确数字） ---- */
 .context-ring {
@@ -2295,8 +2284,7 @@ canvas {
 .atlas-consent input { margin-top: 2px; }
 
 /* Focus 右侧拓展区里的图谱：与舞台同位、同动效 */
-.focus-atlas { background: var(--sidebar); border-left: 1px solid var(--line); overflow: hidden; }
-.focus-atlas .atlas-view { height: 100%; }
+/* .focus-atlas 已随 SDD 01 v1.1 退役：图谱作为 .focus-side 的一个标签渲染 */
 
 /* 会话卡片：参考图谱 N 条 */
 .atlas-ref-card {
@@ -2331,3 +2319,96 @@ canvas {
 .atlas-ref-thumb-missing { width: 88px; height: 66px; display: grid; place-items: center; background: #111; color: var(--faint); border-radius: 4px; }
 .atlas-ref-caption { font-size: 10.5px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .atlas-ref-excluded { margin-top: 6px; color: var(--warn); font-size: 11px; }
+
+/* ==== Focus 右侧栏（SDD feats/01 v1.1 D10–D13）：常驻可折叠，三标签 舞台/文件/图谱 ==== */
+.focus-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar);
+  border-left: 1px solid var(--line);
+  animation: stagein var(--motion-base) var(--ease-out);
+}
+.focus-side.collapsed {
+  flex: none;
+  width: 40px;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+}
+.focus-side-icon {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mid);
+  font-size: 15px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.focus-side-icon:hover { background: var(--hover); color: var(--bright); }
+.focus-side-icon.on { color: var(--agent); background: var(--agent-dim); }
+.focus-side-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.focus-side-tab {
+  border: none;
+  background: transparent;
+  color: var(--mid);
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.focus-side-tab:hover { color: var(--bright); background: var(--hover); }
+.focus-side-tab.on { color: var(--bright); background: var(--input); }
+.focus-side-grow { flex: 1; }
+.focus-side-collapse {
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.focus-side-collapse:hover { color: var(--bright); background: var(--hover); }
+.focus-side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.focus-side-body > * { flex: 1; min-height: 0; }
+.focus-side-body .focus-stage { animation: none; }
+.focus-side-body .sb-view { overflow-y: auto; }
+.focus-stage-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.focus-stage-empty span { font-size: 28px; opacity: 0.5; }
+.focus-stage-empty p { margin: 0; max-width: 260px; line-height: 1.5; }
+
+/* 图册树（SDD feats/03 v1.1 D-20） */
+.atlas-coll { padding: 6px 6px 4px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.atlas-coll-row { display: flex; align-items: center; gap: 2px; border-radius: 5px; }
+.atlas-coll-row.on { background: var(--agent-dim); }
+.atlas-coll-row.on .atlas-coll-name { color: var(--agent); }
+.atlas-coll-tw { width: 16px; flex: none; border: none; background: transparent; color: var(--faint); cursor: pointer; padding: 0; font-size: 11px; text-align: center; }
+.atlas-coll-tw:disabled { cursor: default; }
+.atlas-coll-name { flex: 1; min-width: 0; text-align: left; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-coll-name:hover { color: var(--bright); }
+.atlas-coll-name i { font-style: normal; color: var(--faint); margin-left: 6px; font-size: 10.5px; }
+.atlas-coll-name.unfiled { color: var(--mid); }
+.atlas-coll-edit { display: flex; gap: 6px; align-items: center; }
+.atlas-coll-edit .dsin { flex: 1; }

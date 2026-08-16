@@ -5,12 +5,11 @@ import { useI18n, type I18nKey } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
 import { AgentPanel } from "../AgentPanel";
-import { AtlasView } from "../atlas/AtlasView";
 import { Notice } from "../Notice";
 import { OwlLogo } from "../OwlLogo";
+import { FocusSidePanel } from "./FocusSidePanel";
 import { FocusTopBar } from "./FocusTopBar";
 import { SessionRail } from "./SessionRail";
-import { StagePanel } from "./StagePanel";
 
 // 空状态示例卡（纲领 G2：示例即教学；meta 行为任务/数据集标识，标识符不翻译）。
 // 点击：连接可用即发送到参考智能体；未配模型则拉起 ⚙ 连接配置（不静默失败）。
@@ -62,21 +61,10 @@ function FocusExampleCards({ onOpenConfig }: { onOpenConfig: () => void }) {
   );
 }
 
-// Focus 外壳（SDD feats/01 §6.2/§8）——纯布局壳：顶栏 + 会话栏 + 对话列 + 舞台。
+// Focus 外壳（SDD feats/01 §6.2/§8，v1.1）——纯布局壳：顶栏 + 会话栏 + 对话列 + 右侧栏（舞台/文件/图谱）。
 // 领域状态全在共享 store，本组件零领域逻辑；对话列整体复用 AgentPanel（即 AgentConversation）。
 export function FocusShell() {
-  const { t } = useI18n();
   const [configOpen, setConfigOpen] = useState(false);
-  const stageOpen = useSession((s) => s.focusLayout.stageOpen);
-  const rightView = useSession((s) => s.focusLayout.rightView);
-  const setFocusLayout = useSession((s) => s.setFocusLayout);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
-  // 右侧拓展区（SDD feats/03 D-14）：rightView=atlas 时渲染图谱（不依赖活动图像）；
-  // 否则舞台可见性为派生值（SDD 01 §9）：有活动对象且未收起才渲染
-  const atlasOpen = rightView === "atlas";
-  const hasVisual = !atlasOpen && Boolean(activeImage ?? activeVolume ?? activeSlide);
   const view = useAgentSessions((s) =>
     s.currentSessionId ? s.views[s.currentSessionId] : undefined,
   );
@@ -92,21 +80,7 @@ export function FocusShell() {
           <AgentPanel />
           {emptyConversation && <FocusExampleCards onOpenConfig={() => setConfigOpen(true)} />}
         </div>
-        {atlasOpen && (
-          <section className="focus-stage focus-atlas" aria-label={t("atlas_title")}>
-            <AtlasView compact />
-          </section>
-        )}
-        {hasVisual && stageOpen && <StagePanel />}
-        {hasVisual && !stageOpen && (
-          <button
-            className="focus-stage-reopen"
-            type="button"
-            onClick={() => setFocusLayout({ stageOpen: true })}
-          >
-            ⟵ {t("focus_stage_show")}
-          </button>
-        )}
+        <FocusSidePanel />
       </div>
       <Notice />
     </div>

@@ -39,6 +39,9 @@ export interface Exemplar {
   status: ExemplarStatus;
   created_at: string;
   import_batch_id: string;
+  /** 图册路径原文（v1.1，SDD 03 D-20）；"" = 根目录（未分册） */
+  collection: string;
+  collection_key: string;
   score?: number | null;
   matched_tags?: string[];
 }
@@ -72,6 +75,7 @@ export interface ExemplarInput {
   import_id?: string;
   figure_index?: number;
   image_base64?: string;
+  collection?: string | null;
 }
 
 export interface CreateResult {
@@ -81,6 +85,13 @@ export interface CreateResult {
 
 export interface TagCount {
   tag: string;
+  count: number;
+}
+
+/** 图册直属计数（GET /collections）；树由前端拼、子树计数累加。 */
+export interface CollectionCount {
+  collection: string;
+  key: string;
   count: number;
 }
 
@@ -122,10 +133,15 @@ function json(method: string, body: unknown): RequestInit {
   return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
 
-function qs(params: Record<string, string | number | string[] | undefined | null>): string {
+function qs(params: Record<string, string | number | boolean | string[] | undefined | null>): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue;
+    if (v === undefined || v === null) continue;
+    if (v === "" && k !== "collection") continue; // collection="" 有意义（配合 collection_exact 表示"未分册"）
+    if (typeof v === "boolean") {
+      if (v) p.set(k, "true");
+      continue;
+    }
     if (Array.isArray(v)) v.forEach((x) => x && p.append(k, x));
     else p.set(k, String(v));
   }
@@ -150,11 +166,23 @@ export const atlasApi = {
   // --- 案例 ---
   create: (items: ExemplarInput[], importBatchId?: string) =>
     req<CreateResult[]>("/exemplars", json("POST", { items, import_batch_id: importBatchId ?? null })),
-  list: (opts: { status?: ExemplarStatus | "all"; tags?: string[]; source_type?: SourceType; limit?: number; offset?: number } = {}) =>
-    req<Exemplar[]>(`/exemplars${qs(opts)}`),
-  search: (opts: { q?: string; tags?: string[]; egress?: "shareable" | "any"; limit?: number }) =>
+  list: (
+    opts: {
+      status?: ExemplarStatus | "all";
+      tags?: string[];
+      source_type?: SourceType;
+      collection?: string;
+      collection_exact?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => req<Exemplar[]>(`/exemplars${qs(opts)}`),
+  search: (opts: { q?: string; tags?: string[]; egress?: "shareable" | "any"; limit?: number; collection?: string }) =>
     req<Exemplar[]>(`/exemplars/search${qs(opts)}`),
   tags: (status: ExemplarStatus | "all" = "active") => req<TagCount[]>(`/tags${qs({ status })}`),
+  collections: (status: ExemplarStatus | "all" = "active") => req<CollectionCount[]>(`/collections${qs({ status })}`),
+  setCollection: (id: string, collection: string | null) =>
+    req<Exemplar>(`/exemplars/${encodeURIComponent(id)}/collection`, json("PUT", { collection })),
   get: (id: string) => req<Exemplar>(`/exemplars/${encodeURIComponent(id)}`),
   imageUrl: (id: string) => `${BASE}/exemplars/${encodeURIComponent(id)}/image`,
   cropUrl: (id: string) => `${BASE}/exemplars/${encodeURIComponent(id)}/crop`,

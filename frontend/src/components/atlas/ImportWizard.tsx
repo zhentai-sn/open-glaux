@@ -87,6 +87,11 @@ export function ImportWizard({ onDone }: { onDone?: () => void }) {
   const [srcName, setSrcName] = useState("");
   const [srcEdition, setSrcEdition] = useState("");
   const [srcPage, setSrcPage] = useState("");
+  const [collection, setCollection] = useState(() => {
+    // 缺省带入当前图册筛选（在某图册里点"导入"，新案例自然归到该图册）
+    const f = useAtlasUi.getState().collectionFilter;
+    return f && !f.exact ? f.path : "";
+  });
   const [egress, setEgress] = useState<"shareable" | "local-only">("local-only");
   const [consent, setConsent] = useState(false);
   const [describe, setDescribe] = useState(true);
@@ -202,6 +207,7 @@ export function ImportWizard({ onDone }: { onDone?: () => void }) {
           egress,
           egress_consent: egressConsent,
           caption: rg.caption.trim() || null,
+          collection: collection.trim() || null,
           ...f.ref,
         });
       }
@@ -334,6 +340,8 @@ export function ImportWizard({ onDone }: { onDone?: () => void }) {
       {step === 3 && (
         <div className="atlas-wiz-body">
           <input className="dsin" placeholder={t("atlas_wiz_source_name")} aria-label={t("atlas_wiz_source_name")} value={srcName} onChange={(e) => setSrcName(e.target.value)} />
+          <input className="dsin" placeholder={t("atlas_coll_ph")} aria-label={t("atlas_collection")} value={collection} onChange={(e) => setCollection(e.target.value)} list="atlas-coll-suggest" />
+          <CollectionSuggest />
           <div className="atlas-row">
             <input className="dsin" placeholder={t("atlas_wiz_source_edition")} aria-label={t("atlas_wiz_source_edition")} value={srcEdition} onChange={(e) => setSrcEdition(e.target.value)} />
             <input className="dsin" placeholder={t("atlas_wiz_source_page")} aria-label={t("atlas_wiz_source_page")} value={srcPage} onChange={(e) => setSrcPage(e.target.value)} />
@@ -412,6 +420,28 @@ export function ImportWizard({ onDone }: { onDone?: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** 已有图册联想（GET /collections）——原生 datalist。 */
+function CollectionSuggest() {
+  const [paths, setPaths] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    atlasApi
+      .collections("all")
+      .then((cc) => alive && setPaths(cc.map((c) => c.collection).filter(Boolean)))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <datalist id="atlas-coll-suggest">
+      {paths.map((p) => (
+        <option key={p} value={p} />
+      ))}
+    </datalist>
   );
 }
 

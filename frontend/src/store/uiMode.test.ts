@@ -53,28 +53,28 @@ describe("focusLayout（SDD feats/01 §9）", () => {
 
   it("缺省 → {railOpen:false, stageOpen:true}", async () => {
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, stageOpen: true, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "stage" });
   });
 
   it("损坏 JSON → 回退默认，不抛错", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, "{not json");
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, stageOpen: true, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "stage" });
   });
 
   it("字段类型不合法 → 逐字段回退默认", async () => {
-    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: "yes", stageOpen: false }));
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: "yes", rightOpen: false }));
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, stageOpen: false, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: false, rightView: "stage" });
   });
 
   it("setFocusLayout 打补丁并持久化", async () => {
     const useSession = await freshStore();
     useSession.getState().setFocusLayout({ railOpen: true });
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, stageOpen: true, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: true, rightView: "stage" });
     expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY) ?? "{}")).toEqual({
       railOpen: true,
-      stageOpen: true,
+      rightOpen: true,
       rightView: "stage",
     });
   });

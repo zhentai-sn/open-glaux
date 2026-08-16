@@ -65,16 +65,17 @@ export type UiMode = "focus" | "workbench";
 const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版本，旧键作废回默认
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
-/** Focus 右侧拓展区渲染什么（SDD feats/03 §9 / D-14）：图像舞台或图谱。 */
-export type FocusRightView = "stage" | "atlas";
+/** Focus 右侧栏当前标签（SDD feats/01 v1.1 §9 / D10；feats/03 D-19 v2）：舞台 / 文件 / 图谱。 */
+export type FocusRightView = "stage" | "files" | "atlas";
+const RIGHT_VIEWS: readonly FocusRightView[] = ["stage", "files", "atlas"];
 
-/** Focus 布局微状态（会话栏/舞台开合/右侧视图）——UI 微状态，非领域字段。 */
+/** Focus 布局微状态（会话栏开合 / 右侧栏开合与标签）——UI 微状态，非领域字段。 */
 export interface FocusLayout {
   railOpen: boolean;
-  stageOpen: boolean;
+  rightOpen: boolean;
   rightView: FocusRightView;
 }
-const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, stageOpen: true, rightView: "stage" };
+const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, rightOpen: true, rightView: "stage" };
 
 /** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
 function loadUiMode(): UiMode {
@@ -93,14 +94,20 @@ function loadFocusLayout(): FocusLayout {
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
-        const p = parsed as Partial<FocusLayout>;
+        // v1.0 存的是 stageOpen（舞台开合）；v1.1 起为右侧栏 rightOpen——旧值迁移，字段级校验
+        const p = parsed as Partial<FocusLayout> & { stageOpen?: unknown };
+        const rightOpen =
+          typeof p.rightOpen === "boolean"
+            ? p.rightOpen
+            : typeof p.stageOpen === "boolean"
+              ? p.stageOpen
+              : FOCUS_LAYOUT_DEFAULTS.rightOpen;
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
-          stageOpen: typeof p.stageOpen === "boolean" ? p.stageOpen : FOCUS_LAYOUT_DEFAULTS.stageOpen,
-          rightView:
-            p.rightView === "stage" || p.rightView === "atlas"
-              ? p.rightView
-              : FOCUS_LAYOUT_DEFAULTS.rightView,
+          rightOpen,
+          rightView: (RIGHT_VIEWS as readonly unknown[]).includes(p.rightView)
+            ? (p.rightView as FocusRightView)
+            : FOCUS_LAYOUT_DEFAULTS.rightView,
         };
       }
     }
