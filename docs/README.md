@@ -115,6 +115,7 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 | [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `implemented` | 内置参考智能体与本地会话管理 |
 | [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `accepted` | 双模式外壳 Focus / Workbench |
 | [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `draft` | 智能体图像标注能力 |
+| [03-atlas](sdd/feats/03-atlas/README.md) | `ready` | Atlas · 图谱（人工策展的图文案例库） |
 
 ## 通用约定
 
