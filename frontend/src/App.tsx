@@ -8,9 +8,13 @@ import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
 import { loadImages } from "./data/actions";
+import { SpikePage } from "./spike/SpikePage";
 import { useSession } from "./store/session";
 
 export function App() {
+  // T0 spike 专用入口（feat/annotation-toolbox-spike 分支，合入前删除）：#/spike
+  if (window.location.hash === "#spike") return <SpikePage />;
+
   const uiMode = useSession((s) => s.uiMode);
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);

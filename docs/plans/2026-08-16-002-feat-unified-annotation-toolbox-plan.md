@@ -54,12 +54,12 @@
 
 ## 3. 任务分解
 
-### T0 · 开工前 spike（半天，阻塞后续）
+### T0 · 开工前 spike（半天，阻塞后续）——✅ 已完成（2026-08-16，结论见 §5 与变更记录 v1.1）
 
-1. 最小 demo：在现有 `web:` loader 的 StackViewport 上启用 `@cornerstonejs/tools`（init + ToolGroup + `RectangleROITool`），确认标注在自定义 metaProvider（spacing=1、无 DICOM）下正常创建/渲染/事件回调；
-2. `PlanarFreehandROITool` 逐点 + 顶点编辑在同一 viewport 可行；
-3. StackViewport 上 segmentation 模块（labelmap 表示 + BrushTool）可用；
-4. `@annotorious/openseadragon` 最新版与 `openseadragon@4.1.1` 兼容（不兼容则锁旧版或升 OSD，结论回写 §5）。
+1. ✅ 最小 demo：在现有 `web:` loader 的 StackViewport 上启用 `@cornerstonejs/tools`（init + ToolGroup + `RectangleROITool`），确认标注在自定义 metaProvider（spacing=1、无 DICOM）下正常创建/渲染/事件回调；
+2. ✅ `PlanarFreehandROITool` 逐点 + 顶点编辑在同一 viewport 可行；
+3. ⚠️ StackViewport 上 segmentation（labelmap + BrushTool）：`data:{}` 与派生 imageIds 两路均未画入体素，API 面已摸清（`activeSegmentation` / `convertStackToVolumeLabelmap` / `getLabelmapImageIds`）——转 T5 专项，不通则退化自持 mask 缓冲（脑暴 Q2 备选）；
+4. ✅/⚠️ `@annotorious/openseadragon@3.8.9` 声明层兼容 `openseadragon@4.1.1`（peer `^4||^5||^6`），OSD + annotator 初始化成功；建标注在受控浏览器 CSP 沙箱下报 pixi unsafe-eval（本仓 index.html 无 CSP，真实浏览器不复现，已加 `@pixi/unsafe-eval@7` 保险）——验收走查需真实浏览器复核。
 
 任一不通 → 回 SDD 调整 D-8/D-9 再继续（铁律：先改 SDD）。
 
@@ -148,8 +148,10 @@
 
 | 风险 | 对策 |
 | --- | --- |
-| CS3D tools 在自定义 `web:` loader（无 DICOM、spacing=1）上行为异常 | T0 spike 首验；不通则回 SDD 调整（如 metaProvider 补字段），不硬闯 |
-| `@annotorious/openseadragon` 与 OSD 4.1.1 不兼容 | T0 核实版本矩阵；必要时升 OSD（前端仅 WsiViewer 使用，面小）或锁 Annotorious 旧版 |
+| CS3D tools 在自定义 `web:` loader（无 DICOM、spacing=1）上行为异常 | **已消解（2026-08-16 spike）**：RectangleROI 建标注（含 handles）、PlanarFreehand 闭合轮廓（1114 点）与顶点编辑均在 `web:` loader StackViewport 上验证通过 |
+| `@annotorious/openseadragon` 与 OSD 4.1.1 不兼容 | **已消解（声明层）（2026-08-16 spike）**：v3.8.9 peer `>= ^4.0.0 \|\| ^5 \|\| ^6`，OSD viewer + annotator 初始化成功；残留项：pixi WebGL 层需 eval，受控浏览器 CSP 沙箱下 `createAnnotation` 报 unsafe-eval（本仓无 CSP，真实浏览器不复现）——已引 `@pixi/unsafe-eval@7` 保险，T7 验收走查需真实浏览器复核 |
+| StackViewport labelmap 宿主（D-9）不通 | **部分验证（2026-08-16 spike）**：`data:{}` 与派生 imageIds 两路 BrushTool 均未画入体素（3.33.5 stack labelmap 需预建每帧派生 imageId，且有 `isReferenceViewable` 引用校验）；API 面已摸清（`activeSegmentation`/`convertStackToVolumeLabelmap`/`getLabelmapImageIds`）——T5 专项处理；不通则退化自持 mask 缓冲（脑暴 Q2 备选），先改 SDD D-9 再实现 |
+| **spike 新发现的实现注意项** | ① cornerstone-tools 监听 **MouseEvent**（mousedown/mousemove/mouseup/dblclick），不是 PointerEvent——桥/测试的事件模拟用 MouseEvent；② 3.33.5 是 `ToolGroupManager.createToolGroup`（非 `ToolGroup.createToolGroup`），id 重复返回 undefined 需防御；③ StrictMode 双挂载会重复建 ToolGroup/RenderingEngine，组件卸载需 destroy；④ pixi 需 eval → `@pixi/unsafe-eval@7` 为 T7 必需依赖（已入 spike 分支 package.json） |
 | VolumeViewer 迁移面最大（labelmap 叠色 + 笔迹 + 相机全自写） | T6 允许分两步提交：先换工具与状态，叠色渲染保留 canvas 后补；每步单独可验证 |
 | PlanarFreehand 顶点精度不满足医学微调 | D-8 已留 Spline 并存后手；本期不阻塞 |
 | IMT 形变手柄自定义 BaseTool 与 CS3D 事件模型磨合 | 手柄逻辑（高斯形变数学）从现有代码平移，仅外壳换框架；T5 口径回归兜底 |
@@ -159,3 +161,4 @@
 ## 变更记录
 
 - **2026-08-16**：v1，依据 `ready` SDD 04（含 D-14）制定；T0 列四项开工前核实，任一不通先回 SDD。
+- **2026-08-16**：v1.1，T0 spike 完成（worktree `open-glaux-annobox-spike`，分支 `feat/annotation-toolbox-spike`，自包含验证页 `frontend/src/spike/SpikePage.tsx`，合成指针事件自动化跑）：Spike 1/2 通过（bbox/freehand/顶点编辑在 `web:` loader 上全部可用）；Spike 3 stack labelmap 宿主未通（转 T5 专项，退化方案已备）；Spike 4 声明层兼容、运行时待真实浏览器复核（pixi eval 为受控浏览器 CSP 假象）。新增四项实现注意项（MouseEvent/ToolGroupManager/StrictMode/@pixi/unsafe-eval）回写 §5；依赖新增 `@annotorious/openseadragon@3.8.9` 与 `@pixi/unsafe-eval@7`。
