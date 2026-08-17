@@ -14,7 +14,7 @@ import { api, ApiError } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { attachCsAnnoBridge, niftiTarget, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { useSession } from "../store/session";
-import type { ClassSpec, Measure, Primitive } from "../api/types";
+import type { ClassSpec, Primitive } from "../api/types";
 
 // VolumeViewer（P6 楔子，SDD 04 T6 迁移）——CS3D StackViewport 视 NIfTI 为 z-stack。
 //
@@ -54,7 +54,6 @@ export function VolumeViewer() {
   const activeVolume = useSession((s) => s.activeVolume);
   const primitives = useSession((s) => s.primitives);
   const annotations = useSession((s) => s.annotations);
-  const metrics = useSession((s) => s.metrics);
   const tasks = useSession((s) => s.tasks);
   const modality = useSession((s) => s.modality);
   const tool = useSession((s) => s.tool);

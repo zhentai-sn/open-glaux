@@ -80,6 +80,21 @@ describe("createAnnotation", () => {
     expect(useSession.getState().notice?.text).toContain("被拒绝");
   });
 
+  it("mask 创建：入参携带 mask_png_b64，草稿同样先行", async () => {
+    const saved = makeAnn("srv-m");
+    saved.primitive = { kind: "mask", ref: "masks/srv-m.png" };
+    const fetchFn = mockFetch(async () => ({ ok: true, status: 201, json: { annotation: saved, hook_result: null } }));
+    const out = await createAnnotation({
+      image_id: "img_1",
+      primitive: { kind: "mask" },
+      mask_png_b64: "iVBORw0KGgo=",
+    });
+    expect(out?.primitive).toEqual({ kind: "mask", ref: "masks/srv-m.png" });
+    const body = JSON.parse((fetchFn.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>;
+    expect(body.mask_png_b64).toBe("iVBORw0KGgo=");
+    expect(useSession.getState().annotations.map((a) => a.id)).toEqual(["srv-m"]);
+  });
+
   it("网络失败：草稿回滚 + 提示", async () => {
     vi.stubGlobal(
       "fetch",
