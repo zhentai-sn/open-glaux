@@ -61,4 +61,10 @@ export function useI18n(): I18nCtx {
   return c;
 }
 
+/** 非 hook 取词面（CS3D 自定义工具等组件外场景）——lang 与 initialLang 同源。 */
+export function getT(): (key: I18nKey, vars?: Vars) => string {
+  const lang = initialLang();
+  return (key, vars) => interpolate(DICTS[lang][key] ?? key, vars);
+}
+
 export type { I18nKey };

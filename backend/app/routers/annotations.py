@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import config
@@ -218,3 +219,16 @@ def delete_annotation(annotation_id: str, base_seq: int = Query(ge=1)) -> None:
         get_store().delete(annotation_id, base_seq)
     except AnnotationError as e:
         raise _http_error(e) from e
+
+
+@router.get("/annotations/{annotation_id}/mask", tags=["annotations"])
+def get_mask_png(annotation_id: str) -> FileResponse:
+    """mask 标注的 PNG 栅格（reload 后前端叠色渲染用）；非 mask 标注 → 404。"""
+    row = get_store().get(annotation_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="标注不存在")
+    ref = row["primitive"].get("ref")
+    p = config.ANNOTATIONS_ROOT / ref if ref else None
+    if not p or not p.is_file():
+        raise HTTPException(status_code=404, detail="非 mask 标注或栅格缺失")
+    return FileResponse(p, media_type="image/png")

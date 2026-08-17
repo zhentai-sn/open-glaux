@@ -176,6 +176,28 @@ def test_mask_persist_and_cleanup():
     assert not mask_path.exists()
 
 
+def test_mask_png_download():
+    """GET /annotations/{id}/mask：reload 叠色渲染端点；非 mask → 404。"""
+    r = client.post("/annotations", json={
+        "image_id": "tech_401",
+        "primitive": {"kind": "mask"},
+        "mask_png_b64": _png_b64(),
+    })
+    assert r.status_code == 201, r.text
+    ann = r.json()["annotation"]
+    m = client.get(f"/annotations/{ann['id']}/mask")
+    assert m.status_code == 200
+    assert m.headers["content-type"].startswith("image/png")
+    assert m.content[:4] == b"\x89PNG"
+    # 非 mask 标注 → 404；不存在 → 404
+    b = client.post("/annotations", json={
+        "image_id": "tech_401",
+        "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
+    })
+    assert client.get(f"/annotations/{b.json()['annotation']['id']}/mask").status_code == 404
+    assert client.get("/annotations/nonexistent/mask").status_code == 404
+
+
 # --- on_commit 钩子（SDD 04 §7.3）----------------------------------------------
 
 

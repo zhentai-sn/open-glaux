@@ -188,5 +188,7 @@ export const api = {
     /** 删除（base_seq 乐观并发；mask 文件连带删）。 */
     remove: (id: string, baseSeq: number) =>
       del(`/annotations/${encodeURIComponent(id)}?base_seq=${baseSeq}`),
+    /** mask 标注的 PNG 栅格 URL（reload 后叠色渲染）。 */
+    maskUrl: (id: string) => `${BASE}/annotations/${encodeURIComponent(id)}/mask`,
   },
 };

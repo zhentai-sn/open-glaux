@@ -45,7 +45,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // dev 后端端口可用 GLAUX_BACKEND_PORT 覆盖（spike 工作树与主仓并存时避 8000 冲突）
+        target: `http://localhost:${process.env.GLAUX_BACKEND_PORT ?? "8000"}`,
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },

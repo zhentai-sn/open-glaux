@@ -144,7 +144,14 @@ export function SpikePage() {
         const engineNew = new RenderingEngine(RE_ID);
         engine = engineNew;
         engineNew.enableElement({ viewportId: VP_ID, type: CoreEnums.ViewportType.STACK, element: csElRef.current! });
-        const viewport = engineNew.getViewport(VP_ID);
+        const viewport = engineNew.getViewport(VP_ID) as unknown as {
+          id: string;
+          element: HTMLElement;
+          setStack: (ids: string[], i: number) => Promise<void>;
+          resetCamera: () => void;
+          render: () => void;
+          worldToCanvas: (p: [number, number, number]) => [number, number];
+        };
         await viewport.setStack([imageId], 0);
         viewport.resetCamera();
         viewport.render();
@@ -232,7 +239,7 @@ export function SpikePage() {
         try {
           const segId = "spike-seg";
           const lmImageIds = [imageId].map((id) => `spikelm:${id}`);
-          csImageLoader.registerImageLoader("spikelm", (lid: string) => {
+          csImageLoader.registerImageLoader("spikelm", ((lid: string) => {
             const columns = 512;
             const rows = 512;
             const pixelData = new Uint8Array(columns * rows);
@@ -258,8 +265,8 @@ export function SpikePage() {
               invert: false,
               sizeInBytes: pixelData.byteLength,
             };
-            return { promise: Promise.resolve(image) } as unknown as ReturnType<typeof csImageLoader.registerImageLoader>;
-          });
+            return { promise: Promise.resolve(image) };
+          }) as unknown as Parameters<typeof csImageLoader.registerImageLoader>[1]);
           csMetaData.addProvider((type: string, id: string) => {
             if (typeof id !== "string" || !id.startsWith("spikelm:")) return undefined;
             if (type === "imagePixelModule") {
@@ -301,6 +308,7 @@ export function SpikePage() {
           let src = "";
           try {
             const ilo = cache.getImageLoadObject(lmImageIds[0]);
+            if (!ilo) throw new Error("无 imageLoadObject");
             const img = await ilo.promise;
             const data = (img as unknown as { getPixelData: () => ArrayLike<number> }).getPixelData();
             nz = 0;
@@ -350,7 +358,11 @@ export function SpikePage() {
           tileSources: { type: "image", url: imageUrl },
         });
         await new Promise<void>((resolve) => osd.addOnceHandler("open", () => resolve()));
-        const anno = createOSDAnnotator(osd);
+        const anno = createOSDAnnotator(osd) as unknown as {
+          createAnnotation: (a: unknown) => Promise<unknown>;
+          store: { getAllAnnotations: () => unknown[] };
+          listDrawingTools?: () => string[];
+        };
         await sleep(100);
         try {
           const created = await anno.createAnnotation({

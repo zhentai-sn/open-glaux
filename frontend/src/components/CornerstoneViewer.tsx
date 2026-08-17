@@ -1,35 +1,55 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Enums, RenderingEngine, csReady, csUtils, preloadDims, type Types } from "../viewer/cornerstone";
-import { ApiError, api } from "../api/client";
+import { activateTool, createToolGroup, csToolsReady, destroyToolGroup } from "../viewer/csTools";
+import { sampleHandles } from "../viewer/wallGeom";
+import { api } from "../api/client";
+import { loadAnnotations } from "../annotation/bridge";
+import { attachCsAnnoBridge, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { annotation, ToolGroupManager } from "@cornerstonejs/tools";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
-import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
-// Cornerstone3D StackViewport 引擎（viewer="raster_2d"）——CS3D 负责影像显示 + 相机（缩放/平移，
-// 未来 3D/视频/窗宽窗位的基座）；上覆透明 overlay 画布，按 primitive.kind 渲染 store.primitives，
-// 像素↔画布经 imageToWorldCoords/worldToCanvas 投影。语义叠加 + 编辑回流仍归我们（服务端为准），
-// 不用 CS3D 标注工具（其自带测量会与 /task/measure 权威口径打架）。
+// Cornerstone3D StackViewport 引擎（viewer="raster_2d"，SDD 04 T5 迁移）——
+// 交互全部走统一框架：相机（Pan/Zoom）与自由标注（bbox/polygon 绘制+顶点编辑）由
+// @cornerstonejs/tools 承担；IMT 壁线形变是自定义 BaseTool（ImtWallHandleTool，D-12），
+// 提交仍走 /task/measure（D-14：任务绑定几何，口径不变）。
+// 本组件 overlay 只画框架渲染不了的：壁线/椭圆（Detection）、比例尺、mask 叠色与画笔笔迹。
+// 2D brush 宿主退化方案（T0 spike3）：CS3D segmentation 在 stack 上未打通 → 自持 mask 缓冲，
+// 提交走 /annotations（kind=mask），reload 经 /annotations/{id}/mask 叠色。
 
 type Poly = Extract<Primitive, { kind: "polyline" }>;
 type Ell = Extract<Primitive, { kind: "ellipse" }>;
 type Pts = number[][];
 
-const NUM_HANDLES = 9;
 const EMPTY_OVERLAYS: TaskOverlaySpec[] = [];
 const SNAP_MM = [1, 2, 5, 10, 20, 50, 100];
 const RE_ID = "glaux-re";
 const VP_ID = "glaux-stack";
+const TG_ID = "glaux-tg-raster2d";
+const MASK_ALPHA = 0.5;
 
-function sampleHandles(pts: Pts): number[] {
-  if (pts.length <= NUM_HANDLES) return pts.map((_, i) => i);
-  return Array.from({ length: NUM_HANDLES }, (_, k) => Math.round((k * (pts.length - 1)) / (NUM_HANDLES - 1)));
-}
-function deform(base: Pts, handleX: number, dy: number, sigma: number): Pts {
-  return base.map(([x, y]) => [x, y + dy * Math.exp(-((x - handleX) ** 2) / (2 * sigma * sigma))]);
-}
 function clonePrims(ps: Primitive[]): Primitive[] {
   return ps.map((p) => (p.kind === "polyline" ? { ...p, points: p.points.map((q) => [...q]) } : { ...p }));
+}
+
+/** 二值笔迹 mask → base64 PNG（white=笔画，后端 convert("L")→bool 对齐）。 */
+function maskToPng(mask: Uint8Array, columns: number, rows: number): string {
+  const cv = document.createElement("canvas");
+  cv.width = columns;
+  cv.height = rows;
+  const ctx = cv.getContext("2d")!;
+  const img = ctx.createImageData(columns, rows);
+  for (let i = 0; i < mask.length; i++) {
+    const o = i * 4;
+    const v = mask[i] ? 255 : 0;
+    img.data[o] = v;
+    img.data[o + 1] = v;
+    img.data[o + 2] = v;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv.toDataURL("image/png");
 }
 
 export function CornerstoneViewer() {
@@ -39,49 +59,53 @@ export function CornerstoneViewer() {
   const vpRef = useRef<Types.IStackViewport | null>(null);
   const imageIdRef = useRef<string | null>(null);
   const work = useRef<Primitive[]>([]);
-  const drag = useRef<
-    | { mode: "pan"; sx: number; sy: number; pan0: Types.Point2 }
-    | { mode: "handle"; role: string; hx: number; y0img: number; base: Pts; sigma: number; prePrims: Primitive[] }
-    | null
-  >(null);
-  // 单调递增的编辑请求序列号：每次 onPointerUp 拍一个 mySeq，await 之后仅当 mySeq ===
-  // editSeqRef.current 才 commit / rollback。保证：
-  // - 后到的响应不会盖掉先到的：fast A→B，旧的 A 响应丢弃。
-  // - 后到的回滚不会盖掉先到的成功：A 失败 + B 成功，A 看到 B 已加 seq，跳过回滚。
-  const editSeqRef = useRef(0);
+  const brushBuf = useRef<Uint8Array | null>(null); // 当前图像未提交的画笔笔迹
+  const brushDims = useRef<{ columns: number; rows: number } | null>(null);
+  const brushing = useRef(false);
+  const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
   const [ready, setReady] = useState(false);
 
   const activeImage = useSession((s) => s.activeImage);
   const primitives = useSession((s) => s.primitives);
+  const annotations = useSession((s) => s.annotations);
   const cf = useSession((s) => s.imageMeta?.cf ?? null);
   const tool = useSession((s) => s.tool);
+  const toolOptions = useSession((s) => s.toolOptions);
   const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
   const setCoords = useSession((s) => s.setCoords);
-  const { t } = useI18n();
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
-  const taskType = taskView?.task;
+  const capabilities = taskView?.capabilities ?? [];
   const ovByRole = useMemo(() => new Map(overlays.map((o) => [o.role, o])), [overlays]);
+  const isImt = modality === "carotid_imt";
+  const wallEditing = tool === "polygon" && isImt;
 
   // 像素坐标 → overlay 画布坐标（CSS px，与 worldToCanvas / pointer 同一空间）
   const projRef = useRef<(x: number, y: number) => [number, number]>(() => [0, 0]);
 
-  // 一次性初始化 CS3D + 渲染引擎 + StackViewport
+  // --- 一次性初始化：CS3D core + tools + ToolGroup + 标注事件桥 ----------------
   useEffect(() => {
     let disposed = false;
+    let detach: (() => void) | null = null;
     (async () => {
       await csReady();
+      await csToolsReady();
       if (disposed || !elRef.current) return;
       const engine = new RenderingEngine(RE_ID);
       engine.enableElement({ viewportId: VP_ID, type: Enums.ViewportType.STACK, element: elRef.current });
       engineRef.current = engine;
       vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
+      createToolGroup(TG_ID, VP_ID, RE_ID);
+      detach = attachCsAnnoBridge({ getImageId: () => imageIdRef.current });
       setReady(true);
     })();
     return () => {
       disposed = true;
+      detach?.();
+      destroyToolGroup(TG_ID);
+      resetCsAnnoBridge();
       try {
         engineRef.current?.destroy();
       } catch {
@@ -91,6 +115,15 @@ export function CornerstoneViewer() {
       vpRef.current = null;
     };
   }, []);
+
+  // --- store.tool → ToolGroup 激活态（2D brush 走自持缓冲，不激活 CS3D BrushTool）
+  useEffect(() => {
+    if (!ready) return;
+    const tg = ToolGroupManager.getToolGroup(TG_ID);
+    if (!tg) return;
+    // brush 在 raster_2d 是 overlay 自持缓冲（spike3 退化方案）→ 激活态回退 pan
+    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, modality);
+  }, [ready, tool, toolOptions, capabilities, modality]);
 
   const sizeOverlay = useCallback(() => {
     const el = elRef.current;
@@ -169,15 +202,14 @@ export function CornerstoneViewer() {
     };
 
     for (const p of prims) {
-      // volume_mask 在 VolumeViewer 渲染；CornerstoneViewer 仅看 2D primitive
-      if (p.kind === "volume_mask") continue;
+      if (p.kind === "volume_mask") continue; // VolumeViewer 渲染
       const color = ovByRole.get(p.role)?.color ?? "#4FB0FF";
       if (p.kind === "polyline") {
         strokePoly(p.points, color);
-        if (ovByRole.get(p.role)?.editable && tool === `edit${p.role.toLowerCase()}`) drawHandles(p.points, color);
+        // 壁线手柄：IMT polygon 态（统一框架的 ImtWallHandleTool 激活时）
+        if (wallEditing && ovByRole.get(p.role)?.editable) drawHandles(p.points, color);
       } else if (p.kind === "ellipse") {
         const e = p as Ell;
-        // 椭圆按参数采样成折线再投影（world 空间旋转/缩放由相机接管）
         const N = 96;
         ctx.beginPath();
         for (let k = 0; k <= N; k++) {
@@ -209,6 +241,44 @@ export function CornerstoneViewer() {
       }
     }
 
+    // 已保存 mask 标注叠色（bbox/polygon 由 CS3D 标注层自渲染，此处只管 mask）
+    const bd = brushDims.current;
+    if (bd) {
+      ctx.imageSmoothingEnabled = false;
+      const [tlx, tly] = proj(0, 0);
+      const [brx, bry] = proj(bd.columns, bd.rows);
+      for (const a of useSession.getState().annotations) {
+        if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-")) continue;
+        const cv = maskImgs.current.get(a.id);
+        if (cv) {
+          ctx.globalAlpha = MASK_ALPHA;
+          ctx.drawImage(cv, tlx, tly, brx - tlx, bry - tly);
+          ctx.globalAlpha = 1;
+        }
+      }
+      // 未提交笔迹预览
+      const buf = brushBuf.current;
+      if (buf) {
+        const off = document.createElement("canvas");
+        off.width = bd.columns;
+        off.height = bd.rows;
+        const octx = off.getContext("2d")!;
+        const img = octx.createImageData(bd.columns, bd.rows);
+        for (let i = 0; i < buf.length; i++) {
+          if (!buf[i]) continue;
+          const o = i * 4;
+          img.data[o] = 79;
+          img.data[o + 1] = 176;
+          img.data[o + 2] = 255;
+          img.data[o + 3] = 255;
+        }
+        octx.putImageData(img, 0, 0);
+        ctx.globalAlpha = MASK_ALPHA;
+        ctx.drawImage(off, tlx, tly, brx - tlx, bry - tly);
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // 比例尺——按 CF 自适应取整刻度，以像素长度经投影量得屏幕长度
     if (cf && cf > 0 && imageIdRef.current) {
       const targetMm = 40;
@@ -234,20 +304,30 @@ export function CornerstoneViewer() {
       ctx.textAlign = "center";
       ctx.fillText(`${barMm} mm`, sx + scr / 2, sy - 6);
     }
-  }, [cf, tool, ovByRole, sizeOverlay]);
+  }, [cf, wallEditing, ovByRole, sizeOverlay]);
 
-  // 载图：预取尺寸 → setStack → reset 相机 → 重绘
+  // 载图：预取尺寸 → setStack → reset 相机 → 拉标注（bbox/polygon/mask 统一面）
   useEffect(() => {
     if (!ready || !activeImage) return;
     const vp = vpRef.current;
     if (!vp) return;
     const imageId = `web:${api.imageUrl(activeImage)}`;
     imageIdRef.current = imageId;
+    // 切图清旧：CS3D 标注层 + 桥映射 + 画笔缓冲 + mask 缓存
+    // （同一时刻仅一个查看器挂载，removeAllAnnotations 不会误伤其他引擎）
+    try {
+      annotation.state.removeAllAnnotations();
+    } catch {
+      /* 无标注时静默 */
+    }
+    resetCsAnnoBridge();
+    brushBuf.current = null;
+    brushDims.current = null;
     let cancelled = false;
     (async () => {
-      await preloadDims(imageId);
+      const dim = await preloadDims(imageId);
       if (cancelled) return;
-      // 等元素拿到真实宽度再 setStack，规避 CS3D 「Viewport is too small 0 …」0 宽渲染警告
+      brushDims.current = { columns: dim.columns, rows: dim.rows };
       for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
         await new Promise((r) => requestAnimationFrame(r));
       }
@@ -256,19 +336,55 @@ export function CornerstoneViewer() {
       vp.resetCamera();
       vp.render();
       drawOverlay();
+      void loadAnnotations(activeImage);
     })();
     return () => {
       cancelled = true;
     };
   }, [ready, activeImage, drawOverlay]);
 
-  // store.primitives 变化 → 同步工作副本 + 重绘
+  // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
+  useEffect(() => {
+    if (!ready || !imageIdRef.current) return;
+    const vp = vpRef.current;
+    const forId = (vp as unknown as { getFrameOfReferenceId?: () => string })?.getFrameOfReferenceId?.() ?? "GLAUX_2D";
+    syncCsAnnotations(annotations, imageIdRef.current, forId, VP_ID);
+    // mask 着色画布懒加载（加载完成触发重绘）
+    for (const a of annotations) {
+      if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(a.id)) continue;
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement("canvas");
+        cv.width = img.naturalWidth;
+        cv.height = img.naturalHeight;
+        const c = cv.getContext("2d")!;
+        c.drawImage(img, 0, 0);
+        const d = c.getImageData(0, 0, cv.width, cv.height);
+        for (let i = 0; i < d.data.length; i += 4) {
+          if (d.data[i] > 0 || d.data[i + 1] > 0 || d.data[i + 2] > 0) {
+            d.data[i] = 123;
+            d.data[i + 1] = 224;
+            d.data[i + 2] = 173;
+            d.data[i + 3] = 255;
+          } else {
+            d.data[i + 3] = 0;
+          }
+        }
+        c.putImageData(d, 0, 0);
+        maskImgs.current.set(a.id, cv);
+        drawOverlay();
+      };
+      img.src = api.annotations.maskUrl(a.id);
+    }
+  }, [annotations, ready, drawOverlay]);
+
+  // store.primitives 变化 → 同步工作副本 + 重绘（壁线拖拽中间态也走这里）
   useEffect(() => {
     work.current = clonePrims(primitives);
     drawOverlay();
   }, [primitives, drawOverlay]);
 
-  // 相机变动（缩放/平移）→ overlay 跟随
+  // 相机变动（缩放/平移，CS3D 工具驱动）→ overlay 跟随
   useEffect(() => {
     if (!ready) return;
     const el = elRef.current;
@@ -282,16 +398,16 @@ export function CornerstoneViewer() {
     };
   }, [ready, drawOverlay]);
 
-  // 元素尺寸变化（首次拿到真实宽高 / 窗口缩放）→ 让引擎重测并重拟合 + overlay 重绘
+  // 元素尺寸变化 → engine.resize + overlay 重绘
   useEffect(() => {
     if (!ready || !elRef.current) return;
     const el = elRef.current;
     const ro = new ResizeObserver(() => {
       const engine = engineRef.current;
       const vp = vpRef.current;
-      if (!engine || !vp || el.clientWidth === 0 || el.clientHeight === 0) return; // 0 尺寸不渲染（免 CS3D 警告）
+      if (!engine || !vp || el.clientWidth === 0 || el.clientHeight === 0) return;
       try {
-        engine.resize(true, false); // 重测画布 + 重拟合（2D 单图，refit 即可）
+        engine.resize(true, false);
         vp.render();
       } catch {
         /* 尺寸瞬态 */
@@ -302,125 +418,107 @@ export function CornerstoneViewer() {
     return () => ro.disconnect();
   }, [ready, drawOverlay]);
 
-  // overlay 像素坐标（CSS px）→ 图像像素坐标
-  const toImage = (clientX: number, clientY: number): [number, number] => {
-    const ov = overlayRef.current!;
-    const r = ov.getBoundingClientRect();
-    const vp = vpRef.current!;
-    const world = vp.canvasToWorld([clientX - r.left, clientY - r.top] as Types.Point2);
-    const [ix, iy] = csUtils.worldToImageCoords(imageIdRef.current!, world) as Types.Point2;
-    return [ix, iy];
-  };
+  // 坐标展示：CS3D 容器原生 mousemove → 图像 px（工具交互期间同样生效）
+  useEffect(() => {
+    const el = elRef.current;
+    if (!ready || !el) return;
+    const onMove = (e: MouseEvent) => {
+      const vp = vpRef.current;
+      const imageId = imageIdRef.current;
+      if (!vp || !imageId) return;
+      const r = el.getBoundingClientRect();
+      try {
+        const world = vp.canvasToWorld([e.clientX - r.left, e.clientY - r.top] as Types.Point2);
+        const [ix, iy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
+        setCoords(Math.round(ix), Math.round(iy));
+      } catch {
+        /* 视口瞬态 */
+      }
+    };
+    el.addEventListener("mousemove", onMove);
+    return () => el.removeEventListener("mousemove", onMove);
+  }, [ready, setCoords]);
 
-  const capture = (id: number) => {
-    try {
-      overlayRef.current?.setPointerCapture(id);
-    } catch {
-      /* noop */
-    }
-  };
-  const editingRole = (t: string): string | null => (t.startsWith("edit") ? t.slice(4).toUpperCase() : null);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    const vp = vpRef.current;
-    if (!vp) return;
-    const ov = overlayRef.current!;
-    const r = ov.getBoundingClientRect();
-    const curTool = useSession.getState().tool;
-    const role = editingRole(curTool);
-    if (role) {
-      const poly = work.current.find((q): q is Poly => q.kind === "polyline" && q.role === role && !!ovByRole.get(role)?.editable);
-      if (poly) {
-        const cxp = e.clientX - r.left;
-        const cyp = e.clientY - r.top;
-        for (const i of sampleHandles(poly.points)) {
-          const [hx, hy] = projRef.current(poly.points[i][0], poly.points[i][1]);
-          if (Math.hypot(cxp - hx, cyp - hy) < 10) {
-            const [, y0img] = toImage(e.clientX, e.clientY);
-            const xs = poly.points.map((q) => q[0]);
-            const sigma = ((Math.max(...xs) - Math.min(...xs)) / NUM_HANDLES) * 0.7;
-            drag.current = { mode: "handle", role, hx: poly.points[i][0], y0img, base: poly.points.map((q) => [...q]), sigma, prePrims: clonePrims(work.current) };
-            capture(e.pointerId);
-            return;
-          }
+  // --- 2D brush 自持缓冲（spike3 退化方案）：overlay 拦指针画/擦，提交走 bridge ----
+  const paintAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const bd = brushDims.current;
+      const vp = vpRef.current;
+      const imageId = imageIdRef.current;
+      const ov = overlayRef.current;
+      if (!bd || !vp || !imageId || !ov) return;
+      const r = ov.getBoundingClientRect();
+      const world = vp.canvasToWorld([clientX - r.left, clientY - r.top] as Types.Point2);
+      const [fx, fy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
+      const col = Math.round(fx);
+      const row = Math.round(fy);
+      if (!brushBuf.current) brushBuf.current = new Uint8Array(bd.columns * bd.rows);
+      const buf = brushBuf.current;
+      const rad = toolOptions.brush.radius;
+      const erase = toolOptions.brush.mode === "erase";
+      for (let dy = -rad; dy <= rad; dy++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          if (dx * dx + dy * dy > rad * rad) continue;
+          const x = col + dx;
+          const y = row + dy;
+          if (x < 0 || x >= bd.columns || y < 0 || y >= bd.rows) continue;
+          buf[y * bd.columns + x] = erase ? 0 : 1;
         }
       }
-    }
-    drag.current = { mode: "pan", sx: e.clientX, sy: e.clientY, pan0: vp.getPan() };
-    capture(e.pointerId);
-  };
+      drawOverlay();
+    },
+    [toolOptions.brush.radius, toolOptions.brush.mode, drawOverlay],
+  );
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const vp = vpRef.current;
-    if (!vp) return;
-    const [ix, iy] = toImage(e.clientX, e.clientY);
-    setCoords(Math.round(ix), Math.round(iy));
-    const d = drag.current;
-    if (!d) return;
-    if (d.mode === "pan") {
-      vp.setPan([d.pan0[0] + (e.clientX - d.sx), d.pan0[1] + (e.clientY - d.sy)] as Types.Point2);
-      vp.render();
-    } else {
-      const poly = work.current.find((q): q is Poly => q.kind === "polyline" && q.role === d.role);
-      if (!poly) return;
-      poly.points = deform(d.base, d.hx, iy - d.y0img, d.sigma);
+  const onBrushDown = (e: React.PointerEvent) => {
+    if (tool !== "brush") return;
+    e.preventDefault();
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    brushing.current = true;
+    paintAt(e.clientX, e.clientY);
+  };
+  const onBrushMove = (e: React.PointerEvent) => {
+    if (brushing.current) paintAt(e.clientX, e.clientY);
+  };
+  const onBrushUp = async () => {
+    if (!brushing.current) return;
+    brushing.current = false;
+    const buf = brushBuf.current;
+    const bd = brushDims.current;
+    if (!buf || !bd || !activeImage || !buf.some((v) => v)) return;
+    const png = maskToPng(buf, bd.columns, bd.rows);
+    const { createAnnotation } = await import("../annotation/bridge");
+    const saved = await createAnnotation({
+      image_id: activeImage,
+      primitive: { kind: "mask" },
+      mask_png_b64: png,
+    });
+    if (saved) {
+      brushBuf.current = null; // 已落库，转由已保存 mask 通道渲染
       drawOverlay();
     }
   };
 
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const vp = vpRef.current;
-    if (!vp) return;
-    const z = vp.getZoom();
-    vp.setZoom(Math.max(0.2, Math.min(20, z * (e.deltaY < 0 ? 1.12 : 1 / 1.12))));
-    vp.render();
-  };
-
-  const onPointerUp = async () => {
-    const d = drag.current;
-    drag.current = null;
-    if (!d || d.mode !== "handle" || !cf || !taskType) return;
-    const mySeq = ++editSeqRef.current;
-    const edited = clonePrims(work.current);
-    try {
-      const meas = await api.taskMeasure(taskType, edited, cf);
-      if (mySeq !== editSeqRef.current) return; // 已被新编辑取代，丢弃过期响应
-      const m = meas.metrics;
-      const st = useSession.getState();
-      st.setMetrics(m);
-      st.setPrimitives(edited);
-      st.setSource("human"); // 编辑后来源翻人工
-    } catch (e) {
-      // 服务端拒绝（校准缺失 / 解剖范围外 → 422）或网络失败（500 / 超时）→ 必须回滚到拖动前，
-      // 否则画布新位置与面板旧值不一致，用户看不出修正没生效（医学测量硬伤）。
-      // 序列号守卫：若本编辑之后又有新 onPointerUp 触发（editSeqRef 已递增），跳过回滚——
-      // 否则晚到的失败响应会盖掉 B 修正成功后已生效的状态。
-      if (mySeq !== editSeqRef.current) return;
-      // 1) 还原画布工作副本 + 同步到 store（store.primitives 的 effect 会再触发一次完整同步，双保险）
-      work.current = clonePrims(d.prePrims);
-      useSession.getState().setPrimitives(d.prePrims);
-      // 2) 显式提示（Notice 胶囊）
-      const isReject = e instanceof ApiError && e.status === 422;
-      const why = e instanceof ApiError ? e.message : (e instanceof Error ? e.message : String(e));
-      useSession
-        .getState()
-        .notify("crit", t(isReject ? "measure_rejected" : "measure_failed", { w: d.role, why }));
-    }
-  };
-
-  const cursor = editingRole(tool) ? "crosshair" : drag.current?.mode === "pan" ? "grabbing" : "grab";
-
+  const brushActive = tool === "brush";
   return (
     <div className="frame" style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={elRef} style={{ width: "100%", height: "100%", position: "relative" }} onContextMenu={(e) => e.preventDefault()} />
+      {/* brush 态 overlay 拦指针（自持缓冲）；其余态放行给 CS3D 工具层 */}
       <canvas
         ref={overlayRef}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor, touchAction: "none" }}
-        onWheel={onWheel}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          cursor: brushActive ? "crosshair" : "default",
+          pointerEvents: brushActive ? "auto" : "none",
+          touchAction: "none",
+        }}
+        onPointerDown={onBrushDown}
+        onPointerMove={onBrushMove}
+        onPointerUp={onBrushUp}
+        onPointerLeave={onBrushUp}
       />
     </div>
   );

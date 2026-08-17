@@ -20,6 +20,8 @@ import {
 } from "@cornerstonejs/tools";
 
 import type { Tool, ToolOptions } from "../store/session";
+import type { Modality } from "../api/types";
+import { ImtWallHandleTool } from "./imtWallTool";
 
 let _ready: Promise<void> | null = null;
 
@@ -35,12 +37,14 @@ export function csToolsReady(): Promise<void> {
       addTool(ZoomTool);
       addTool(StackScrollTool);
       addTool(WindowLevelTool);
+      addTool(ImtWallHandleTool); // SDD 04 D-12：IMT 高斯形变手柄
     })();
   }
   return _ready;
 }
 
 const PRIMARY = { bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }] };
+const WHEEL = { bindings: [{ mouseButton: ToolEnums.MouseBindings.Wheel }] };
 
 /** 新建 ToolGroup 并挂 viewport + 全部工具（id 冲突先拆旧组）。 */
 export function createToolGroup(
@@ -63,6 +67,7 @@ export function createToolGroup(
   tg.addTool(ZoomTool.toolName);
   tg.addTool(StackScrollTool.toolName);
   tg.addTool(WindowLevelTool.toolName);
+  tg.addTool(ImtWallHandleTool.toolName);
   return tg;
 }
 
@@ -78,12 +83,14 @@ export function destroyToolGroup(groupId: string): void {
 /**
  * store.tool → ToolGroup 激活态映射（SDD 04 §7.1）。
  * `capabilities` 为注册表引擎能力位（wsi 无 brush 等）；越界工具回退 pan。
+ * IMT 模态的 polygon 激活壁线形变手柄（D-12/D-14：任务绑定几何优先）。
  */
 export function activateTool(
   tg: ToolTypes.IToolGroup,
   tool: Tool,
   capabilities: readonly string[],
   options?: ToolOptions,
+  modality?: Modality,
 ): void {
   for (const name of [
     RectangleROITool.toolName,
@@ -92,13 +99,20 @@ export function activateTool(
     PanTool.toolName,
     ZoomTool.toolName,
     WindowLevelTool.toolName,
+    ImtWallHandleTool.toolName,
   ]) {
     tg.setToolDisabled(name);
   }
+  // 滚轮缩放常驻（cursor/绘制态都要能缩放查看）
+  tg.setToolActive(ZoomTool.toolName, WHEEL);
   if (tool === "bbox" && capabilities.includes("bbox")) {
     tg.setToolActive(RectangleROITool.toolName, PRIMARY);
   } else if (tool === "polygon" && capabilities.includes("polygon")) {
-    tg.setToolActive(PlanarFreehandROITool.toolName, PRIMARY);
+    if (modality === "carotid_imt") {
+      tg.setToolActive(ImtWallHandleTool.toolName, PRIMARY);
+    } else {
+      tg.setToolActive(PlanarFreehandROITool.toolName, PRIMARY);
+    }
   } else if (tool === "brush" && capabilities.includes("brush")) {
     if (options) {
       tg.setToolConfiguration(BrushTool.toolName, { radius: options.brush.radius });
