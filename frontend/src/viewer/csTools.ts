@@ -84,6 +84,7 @@ export function destroyToolGroup(groupId: string): void {
  * store.tool → ToolGroup 激活态映射（SDD 04 §7.1）。
  * `capabilities` 为注册表引擎能力位（wsi 无 brush 等）；越界工具回退 pan。
  * IMT 模态的 polygon 激活壁线形变手柄（D-12/D-14：任务绑定几何优先）。
+ * `opts.wheelZoom=false`（volume_3d）：滚轮留给查看器切 z，不绑 ZoomTool。
  */
 export function activateTool(
   tg: ToolTypes.IToolGroup,
@@ -91,6 +92,7 @@ export function activateTool(
   capabilities: readonly string[],
   options?: ToolOptions,
   modality?: Modality,
+  opts?: { wheelZoom?: boolean },
 ): void {
   for (const name of [
     RectangleROITool.toolName,
@@ -103,8 +105,10 @@ export function activateTool(
   ]) {
     tg.setToolDisabled(name);
   }
-  // 滚轮缩放常驻（cursor/绘制态都要能缩放查看）
-  tg.setToolActive(ZoomTool.toolName, WHEEL);
+  // 滚轮缩放常驻（cursor/绘制态都要能缩放查看）；volume_3d 滚轮留给切 z
+  if (opts?.wheelZoom !== false) {
+    tg.setToolActive(ZoomTool.toolName, WHEEL);
+  }
   if (tool === "bbox" && capabilities.includes("bbox")) {
     tg.setToolActive(RectangleROITool.toolName, PRIMARY);
   } else if (tool === "polygon" && capabilities.includes("polygon")) {

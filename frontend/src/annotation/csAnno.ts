@@ -147,6 +147,8 @@ export function syncCsAnnotations(
 
 export interface CsAnnoBridgeOpts {
   getImageId: () => string | null;
+  /** imageId → 落库目标（raster：web: 去前缀；volume：解析 nifti url 得 volume id + z）。 */
+  toTarget?: (imageId: string) => { image_id: string; z?: number | null };
 }
 
 /**
@@ -176,7 +178,8 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
       return;
     }
     pendingCs.add(ann.annotationUID);
-    void createAnnotation({ image_id: imageId.replace(/^web:/, ""), primitive: prim }).then((saved) => {
+    const target = (opts.toTarget ?? defaultTarget)(imageId);
+    void createAnnotation({ ...target, primitive: prim }).then((saved) => {
       pendingCs.delete(ann.annotationUID);
       if (saved) {
         csToSrv.set(ann.annotationUID, saved.id);
@@ -237,6 +240,21 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
     eventTarget.removeEventListener(ToolEnums.Events.ANNOTATION_MODIFIED as unknown as string, onModified);
     eventTarget.removeEventListener(ToolEnums.Events.ANNOTATION_REMOVED as unknown as string, onRemoved);
   };
+}
+
+// 默认落库目标：web: 方案去前缀（raster_2d）
+function defaultTarget(imageId: string): { image_id: string; z?: number | null } {
+  return { image_id: imageId.replace(/^web:/, "") };
+}
+
+/** volume_3d 落库目标解析器：`nifti:<url>#z=<n>` → { image_id: volume id, z }。 */
+export function niftiTarget(imageId: string): { image_id: string; z?: number | null } {
+  const zm = /#z=(\d+)$/.exec(imageId);
+  const z = zm ? Number(zm[1]) : null;
+  // volume id 取 URL 末段（/volume/<id>），去 nifti: 前缀与 #z 后缀
+  const path = imageId.replace(/^nifti:/, "").replace(/#z=\d+$/, "");
+  const seg = path.split("/").filter(Boolean);
+  return { image_id: seg[seg.length - 1] ?? path, z };
 }
 
 // 延迟引用 store（避免模块循环）

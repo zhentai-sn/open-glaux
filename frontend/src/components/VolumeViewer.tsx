@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { annotation, ToolGroupManager } from "@cornerstonejs/tools";
+
 import { Enums, RenderingEngine, csReady, type Types } from "../viewer/cornerstone";
 import {
   niftiReady,
@@ -7,31 +9,27 @@ import {
   loadNiftiVolume,
   invalidateNiftiVolume,
 } from "../viewer/nifti";
+import { activateTool, createToolGroup, csToolsReady, destroyToolGroup } from "../viewer/csTools";
 import { api, ApiError } from "../api/client";
+import { loadAnnotations } from "../annotation/bridge";
+import { attachCsAnnoBridge, niftiTarget, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { useSession } from "../store/session";
 import type { ClassSpec, Measure, Primitive } from "../api/types";
 
-// VolumeViewer（P6 楔子）——CS3D StackViewport 视 NIfTI 为 z-stack（3.33.5 无 3D VolumeViewport）。
+// VolumeViewer（P6 楔子，SDD 04 T6 迁移）——CS3D StackViewport 视 NIfTI 为 z-stack。
 //
-// 关键差异 vs raster_2d：滚轮切 z（不是 zoom）；分割 labelmap 按 class 上色叠加在 CT 上；
-// 画笔编辑走 POST /volume/{id}/mask-edit（服务端为准），沿用 CornerstoneViewer 的 editSeqRef
-// 守卫 + 失败回滚 + note/crit 提示范式（不重蹈 IMT 覆辙）。
+// 统一框架收编：
+// - brush 参数（mode/class/radius）与 WW/WL 迁 store.toolOptions（选项条在 ViewerChrome）；
+// - 逐切片 bbox/polygon 经 csAnno 桥落 /annotations（带 z；imageId 含 #z= 天然按层隔离）；
+// - CT brush 提交**仍走** POST /volume/{id}/mask-edit（D-13：labelmap 是任务结果不是标注），
+//   宿主为 overlay 自持笔迹缓冲（spike3 退化方案：CS3D segmentation 在 stack 未打通）；
+// - 滚轮切 z（ZoomTool wheel 关闭，activateTool wheelZoom=false）；
+// - labelmap 叠色保留现有 canvas 渲染（CS3D segmentation 原生渲染随 spike3 一并留后）。
 
 const VP_ID = "glaux-stack-vol";
 const RE_ID = "glaux-re-vol";
+const TG_ID = "glaux-tg-vol";
 const OVERLAY_ALPHA = 0.4; // labelmap 叠色透明度
-const DEFAULT_RADIUS = 3; // 画笔半径（图像像素）
-
-// CT 标准窗宽窗位预设（HU）——window width / level。voiRange 在 modality(HU) 空间，
-// 因 nifti loader 提供 intercept/slope 把 stored→HU（见 viewer/nifti.ts）。
-const CT_PRESETS = [
-  { key: "abd", label: "腹部", ww: 400, wl: 40 },
-  { key: "med", label: "纵隔", ww: 350, wl: 40 },
-  { key: "lung", label: "肺", ww: 1500, wl: -600 },
-  { key: "bone", label: "骨", ww: 1800, wl: 400 },
-] as const;
-const DEFAULT_WW = 400; // 腹部软组织窗（与 nifti.ts image 默认一致）
-const DEFAULT_WL = 40;
 
 type VolPrim = Extract<Primitive, { kind: "volume_mask" }>;
 type LabelVol = { columns: number; rows: number; slices: number; raw: Int32Array };
@@ -46,25 +44,26 @@ export function VolumeViewer() {
   const drawingRef = useRef(false);
   const editSeqRef = useRef(0); // 前端请求序号：只接受最新一次响应
   const baseSeqRef = useRef(0); // 后端乐观并发 base_seq（成功编辑后跟随服务端 seq）
+  const zImageIdRef = useRef<string | null>(null); // 当前 z 的 nifti imageId（csAnno 桥用）
 
   const [ready, setReady] = useState(false);
   const [numSlices, setNumSlices] = useState(0);
   const [z, setZ] = useState(0);
-  const [brushOn, setBrushOn] = useState(false);
-  const [brushClass, setBrushClass] = useState(1);
-  const [brushMode, setBrushMode] = useState<"paint" | "erase">("erase");
-  const [radius, setRadius] = useState(DEFAULT_RADIUS);
   const [busy, setBusy] = useState(false);
-  const [ww, setWw] = useState(DEFAULT_WW); // 窗宽（HU）
-  const [wl, setWl] = useState(DEFAULT_WL); // 窗位（HU）
 
   const activeVolume = useSession((s) => s.activeVolume);
   const primitives = useSession((s) => s.primitives);
+  const annotations = useSession((s) => s.annotations);
   const metrics = useSession((s) => s.metrics);
   const tasks = useSession((s) => s.tasks);
   const modality = useSession((s) => s.modality);
+  const tool = useSession((s) => s.tool);
+  const toolOptions = useSession((s) => s.toolOptions);
+  const { ww, wl } = toolOptions.voi;
+  const { mode: brushMode, classId: brushClass, radius } = toolOptions.brush;
 
   const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
+  const capabilities = taskView?.capabilities ?? [];
   const volPrim = useMemo<VolPrim | null>(() => {
     const vol = primitives.find((p): p is VolPrim => p.kind === "volume_mask");
     return vol ?? null;
@@ -109,7 +108,7 @@ export function VolumeViewer() {
           const cls = classById.get(cid);
           rgb = cls ? _hexToRgb(cls.color) : [255, 80, 80];
         }
-        // 画笔笔迹：paint 高亮当前 class 色，erase 高亮红叉
+        // 画笔笔迹：paint 高亮当前 class 色，erase 高亮红
         if (edit && edit[i]) {
           rgb = brushMode === "erase" ? [255, 60, 60] : _hexToRgb(classById.get(brushClass)?.color ?? "#ffffff");
         }
@@ -157,24 +156,35 @@ export function VolumeViewer() {
       ctx.textAlign = "right";
       ctx.fillText(`z ${z + 1} / ${numSlices}`, ov.width - 12, 20);
     }
-  }, [classes, classById, z, numSlices, brushMode, brushClass]);
+    // 4) 画笔提交中指示
+    if (busy) {
+      ctx.fillStyle = "rgba(79,176,255,0.95)";
+      ctx.font = "11px ui-monospace,monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("…", ov.width - 12, 36);
+    }
+  }, [classes, classById, z, numSlices, brushMode, brushClass, busy]);
 
   // drawOverlay 每渲染都换新引用（deps 多）——用 ref 持最新，供异步/事件回调调用，
   // 避免把它放进数据加载 effect 的 deps（否则加载中途被 cleanup cancel，labelmap 永远设不上）。
   const drawOverlayRef = useRef(drawOverlay);
   drawOverlayRef.current = drawOverlay;
 
-  // 一次性 init CS3D + nifti loader + StackViewport
+  // 一次性 init CS3D + nifti loader + tools + StackViewport + 标注事件桥
   useEffect(() => {
     let disposed = false;
+    let detach: (() => void) | null = null;
     (async () => {
       await csReady();
       await niftiReady();
+      await csToolsReady();
       if (disposed || !elRef.current) return;
       const engine = new RenderingEngine(RE_ID);
       engine.enableElement({ viewportId: VP_ID, type: Enums.ViewportType.STACK, element: elRef.current });
       engineRef.current = engine;
       vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
+      createToolGroup(TG_ID, VP_ID, RE_ID);
+      detach = attachCsAnnoBridge({ getImageId: () => zImageIdRef.current, toTarget: niftiTarget });
       // 相机变化（缩放/平移）→ 重绘 overlay 保持对齐
       const el = elRef.current;
       const onCam = () => drawOverlayRef.current();
@@ -184,6 +194,9 @@ export function VolumeViewer() {
     })();
     return () => {
       disposed = true;
+      detach?.();
+      destroyToolGroup(TG_ID);
+      resetCsAnnoBridge();
       const el = elRef.current as unknown as { _glauxOnCam?: () => void } | null;
       if (el?._glauxOnCam) elRef.current?.removeEventListener(Enums.Events.CAMERA_MODIFIED, el._glauxOnCam);
       try {
@@ -196,17 +209,32 @@ export function VolumeViewer() {
     };
   }, []);
 
+  // --- store.tool → ToolGroup（brush 走自持缓冲不激活 CS3D；滚轮留给切 z）------
+  useEffect(() => {
+    if (!ready) return;
+    const tg = ToolGroupManager.getToolGroup(TG_ID);
+    if (!tg) return;
+    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, modality, { wheelZoom: false });
+  }, [ready, tool, toolOptions, capabilities, modality]);
+
   // 切 volume → 建每帧一个 imageId 的 stack + 设 numSlices
   useEffect(() => {
     if (!ready || !activeVolume) return;
     const vp = vpRef.current;
     if (!vp) return;
-    // 切卷先重置：避免旧 z / 旧 label 泄漏到新卷
+    // 切卷先重置：避免旧 z / 旧 label / 旧标注泄漏到新卷
     setNumSlices(0);
     setZ(0);
     labelVolRef.current = null;
     editMaskRef.current = null;
     baseSeqRef.current = 0;
+    zImageIdRef.current = null;
+    try {
+      annotation.state.removeAllAnnotations();
+    } catch {
+      /* noop */
+    }
+    resetCsAnnoBridge();
     const baseUrl = api.volumeUrl(activeVolume);
     let cancelled = false;
     (async () => {
@@ -265,11 +293,21 @@ export function VolumeViewer() {
     };
   }, [labelRef]);
 
-  // z 变化 → 切 imageIdIndex + 清笔迹 + 重绘
+  // z 变化 → 切 imageIdIndex + 清笔迹 + 拉该层标注（bbox/polygon 逐切片隔离）+ 重绘
   useEffect(() => {
     const vp = vpRef.current;
-    if (!vp || numSlices <= 0) return;
+    if (!vp || numSlices <= 0 || !activeVolume) return;
     editMaskRef.current = null;
+    const baseUrl = api.volumeUrl(activeVolume);
+    zImageIdRef.current = `nifti:${baseUrl}#z=${z}`;
+    // 旧 z 的 CS3D 标注清场（映射复位，store 回灌 effect 会按新 z 重建）
+    try {
+      annotation.state.removeAllAnnotations();
+    } catch {
+      /* noop */
+    }
+    resetCsAnnoBridge();
+    void loadAnnotations(activeVolume, z);
     (async () => {
       try {
         await vp.setImageIdIndex(z);
@@ -279,9 +317,17 @@ export function VolumeViewer() {
       }
       drawOverlay();
     })();
-  }, [z, numSlices, drawOverlay]);
+  }, [z, numSlices, activeVolume, drawOverlay]);
 
-  // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）。
+  // store.annotations → CS3D 标注层回灌（仅当前 z 的 bbox/polygon）
+  useEffect(() => {
+    if (!ready || !zImageIdRef.current) return;
+    const vp = vpRef.current;
+    const forId = (vp as unknown as { getFrameOfReferenceId?: () => string })?.getFrameOfReferenceId?.() ?? "GLAUX_CT";
+    syncCsAnnotations(annotations, zImageIdRef.current, forId, VP_ID);
+  }, [annotations, ready, z]);
+
+  // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）——真相源 store.toolOptions.voi。
   // 依赖 numSlices/activeVolume：切卷后 setStack→resetCamera 会重置 VOI 到 image 默认，
   // 故卷就绪后重跑此 effect，把当前 WW/WL 重新贴上。
   useEffect(() => {
@@ -315,14 +361,14 @@ export function VolumeViewer() {
     return () => ro.disconnect();
   }, [ready, drawOverlay]);
 
+  // 滚轮切 z（ZoomTool wheel 已在 activateTool 关闭；事件从 CS3D canvas 冒泡上来）
   const onWheel = (e: React.WheelEvent) => {
     if (numSlices <= 0) return;
-    e.preventDefault();
     const dz = e.deltaY > 0 ? 1 : -1;
     setZ((cur) => Math.max(0, Math.min(numSlices - 1, cur + dz)));
   };
 
-  // --- 画笔：pointer → 图像像素 → 笔迹 mask ---------------------------------
+  // --- 画笔：pointer → 图像像素 → 笔迹 mask（自持缓冲；提交走 mask-edit，D-13）---
   const paintAt = useCallback(
     (clientX: number, clientY: number) => {
       const vp = vpRef.current;
@@ -337,22 +383,23 @@ export function VolumeViewer() {
       if (!editMaskRef.current) editMaskRef.current = new Uint8Array(columns * rows);
       const mask = editMaskRef.current;
       const rad = radius;
+      const erase = brushMode === "erase";
       for (let dy = -rad; dy <= rad; dy++) {
         for (let dx = -rad; dx <= rad; dx++) {
           if (dx * dx + dy * dy > rad * rad) continue;
           const x = col + dx;
           const y = row + dy;
           if (x < 0 || x >= columns || y < 0 || y >= rows) continue;
-          mask[y * columns + x] = 1;
+          mask[y * columns + x] = erase ? 0 : 1;
         }
       }
       drawOverlay();
     },
-    [radius, drawOverlay],
+    [radius, brushMode, drawOverlay],
   );
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!brushOn || busy) return;
+    if (tool !== "brush" || busy) return;
     e.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drawingRef.current = true;
@@ -405,121 +452,32 @@ export function VolumeViewer() {
     }
   };
 
-  const cursor = brushOn ? "crosshair" : "grab";
-
+  const brushActive = tool === "brush";
   return (
-    <div className="frame" style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div className="frame" style={{ position: "relative", width: "100%", height: "100%" }} onWheel={onWheel}>
       <div ref={elRef} style={{ width: "100%", height: "100%", position: "relative" }} />
+      {/* brush 态 overlay 拦指针（自持缓冲）；其余态放行给 CS3D 工具层（bbox/polygon/pan） */}
       <canvas
         ref={overlayRef}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor, touchAction: "none" }}
-        onWheel={onWheel}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          cursor: brushActive ? "crosshair" : "default",
+          pointerEvents: brushActive ? "auto" : "none",
+          touchAction: "none",
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
       />
-      {/* 顶部信息条 */}
-      <div style={_infoBarStyle}>
-        {taskView?.label.zh ?? "—"} · {activeVolume ?? "—"}
-        {metrics && Object.keys(metrics).length > 0 && (
-          <>
-            {" · "}
-            {Object.entries(metrics)
-              .filter(([k]) => k.endsWith("_volume_mm3"))
-              .map(([k, m]: [string, Measure]) => `${k.replace("_volume_mm3", "")}: ${fmtVol(m.value)}`)
-              .join(" · ")}
-          </>
-        )}
-      </div>
-      {/* 窗宽窗位工具条（CT 显示基本设置）——预设 + WW/WL 手动微调 */}
-      {numSlices > 0 && (
-        <div style={_voiBarStyle}>
-          {CT_PRESETS.map((p) => {
-            const active = p.ww === ww && p.wl === wl;
-            return (
-              <button
-                key={p.key}
-                onClick={() => { setWw(p.ww); setWl(p.wl); }}
-                title={`WW ${p.ww} / WL ${p.wl}`}
-                style={{ ..._btn, background: active ? "#6a3fb0" : "rgba(60,60,70,0.9)" }}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-          <span style={_voiSep} />
-          <label style={_voiLabel}>
-            WW
-            <input type="range" min={1} max={3000} step={10} value={ww}
-              onChange={(e) => setWw(Number(e.target.value))} style={{ width: 84 }} />
-            <span className="mono" style={{ width: 34, textAlign: "right" }}>{ww}</span>
-          </label>
-          <label style={_voiLabel}>
-            WL
-            <input type="range" min={-1000} max={1000} step={10} value={wl}
-              onChange={(e) => setWl(Number(e.target.value))} style={{ width: 84 }} />
-            <span className="mono" style={{ width: 40, textAlign: "right" }}>{wl}</span>
-          </label>
-        </div>
-      )}
-      {/* 画笔工具条 */}
-      {classes && classes.length > 0 && (
-        <div style={_toolbarStyle}>
-          <button
-            onClick={() => setBrushOn((v) => !v)}
-            style={{ ..._btn, background: brushOn ? "#4FB0FF" : "rgba(60,60,70,0.9)" }}
-          >
-            {brushOn ? "画笔 ✓" : "画笔"}
-          </button>
-          {brushOn && (
-            <>
-              {(["erase", "paint"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setBrushMode(m)}
-                  style={{ ..._btn, background: brushMode === m ? "#FF8A5B" : "rgba(60,60,70,0.9)" }}
-                >
-                  {m === "erase" ? "擦" : "画"}
-                </button>
-              ))}
-              <select
-                value={brushClass}
-                onChange={(e) => setBrushClass(Number(e.target.value))}
-                style={_select}
-              >
-                {classes.map((c) => (
-                  <option key={c.class_id} value={c.class_id}>
-                    {c.label.zh}
-                  </option>
-                ))}
-              </select>
-              <label style={{ color: "#e6eaf0", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
-                r{radius}
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={radius}
-                  onChange={(e) => setRadius(Number(e.target.value))}
-                  style={{ width: 60 }}
-                />
-              </label>
-              {busy && <span style={{ color: "#4FB0FF", fontSize: 11 }}>…</span>}
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
 // --- helpers ---------------------------------------------------------------
-
-function fmtVol(mm3: number): string {
-  if (Math.abs(mm3) >= 1000) return `${(mm3 / 1000).toFixed(1)} cm³`;
-  return `${mm3.toFixed(1)} mm³`;
-}
 
 function _hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -545,72 +503,3 @@ function _maskToPng(mask: Uint8Array, columns: number, rows: number): string {
   ctx.putImageData(img, 0, 0);
   return cv.toDataURL("image/png");
 }
-
-const _infoBarStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 12,
-  top: 12,
-  background: "rgba(20,20,20,0.65)",
-  color: "rgba(230,234,240,0.95)",
-  padding: "6px 10px",
-  borderRadius: 6,
-  font: "12px ui-monospace,monospace",
-  pointerEvents: "none",
-};
-
-const _toolbarStyle: React.CSSProperties = {
-  position: "absolute",
-  right: 12,
-  top: 12,
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  background: "rgba(20,20,20,0.75)",
-  padding: "6px 8px",
-  borderRadius: 6,
-};
-
-const _voiBarStyle: React.CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  top: 12,
-  transform: "translateX(-50%)",
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  background: "rgba(20,20,20,0.75)",
-  padding: "6px 10px",
-  borderRadius: 6,
-};
-
-const _voiSep: React.CSSProperties = {
-  width: 1,
-  height: 16,
-  background: "rgba(230,234,240,0.2)",
-};
-
-const _voiLabel: React.CSSProperties = {
-  color: "#e6eaf0",
-  fontSize: 11,
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-};
-
-const _btn: React.CSSProperties = {
-  color: "#e6eaf0",
-  border: "none",
-  borderRadius: 4,
-  padding: "3px 8px",
-  fontSize: 11,
-  cursor: "pointer",
-};
-
-const _select: React.CSSProperties = {
-  background: "rgba(60,60,70,0.9)",
-  color: "#e6eaf0",
-  border: "none",
-  borderRadius: 4,
-  padding: "3px 4px",
-  fontSize: 11,
-};
