@@ -6,11 +6,13 @@ import { createAnnotation, loadAnnotations, patchAnnotation } from "../annotatio
 import {
   annotationToW3c,
   initAnnotator,
+  isRoiTooSmall,
   w3cToPrimitive,
   type OsdAnnotator,
   type W3cAnnotation,
 } from "../annotation/wsiAnno";
 import { useSession } from "../store/session";
+import { getT } from "../i18n";
 import type { ClassSpec, Primitive } from "../api/types";
 
 // WsiViewer（P7 楔子，SDD 04 T7 迁移）——OpenSeadragon 深缩放 + Annotorious 通用标注 + 核质心 overlay。
@@ -127,6 +129,12 @@ export function WsiViewer() {
       const prim = w3cToPrimitive(wa);
       const slide = useSession.getState().activeSlide;
       if (!prim || !slide) return;
+      // 框选过小 → 提示并不落库（同步移除 Annotorious 刚画的框）
+      if (isRoiTooSmall(prim)) {
+        useSession.getState().notify("info", getT()("wsi_roi_too_small"));
+        if (wa.id) anno.removeAnnotation(wa.id);
+        return;
+      }
       void createAnnotation({ image_id: slide, primitive: prim }).then((saved) => {
         // 服务端落库成功后由 store 回灌 effect 用真 id 重渲染 Annotorious；
         // bbox 同步 wsiRoi（agent 上下文 roi_box / 重跑通道仍读它）

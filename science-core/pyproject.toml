@@ -20,7 +20,7 @@ dependencies = [
 interp = ["scipy>=1.10"]
 # caroSegDeep 适配器的推理后端；重、隔离，避免整包强依赖旧 TF。
 carosegdeep = ["tensorflow>=2.10"]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "nibabel>=5.0"]
 
 [tool.setuptools.packages.find]
 include = ["glaux_core*", "eval*"]

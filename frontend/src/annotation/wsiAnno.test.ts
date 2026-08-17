@@ -1,7 +1,7 @@
 // W3C ↔ Annotation 契约映射测试（SDD 04 T8/D-10）——纯函数往返 + 非法输入拒绝。
 import { describe, expect, it } from "vitest";
 
-import { annotationToW3c, w3cToPrimitive, type W3cAnnotation } from "./wsiAnno";
+import { annotationToW3c, isRoiTooSmall, w3cToPrimitive, type W3cAnnotation } from "./wsiAnno";
 import { niftiTarget } from "./csAnno";
 import type { Annotation } from "../api/types";
 
@@ -66,5 +66,19 @@ describe("niftiTarget（volume 落库目标解析）", () => {
   });
   it("无 z 后缀 → z=null", () => {
     expect(niftiTarget("nifti:http://localhost/api/volume/ct_001")).toEqual({ image_id: "ct_001", z: null });
+  });
+});
+
+describe("isRoiTooSmall（WSI 框选过小拦截，SDD 04 §15）", () => {
+  const bbox = (x0: number, y0: number, x1: number, y1: number) => ({ kind: "bbox", x0, y0, x1, y1 } as const);
+  it("任一边 < 24px → true", () => {
+    expect(isRoiTooSmall(bbox(0, 0, 23, 100))).toBe(true);
+    expect(isRoiTooSmall(bbox(0, 0, 100, 23))).toBe(true);
+  });
+  it("两边 ≥ 24px → false", () => {
+    expect(isRoiTooSmall(bbox(0, 0, 24, 24))).toBe(false);
+  });
+  it("非 bbox 原语 → false", () => {
+    expect(isRoiTooSmall({ kind: "polyline", closed: true, points: [[0, 0], [1, 0], [1, 1]] })).toBe(false);
   });
 });

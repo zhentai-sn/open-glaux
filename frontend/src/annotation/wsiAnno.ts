@@ -14,6 +14,7 @@ export interface OsdAnnotator {
   setDrawingTool(tool: string): void;
   setAnnotations(list: unknown[]): void;
   updateAnnotation(a: W3cAnnotation): void;
+  removeAnnotation(id: string): void;
   on(event: string, cb: (a: W3cAnnotation) => void): void;
 }
 
@@ -25,6 +26,12 @@ export interface W3cAnnotation {
 
 export function initAnnotator(viewer: OpenSeadragon.Viewer): OsdAnnotator {
   return createOSDAnnotator(viewer) as unknown as OsdAnnotator;
+}
+
+// 框选过小判定（SDD 04 §15：<MIN_ROI px 不落库，防误触）——纯函数便于回归测试。
+export const MIN_ROI = 24;
+export function isRoiTooSmall(prim: AnnotationPrimitive, min = MIN_ROI): boolean {
+  return prim.kind === "bbox" && (prim.x1 - prim.x0 < min || prim.y1 - prim.y0 < min);
 }
 
 // --- W3C → 契约（Annotorious 事件 → Annotation primitive）--------------------

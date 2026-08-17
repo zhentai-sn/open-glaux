@@ -85,6 +85,7 @@ export const zh: Record<I18nKey, string> = {
   chrome_preset_med: "纵隔",
   chrome_preset_lung: "肺",
   chrome_preset_bone: "骨",
+  wsi_roi_too_small: "ROI 太小，请拖一个更大的框（≥24px）",
   measure_rejected: "{w} 修正被内核拒绝（{why}）。已回滚到拖动前的几何，未保存。",
   measure_failed: "{w} 修正未能抵达内核（{why}）。已回滚到拖动前的几何，未保存。",
   vlm_key_persist_note: "存储在本浏览器 localStorage。共用机器用完请清除；长期方案是后端 session。",
