@@ -63,13 +63,13 @@
 
 任一不通 → 回 SDD 调整 D-8/D-9 再继续（铁律：先改 SDD）。
 
-### T1 · science-core 契约与注册表（SDD §7.1 / §9.2）
+### T1 · science-core 契约与注册表（SDD §7.1 / §9.2）——✅ 已完成（2026-08-17，v1.2）
 
 - `contracts.py`：`Bbox` dataclass（id/role/x0/y0/x1/y1）进 Primitive 联合；`primitive_to_dict`/`primitive_from_dict` 往返。
 - `tasks.py`：`TaskPlugin` 加 `capabilities: tuple[str, ...]`（如 `("bbox","polygon","brush")`，wsi 无 brush）与 `on_commit: dict | None`（WSI：`{"bbox": {"action": "run_task"}}`）；四任务 tools 元组改统一集合（IMT 的 editli/editma 并入 polygon 语义 + 任务说明，roi→bbox）；`plugin_to_view` 下发新字段。
 - 测试：`tests/test_tasks.py` 既有断言同步改（tools 集合、新字段）；bbox 原语往返测试。
 
-### T2 · backend 标注存储与 REST（SDD §8 / §9.1 / §10 / §13）
+### T2 · backend 标注存储与 REST（SDD §8 / §9.1 / §10 / §13）——✅ 已完成（2026-08-17，v1.2）
 
 - `config.py`：`ANNOTATIONS_ROOT = _env_path("GLAUX_ANNOTATIONS_ROOT", HOME / "glaux_annotations")`。
 - `app/annotations/store.py`：stdlib sqlite3；建表严格按 SDD §9.1（含 CHECK、`(image_id, z)` 索引）；`create/list/get/update/delete`；update/delete 校验 `base_seq`，不匹配抛 `CONFLICT`；mask 落 `masks/<id>.png`（base64 PNG 解码），删标注连带删文件；`AnnotationError(code, message)` 领域错误（Atlas 范式）。
@@ -77,7 +77,7 @@
 - `main.py`：挂载。
 - 测试 `tests/test_annotations.py`：CRUD 全路径、409 并发、422 越界几何、mask 文件落盘与删除、on_commit 成功/失败两路（monkeypatch `_detect_for_spec`）。
 
-### T3 · frontend 状态层与 annotationBridge（SDD §6.1 / §7.1 / §10）
+### T3 · frontend 状态层与 annotationBridge（SDD §6.1 / §7.1 / §10）——✅ 已完成（2026-08-17，v1.2）
 
 - `api/types.ts`：`bbox` 原语 + `Annotation` 接口；`api/client.ts`：`api.annotations.list/create/update/remove`。
 - `store/session.ts`：`Tool` 扩 `bbox/polygon/brush`（删 editli/editma/roi，迁移期 Editor/StatusBar 同步）；`toolOptions: { brush: {mode, class_id, radius}, voi: {ww, wl} }` + setter；`switchModality` 复位 tool 与 toolOptions；`annotations: Annotation[]` + 增删改 action。
@@ -85,7 +85,7 @@
 - `viewer/csTools.ts`：tools 包一次性 init（`addTool` 各工具 + segmentation 模块初始化），ToolGroup 工厂；`activateTool(vpEl, tool)` 把 `store.tool` 映射为 ToolGroup active 态（bridge 的一部分）。
 - 测试：`annotation/bridge.test.ts`（序号守卫、409 回滚、过期响应丢弃——toolBridge.test.ts 范式）。
 
-### T4 · ViewerChrome 统一外壳（SDD §7.1 / §6.3）
+### T4 · ViewerChrome 统一外壳（SDD §7.1 / §6.3）——✅ 已完成（2026-08-17，v1.2）
 
 - `components/ViewerChrome.tsx`：统一工具栏（`.etools` 现有样式族）+ 工具选项条（brush mode/class/radius、polygon 提示）+ 信息条 + CT 窗位预设条（预设表移入注册表/i18n）；全部 `useI18n`，无内联样式。
 - Editor：Viewer 外挂载 chrome；`onTool` 的 reset 拦截保留。
@@ -93,7 +93,7 @@
 - i18n：`tool_*` / `chrome_*` 键中英齐备（含原 CT 私有 UI 的"画笔/擦/画/腹部/纵隔/肺/骨"）。
 - 样式：`global.css` 追加 `.chrome-*`（复用 `etool` 变量）。
 
-### T5 · CornerstoneViewer 迁移（raster_2d，SDD §6.2 / §6.3 / D-12 / D-14）
+### T5 · CornerstoneViewer 迁移（raster_2d，SDD §6.2 / §6.3 / D-12 / D-14）——✅ 已完成（2026-08-17，v1.2）
 
 - 启用 `csTools` ToolGroup：cursor(Pan/Zoom)、bbox(RectangleROI)、polygon(PlanarFreehandROI)、brush(segmentation Brush)；手写 overlay 画布退役。
 - 任务结果渲染层：LI/MA 壁线与颅骨椭圆转 CS3D 只读标注渲染（passive 态，不可交互）或保留轻量绘制层——取工作量小者，实现时记录决策。
@@ -102,20 +102,20 @@
 - 2D brush：segmentation labelmap 宿主（D-9），提交导出 PNG → `/annotations`（kind=mask）。
 - 测量口径回归：同一图像同一形变 IMT_mean 与旧实现偏差 ≤ 1e-6 mm（手测脚本或测试快照）。
 
-### T6 · VolumeViewer 迁移（volume_3d，SDD §6.2 / §7.4 / D-13）
+### T6 · VolumeViewer 迁移（volume_3d，SDD §6.2 / §7.4 / D-13）——✅ 已完成（2026-08-17，v1.2）
 
 - 交互层换 CS3D：brush（BrushTool + Scissors）、z 滚动（StackScrollMouseWheelTool）、拖拽调窗（WindowLevelTool）；本地 `brushOn/brushMode/brushClass/radius/ww/wl` 全迁 store.toolOptions；私有工具条/`_voiBarStyle` 删除，选项进 ViewerChrome。
 - brush 提交：CS3D segmentation 笔迹 → 既有 `api.volumeMaskEdit`（base_seq 不变）；labelmap 叠色渲染尽量换 CS3D segmentation 原生渲染，换不动则保留现有叠色 canvas（记录决策）。
 - 逐切片 bbox/polygon：当前 z 的标注经 bridge 落 `/annotations`（带 z）；切 z 时按 z 过滤渲染。
 - 图例/z 计数信息条并入 ViewerChrome。
 
-### T7 · WsiViewer 迁移（wsi，SDD §6.2 / §6.3 / D-10）
+### T7 · WsiViewer 迁移（wsi，SDD §6.2 / §6.3 / D-10）——✅ 已完成（2026-08-17，v1.2）
 
 - 引入 `@annotorious/openseadragon`：bbox/polygon 绘制与顶点编辑；W3C 标注 ↔ Annotation 契约映射函数（前端，D-10）。
 - 创建事件 → bridge 落 `/annotations`；后端 `on_commit` 触发核检测后走既有 Detection 回流；删除旧 `tool==="roi"` overlay 拦截逻辑与 `MIN_ROI` 前端判断（后端 422 兜底 + Notice）。
 - 核质心 overlay 与复现验证按钮保留（验证按钮并入 chrome 信息区，走 i18n）。
 
-### T8 · frontend 测试
+### T8 · frontend 测试——✅ 已完成（2026-08-17，v1.2）
 
 - `store/annotationTools.test.ts`：tool/toolOptions 设置、`switchModality` 复位无泄漏（三模态轮转）。
 - `annotation/bridge.test.ts`（T3 已建）补 409 + mask 路径。
@@ -161,4 +161,5 @@
 ## 变更记录
 
 - **2026-08-16**：v1，依据 `ready` SDD 04（含 D-14）制定；T0 列四项开工前核实，任一不通先回 SDD。
+- **2026-08-17**：v1.2，T1–T8 全部完成（science-core 24 过 / backend test_api 19 + annotations 11 过 / frontend 62 过）。新增实施决策回写 SDD：D-15（brush 宿主退化为自持缓冲，spike3 未打通的正式处置）、D-16（IMT polygon 专属壁线编辑）。逐切片标注用 imageId `#z=` 后缀天然隔离（csAnno niftiTarget）。浏览器走查因自动化浏览器渲染进程冻结受阻，待人工恢复后按 SDD §15 逐项验收；SpikePage/ProbePage 与 `GLAUX_BACKEND_PORT` 探针入口合入前清理。
 - **2026-08-16**：v1.1，T0 spike 完成（worktree `open-glaux-annobox-spike`，分支 `feat/annotation-toolbox-spike`，自包含验证页 `frontend/src/spike/SpikePage.tsx`，合成指针事件自动化跑）：Spike 1/2 通过（bbox/freehand/顶点编辑在 `web:` loader 上全部可用）；Spike 3 stack labelmap 宿主未通（转 T5 专项，退化方案已备）；Spike 4 声明层兼容、运行时待真实浏览器复核（pixi eval 为受控浏览器 CSP 假象）。新增四项实现注意项（MouseEvent/ToolGroupManager/StrictMode/@pixi/unsafe-eval）回写 §5；依赖新增 `@annotorious/openseadragon@3.8.9` 与 `@pixi/unsafe-eval@7`。

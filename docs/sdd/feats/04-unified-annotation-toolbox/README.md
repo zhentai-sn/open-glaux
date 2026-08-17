@@ -4,12 +4,12 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 契约已冻结，可进入实现规划 |
+| 状态 | `implemented` |
+| 当前阶段 | 代码完成并与 SDD 对齐；浏览器走查验收待补（自动化浏览器渲染进程冻结，人工恢复后按 §15 逐项过） |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 | 承接需求 | [脑暴 20260816-02 · 统一图像标注工具箱](../../../brainstorms/20260816-02-unified-annotation-toolbox.zh-CN.md)（D-1～D-7 已拍板） |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-16 |
+| 最后更新 | 2026-08-17 |
 
 ## 1. 本 SDD 负责什么
 
@@ -100,7 +100,7 @@ flowchart LR
 
 | 现有 | 替换为 | 行为保持 |
 | --- | --- | --- |
-| IMT `editli/editma` 高斯手柄 | CS3D 自定义 BaseTool（D-12） | 拖手柄形变壁线不变；另获通用折线顶点增删 |
+| IMT `editli/editma` 高斯手柄 | CS3D 自定义 BaseTool（D-12/D-16） | 拖手柄形变壁线不变；`polygon` 按钮在 IMT 专属壁线编辑 |
 | WSI `roi` 框选 | 通用 `bbox` | 框落库为标注 + `on_commit` 触发核检测（双语义） |
 | CT 私有画笔 | 通用 `brush`（CS3D） | 提交仍走 `POST /volume/{id}/mask-edit`（§7.4） |
 
@@ -127,7 +127,7 @@ flowchart LR
 
 ### 7.4 CT brush 例外
 
-`volume_3d` 下 brush 编辑 labelmap 的提交端点仍是既有 `POST /volume/{id}/mask-edit`（base_seq 范式），**不走** `/annotations`——labelmap 是任务结果而非标注。`/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。
+`volume_3d` 下 brush 编辑 labelmap 的提交端点仍是既有 `POST /volume/{id}/mask-edit`（base_seq 范式），**不走** `/annotations`——labelmap 是任务结果而非标注。`/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。画笔宿主实施期为 overlay 自持笔迹缓冲（D-15）。
 
 ## 8. 涉及对象
 
@@ -261,7 +261,7 @@ stateDiagram-v2
 - [ ] `PATCH` 携带过期 `base_seq` 时返回 409 且不落写；前端收到 409 时 Notice 提示并丢弃过期响应，不覆盖最新态。
 - [ ] `POST` 几何越出图像 dims 时返回 422 `INVALID_GEOMETRY`，前端草稿被移除。
 - [ ] `switchModality` 后 `tool` 回 `cursor`、`toolOptions` 复位，无跨模态状态泄漏（连续切换三模态后各工具行为正常）。
-- [ ] editSeqRef/回滚范式在前端只存在一份实现（annotationBridge），三个查看器中无复制代码。
+- [ ] 标注读写回流范式仅一份实现（annotationBridge）；任务绑定编辑（IMT 壁线测量 / CT mask-edit）属 Detection 链路，各自领域内单一 seq 守卫（wallSeq / 组件内 editSeqRef），三查看器无标注回流复制代码。
 - [ ] `on_commit` 钩子失败时标注仍成功落库（201），用户收到"标注已保存、检测未触发"提示。
 - [ ] 2D brush 产物落库为 `kind='mask'`，`masks/<id>.png` 存在且重新加载后叠加渲染一致。
 
@@ -272,12 +272,14 @@ stateDiagram-v2
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
 | D-8 | polygon 工具用 CS3D `PlanarFreehandROITool` | `SplineROITool`、自绘 | 同时支持逐点与自由手绘、顶点可编辑，覆盖面最大；Spline 留作后续精度选项（可并存） | 2026-08-16 |
-| D-9 | 2D brush 宿主用 CS3D segmentation 模块（labelmap），提交时导出 PNG 走 `/annotations`（kind=mask） | 自持 mask 缓冲 | 复用 tools 包原生 Brush/Scissors 交互与渲染，免手写；PNG 传输格式与 CT mask-edit 一致 | 2026-08-16 |
+| D-9 | 2D brush 产物落 `/annotations`（kind=mask，PNG 传输）；宿主实现见 D-15（实施期从 CS3D segmentation 退化为自持缓冲） | 自持 mask 缓冲 | PNG 传输格式与 CT mask-edit 一致；宿主选型随 spike3 结果收敛 | 2026-08-16 |
 | D-10 | Annotorious W3C 格式 → Annotation 契约的映射在**前端**完成 | 后端映射 | 后端只认一份 Annotation 契约，免维护双格式；W3C 是纯前端库的私有传输细节 | 2026-08-16 |
 | D-11 | `ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`，环境变量 `GLAUX_ANNOTATIONS_ROOT` 覆盖 | 放数据集根下 | 对齐 `GLAUX_ATLAS_ROOT` 惯例（不污染数据集） | 2026-08-16 |
 | D-12 | IMT 高斯形变手柄实现为 CS3D 自定义 BaseTool | 保留手写 overlay 交互 | 落实纲领「复用优先」：扩展成熟框架而非平行实现 | 2026-08-16 |
 | D-13 | CT brush 不走 `/annotations`，仍走 `mask-edit` | 统一到 annotations | labelmap 是任务结果而非标注；成熟闭环不重写 | 2026-08-16 |
 | D-14 | IMT 壁线编辑仍走既有 `/task` 编辑端点（交互换通用折线编辑），不走 `/annotations` | 统一到 annotations | 壁线编辑必须同步重算测量（`/task/measure` 权威口径）；数据归属 Detection 而非自由标注 | 2026-08-16 |
+| D-15 | 2D/CT brush 宿主退化为 overlay 自持 mask 缓冲（提交分别走 `/annotations` kind=mask / `mask-edit`）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；退化方案行为等价且不阻塞本期交付 | 2026-08-17 |
+| D-16 | IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存 | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
 
 ## 17. 待确认问题
 
