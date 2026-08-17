@@ -61,5 +61,9 @@ export function applyToolExecutionEvent(event: unknown): boolean {
   s.setSource("agent");
   const model = details.output.provenance?.model_version;
   s.setModelVersion(model === undefined || model === null ? "" : String(model));
+  // SDD 01 v1.1 §7-2：Focus 下结果写回查看器时，右侧栏若展开则切到舞台（折叠时不打扰）
+  if (s.uiMode === "focus" && s.focusLayout.rightOpen && s.focusLayout.rightView !== "stage") {
+    s.setFocusLayout({ rightView: "stage" });
+  }
   return true;
 }

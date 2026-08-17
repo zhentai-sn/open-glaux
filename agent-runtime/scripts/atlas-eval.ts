@@ -40,6 +40,8 @@ interface ManifestItem {
 interface Manifest {
   query?: string;
   tags?: string[];
+  /** 图册范围（可选）：只在该图册及子图册内翻 */
+  collection?: string;
   items: ManifestItem[];
 }
 
@@ -174,6 +176,7 @@ async function main(): Promise<void> {
         const sel = await selectExemplars(rt, client, {
           tags,
           q: query,
+          ...(manifest.collection ? { collection: manifest.collection } : {}),
           egress,
           target,
           traceId: `atlas-eval:${item.image}`,

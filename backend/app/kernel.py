@@ -56,6 +56,7 @@ from glaux_core.calibration.calibration import (  # noqa: E402
     resolve_wsi_calibration,
 )
 
+
 def _boundary(name: str, pts: list[list[float]]) -> Boundary:
     arr = np.asarray(pts, dtype=float)
     return Boundary(name=name, x=arr[:, 0], y=arr[:, 1])
@@ -216,7 +217,10 @@ def _enrich_gold(d: dict, spec: TaskSpec, plugin, cal: CalibrationResult) -> Non
         a1 = measure(a1_li, a1_ma, cal.cf)  # 既有 kernel.measure → IMTResult
         um = round(abs(metrics["IMT_pdm"]["value"] - a1.pdm_mean_mm) * 1000, 1)
         metrics["vs_A1"] = {
-            "value": um, "unit": "µm", "label_en": "vs A1 |bias|", "label_zh": "vs A1 |偏差|",
+            "value": um,
+            "unit": "µm",
+            "label_en": "vs A1 |bias|",
+            "label_zh": "vs A1 |偏差|",
         }
     elif plugin.adapter_kind == "contour":
         if "HC" not in metrics:
@@ -227,7 +231,10 @@ def _enrich_gold(d: dict, spec: TaskSpec, plugin, cal: CalibrationResult) -> Non
             return
         mm = round(abs(metrics["HC"]["value"] - gt), 2)
         metrics["vs_GT"] = {
-            "value": mm, "unit": "mm", "label_en": "vs GT |bias|", "label_zh": "vs 真值 |偏差|",
+            "value": mm,
+            "unit": "mm",
+            "label_en": "vs GT |bias|",
+            "label_zh": "vs 真值 |偏差|",
         }
 
 
@@ -271,12 +278,28 @@ def measure_task(task: str, primitives: list[dict], cf: float) -> dict:
 def models() -> list[ModelInfo]:
     """真实模型注册表——caroSegDeep（隔离/缓存）+ 数据集里出现的参考方法。"""
     known = {
-        dataset.CARO: ("nl3769 · Dilated U-Net", "CUBS CREATIS baseline · Keras/TF 2.4.1 · far-wall + IMC", "isolated:uv/py3.8/TF2.4"),
-        "GT-FAMUS": ("FAMUS · reference", "Fusion of experts — CUBS gold-standard reference", "reference"),
+        dataset.CARO: (
+            "nl3769 · Dilated U-Net",
+            "CUBS CREATIS baseline · Keras/TF 2.4.1 · far-wall + IMC",
+            "isolated:uv/py3.8/TF2.4",
+        ),
+        "GT-FAMUS": (
+            "FAMUS · reference",
+            "Fusion of experts — CUBS gold-standard reference",
+            "reference",
+        ),
         "Manual-A1": ("Expert A1", "Manual tracing (gold)", "reference"),
         "Manual-A2": ("Expert A2", "Manual tracing", "reference"),
-        "Computerized-CNR_IT": ("CNR Pisa", "First-order absolute moment edge operator", "reference"),
-        "Computerized-POLITO_UNET": ("Politecnico di Torino", "U-Net segmentation of the IMC", "reference"),
+        "Computerized-CNR_IT": (
+            "CNR Pisa",
+            "First-order absolute moment edge operator",
+            "reference",
+        ),
+        "Computerized-POLITO_UNET": (
+            "Politecnico di Torino",
+            "U-Net segmentation of the IMC",
+            "reference",
+        ),
     }
     out: list[ModelInfo] = [
         ModelInfo(
@@ -358,25 +381,38 @@ def capabilities() -> list[dict]:
 
     # 动作层 · Skill（= TaskPlugin：打包好的任务配方本身就是一种能力）
     for p in _REGISTRY.values():
-        caps.append({
-            "id": f"skill:{p.task.value}", "kind": "skill", "layer": "action",
-            "name": p.label_en, "provider": "glaux", "license": "internal",
-            "status": "active", "isolation": "in_process",
-            "desc": f"Task recipe · {p.adapter_kind} · viewer={p.viewer}",
-            "tasks": [p.task.value],
-        })
+        caps.append(
+            {
+                "id": f"skill:{p.task.value}",
+                "kind": "skill",
+                "layer": "action",
+                "name": p.label_en,
+                "provider": "glaux",
+                "license": "internal",
+                "status": "active",
+                "isolation": "in_process",
+                "desc": f"Task recipe · {p.adapter_kind} · viewer={p.viewer}",
+                "tasks": [p.task.value],
+            }
+        )
 
     # 动作层 · Model / 验证层 · ReferenceMethod（models() 按 backend 分类）
     for m in models():
         is_ref = "reference" in m.backend
-        caps.append({
-            "id": m.id, "kind": "reference_method" if is_ref else "model",
-            "layer": "verification" if is_ref else "action",
-            "name": m.pub, "provider": m.pub.split(" · ")[0] if " · " in m.pub else "",
-            "license": "research", "status": "active" if m.active else "installed",
-            "isolation": m.backend, "desc": m.desc,
-            "tasks": [modality_task.get(m.modality, "")],
-        })
+        caps.append(
+            {
+                "id": m.id,
+                "kind": "reference_method" if is_ref else "model",
+                "layer": "verification" if is_ref else "action",
+                "name": m.pub,
+                "provider": m.pub.split(" · ")[0] if " · " in m.pub else "",
+                "license": "research",
+                "status": "active" if m.active else "installed",
+                "isolation": m.backend,
+                "desc": m.desc,
+                "tasks": [modality_task.get(m.modality, "")],
+            }
+        )
 
     # 表征层 · Dataset（注册表驱动——加一个数据源 = 多一张卡，不改本函数）
     _DS_META = {
@@ -386,39 +422,96 @@ def capabilities() -> list[dict]:
         "wsi-demo": ("OpenSlide", "CC BY", "H&E 全切片 demo · MPP 标定"),
     }
     # DataSource.status → Capability.status（active/installed/planned 三态）
-    _DS_STATUS = {"active": "active", "needs_calibration": "installed", "empty": "planned", "planned": "planned"}
+    _DS_STATUS = {
+        "active": "active",
+        "needs_calibration": "installed",
+        "empty": "planned",
+        "planned": "planned",
+    }
     for s in datasource_registry.list_all():
         provider, lic, desc = _DS_META.get(
             s.id, (s.origin, "—", f"{s.modality} · 导入源 · {s.root}")
         )
-        caps.append({
-            "id": f"dataset:{s.id}", "kind": "dataset", "layer": "representation",
-            "name": s.name, "provider": provider, "license": lic,
-            "status": _DS_STATUS.get(s.status, "planned"), "isolation": "local",
-            "desc": desc, "tasks": [modality_task.get(s.modality, "")],
-        })
+        caps.append(
+            {
+                "id": f"dataset:{s.id}",
+                "kind": "dataset",
+                "layer": "representation",
+                "name": s.name,
+                "provider": provider,
+                "license": lic,
+                "status": _DS_STATUS.get(s.status, "planned"),
+                "isolation": "local",
+                "desc": desc,
+                "tasks": [modality_task.get(s.modality, "")],
+            }
+        )
 
     # 验证层 · CalibrationSource（真实：CUBS CF）
-    caps.append({
-        "id": "cal:cubs-cf", "kind": "calibration_source", "layer": "verification",
-        "name": "CUBS calibration factor", "provider": "CREATIS", "license": "CC BY",
-        "status": "active", "isolation": "local", "desc": "每图 mm/px 标定系数（无标定硬拒绝）",
-        "tasks": ["far_wall_cca_imt"],
-    })
+    caps.append(
+        {
+            "id": "cal:cubs-cf",
+            "kind": "calibration_source",
+            "layer": "verification",
+            "name": "CUBS calibration factor",
+            "provider": "CREATIS",
+            "license": "CC BY",
+            "status": "active",
+            "isolation": "local",
+            "desc": "每图 mm/px 标定系数（无标定硬拒绝）",
+            "tasks": ["far_wall_cca_imt"],
+        }
+    )
 
     # 占位卡（planned · 有类型不接线）——表征 / 动作 / 记忆层
     caps += [
-        {"id": "connector:dicom-pacs", "kind": "connector", "layer": "representation",
-         "name": "DICOM-PACS connector", "provider": "—", "license": "—",
-         "status": "planned", "isolation": "", "desc": "从院内 PACS 拉取 DICOM（待接）", "tasks": []},
-        {"id": "mcp:clinical-tools", "kind": "mcp", "layer": "action",
-         "name": "Clinical-tools MCP", "provider": "—", "license": "—",
-         "status": "planned", "isolation": "", "desc": "外部工具服务器（MCP，待接）", "tasks": []},
-        {"id": "kb:fetal-growth", "kind": "knowledge_base", "layer": "memory",
-         "name": "Fetal growth curves", "provider": "—", "license": "—",
-         "status": "planned", "isolation": "", "desc": "生长曲线 / 指南 RAG（待接）", "tasks": ["fetal_hc"]},
-        {"id": "store:corrections", "kind": "correction_store", "layer": "memory",
-         "name": "Correction flywheel", "provider": "glaux", "license": "internal",
-         "status": "planned", "isolation": "local", "desc": "人工修正回流记忆层（占位）", "tasks": []},
+        {
+            "id": "connector:dicom-pacs",
+            "kind": "connector",
+            "layer": "representation",
+            "name": "DICOM-PACS connector",
+            "provider": "—",
+            "license": "—",
+            "status": "planned",
+            "isolation": "",
+            "desc": "从院内 PACS 拉取 DICOM（待接）",
+            "tasks": [],
+        },
+        {
+            "id": "mcp:clinical-tools",
+            "kind": "mcp",
+            "layer": "action",
+            "name": "Clinical-tools MCP",
+            "provider": "—",
+            "license": "—",
+            "status": "planned",
+            "isolation": "",
+            "desc": "外部工具服务器（MCP，待接）",
+            "tasks": [],
+        },
+        {
+            "id": "kb:fetal-growth",
+            "kind": "knowledge_base",
+            "layer": "memory",
+            "name": "Fetal growth curves",
+            "provider": "—",
+            "license": "—",
+            "status": "planned",
+            "isolation": "",
+            "desc": "生长曲线 / 指南 RAG（待接）",
+            "tasks": ["fetal_hc"],
+        },
+        {
+            "id": "store:corrections",
+            "kind": "correction_store",
+            "layer": "memory",
+            "name": "Correction flywheel",
+            "provider": "glaux",
+            "license": "internal",
+            "status": "planned",
+            "isolation": "local",
+            "desc": "人工修正回流记忆层（占位）",
+            "tasks": [],
+        },
     ]
     return caps

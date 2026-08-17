@@ -29,10 +29,16 @@ describe("focusLayout.rightView", () => {
     expect(useSession.getState().focusLayout.rightView).toBe("stage");
   });
 
-  it("旧版持久化（无 rightView 字段）→ 补 stage，不丢其它字段", async () => {
+  it("v1.0 持久化 {railOpen, stageOpen} → stageOpen 迁移为 rightOpen，rightView 补 stage（SDD 01 v1.1 §9）", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: true, stageOpen: false }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, stageOpen: false, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: false, rightView: "stage" });
+  });
+
+  it("rightOpen 优先于旧 stageOpen；files 为合法 rightView", async () => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightOpen: true, stageOpen: false, rightView: "files" }));
+    const { useSession } = await fresh();
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "files" });
   });
 
   it("损坏值 → 回退 stage", async () => {
@@ -53,12 +59,12 @@ describe("focusLayout.rightView", () => {
 describe("revealExemplar", () => {
   beforeEach(() => localStorage.clear());
 
-  it("focus 模式 → 右侧切 atlas 并展开；详情指向该案例", async () => {
+  it("focus 模式 → 右侧栏展开并切到图谱标签；详情指向该案例", async () => {
     const { useSession, useAtlasUi, revealExemplar } = await fresh();
     useSession.setState({ uiMode: "focus" });
-    useSession.getState().setFocusLayout({ stageOpen: false, rightView: "stage" });
+    useSession.getState().setFocusLayout({ rightOpen: false, rightView: "stage" });
     revealExemplar("ex-1");
-    expect(useSession.getState().focusLayout).toMatchObject({ rightView: "atlas", stageOpen: true });
+    expect(useSession.getState().focusLayout).toMatchObject({ rightView: "atlas", rightOpen: true });
     expect(useAtlasUi.getState()).toMatchObject({ screen: "detail", selectedId: "ex-1" });
   });
 

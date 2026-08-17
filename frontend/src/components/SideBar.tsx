@@ -93,7 +93,7 @@ function Dir({
   );
 }
 
-function ExplorerView() {
+export function ExplorerView() {
   const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
   const volumes = useSession((s) => s.volumes);

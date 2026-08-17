@@ -25,7 +25,7 @@ from typing import Any, Literal
 
 import pyarrow as pa
 
-from .text import build_search_text, normalize_tag, normalize_tags
+from .text import build_search_text, normalize_collection, normalize_tag, normalize_tags
 
 log = logging.getLogger("glaux.atlas")
 
@@ -59,8 +59,13 @@ _EXEMPLARS_SCHEMA = pa.schema(
         ("status", pa.string()),
         ("created_at", pa.string()),
         ("import_batch_id", pa.string()),
+        ("collection", pa.string()),
+        ("collection_key", pa.string()),
     ]
 )
+
+# v1.1 追加的列（旧库 open 时补列，缺省空串 = 根目录）
+_ADDED_COLUMNS: dict[str, str] = {"collection": "''", "collection_key": "''"}
 
 _REFS_SCHEMA = pa.schema(
     [
@@ -98,6 +103,7 @@ class NewExemplar:
     describe_status: DescribeStatus = "pending"
     egress: Egress = "local-only"
     egress_consent: Mapping[str, Any] | None = None
+    collection: str | None = None  # 图册路径原文（v1.1）；None/"" = 根目录
 
 
 @dataclass
@@ -121,6 +127,8 @@ class Exemplar:
     status: str
     created_at: str
     import_batch_id: str
+    collection: str = ""  # 图册路径原文（v1.1）
+    collection_key: str = ""  # 归一键
     score: float | None = None  # 仅 search 结果携带
     matched_tags: list[str] = field(default_factory=list)  # 仅 search 结果携带
 
@@ -176,8 +184,26 @@ def _row_to_exemplar(r: Mapping[str, Any]) -> Exemplar:
         status=r["status"],
         created_at=r["created_at"],
         import_batch_id=r["import_batch_id"],
+        collection=r.get("collection") or "",
+        collection_key=r.get("collection_key") or "",
         score=float(r["_score"]) if r.get("_score") is not None else None,
     )
+
+
+def collection_where(collection: str | None, *, exact: bool = False) -> str | None:
+    """图册过滤子句：``exact`` 时精确等于；否则等于该路径或其子路径（前缀 ``key/``）。
+
+    ``collection`` 为 None → 不过滤；为空串且非 exact → 根目录 = 全部，也不过滤；
+    为空串且 exact → 只要"未分册"。
+    """
+    if collection is None:
+        return None
+    _, key = normalize_collection(collection)
+    if exact:
+        return f"collection_key = {_q(key)}"
+    if not key:
+        return None
+    return f"(collection_key = {_q(key)} OR starts_with(collection_key, {_q(key + '/')}))"
 
 
 class AtlasStore:
@@ -209,8 +235,17 @@ class AtlasStore:
             if "exemplar_refs" in names
             else self._db.create_table("exemplar_refs", schema=_REFS_SCHEMA)
         )
+        self._migrate_columns()
         self._ensure_fts()
         return self
+
+    def _migrate_columns(self) -> None:
+        """旧库补列（v1.1 ``collection``）：缺列则 ``add_columns`` 填空串，不重建表。"""
+        have = set(self.exemplars.schema.names)
+        missing = {k: v for k, v in _ADDED_COLUMNS.items() if k not in have}
+        if missing:
+            self.exemplars.add_columns(missing)
+            log.info("Atlas exemplars 表补列：%s", ", ".join(missing))
 
     @property
     def exemplars(self):
@@ -282,6 +317,7 @@ class AtlasStore:
                 out.append((existing, False))
                 continue
             eid = str(uuid.uuid4())
+            coll, coll_key = normalize_collection(it.collection)
             rows.append(
                 {
                     "exemplar_id": eid,
@@ -307,6 +343,8 @@ class AtlasStore:
                     "status": "active",
                     "created_at": _now(),
                     "import_batch_id": it.import_batch_id,
+                    "collection": coll,
+                    "collection_key": coll_key,
                 }
             )
             out.append((eid, True))
@@ -340,6 +378,29 @@ class AtlasStore:
             },
         )
 
+    def set_collection(self, exemplar_id: str, collection: str | None) -> Exemplar:
+        """移动到图册（v1.1）：只改路径列，不动 id / 幂等键 / 引用记录。"""
+        if self.get(exemplar_id) is None:
+            raise AtlasError("NOT_FOUND", exemplar_id)
+        coll, key = normalize_collection(collection)
+        self.exemplars.update(
+            where=f"exemplar_id = {_q(exemplar_id)}",
+            values={"collection": coll, "collection_key": key},
+        )
+        return self.get(exemplar_id)  # type: ignore[return-value]
+
+    def collection_counts(self, status: Status | None = "active") -> list[tuple[str, str, int]]:
+        """图册直属计数 ``[(display, key, count)]``，按 key 排序；前端据此拼树、累加子树计数。"""
+        q = self.exemplars.search()
+        if status:
+            q = q.where(f"status = {_q(status)}")
+        counts: dict[str, tuple[str, int]] = {}
+        for r in q.select(["collection", "collection_key"]).limit(1_000_000).to_list():
+            key = r.get("collection_key") or ""
+            disp, n = counts.get(key, (r.get("collection") or "", 0))
+            counts[key] = (disp, n + 1)
+        return sorted(((d, k, n) for k, (d, n) in counts.items()), key=lambda t: t[1])
+
     # --- 读取 -------------------------------------------------------------------
 
     def get(self, exemplar_id: str) -> Exemplar | None:
@@ -352,6 +413,8 @@ class AtlasStore:
         status: Status | None = "active",
         tags: Sequence[str] | None = None,
         source_type: SourceType | None = None,
+        collection: str | None = None,
+        collection_exact: bool = False,
         limit: int = 100,
         offset: int = 0,
     ) -> list[Exemplar]:
@@ -360,6 +423,9 @@ class AtlasStore:
             clauses.append(f"status = {_q(status)}")
         if source_type:
             clauses.append(f"source_type = {_q(source_type)}")
+        cw = collection_where(collection, exact=collection_exact)
+        if cw:
+            clauses.append(cw)
         norm = [normalize_tag(t) for t in (tags or []) if normalize_tag(t)]
         if norm:
             clauses.append("array_has_any(tags, [" + ", ".join(_q(t) for t in norm) + "])")
@@ -387,8 +453,9 @@ class AtlasStore:
         q: str | None = None,
         egress: Literal["shareable", "any"] = "shareable",
         limit: int = SEARCH_LIMIT_DEFAULT,
+        collection: str | None = None,
     ) -> list[Exemplar]:
-        """SDD §7.2：标签过滤（any）→ FTS(BM25) → 仅 active → egress 过滤 → 排序截断。
+        """SDD §7.2：[图册范围 →] 标签过滤（any）→ FTS(BM25) → 仅 active → egress 过滤 → 排序截断。
 
         排序键：(命中标签数, 相关度) 降序。
 
@@ -401,6 +468,9 @@ class AtlasStore:
             base.append(f"egress = {_q('shareable')}")
         elif egress != "any":
             raise AtlasError("BAD_EGRESS", f"非法 egress 过滤: {egress}")
+        cw = collection_where(collection)
+        if cw:
+            base.append(cw)
 
         def _run(with_tags: bool) -> list[dict[str, Any]]:
             clauses = list(base)

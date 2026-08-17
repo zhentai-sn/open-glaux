@@ -25,6 +25,22 @@ def normalize_tags(raw: Iterable[str]) -> tuple[list[str], list[str]]:
     return list(seen.keys()), list(seen.values())
 
 
+def normalize_collection(raw: str | None) -> tuple[str, str]:
+    """图册路径归一（SDD 03 §7.5a）：返回 ``(display, key)``。
+
+    各段 NFKC（全角斜杠/空格转半角）→ trim → 去空段；``display`` 用 ``/`` 重新拼接原文段，
+    ``key`` 为各段 casefold 后拼接（过滤/分组用）。空输入 → ``("", "")`` = 根目录。
+    """
+    if not raw:
+        return "", ""
+    text = unicodedata.normalize("NFKC", raw).replace("\\", "/")
+    segs = [seg.strip() for seg in text.split("/")]
+    segs = [seg for seg in segs if seg]
+    display = "/".join(segs)
+    key = "/".join(seg.casefold() for seg in segs)
+    return display, key
+
+
 def _walk_values(obj: Any) -> Iterable[str]:
     if obj is None:
         return

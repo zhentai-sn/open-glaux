@@ -231,6 +231,7 @@ def import_dataset(
     confirm_egress: bool,
     describe: bool,
     limit: int | None = None,
+    collection: str | None = None,
 ) -> list[dict]:
     from . import service
 
@@ -270,6 +271,7 @@ def import_dataset(
                 egress_consent=consent,
                 caption=s.label,
                 geometry=s.polygon,
+                collection=collection,
                 image_base64=base64.b64encode(png).decode("ascii"),
             )
         )
@@ -310,6 +312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--i-confirm-egress", action="store_true")
     p.add_argument("--describe", action="store_true")
     p.add_argument("--limit", type=int)
+    p.add_argument("--collection", help="图册路径，如 肾脏/膜性肾病/EDD（缺省根目录）")
     args = ap.parse_args(argv)
     if args.cmd == "import-dataset":
         import_dataset(
@@ -322,6 +325,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             confirm_egress=args.i_confirm_egress,
             describe=args.describe,
             limit=args.limit,
+            collection=args.collection,
         )
     return 0
 

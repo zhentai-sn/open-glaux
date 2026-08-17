@@ -17,6 +17,8 @@ import type { AtlasClient, AtlasExemplar, Egress } from "./client.js";
 export interface SelectExemplarsInput {
   tags?: string[];
   q?: string;
+  /** 图册范围（v1.1）：只在该图册及子图册内翻 */
+  collection?: string;
   egress: Egress;
   target: ImageInput;
   traceId: string;
@@ -53,6 +55,7 @@ export async function selectExemplars(
   const candidates = await client.search({
     ...(input.tags ? { tags: input.tags } : {}),
     ...(input.q ? { q: input.q } : {}),
+    ...(input.collection ? { collection: input.collection } : {}),
     egress: input.egress,
     limit,
     ...(input.signal ? { signal: input.signal } : {}),
@@ -64,6 +67,7 @@ export async function selectExemplars(
       const all = await client.search({
         ...(input.tags ? { tags: input.tags } : {}),
         ...(input.q ? { q: input.q } : {}),
+        ...(input.collection ? { collection: input.collection } : {}),
         egress: "any",
         limit,
         ...(input.signal ? { signal: input.signal } : {}),

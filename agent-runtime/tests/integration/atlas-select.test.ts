@@ -120,6 +120,13 @@ describe("selectExemplars", () => {
     expect(calls.filter((c) => c.includes("egress=any"))).toHaveLength(1);
   });
 
+  it("passes collection scope through to backend search (v1.1)", async () => {
+    const { client, calls } = fakeBackend([ex("a")]);
+    const { rt } = runtimeWith([]);
+    await selectExemplars(rt, client, { egress: "any", target: { data: PNG }, traceId: "t5", collection: "肾脏/膜性肾病" });
+    expect(calls.some((c) => c.includes("collection=" + encodeURIComponent("肾脏/膜性肾病")))).toBe(true);
+  });
+
   it("markReferenced posts ids + trace_id", async () => {
     const { client, calls } = fakeBackend([]);
     await client.markReferenced(["a", "b"], "t9");

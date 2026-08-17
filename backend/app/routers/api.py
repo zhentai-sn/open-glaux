@@ -80,6 +80,7 @@ def _has_data() -> bool:
 
 # --- 数据源注册表（表征层 · 文件夹导入） ------------------------------------
 
+
 @router.get("/datasources", response_model=list[DataSourceInfo], tags=["dataset"])
 def datasources() -> list[DataSourceInfo]:
     """已注册数据源清单（builtin / imported）——前端「数据源」视图 + 市场数据集卡的真相源。"""
@@ -93,9 +94,13 @@ def datasources_import(req: DatasourceImportRequest) -> DataSourceInfo:
     缺标定 → ``status=needs_calibration``（跑任务时上层 422，不出假值）。
     """
     from .. import datasource_detect
+
     try:
         src = dsreg.register_folder(
-            req.path, req.modality, calibration=req.calibration, name=req.name,
+            req.path,
+            req.modality,
+            calibration=req.calibration,
+            name=req.name,
             detect=datasource_detect.detect,  # 无显式标定时从数据文件探测嵌入标定（U3）
         )
     except dsreg.ImportError_ as e:
@@ -160,7 +165,9 @@ def volume_stream(volume_id: str) -> Response:
 
 
 @router.get("/volume/{volume_id}/labelmap", tags=["dataset"])
-def volume_labelmap(volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2") -> Response:
+def volume_labelmap(
+    volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2"
+) -> Response:
     """P6：流式返回 labelmap NIfTI 字节（缓存命中直返；未命中 → 404 提示先跑 /task/run）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
@@ -255,10 +262,12 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
         path=new_path,
     )
     from glaux_core.contracts import Detection
+
     det = Detection(primitives=(vol_prim,), model_version="human@edit")
     meas = _measure_lk(det, cal)
     # 序列化（与 run_task 同形，measurement_to_dict）
     from glaux_core.contracts import measurement_to_dict
+
     metrics_dict = measurement_to_dict(meas)["metrics"]
     return {
         "metrics": metrics_dict,
@@ -274,6 +283,7 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
 
 
 # --- P7：病理 WSI 瓦片服务（OpenSlide + DeepZoom；数据 IO，无 science-core 依赖）------
+
 
 @router.get("/slides", response_model=list[ImageMeta], tags=["dataset"])
 def slides() -> list[ImageMeta]:
@@ -361,6 +371,7 @@ def tasks() -> list[dict]:
 
 
 # --- 统一驱动端点（多模态·P2.0；与旧端点并存，P2.5 删旧） -------------------
+
 
 @router.post("/task/run", tags=["task"])
 def task_run(spec: TaskSpec) -> dict:

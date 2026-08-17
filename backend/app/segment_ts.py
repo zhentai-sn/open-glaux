@@ -59,9 +59,12 @@ def _run_live(volume_id: str, method: str, timeout: float) -> str:
     cmd = [
         str(config.TS_PYTHON),
         str(config.TS_DRIVER),
-        "--input", str(in_path),
-        "--output", str(out_path),
-        "--method", method,
+        "--input",
+        str(in_path),
+        "--output",
+        str(out_path),
+        "--method",
+        method,
     ]
     env = {
         "MPLBACKEND": "Agg",
@@ -84,12 +87,17 @@ def _run_live(volume_id: str, method: str, timeout: float) -> str:
         # 缺权重 / OOM / torch 崩 / nnU-Net 报错都在这。
         log.warning(
             "segment_ts_headless 非 0 退出 rc=%s vid=%s method=%s\nstderr:\n%s",
-            result.returncode, volume_id, method, stderr_tail,
+            result.returncode,
+            volume_id,
+            method,
+            stderr_tail,
         )
     return stderr_tail
 
 
-def segment(volume_id: str, method: str = "totalsegmentator_v2", timeout: float = 600.0) -> tuple[str, str]:
+def segment(
+    volume_id: str, method: str = "totalsegmentator_v2", timeout: float = 600.0
+) -> tuple[str, str]:
     """真分割：缓存优先 + 隔离子进程兜底。
 
     返回 ``(labelmap_path, model_version)``。调用方负责读 labelmap 算 measure。
@@ -102,8 +110,7 @@ def segment(volume_id: str, method: str = "totalsegmentator_v2", timeout: float 
         return str(cached), f"TotalSegmentator v2.4.0 (cached)"
     if not config.ts_live_available():
         raise TsSegmentUnavailable(
-            f"TotalSegmentator 无 {volume_id} 缓存，且隔离环境不可用"
-            f"（{config.TS_PYTHON}）"
+            f"TotalSegmentator 无 {volume_id} 缓存，且隔离环境不可用（{config.TS_PYTHON}）"
         )
     stderr_tail = _run_live(volume_id, method, timeout)
     cached = _cached_labelmap(volume_id, method)

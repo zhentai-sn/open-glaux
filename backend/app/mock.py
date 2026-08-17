@@ -39,6 +39,7 @@ def dataset(n: int = 40) -> list[ImageMeta]:
 
 # --- 模型（扩展=适配器） -----------------------------------------------------
 
+
 def models() -> list[ModelInfo]:
     return [
         ModelInfo(
@@ -73,6 +74,7 @@ def models() -> list[ModelInfo]:
 
 
 # --- 合成边界 / 测量（mock；形状与 measurement.pdm 一致） --------------------
+
 
 def _boundary(kind: str, x0: int = 84, x1: int = 630, n: int = N_COLUMNS) -> list[list[float]]:
     """生成一条平滑的远壁边界，LI 在上、MA 在下（相隔约 16.4px ≈ 0.918mm/0.0559）。"""

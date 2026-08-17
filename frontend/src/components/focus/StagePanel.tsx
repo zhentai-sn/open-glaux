@@ -22,7 +22,6 @@ export function StagePanel() {
   const metrics = useSession((s) => s.metrics);
   const source = useSession((s) => s.source);
   const modelVersion = useSession((s) => s.modelVersion);
-  const setFocusLayout = useSession((s) => s.setFocusLayout);
 
   const image = activeImage ?? activeVolume ?? activeSlide;
   const tv = tasks.find((tk) => tk.modality === modality);
@@ -41,6 +40,18 @@ export function StagePanel() {
   // 度量摘要（注册表顺序，仅列 store.metrics 里存在的项）
   const entries = tv && metrics ? tv.metrics.map((m) => metrics[m.key]).filter(Boolean) : [];
 
+  // v1.1（SDD 01 D13）：无活动图不再整块消失，显示占位引导（下一步去文件标签 / 顶栏选图）
+  if (!image) {
+    return (
+      <section className="focus-stage" aria-label={t("focus_stage")}>
+        <div className="focus-stage-empty">
+          <span aria-hidden="true">▣</span>
+          <p>{t("focus_stage_empty")}</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="focus-stage" aria-label={t("focus_stage")}>
       <div className="focus-stage-tools" role="toolbar">
@@ -57,13 +68,6 @@ export function StagePanel() {
         ))}
         <span className="focus-stage-grow" />
         {loading && <span className="focus-stage-busy">⟳ {t("running")}</span>}
-        <button
-          className="focus-tool"
-          type="button"
-          onClick={() => setFocusLayout({ stageOpen: false })}
-        >
-          {t("focus_stage_collapse")} ⟶
-        </button>
       </div>
       {entries.length > 0 && (
         <div className="focus-stage-metrics">

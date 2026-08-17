@@ -57,6 +57,7 @@ class ExemplarInput:
     caption: str | None = None
     notes: str | None = None
     geometry: Sequence[Sequence[float]] | None = None
+    collection: str | None = None  # 图册路径（v1.1）
     # 图片来源二选一
     import_id: str | None = None
     figure_index: int | None = None
@@ -180,6 +181,7 @@ class Importer:
                     describe_status="pending",
                     egress=inp.egress,  # type: ignore[arg-type]
                     egress_consent=inp.egress_consent,
+                    collection=inp.collection,
                 )
             )
         results = self.store.create(prepared)

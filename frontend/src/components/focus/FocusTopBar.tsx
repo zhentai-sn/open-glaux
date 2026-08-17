@@ -75,9 +75,6 @@ export function FocusTopBar({
   onConfigToggle: (open: boolean) => void;
 }) {
   const { t } = useI18n();
-  const rightView = useSession((s) => s.focusLayout.rightView);
-  const setFocusLayout = useSession((s) => s.setFocusLayout);
-  const atlasOpen = rightView === "atlas";
   return (
     <div className="focus-topbar">
       <span className="logo" aria-hidden="true">
@@ -87,16 +84,6 @@ export function FocusTopBar({
       <span className="focus-tagline">· {t("focus_tagline")}</span>
       <span className="focus-topbar-grow" />
       <ImageContextPicker />
-      <button
-        className="focus-iconbtn"
-        type="button"
-        title={t("atlas_title")}
-        aria-pressed={atlasOpen}
-        data-testid="focus-atlas-toggle"
-        onClick={() => setFocusLayout(atlasOpen ? { rightView: "stage" } : { rightView: "atlas", stageOpen: true })}
-      >
-        📖
-      </button>
       <span className="focus-cfg-anchor">
         <button
           className="focus-iconbtn"

@@ -151,3 +151,4 @@
 - **2026-08-16**：v1.1，开工前核实三项待确认（pi-ai 图像块、LanceDB+PyMuPDF 在 WSL 可用性、LanceDB FTS 中文分词），结论回写 §3-T1/T5 与 §5；T1 文本检索改用 LanceDB 原生 FTS(ngram)。
 - **2026-08-16**：v1.2，T3/T4 落地时的两处调整回写 SDD（D-18 RoiPicker 不复用 cornerstone；D-19 Focus 右侧 rightView 互斥 + 会话卡片跳转），`api.atlas` 改为独立 `api/atlas.ts`；导入向导 NO_FIGURES_FOUND / FETCH_BLOCKED / FETCH_FAILED 三类错误分别呈现，手动上传作为兜底路径。
 - **2026-08-16**：v1.3，T7 交付 `agent-runtime/scripts/atlas-eval.ts`（manifest 驱动、无/有图谱两路 IoU、`--out` JSON；首轮数字待维护者提供 TEM 测试图与视觉模型后产出）；T8 完成 SDD §15.1 三类自查、SDD 03 → `implemented`、`docs/architecture.zh-CN.md` 补 Atlas、新增 `docs/runbooks/atlas-import.md`（含 fake-ip 代理机器需给 backend 设 `GLAUX_VLM_ALLOW_FAKEIP`）。
+- **2026-08-16**：v1.4，维护者试用后两项设计变更按"先改 SDD"落地——SDD 01 v1.1 Focus 右侧栏三标签（`FocusSidePanel`，`FocusLayout` 改 `rightOpen/rightView`）、SDD 03 v1.1 图册 collection（后端列 + 迁移 + `/collections` + 前缀过滤 + 移动；前端图册树 / 向导 / 详情；runtime 透传）；另修图谱面板滚动条抖动环。两 SDD 状态 `implemented`，待验收。

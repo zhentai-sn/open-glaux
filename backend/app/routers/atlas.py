@@ -95,6 +95,7 @@ class ExemplarIn(BaseModel):
     import_id: str | None = None
     figure_index: int | None = None
     image_base64: str | None = None
+    collection: str | None = None
 
 
 class CreateExemplarsRequest(BaseModel):
@@ -120,6 +121,16 @@ class ReferencedIn(BaseModel):
 class TagCount(BaseModel):
     tag: str
     count: int
+
+
+class CollectionCount(BaseModel):
+    collection: str
+    key: str
+    count: int
+
+
+class CollectionIn(BaseModel):
+    collection: str | None = None
 
 
 # --- 导入暂存 ------------------------------------------------------------------
@@ -214,6 +225,7 @@ def create_exemplars(req: CreateExemplarsRequest) -> list[CreateResult]:
             import_id=it.import_id,
             figure_index=it.figure_index,
             image_base64=it.image_base64,
+            collection=it.collection,
         )
         for it in req.items
     ]
@@ -229,6 +241,8 @@ def list_exemplars(
     status: Literal["active", "retired", "all"] = "active",
     tags: list[str] | None = Query(default=None),
     source_type: Literal["textbook", "web", "dataset"] | None = None,
+    collection: str | None = None,
+    collection_exact: bool = False,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
@@ -237,7 +251,13 @@ def list_exemplars(
     return [
         e.to_dict()
         for e in svc.store.list(
-            status=st, tags=tags, source_type=source_type, limit=limit, offset=offset
+            status=st,
+            tags=tags,
+            source_type=source_type,
+            collection=collection,
+            collection_exact=collection_exact,
+            limit=limit,
+            offset=offset,
         )
     ]
 
@@ -248,10 +268,34 @@ def search_exemplars(
     tags: list[str] | None = Query(default=None),
     egress: Literal["shareable", "any"] = "shareable",
     limit: int = Query(default=10, ge=1, le=50),
+    collection: str | None = None,
 ) -> list[dict]:
     svc = _svc()
     try:
-        return [e.to_dict() for e in svc.store.search(tags=tags, q=q, egress=egress, limit=limit)]
+        return [
+            e.to_dict()
+            for e in svc.store.search(
+                tags=tags, q=q, egress=egress, limit=limit, collection=collection
+            )
+        ]
+    except AtlasError as exc:
+        raise _err(exc.code, str(exc)) from exc
+
+
+@router.get("/collections", response_model=list[CollectionCount])
+def collections(status: Literal["active", "retired", "all"] = "active") -> list[CollectionCount]:
+    svc = _svc()
+    st = None if status == "all" else status
+    return [
+        CollectionCount(collection=d, key=k, count=n) for d, k, n in svc.store.collection_counts(st)
+    ]
+
+
+@router.put("/exemplars/{exemplar_id}/collection")
+def put_collection(exemplar_id: str, body: CollectionIn) -> dict:
+    svc = _svc()
+    try:
+        return svc.store.set_collection(exemplar_id, body.collection).to_dict()
     except AtlasError as exc:
         raise _err(exc.code, str(exc)) from exc
 

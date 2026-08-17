@@ -85,14 +85,34 @@ def sources_file() -> Path:
 # (id, 展示名, 模态, root, 标定提示)。root 实时读 config.X_ROOT——保证 == 现状 + monkeypatch 可覆盖。
 def _builtin_specs() -> list[tuple]:
     return [
-        ("cubs-tech", "CUBS-tech · carotid US", "carotid_imt",
-         config.DATA_ROOT, {"cf": "per-image CF.txt"}),
-        ("hc18", "HC18 · fetal head US", "fetal_hc",
-         config.HC18_ROOT, {"pixel_size": "per-image csv"}),
-        ("ct-demo", "CT abdomen · demo", "ct_abdomen",
-         config.CT_ROOT, {"voxel_mm": "nifti header"}),
-        ("wsi-demo", "WSI pathology · demo", "pathology",
-         config.WSI_ROOT, {"mpp": "openslide props"}),
+        (
+            "cubs-tech",
+            "CUBS-tech · carotid US",
+            "carotid_imt",
+            config.DATA_ROOT,
+            {"cf": "per-image CF.txt"},
+        ),
+        (
+            "hc18",
+            "HC18 · fetal head US",
+            "fetal_hc",
+            config.HC18_ROOT,
+            {"pixel_size": "per-image csv"},
+        ),
+        (
+            "ct-demo",
+            "CT abdomen · demo",
+            "ct_abdomen",
+            config.CT_ROOT,
+            {"voxel_mm": "nifti header"},
+        ),
+        (
+            "wsi-demo",
+            "WSI pathology · demo",
+            "pathology",
+            config.WSI_ROOT,
+            {"mpp": "openslide props"},
+        ),
     ]
 
 
@@ -102,10 +122,17 @@ def _builtin_live() -> list[DataSource]:
     for sid, name, modality, root, cal in _builtin_specs():
         root = Path(root)
         status = "active" if config.root_has_data(modality, root) else "empty"
-        out.append(DataSource(
-            id=sid, name=name, modality=modality, root=root,
-            origin="builtin", calibration=dict(cal), status=status,
-        ))
+        out.append(
+            DataSource(
+                id=sid,
+                name=name,
+                modality=modality,
+                root=root,
+                origin="builtin",
+                calibration=dict(cal),
+                status=status,
+            )
+        )
     return out
 
 

@@ -293,3 +293,42 @@ def test_search_path_no_torch():
     _seed()
     client.get("/atlas/exemplars/search", params={"q": "x", "egress": "any"})
     assert "torch" not in sys.modules
+
+
+# --- 图册 collection（v1.1） -----------------------------------------------------------------
+
+
+def test_collections_endpoint_filter_and_move():
+    a = client.post(
+        "/atlas/exemplars",
+        json={"items": [_item(image_base64=_b64(_png(val=31)), collection="肾脏/膜性肾病/EDD")]},
+    ).json()[0]["exemplar_id"]
+    b = client.post(
+        "/atlas/exemplars",
+        json={"items": [_item(image_base64=_b64(_png(val=32)), collection="肾脏／IgA")]},
+    ).json()[0]["exemplar_id"]
+    c = client.post(
+        "/atlas/exemplars", json={"items": [_item(image_base64=_b64(_png(val=33)))]}
+    ).json()[0]["exemplar_id"]
+
+    cols = client.get("/atlas/collections").json()
+    assert {x["key"]: x["count"] for x in cols} == {"": 1, "肾脏/iga": 1, "肾脏/膜性肾病/edd": 1}
+    assert next(x for x in cols if x["key"] == "肾脏/iga")["collection"] == "肾脏/IgA"
+
+    r = client.get("/atlas/exemplars", params={"collection": "肾脏"})
+    assert sorted(e["exemplar_id"] for e in r.json()) == sorted([a, b])
+    r = client.get("/atlas/exemplars", params={"collection": "", "collection_exact": "true"})
+    assert [e["exemplar_id"] for e in r.json()] == [c]
+    r = client.get(
+        "/atlas/exemplars/search",
+        params={"q": "电子致密物", "egress": "any", "collection": "肾脏/膜性肾病"},
+    )
+    assert [e["exemplar_id"] for e in r.json()] == [a]
+
+    r = client.put(f"/atlas/exemplars/{c}/collection", json={"collection": " 肾脏 / IgA "})
+    assert r.status_code == 200 and r.json()["collection"] == "肾脏/IgA"
+    r = client.get("/atlas/exemplars", params={"collection": "肾脏/IgA"})
+    assert sorted(e["exemplar_id"] for e in r.json()) == sorted([b, c])
+    assert (
+        client.put("/atlas/exemplars/nope/collection", json={"collection": "x"}).status_code == 404
+    )

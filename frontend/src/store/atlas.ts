@@ -2,6 +2,7 @@
 // 拓展区共用同一份（同一组件、同一状态），会话卡片"在图谱中打开"也写这里。非领域字段，不持久化。
 import { create } from "zustand";
 
+import type { CollectionFilter } from "../components/atlas/CollectionTree";
 import { useSession } from "./session";
 
 export type AtlasScreen = "list" | "detail" | "import";
@@ -11,6 +12,9 @@ interface AtlasUiState {
   selectedId: string | null;
   /** 列表刷新计数：导入/下架/删除后 +1，列表订阅它重拉。 */
   refreshTick: number;
+  /** 图册筛选（v1.1）：null 全部 / {path,exact} —— 放 store 使列表 ↔ 详情往返不丢 */
+  collectionFilter: CollectionFilter;
+  setCollectionFilter: (f: CollectionFilter) => void;
   openList: () => void;
   openExemplar: (id: string) => void;
   openImport: () => void;
@@ -21,6 +25,8 @@ export const useAtlasUi = create<AtlasUiState>((set) => ({
   screen: "list",
   selectedId: null,
   refreshTick: 0,
+  collectionFilter: null,
+  setCollectionFilter: (f) => set({ collectionFilter: f }),
   openList: () => set({ screen: "list" }),
   openExemplar: (id) => set({ screen: "detail", selectedId: id }),
   openImport: () => set({ screen: "import" }),
@@ -33,7 +39,7 @@ export const useAtlasUi = create<AtlasUiState>((set) => ({
  */
 export function revealExemplar(id: string): void {
   const s = useSession.getState();
-  if (s.uiMode === "focus") s.setFocusLayout({ rightView: "atlas", stageOpen: true });
+  if (s.uiMode === "focus") s.setFocusLayout({ rightView: "atlas", rightOpen: true });
   else s.setSidebarView("atlas");
   useAtlasUi.getState().openExemplar(id);
 }
