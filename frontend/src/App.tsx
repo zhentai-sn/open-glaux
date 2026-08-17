@@ -8,16 +8,9 @@ import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
 import { loadImages } from "./data/actions";
-import { SpikePage } from "./spike/SpikePage";
-import { ProbePage } from "./spike/ProbePage";
 import { useSession } from "./store/session";
 
 export function App() {
-  // T0 spike 专用入口（feat/annotation-toolbox-spike 分支，合入前删除）：#/spike
-  if (window.location.hash === "#spike") return <SpikePage />;
-  // T5 排障探针：#/probe
-  if (window.location.hash === "#probe") return <ProbePage />;
-
   const uiMode = useSession((s) => s.uiMode);
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);
