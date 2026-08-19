@@ -124,7 +124,8 @@ scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位�
 
 - **P0 已落地**（2026-08-18）：`tokens.css` 补 12 个尺度 token（space/radius/font）；`global.css` 加交互动效基线（一条集中规则覆盖 24 个交互态）+ 12 处 `:active` 按压 + reduced-motion 关动画兜底；`@keyframes spin` + `.spin` 替换 3 处静态 ⟳；Atlas 列表加载态改 shimmer 骨架卡。lint/typecheck 净，46 测试通过。
 - **P1 已落地**（2026-08-19）：`ErrorBoundary` 重写为 i18n + token 样式 + 可折叠堆栈 + 复制；覆盖 App 顶层（按 uiMode keying）、dockview 四面板、Focus 对话列/右侧栏；`Notice` 单槽改队列（`notices[]`，逐条呈现、上限 6、精确 dismiss）+ 进入过渡 + 剩余计数徽标。新增 ErrorBoundary（3）与 notice 队列（4）共 7 个测试，全套 53 通过；生产构建净。**黑屏隐患（spike-error）已消除。**
-- **待办**：P2（键盘可达 + 快捷键，可并入 Radix/React Aria 采用）、P3（收敛查看器内联样式）。
+- **P2 已落地**（2026-08-19，另立 [SDD 05](../sdd/feats/05-keyboard-shortcuts-a11y/README.md) 先文档后实现）：文件树/导入头/能力卡/状态栏语义化（`div`→`button` / `role`+`tabIndex`，消除假按钮）；单一 `window` keydown 分发器 `useGlobalKeys`（工具键 V/L/M/R、`Cmd+B`/`Cmd+\` 面板、`Cmd+Shift+M` 模式、`?` 速查），输入/IME 放行、卸载移除；`ShortcutSheet` 速查面板。新增 9 项测试，全套 62 通过；lint/构建净。
+- **待办**：P3（收敛查看器内联样式）；设计资产采用（Radix/React Aria + Codicons）。
 
 ## 变更记录
 
