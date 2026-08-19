@@ -2002,6 +2002,22 @@ canvas {
 
 .focus-body { flex: 1; display: flex; min-height: 0; }
 
+/* ---- 栏间分隔条（SDD feats/01 v1.3 / D15）：4px 命中区，hover/焦点才显形，静息不加视觉噪声 ---- */
+.focus-resizer {
+  flex: none;
+  width: 4px;
+  margin: 0 -2px; /* 负边距：占位 0，命中区跨在两栏边界上，不改变原有栏宽算术 */
+  z-index: 2;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.focus-resizer:hover,
+.focus-resizer:focus-visible { background: var(--agent); outline: none; }
+/* 拖拽中：关掉会话栏宽度过渡（否则跟手变成追赶），并全局禁选中与光标跳变。 */
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .focus-rail { transition: none; }
+
 /* ---- 会话栏：收窄条 ⇄ 展开（宽度过渡 --motion-base，退场同宽度过渡） ---- */
 .focus-rail {
   flex: none;
@@ -2012,7 +2028,8 @@ canvas {
   transition: width var(--motion-base) var(--ease-out);
   overflow: hidden;
 }
-.focus-rail.open { width: 236px; }
+/* v1.3：展开宽度由 --focus-rail-w 驱动（用户拖拽值，缺省 236px）；max-width 是窄窗口的兜底上界。 */
+.focus-rail.open { width: var(--focus-rail-w, 236px); max-width: 30%; }
 .focus-rail-strip {
   width: 40px;
   flex: none;
@@ -2584,11 +2601,17 @@ canvas {
 .focus-side {
   flex: 1;
   min-width: 0;
+  max-width: 55%; /* 窄窗口兜底：右侧栏再宽也留给对话列过半 */
   display: flex;
   flex-direction: column;
   background: var(--sidebar);
   border-left: 1px solid var(--line);
   animation: stagein var(--motion-base) var(--ease-out);
+}
+/* v1.3：用户拖过右侧栏后由比例自适应切为定宽（--focus-side-w）；没拖过则维持 v1.1 的 1.15:1 比例。 */
+.focus-body[data-side-fixed="1"] .focus-side:not(.collapsed) {
+  flex: none;
+  width: var(--focus-side-w);
 }
 .focus-side.collapsed {
   flex: none;

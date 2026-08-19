@@ -30,7 +30,7 @@ describe("FocusTopBar 图像上下文 chip", () => {
     localStorage.setItem("glaux.lang", "en");
     useSession.setState({
       uiMode: "focus",
-      focusLayout: { railOpen: false, rightOpen: false, rightView: "stage" },
+      focusLayout: { railOpen: false, rightOpen: false, rightView: "stage", railW: null, sideW: null },
       tasks: TASKS,
       modality: "carotid_imt",
       activeImage: "tech_401",

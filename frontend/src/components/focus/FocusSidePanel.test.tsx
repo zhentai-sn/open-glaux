@@ -34,7 +34,7 @@ describe("FocusSidePanel", () => {
     localStorage.setItem("glaux.lang", "en");
     useSession.setState({
       uiMode: "focus",
-      focusLayout: { railOpen: false, rightOpen: true, rightView: "stage" },
+      focusLayout: { railOpen: false, rightOpen: true, rightView: "stage", railW: null, sideW: null },
       activeImage: null,
       activeVolume: null,
       activeSlide: null,
@@ -68,7 +68,7 @@ describe("FocusSidePanel", () => {
   });
 
   it("文件标签里选中图像 → 自动切到舞台", () => {
-    useSession.setState({ focusLayout: { railOpen: false, rightOpen: true, rightView: "files" } });
+    useSession.setState({ focusLayout: { railOpen: false, rightOpen: true, rightView: "files", railW: null, sideW: null } });
     ui();
     expect(screen.getByTestId("files-view")).toBeInTheDocument();
     act(() => useSession.setState({ activeImage: "tech_401" }));
@@ -77,7 +77,7 @@ describe("FocusSidePanel", () => {
   });
 
   it("用户停留在图谱标签时选图不抢标签", () => {
-    useSession.setState({ focusLayout: { railOpen: false, rightOpen: true, rightView: "atlas" } });
+    useSession.setState({ focusLayout: { railOpen: false, rightOpen: true, rightView: "atlas", railW: null, sideW: null } });
     ui();
     act(() => useSession.setState({ activeImage: "tech_402" }));
     expect(useSession.getState().focusLayout.rightView).toBe("atlas");

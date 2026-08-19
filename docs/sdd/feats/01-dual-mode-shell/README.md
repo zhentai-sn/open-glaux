@@ -4,7 +4,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（v1.2 顶栏只读上下文标签 2026-08-19 实现完成、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`；待维护者验收后回 `accepted`） |
+| SDD 状态 | `implemented`（v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
 | 最近更新 | 2026-08-19 |
 | 目标阶段 | 前端外壳分层:为首要用户 B 提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
@@ -141,7 +141,8 @@ flowchart TD
 4. **度量呈现**:目标形态为对话内 `taskrun` 任务卡片 + 舞台叠加;Focus 无常驻度量表格面板。**v0 落点**:参考智能体尚未接领域工具(feats/00 §2),Pi 会话内不产生任务运行,故 v0 度量摘要卡挂在舞台(同一 store.metrics 数据),对话内嵌卡片待领域工具接入后补(见[实现计划 §1.3](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md))。
 5. **设置收纳**:VLM 连接配置(designs/2026-07-14-001)在 Focus 收进顶栏 ⚙ 弹层;Workbench 入口不动。
 6. **反长回规则(硬约束)**:后续新能力默认 Workbench 独占;进入 Focus 必须显式设计并更新本 SDD——防止 Focus 逐渐长回一个 IDE。
-7. **动效**(按[纲领 §5](../../../designs/frontend-design-charter.zh-CN.md)):模式切换为 ≤320ms 朴素 crossfade(两模式是同一世界的两种视角,不做戏剧化转场);舞台/会话栏开合 200–280ms ease-out,退场更短;`prefers-reduced-motion` 下全部降级为瞬时切换,功能语义不依赖动效;动效时长/缓动用 token,不写死。
+7. **栏宽可调(v1.3)**:Focus 三栏之间各有一条拖拽分隔条——会话栏 ⇄ 对话列、对话列 ⇄ 右侧栏。拖拽**在允许范围内**改变两侧栏宽度,对话列吃剩余空间(始终 ≥ 360px);越界即被夹住,不产生横向滚动、不把任一栏拖没。折叠态的栏(40px 竖条)不可拖,分隔条隐藏;展开后恢复。双击分隔条复位为默认宽度。分隔条为 `role="separator"` 可聚焦,←/→ 每次 16px、Home 复位(与 feats/05 键盘可达一致)。宽度随 `focusLayout` 持久化,刷新与模式往返保持。
+8. **动效**(按[纲领 §5](../../../designs/frontend-design-charter.zh-CN.md)):模式切换为 ≤320ms 朴素 crossfade(两模式是同一世界的两种视角,不做戏剧化转场);舞台/会话栏开合 200–280ms ease-out,退场更短;`prefers-reduced-motion` 下全部降级为瞬时切换,功能语义不依赖动效;动效时长/缓动用 token,不写死。
 
 ## 8. 涉及页面与组件
 
@@ -152,6 +153,7 @@ flowchart TD
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset);角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
+| 新增(v1.3) | `PaneResizer` | Focus 栏间拖拽分隔条:受控组件(`value`/`min`/`max`/`onChange`/`onReset`),pointer 事件 + `setPointerCapture`,`role="separator"` + `aria-valuenow/min/max` + ←/→/Home 键盘调节;自身无领域逻辑,不读 store |
 | 复用不改(v1.1) | `SideBar.ExplorerView` | 导出后在右侧栏"文件"标签复用(模态切换 + images/methods 树);Workbench 侧栏行为不变 |
 | 改动(v1.1) | `FocusTopBar` | 移除 v1.0 临时的 📖 图谱切换钮(feats/03 D-19 v1),右侧栏开合与标签切换全部收进 `FocusSidePanel` |
 | 改动(v1.2) | `FocusTopBar` | 移除内部 `ImageContextPicker`(两级原生 `<select>`)及其与 `ExplorerView` 重复的模态/列表派生逻辑,改为只读 chip;选择动作唯一入口为右侧栏「文件」标签(D14) |
@@ -168,6 +170,7 @@ flowchart TD
 - store 新增 `uiMode: "focus" | "workbench"` + `setUiMode`;初始值由 loader 读 localStorage(§6.3 第 5 条校验)。
 - localStorage 键:`glaux.uiMode.v1`,值为字面量字符串(不 JSON 包裹);改语义时 bump 版本后缀,旧键作废回默认(沿 `glaux.layout.v1` 惯例)。
 - Focus 布局微状态(v1.1):`FocusLayout = { railOpen: boolean; rightOpen: boolean; rightView: "stage" | "files" | "atlas" }`,合并存 `glaux.focusLayout.v1`(JSON;损坏回默认 `{railOpen:false, rightOpen:true, rightView:"stage"}`;逐字段校验,非法字段回默认)。兼容:旧值 `stageOpen` 迁移为 `rightOpen`;旧 `rightView:"atlas"`(feats/03 v1)原样保留。属 UI 微状态,放 store 但不算领域字段。
+- 栏宽(v1.3):`FocusLayout` 增 `railW: number | null` 与 `sideW: number | null`,并入同一 `glaux.focusLayout.v1`。`null` = 未拖过,沿用默认(会话栏 236px;右侧栏按 `flex 1.15 : 1` 与对话列分成,随窗口自适应);一旦拖动即固化为像素值。载入时逐字段校验:非有限数/非正数回 `null`,数值 `clamp` 到 [`RAIL_MIN`=200, `RAIL_MAX`=420] / [`SIDE_MIN`=280, `SIDE_MAX`=880]。窄窗口的上界由 CSS 兜底(`.focus-rail.open{max-width:30%}`、`.focus-side{max-width:55%}`),不需要监听 resize 改写持久化值。
 - 舞台**可见性**不再由 `hasVisual` 门控:右侧栏 `rightOpen && rightView==="stage"` 即渲染 StagePanel;`hasVisual = activeImage || activeVolume || activeSlide` 只决定舞台内是显示查看器还是占位引导。
 - 其余展示字段全部复用现有 store,零新增领域字段。
 - 新增 i18n 键(mode 名称、空状态文案、示例卡、舞台工具提示)在实现计划中列全,中英齐备(G9)。
@@ -240,6 +243,16 @@ v1.2(顶栏只读上下文标签):
 - [x] chip 可键盘聚焦并以 Enter/Space 触发(`<button>` 语义),有 `aria-label`;中英文案齐全。——实现为原生 `<button type="button">` + `aria-label={t("focus_ctx_open")}`;新增 i18n 键 `focus_ctx_open` 中英齐全(键类型对齐编译期保证)
 - [x] 舞台占位引导文案不再提及顶栏选图。——`focus_stage_empty` 中英改为只指向「文件」标签
 
+v1.3(三栏宽度可拖拽):
+
+- [x] 会话栏展开态与右侧栏展开态之间各有一条可见分隔条;折叠态下对应分隔条不渲染。——`FocusShell` 内 `railOpen && <PaneResizer/>` / `rightOpen && <PaneResizer/>` 条件渲染
+- [x] 拖拽分隔条改变栏宽,超出 [200,420] / [280,880] 被夹住;对话列不小于 360px,页面无横向滚动。——`PaneResizer.test.tsx`「指针左移变宽/右移变窄」「超出范围被夹住」;对话列下限由 `FocusShell.room()` 用实测容器宽合成动态上界(`CONVERSATION_MIN_W`),窄窗口另有 CSS `max-width` 兜底
+- [x] 拖拽后的宽度刷新后保持;Focus → Workbench → Focus 往返后保持;Workbench 的 `glaux.layout.v1` 不受影响。——宽度存 `focusLayout`/`glaux.focusLayout.v1`(`atlasView.test.ts`「合法值恢复;setFocusLayout 写回同一键」);未触碰 dockview 与其键
+- [x] 双击分隔条复位默认宽度(会话栏 236px;右侧栏回到比例自适应)。——`PaneResizer.test.tsx`「双击复位」;复位即写 `null`,CSS 落回 `236px` / `flex 1.15:1`
+- [x] 分隔条可 Tab 聚焦,←/→ 每次 16px、Home 复位,`aria-valuenow/min/max` 随宽度更新;中英文 `aria-label` 齐全。——`PaneResizer.test.tsx`「键盘」「a11y 语义齐备且可聚焦」;新增 i18n 键 `focus_resize_rail`/`focus_resize_side` 中英齐全
+- [x] 持久化值损坏或越界(如 `sideW: -1` / `"x"`)载入后回退默认且不白屏。——`atlasView.test.ts`「越界值夹回范围,非法值回 null」
+- 无法完全走查(结构保证):真实指针拖拽的跟手手感与窄窗口下的夹持观感——headless 无布局,jsdom 不实现指针捕获;换算与夹持逻辑已单测覆盖,手感留人工走查。
+
 ## 16. 决策记录
 
 | 编号 | 决策 | 理由 |
@@ -258,7 +271,8 @@ v1.2(顶栏只读上下文标签):
 | D12(v1.1) | "文件"标签直接复用 Workbench 的 `ExplorerView`,不另写精简树 | 复用优先(charter 工程纪律);同一组件保证两模式导航语义一致;若日后过重再在同一组件内做 compact 变体 |
 | D13(v1.1) | 舞台不再随无活动图整块消失,改为占位引导 | 三标签结构下标签消失会让标签条跳动;占位引导同时承担"下一步做什么"的提示 |
 | D14(v1.2,2026-08-19) | 顶栏图像上下文由「模态 + 对象两级下拉」改为**只读 chip「模态 · 对象 id」,点击 = 展开右侧栏「文件」标签** | ① v1.1 的「文件」标签(D12 复用 `ExplorerView`)已含模态切换 + 图像列表 + 选中态,顶栏选择器把同一份派生规则(`isCT ? volumes : isWSI ? slides : images`)抄了第二遍,是两个真相源;② 顶栏在此处的真实价值是**常驻上下文显示**——右侧栏可折叠、且可能停在「图谱」标签,此时"当前在看哪张图"必须仍然可见,故不整块删除顶栏上下文区;③ 原生 `<select>` 箭头由系统绘制,与 feats/06 统一线性图标语言冲突,改 chip 后自然消失;④ 与 G3 反长回一致:一个位置只做一件事,顶栏显示、侧栏选择 |
+| D15(v1.3,2026-08-19) | Focus 三栏宽度**在范围内可拖拽**,而非继续写死;不引入 dockview | ① 写死的 `flex 1.15 : 1` 在宽屏下右侧栏过宽、窄屏下对话列过窄,用户只能二选一地折叠整栏,粒度太粗;② 但 Focus 的立场是"简洁而非可组装"(D4/D5),故只给**宽度**自由,不给拖拽重排/停靠——那是 Workbench(dockview)的职责;③ 上下界 + 对话列最小宽度保证"怎么拖都还是一个对话优先的界面",范围本身就是产品立场;④ 复用现有 `focusLayout` 与 `glaux.focusLayout.v1`,不新增持久化键 |
 
 ## 17. 待确认问题
 
-无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13)。
+无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13);v1.3 栏宽可拖拽 2026-08-19 由维护者提出并确认范围约束(D15)。

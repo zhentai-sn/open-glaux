@@ -25,7 +25,7 @@ describe("useGlobalKeys（SDD feats/05）", () => {
       uiMode: "focus",
       tool: "cursor",
       shortcutSheetOpen: false,
-      focusLayout: { railOpen: false, rightOpen: true, rightView: "stage" },
+      focusLayout: { railOpen: false, rightOpen: true, rightView: "stage", railW: null, sideW: null },
     });
     // 焦点归到 body（查看器上下文常态）
     (document.activeElement as HTMLElement | null)?.blur?.();

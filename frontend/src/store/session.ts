@@ -79,13 +79,36 @@ const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 export type FocusRightView = "stage" | "files" | "atlas";
 const RIGHT_VIEWS: readonly FocusRightView[] = ["stage", "files", "atlas"];
 
-/** Focus 布局微状态（会话栏开合 / 右侧栏开合与标签）——UI 微状态，非领域字段。 */
+/** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——范围本身即产品立场：怎么拖都还是对话优先。 */
+export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
+export const SIDE_W = { min: 280, max: 880 } as const;
+/** 对话列的最低可用宽度：拖拽时两侧栏被此值反向夹住（窄窗口的上界另由 CSS max-width 兜底）。 */
+export const CONVERSATION_MIN_W = 360;
+
+/**
+ * Focus 布局微状态（会话栏开合与宽度 / 右侧栏开合、标签与宽度）——UI 微状态，非领域字段。
+ * `railW`/`sideW` 为 null = 用户没拖过，沿用默认（会话栏 236px；右侧栏按 flex 比例自适应）。
+ */
 export interface FocusLayout {
   railOpen: boolean;
   rightOpen: boolean;
   rightView: FocusRightView;
+  railW: number | null;
+  sideW: number | null;
 }
-const FOCUS_LAYOUT_DEFAULTS: FocusLayout = { railOpen: false, rightOpen: true, rightView: "stage" };
+export const FOCUS_LAYOUT_DEFAULTS: FocusLayout = {
+  railOpen: false,
+  rightOpen: true,
+  rightView: "stage",
+  railW: null,
+  sideW: null,
+};
+
+/** 载入期的栏宽校验：非有限数/非正数 → null（回默认）；越界 → 夹回范围，不白屏也不留下畸形布局。 */
+function loadWidth(v: unknown, range: { min: number; max: number }): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+  return Math.min(range.max, Math.max(range.min, Math.round(v)));
+}
 
 /** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
 function loadUiMode(): UiMode {
@@ -118,6 +141,8 @@ function loadFocusLayout(): FocusLayout {
           rightView: (RIGHT_VIEWS as readonly unknown[]).includes(p.rightView)
             ? (p.rightView as FocusRightView)
             : FOCUS_LAYOUT_DEFAULTS.rightView,
+          railW: loadWidth(p.railW, RAIL_W),
+          sideW: loadWidth(p.sideW, SIDE_W),
         };
       }
     }

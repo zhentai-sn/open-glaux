@@ -116,6 +116,8 @@ export const en = {
   focus_tab_files: "Files",
   focus_tab_atlas: "Atlas",
   focus_rail_collapse: "Collapse sessions",
+  focus_resize_rail: "Resize sessions pane — arrow keys adjust, Home resets",
+  focus_resize_side: "Resize side panel — arrow keys adjust, Home resets",
   focus_src_agent: "source · agent",
   focus_src_human: "source · human",
   focus_example_1_title: "Measure carotid IMT",

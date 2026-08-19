@@ -32,13 +32,13 @@ describe("focusLayout.rightView", () => {
   it("v1.0 持久化 {railOpen, stageOpen} → stageOpen 迁移为 rightOpen，rightView 补 stage（SDD 01 v1.1 §9）", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: true, stageOpen: false }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: false, rightView: "stage" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: false, rightView: "stage", railW: null, sideW: null });
   });
 
   it("rightOpen 优先于旧 stageOpen；files 为合法 rightView", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightOpen: true, stageOpen: false, rightView: "files" }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "files" });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "files", railW: null, sideW: null });
   });
 
   it("损坏值 → 回退 stage", async () => {
@@ -53,6 +53,32 @@ describe("focusLayout.rightView", () => {
     expect(useSession.getState().focusLayout.rightView).toBe("atlas");
     useSession.getState().setFocusLayout({ rightView: "stage" });
     expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY)!).rightView).toBe("stage");
+  });
+});
+
+describe("focusLayout 栏宽（SDD 01 v1.3 §9/§15）", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("缺省 null（= 沿用默认宽度/比例）", async () => {
+    const { useSession } = await fresh();
+    expect(useSession.getState().focusLayout).toMatchObject({ railW: null, sideW: null });
+  });
+
+  it("越界值夹回范围，非法值回 null，不白屏", async () => {
+    localStorage.setItem(
+      FOCUS_LAYOUT_KEY,
+      JSON.stringify({ railW: 9999, sideW: -1 }),
+    );
+    const { useSession } = await fresh();
+    expect(useSession.getState().focusLayout).toMatchObject({ railW: 420, sideW: null });
+  });
+
+  it("合法值恢复；setFocusLayout 写回同一键", async () => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railW: 300, sideW: 400 }));
+    const { useSession } = await fresh();
+    expect(useSession.getState().focusLayout).toMatchObject({ railW: 300, sideW: 400 });
+    useSession.getState().setFocusLayout({ sideW: null });
+    expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY)!).sideW).toBeNull();
   });
 });
 
