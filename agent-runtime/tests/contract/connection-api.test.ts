@@ -112,6 +112,44 @@ describe("connection probe · openai-compatible", () => {
     ]);
   });
 
+  it("listModels: picks up context metadata from /models entries (varied field names)", async () => {
+    const { fetch } = fakeFetch({
+      "http://localhost:1234/v1/models": () =>
+        json({
+          data: [
+            { id: "openrouter-ish", context_length: 200_000, top_provider: { max_completion_tokens: 16_384 } },
+            { id: "lmstudio-ish", max_context_length: 8192, max_output_tokens: "2048" },
+            { id: "bare-gateway" }, // 无元数据 → 不带字段，前端落默认值
+          ],
+        }),
+    });
+    const probe = createConnectionProbe({ fetch, resolveHost: loopback, env });
+    const r = await probe.listModels({ provider: "openai-compatible", base_url: "http://localhost:1234/v1" });
+    expect(r.models).toEqual([
+      { id: "openrouter-ish", vision: "unknown", context_window: 200_000, max_tokens: 16_384 },
+      { id: "lmstudio-ish", vision: "unknown", context_window: 8192, max_tokens: 2048 },
+      { id: "bare-gateway", vision: "unknown" },
+    ]);
+  });
+
+  it("listModels: Ollama context_length comes from /api/show model_info", async () => {
+    const root = "http://localhost:11434";
+    const { fetch } = fakeFetch({
+      [`${root}/v1/models`]: () => json({ data: [{ id: "llama3:8b" }] }),
+      [`${root}/api/version`]: () => json({ version: "0.6.0" }),
+      [`${root}/api/show`]: () =>
+        json({
+          capabilities: ["completion", "vision"],
+          model_info: { "general.architecture": "llama", "llama.context_length": 131_072 },
+        }),
+    });
+    const probe = createConnectionProbe({ fetch, resolveHost: loopback, env });
+    const r = await probe.listModels({ provider: "openai-compatible", base_url: `${root}/v1` });
+    expect(r.models).toEqual([
+      { id: "llama3:8b", vision: "yes", context_window: 131_072 },
+    ]);
+  });
+
   it("listModels: fetch failure returns empty list + reason (no throw)", async () => {
     const probe = createConnectionProbe({
       fetch: (async () => {
