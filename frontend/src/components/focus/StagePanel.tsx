@@ -2,6 +2,8 @@ import { reRunActiveModel } from "../../data/actions";
 import { useI18n } from "../../i18n";
 import { useSession, type Tool } from "../../store/session";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { Icon } from "../Icon";
+import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
 import { Viewer } from "../Viewer";
 
 // 图像舞台（SDD feats/01 §8）——Focus 的一等区域：同步核对回路的落点（纲领 G4）。
@@ -40,12 +42,12 @@ export function StagePanel() {
   // 度量摘要（注册表顺序，仅列 store.metrics 里存在的项）
   const entries = tv && metrics ? tv.metrics.map((m) => metrics[m.key]).filter(Boolean) : [];
 
-  // v1.1（SDD 01 D13）：无活动图不再整块消失，显示占位引导（下一步去文件标签 / 顶栏选图）
+  // v1.1（SDD 01 D13）：无活动图不再整块消失，显示占位引导（下一步去「文件」标签选图；v1.2/D14 起顶栏不再选图）
   if (!image) {
     return (
       <section className="focus-stage" aria-label={t("focus_stage")}>
         <div className="focus-stage-empty">
-          <span aria-hidden="true">▣</span>
+          <Icon icon={ICONS.file} size="lg" />
           <p>{t("focus_stage_empty")}</p>
         </div>
       </section>
@@ -63,11 +65,11 @@ export function StagePanel() {
             title={tl.label[lang]}
             onClick={() => onTool(tl.id as Tool)}
           >
-            {tl.glyph} <span>{tl.label[lang]}</span>
+            <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" /> <span>{tl.label[lang]}</span>
           </button>
         ))}
         <span className="focus-stage-grow" />
-        {loading && <span className="focus-stage-busy">⟳ {t("running")}</span>}
+        {loading && <span className="focus-stage-busy"><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
       </div>
       {entries.length > 0 && (
         <div className="focus-stage-metrics">
@@ -83,7 +85,7 @@ export function StagePanel() {
           </span>
         </div>
       )}
-      <div className="focus-stage-canvas">
+      <div className="focus-stage-canvas" data-viewer-surface>
         <ErrorBoundary label="stage">
           <Viewer />
         </ErrorBoundary>

@@ -20,19 +20,23 @@ export interface Connection {
   baseUrl: string; // "" → 用 provider 默认
   apiKey: string; // 仅本机 localStorage；发请求随 body 传后端
   model: string; // 选定模型 id
-  contextWindow: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
-  maxTokens: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
+  contextWindow: number | null; // 自定义模型必填；缺省用探测值/默认值预填（SDD 00 §4）
+  maxTokens: number | null; // 同上；Pi 内置目录已知模型可为空
   models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
   lastTest?: { ok: boolean; at: string; reason?: string };
 }
+
+/** 探不到上游元数据时的兜底（2026-08-19 决议，SDD 00 §4）——预填而非静默代入，用户可改。 */
+export const DEFAULT_CONTEXT_WINDOW = 128_000;
+export const DEFAULT_MAX_TOKENS = 8_192;
 
 const CONNECTION_DEFAULTS: Connection = {
   provider: "anthropic",
   baseUrl: "",
   apiKey: "",
   model: "",
-  contextWindow: null,
-  maxTokens: null,
+  contextWindow: DEFAULT_CONTEXT_WINDOW,
+  maxTokens: DEFAULT_MAX_TOKENS,
 };
 
 /** 载入连接：优先新键 glaux.connection；否则一次性从旧 vlmKey/vlmModel 迁移（旧键保留可回滚）。 */
@@ -41,7 +45,12 @@ function loadConnection(): Connection {
   const raw = localStorage.getItem("glaux.connection");
   if (raw) {
     try {
-      return { ...CONNECTION_DEFAULTS, ...JSON.parse(raw) };
+      const stored = JSON.parse(raw) as Partial<Connection>;
+      const merged: Connection = { ...CONNECTION_DEFAULTS, ...stored };
+      // 老版本存过 null（当时必填、初始为空）——载入时补回默认值，免得用户又被逼着填。
+      if (merged.contextWindow === null) merged.contextWindow = DEFAULT_CONTEXT_WINDOW;
+      if (merged.maxTokens === null) merged.maxTokens = DEFAULT_MAX_TOKENS;
+      return merged;
     } catch {
       /* 损坏 → 落回默认 + 迁移 */
     }
@@ -184,8 +193,9 @@ interface SessionState {
   connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
 
   // 即时提示 + Composer 草稿
-  notice: Notice | null;
+  notices: Notice[]; // 提示队列：逐条呈现，不互相顶掉（医学失败提示不静默丢失，信任可见 G5）
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
+  shortcutSheetOpen: boolean; // 快捷键速查面板开合（SDD feats/05 §9）——瞬态，不持久化
 
   // actions
   setUiMode: (m: UiMode) => void;
@@ -220,6 +230,8 @@ interface SessionState {
   setCoords: (x: number, y: number) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
+  toggleShortcutSheet: () => void;
+  setShortcutSheet: (v: boolean) => void;
   notify: (tone: Notice["tone"], text: string) => void;
   dismissNotice: (id?: number) => void;
 }
@@ -261,8 +273,9 @@ export const useSession = create<SessionState>((set) => ({
 
   connection: loadConnection(),
 
-  notice: null,
+  notices: [],
   composerDraft: "",
+  shortcutSheetOpen: false,
 
   setUiMode: (m) =>
     set(() => {
@@ -340,8 +353,14 @@ export const useSession = create<SessionState>((set) => ({
       return { connection: next };
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
-  notify: (tone, text) => set({ notice: { id: nextId(), tone, text } }),
-  // 带 id 只关闭对应那条（避免定时器关掉后来的新提示）；不带 id 强制关闭。
+  toggleShortcutSheet: () => set((s) => ({ shortcutSheetOpen: !s.shortcutSheetOpen })),
+  setShortcutSheet: (v) => set({ shortcutSheetOpen: v }),
+  // 入队而非覆盖：并发提示逐条呈现；上限 6 条防失控（超出丢最旧，仍保留最近的关键失败）。
+  notify: (tone, text) =>
+    set((s) => ({ notices: [...s.notices, { id: nextId(), tone, text }].slice(-6) })),
+  // 带 id 只移除对应那条（定时器精确关自己，不误伤队列后来者）；不带 id 关掉队首。
   dismissNotice: (id) =>
-    set((s) => (id === undefined || s.notice?.id === id ? { notice: null } : {})),
+    set((s) => ({
+      notices: id === undefined ? s.notices.slice(1) : s.notices.filter((n) => n.id !== id),
+    })),
 }));

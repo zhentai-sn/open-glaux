@@ -11,6 +11,7 @@ import "dockview-react/dist/styles/dockview.css";
 import { AgentPanel } from "./AgentPanel";
 import { BottomPanel } from "./BottomPanel";
 import { Editor } from "./Editor";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { SideBar } from "./SideBar";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
@@ -32,11 +33,28 @@ function SidebarPane({ api }: IDockviewPanelProps) {
 }
 
 // 面板注册表（组件 id → 渲染器）。模块级常量，避免每次渲染重建导致 dockview 重挂面板。
+// 每个停靠面板各包错误边界：任一面板抛错只塌陷自身为兜底，不再把整个 dockview 打成黑屏（spike-error）。
 const COMPONENTS: Record<string, FunctionComponent<IDockviewPanelProps>> = {
-  editor: () => <Editor />,
-  sidebar: SidebarPane,
-  agent: () => <AgentPanel />,
-  panel: () => <BottomPanel />,
+  editor: () => (
+    <ErrorBoundary label="editor">
+      <Editor />
+    </ErrorBoundary>
+  ),
+  sidebar: (props) => (
+    <ErrorBoundary label="sidebar">
+      <SidebarPane {...props} />
+    </ErrorBoundary>
+  ),
+  agent: () => (
+    <ErrorBoundary label="agent">
+      <AgentPanel />
+    </ErrorBoundary>
+  ),
+  panel: () => (
+    <ErrorBoundary label="panel">
+      <BottomPanel />
+    </ErrorBoundary>
+  ),
 };
 
 const LKEY = "glaux.layout.v1"; // 版本化布局键：改面板 id/结构时 bump，旧布局自动作废回默认

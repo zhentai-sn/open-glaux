@@ -122,7 +122,19 @@ export function ExemplarList() {
         )}
       </div>
       {error && <div className="atlas-error">{t("atlas_unavailable", { why: error })}</div>}
-      {rows === null && !error && <div className="atlas-empty">{t("atlas_loading")}</div>}
+      {rows === null && !error && (
+        <div className="atlas-grid atlas-skeleton" role="status" aria-label={t("atlas_loading")} data-testid="atlas-skeleton">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="sk-card">
+              <div className="sk-thumb" />
+              <div className="sk-lines">
+                <div className="sk-line" />
+                <div className="sk-line short" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {rows !== null && rows.length === 0 && !error && (
         <div className="atlas-empty">{t(filtered ? "atlas_empty_filtered" : "atlas_empty")}</div>
       )}

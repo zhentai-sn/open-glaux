@@ -5,6 +5,7 @@ import { useI18n, type I18nKey } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
 import { AgentPanel } from "../AgentPanel";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { Notice } from "../Notice";
 import { OwlLogo } from "../OwlLogo";
 import { FocusSidePanel } from "./FocusSidePanel";
@@ -77,10 +78,14 @@ export function FocusShell() {
         <SessionRail />
         <div className={"focus-conversation" + (emptyConversation ? " empty" : "")}>
           {emptyConversation && <FocusHero />}
-          <AgentPanel />
+          <ErrorBoundary label="conversation">
+            <AgentPanel />
+          </ErrorBoundary>
           {emptyConversation && <FocusExampleCards onOpenConfig={() => setConfigOpen(true)} />}
         </div>
-        <FocusSidePanel />
+        <ErrorBoundary label="side-panel">
+          <FocusSidePanel />
+        </ErrorBoundary>
       </div>
       <Notice />
     </div>

@@ -1,5 +1,7 @@
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
+import { Icon } from "./Icon";
+import { TOOL_ICON } from "./iconMap";
 
 export function StatusBar() {
   const { t, lang, toggle } = useI18n();
@@ -16,19 +18,20 @@ export function StatusBar() {
   // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
   const tv = tasks.find((tk) => tk.modality === modality);
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
-  // SDD 04：工具展示改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）
+  // SDD 04：工具文案改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）；图标走 SDD 06 的 TOOL_ICON
   const toolDef = tv?.tools.find((x) => x.id === tool);
 
   return (
     <div className="status">
-      <button className="item">
-        <span>⎇</span> main
-      </button>
-      <button className="item">
+      <span className="item" aria-label={lang === "zh" ? "分支：main" : "branch: main"}>
+        <span aria-hidden="true">⎇</span> main
+      </span>
+      <span className="item" aria-label={lang === "zh" ? "当前图像" : "current image"}>
         <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
-      </button>
+      </span>
       <span className="item">
-        {toolDef?.glyph ?? "▸"} <span>{toolDef ? toolDef.label[lang] : t("tl_cursor")}</span>
+        <Icon icon={TOOL_ICON[tool]} size="sm" />{" "}
+        <span>{toolDef ? toolDef.label[lang] : t("tl_cursor")}</span>
       </span>
       <span className="sp" />
       <span className="item mono">

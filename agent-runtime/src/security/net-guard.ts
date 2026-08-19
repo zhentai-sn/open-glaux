@@ -7,7 +7,9 @@
  * - 判定基于 **DNS 解析后的 IP**（防 localhost.attacker.com / rebinding），不看字符串。
  * - 回环放行；其它私网 / 链路本地 / 保留 / 组播 / 未指定地址一律拒，除非：
  *   - host 命中 GLAUX_VLM_HOST_ALLOW（逗号分隔，显式白名单，部署方自担）；
- *   - IP 落在 fake-ip 段 198.18.0.0/15 且 GLAUX_VLM_ALLOW_FAKEIP 打开（透明代理用户）。
+ *   - IP 落在 fake-ip 段 198.18.0.0/15——该段**默认放行**（Clash/Surge/sing-box 等透明代理把域名
+ *     映射到此 RFC 2544 保留段是常态，且该段现实中不承载真实内部服务）；需收紧时置
+ *     GLAUX_VLM_ALLOW_FAKEIP=0，其余私网无论开关一律拒。
  *
  * 残留风险同 Python 版：解析在此、fetch 时再解析一次 = TOCTOU（rebinding 仍有缝）；
  * 待安全评审后把解析到的 IP 钉进连接。
@@ -41,9 +43,10 @@ function hostAllowlist(env: NodeJS.ProcessEnv): Set<string> {
   );
 }
 
+/** fake-ip 段 198.18.0.0/15 **默认放行**（透明代理常态）；置 0/false/no/off 可关。 */
 function allowFakeIp(env: NodeJS.ProcessEnv): boolean {
   const v = (env.GLAUX_VLM_ALLOW_FAKEIP ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
+  return !(v === "0" || v === "false" || v === "no" || v === "off");
 }
 
 // ---- IP 分类（对齐 Python ipaddress 的 is_* 属性，只覆盖守卫需要的判定） ----
@@ -192,7 +195,7 @@ export async function assertUrlAllowed(
     if (c.loopback) return;
     if (fakeIpOk && c.fakeIp) return;
     if (c.blocked) {
-      const hint = c.fakeIp ? "GLAUX_VLM_ALLOW_FAKEIP" : "GLAUX_VLM_HOST_ALLOW";
+      const hint = c.fakeIp ? "GLAUX_VLM_ALLOW_FAKEIP=1" : "GLAUX_VLM_HOST_ALLOW";
       throw new RuntimeError(
         "egress_blocked",
         `拒绝内网/保留地址：${ip}（如需请配 ${hint}）`,

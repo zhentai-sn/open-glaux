@@ -1,8 +1,12 @@
 import { useEffect, useRef } from "react";
 
+import { type LucideIcon } from "lucide-react";
+
 import { useI18n, type I18nKey } from "../../i18n";
 import { useSession, type FocusRightView } from "../../store/session";
 import { AtlasView } from "../atlas/AtlasView";
+import { Icon } from "../Icon";
+import { ICONS, TAB_ICON } from "../iconMap";
 import { ExplorerView } from "../SideBar";
 import { StagePanel } from "./StagePanel";
 
@@ -11,10 +15,10 @@ import { StagePanel } from "./StagePanel";
 // （与左侧会话栏对称），点图标即展开到该标签。自身无领域逻辑，只读写 focusLayout。
 // 自动切换（§7-2）：在文件标签选中图像 → 切到舞台；其余不抢用户手选的标签。
 
-const TABS: { id: FocusRightView; key: I18nKey; glyph: string }[] = [
-  { id: "stage", key: "focus_tab_stage", glyph: "▣" },
-  { id: "files", key: "focus_tab_files", glyph: "▤" },
-  { id: "atlas", key: "focus_tab_atlas", glyph: "📖" },
+const TABS: { id: FocusRightView; key: I18nKey; icon: LucideIcon }[] = [
+  { id: "stage", key: "focus_tab_stage", icon: TAB_ICON.stage },
+  { id: "files", key: "focus_tab_files", icon: TAB_ICON.files },
+  { id: "atlas", key: "focus_tab_atlas", icon: TAB_ICON.atlas },
 ];
 
 export function FocusSidePanel() {
@@ -48,7 +52,7 @@ export function FocusSidePanel() {
             aria-label={t(tab.key)}
             onClick={() => setFocusLayout({ rightOpen: true, rightView: tab.id })}
           >
-            {tab.glyph}
+            <Icon icon={tab.icon} size="lg" />
           </button>
         ))}
       </aside>
@@ -67,7 +71,7 @@ export function FocusSidePanel() {
             className={"focus-side-tab" + (rightView === tab.id ? " on" : "")}
             onClick={() => setFocusLayout({ rightView: tab.id })}
           >
-            <span aria-hidden="true">{tab.glyph}</span> {t(tab.key)}
+            <Icon icon={tab.icon} size="sm" /> {t(tab.key)}
           </button>
         ))}
         <span className="focus-side-grow" />
@@ -78,7 +82,7 @@ export function FocusSidePanel() {
           aria-label={t("focus_side_collapse")}
           onClick={() => setFocusLayout({ rightOpen: false })}
         >
-          ⟶
+          <Icon icon={ICONS.chevronRight} size="sm" />
         </button>
       </div>
       <div className="focus-side-body" data-view={rightView}>

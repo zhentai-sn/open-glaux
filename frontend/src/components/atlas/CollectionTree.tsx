@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 
 import type { CollectionCount } from "../../api/atlas";
 import { useI18n } from "../../i18n";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 // 图册树（SDD feats/03 v1.1 D-20 / §7.5a）：由 GET /collections 的"路径 + 直属计数"拼树，
 // 子树计数前端累加；点节点 = 按前缀筛选（该图册及子图册），"全部" / "未分册" 两个固定入口。
@@ -70,7 +72,7 @@ function Node({ node, depth, selected, onSelect }: { node: CollectionNode; depth
       <div className={"atlas-coll-row" + (on ? " on" : "")} style={{ paddingLeft: depth * 12 + 6 }}>
         {node.children.length ? (
           <button type="button" className="atlas-coll-tw" aria-label={open ? "collapse" : "expand"} onClick={() => setOpen((o) => !o)}>
-            {open ? "▾" : "▸"}
+            <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
           </button>
         ) : (
           <span className="atlas-coll-tw" aria-hidden="true">
@@ -102,7 +104,7 @@ export function CollectionTree({
   return (
     <nav className="atlas-coll" aria-label={t("atlas_collections")} data-testid="collection-tree">
       <div className={"atlas-coll-row" + (filter === null ? " on" : "")}>
-        <span className="atlas-coll-tw">▣</span>
+        <span className="atlas-coll-tw"><Icon icon={ICONS.atlas} size="sm" /></span>
         <button type="button" className="atlas-coll-name" onClick={() => onChange(null)}>
           {t("atlas_coll_all")}
           <i>{tree.total}</i>

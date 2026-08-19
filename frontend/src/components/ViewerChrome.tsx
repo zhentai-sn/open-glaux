@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
 import type { ClassSpec, Primitive } from "../api/types";
+import { Icon } from "./Icon";
+import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
 
 // CT 标准窗宽窗位预设（HU）——医学常识常数；标签走 i18n（chrome_preset_*）。
 const CT_PRESETS = [
@@ -51,7 +53,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
       <div className="etools" role="toolbar">
         {tools.map((tl) => (
           <button key={tl.id} className="etool" aria-pressed={tool === tl.id} onClick={() => onTool(tl.id as Tool)}>
-            {tl.glyph}
+            <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" />
             <span className="tip">{tl.label[lang]}</span>
           </button>
         ))}

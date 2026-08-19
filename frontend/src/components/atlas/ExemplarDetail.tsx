@@ -5,6 +5,8 @@ import { useI18n } from "../../i18n";
 import { useAtlasUi } from "../../store/atlas";
 import { useSession } from "../../store/session";
 import { connectionUsable, describeExemplar } from "./describe";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 import { ExemplarBadges } from "./ExemplarList";
 
 // 案例详情（SDD feats/03 §5.1）：原图 + ROI 叠加 + 图注 + VLM 描述表 + 来源 + 外发徽标 +
@@ -151,7 +153,7 @@ export function ExemplarDetail({ id }: { id: string }) {
     return (
       <div className="atlas-detail">
         <button type="button" className="atlas-link" onClick={openList}>
-          ← {t("atlas_back")}
+          <Icon icon={ICONS.back} size="sm" /> {t("atlas_back")}
         </button>
         <div className="atlas-error">{err}</div>
       </div>
@@ -170,7 +172,7 @@ export function ExemplarDetail({ id }: { id: string }) {
     <div className="atlas-detail" data-testid="exemplar-detail">
       <div className="atlas-detail-head">
         <button type="button" className="atlas-link" onClick={openList}>
-          ← {t("atlas_back")}
+          <Icon icon={ICONS.back} size="sm" /> {t("atlas_back")}
         </button>
         <ExemplarBadges ex={ex} />
       </div>

@@ -77,7 +77,7 @@ describe("createAnnotation", () => {
     const out = await createAnnotation({ image_id: "img_1", primitive: makeAnn("x").primitive });
     expect(out).toBeNull();
     expect(useSession.getState().annotations).toHaveLength(0);
-    expect(useSession.getState().notice?.text).toContain("被拒绝");
+    expect(useSession.getState().notices.slice(-1)[0]?.text).toContain("被拒绝");
   });
 
   it("mask 创建：入参携带 mask_png_b64，草稿同样先行", async () => {
@@ -105,7 +105,7 @@ describe("createAnnotation", () => {
     const out = await createAnnotation({ image_id: "img_1", primitive: makeAnn("x").primitive });
     expect(out).toBeNull();
     expect(useSession.getState().annotations).toHaveLength(0);
-    expect(useSession.getState().notice?.tone).toBe("crit");
+    expect(useSession.getState().notices.slice(-1)[0]?.tone).toBe("crit");
   });
 
   it("过期响应丢弃：后发编辑接管后，先到的慢响应不落 store", async () => {
@@ -149,7 +149,7 @@ describe("patchAnnotation", () => {
     const out = await patchAnnotation("a1", 2, { label: "n" });
     expect(out).toBeNull();
     expect(useSession.getState().annotations[0].seq).toBe(3);
-    expect(useSession.getState().notice?.text).toContain("刷新");
+    expect(useSession.getState().notices.slice(-1)[0]?.text).toContain("刷新");
   });
 });
 

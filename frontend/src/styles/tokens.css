@@ -47,6 +47,30 @@
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
 
+  /* 字号阶（纲领 §2：13px 正文 / 12px 次级 / 11px 区域标题·徽标）——组件内禁止再写死 */
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-base: 13px;
+
+  /* 间距阶（4 的倍数，秩序之美 G11）——padding/gap/margin 一律取阶，杜绝魔法数字 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* 圆角阶（纲领 §2：4 / 6 / 8px）——克制即高级，无更大圆角 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* 图标尺寸阶（SDD feats/06）——图标一律取阶，禁止写死；currentColor 着色 */
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 22px; /* 活动栏大图标 */
+
   /* 动效（纲领 §5）——时长/缓动一律走 token，组件内禁止写死 */
   --motion-fast: 140ms;
   --motion-base: 240ms;

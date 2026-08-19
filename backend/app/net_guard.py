@@ -6,7 +6,9 @@
 - 判定基于 **DNS 解析后的 IP**（防 localhost.attacker.com / rebinding），不看字符串。
 - 回环放行；其它私网 / 链路本地 / 保留 / 组播 / 未指定地址一律拒，除非：
   - host 命中 ``GLAUX_VLM_HOST_ALLOW``（逗号分隔，显式白名单，部署方自担）；
-  - IP 落在 fake-ip 段 198.18.0.0/15 且 ``GLAUX_VLM_ALLOW_FAKEIP`` 打开（透明代理用户）。
+  - IP 落在 fake-ip 段 198.18.0.0/15——该段**默认放行**（Clash/Surge/sing-box 等透明代理把域名
+    映射到此 RFC 2544 保留段是常态，且该段现实中不承载真实内部服务）；需收紧时置
+    ``GLAUX_VLM_ALLOW_FAKEIP=0``，其余私网无论开关一律拒。
 
 残留风险同 TS 版：解析在此、fetch 时再解析一次 = TOCTOU（rebinding 仍有缝）。
 """
@@ -77,7 +79,13 @@ def _host_allowlist(env: Mapping[str, str]) -> set[str]:
 
 
 def _allow_fake_ip(env: Mapping[str, str]) -> bool:
-    return env.get("GLAUX_VLM_ALLOW_FAKEIP", "").strip().lower() in ("1", "true", "yes", "on")
+    """fake-ip 段 198.18.0.0/15 **默认放行**（透明代理常态）；置 0/false/no/off 可关。"""
+    return env.get("GLAUX_VLM_ALLOW_FAKEIP", "").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
 
 
 def assert_url_allowed(
@@ -123,5 +131,5 @@ def assert_url_allowed(
         if fake_ok and c.fake_ip:
             continue
         if c.blocked:
-            hint = "GLAUX_VLM_ALLOW_FAKEIP" if c.fake_ip else "GLAUX_VLM_HOST_ALLOW"
+            hint = "GLAUX_VLM_ALLOW_FAKEIP=1" if c.fake_ip else "GLAUX_VLM_HOST_ALLOW"
             raise EgressBlocked(f"拒绝内网/保留地址：{ip}（如需请配 {hint}）")

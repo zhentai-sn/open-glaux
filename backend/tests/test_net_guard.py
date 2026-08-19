@@ -58,14 +58,18 @@ def test_rejects_link_local_metadata_and_bad_scheme():
         assert_url_allowed("ftp://x/", resolve_host=_to("8.8.8.8"), env=ENV)
 
 
-def test_fake_ip_needs_explicit_flag():
+def test_fake_ip_allowed_by_default_and_can_be_disabled():
+    # 默认放行 198.18/15（透明代理 fake-ip），但真实私网段照拒。
+    assert_url_allowed("https://api.example.com/", resolve_host=_to("198.18.0.5"), env=ENV)
+    with pytest.raises(EgressBlocked, match="内网"):
+        assert_url_allowed("https://sneaky.example.com/", resolve_host=_to("10.0.0.5"), env=ENV)
+    # 显式关闭后回到拒绝，并提示开关。
     with pytest.raises(EgressBlocked, match="GLAUX_VLM_ALLOW_FAKEIP"):
-        assert_url_allowed("https://api.example.com/", resolve_host=_to("198.18.0.5"), env=ENV)
-    assert_url_allowed(
-        "https://api.example.com/",
-        resolve_host=_to("198.18.0.5"),
-        env={"GLAUX_VLM_ALLOW_FAKEIP": "1"},
-    )
+        assert_url_allowed(
+            "https://api.example.com/",
+            resolve_host=_to("198.18.0.5"),
+            env={"GLAUX_VLM_ALLOW_FAKEIP": "0"},
+        )
 
 
 def test_host_allowlist_bypasses_resolution():

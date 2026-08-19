@@ -1,4 +1,6 @@
 import { ErrorBoundary } from "./ErrorBoundary";
+import { Icon } from "./Icon";
+import { ICONS } from "./iconMap";
 import { Viewer } from "./Viewer";
 import { ViewerChrome } from "./ViewerChrome";
 import { reRunActiveModel } from "../data/actions";
@@ -40,7 +42,7 @@ export function Editor() {
       <div className="tabs">
         {image && (
           <div className="tab on">
-            <span className="fico">▤</span>
+            <Icon icon={ICONS.file} size="sm" className="fico" />
             {image}
           </div>
         )}
@@ -51,18 +53,18 @@ export function Editor() {
         <span style={{ color: "var(--ink)" }}>{image ?? "—"}</span>
       </div>
 
-      <div className="editor">
+      <div className="editor" data-viewer-surface>
         {image ? (
           <>
             <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>
             <div className="hud">
               <span className="tagpill">{label}</span>
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
-              {loading && <span className="tagpill" style={{ color: "var(--agent)" }}>…</span>}
+              {loading && <span className="tagpill" style={{ color: "var(--agent)" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /></span>}
             </div>
             <ViewerChrome onTool={onTool} />
             {modelVersion && <span className="repr">{modelVersion}</span>}
-            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t("running")}</span>}
+            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
           </>
         ) : (
           <div className="empty">{t("empty_editor")}</div>

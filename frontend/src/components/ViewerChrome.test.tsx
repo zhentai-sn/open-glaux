@@ -49,29 +49,32 @@ function mount(modality: TaskView["modality"], capabilities: string[]) {
 }
 
 beforeEach(() => {
+  localStorage.setItem("glaux.lang", "en"); // 断言用英文 label，锁死语言避免默认值漂移
   useSession.setState({ annotations: [] });
 });
 
+// 按钮内容 = lucide 图标（SDD 06）+ .tip 文案（注册表 label，SDD 04）；
+// 断言走文案，不再断言 glyph 字符——字符渲染已随 SDD 06 退役。
 describe("引擎能力位过滤", () => {
   it("WSI（capabilities 无 brush）不渲染画笔按钮，bbox/polygon 在", () => {
     mount("pathology", ["bbox", "polygon"]);
-    expect(screen.queryByText("✎")).toBeNull();
-    expect(screen.getByText("▭")).toBeTruthy();
-    expect(screen.getByText("⬠")).toBeTruthy();
-    expect(screen.getByText("▸")).toBeTruthy(); // cursor 恒在
-    expect(screen.getByText("⟲")).toBeTruthy(); // reset 恒在
+    expect(screen.queryByText("Brush")).toBeNull();
+    expect(screen.getByText("Bounding box")).toBeTruthy();
+    expect(screen.getByText("Polygon")).toBeTruthy();
+    expect(screen.getByText("Select / Pan")).toBeTruthy(); // cursor 恒在
+    expect(screen.getByText("Reset to model")).toBeTruthy(); // reset 恒在
   });
 
   it("CT（capabilities 含 brush）渲染画笔按钮", () => {
     mount("ct_abdomen", ["bbox", "polygon", "brush"]);
-    expect(screen.getByText("✎")).toBeTruthy();
+    expect(screen.getByText("Brush")).toBeTruthy();
   });
 
   it("raster_2d 三能力齐备", () => {
     mount("carotid_imt", ["bbox", "polygon", "brush"]);
-    expect(screen.getByText("▭")).toBeTruthy();
-    expect(screen.getByText("⬠")).toBeTruthy();
-    expect(screen.getByText("✎")).toBeTruthy();
+    expect(screen.getByText("Bounding box")).toBeTruthy();
+    expect(screen.getByText("Polygon")).toBeTruthy();
+    expect(screen.getByText("Brush")).toBeTruthy();
   });
 });
 

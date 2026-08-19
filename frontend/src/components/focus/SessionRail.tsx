@@ -2,6 +2,8 @@ import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
 import { SessionDrawer } from "../agent/SessionDrawer";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 // 会话栏（SDD feats/01 §8）——SessionDrawer 的薄壳：默认收窄为竖条，点击展开。
 // 展开态常驻挂载 SessionDrawer（不改其内部）；其头部 ✕（走 agentSessions.drawerOpen，
@@ -23,7 +25,7 @@ export function SessionRail() {
           aria-expanded={railOpen}
           onClick={() => setFocusLayout({ railOpen: !railOpen })}
         >
-          {railOpen ? "«" : "☰"}
+          <Icon icon={railOpen ? ICONS.chevronLeft : ICONS.menu} size="md" />
         </button>
         <button
           className="focus-iconbtn"
@@ -32,7 +34,7 @@ export function SessionRail() {
           disabled={loading}
           onClick={() => void newSession()}
         >
-          ＋
+          <Icon icon={ICONS.plus} size="md" />
         </button>
       </div>
       {railOpen && (

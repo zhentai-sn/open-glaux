@@ -14,6 +14,8 @@ import {
 import { useSession } from "../store/session";
 import { getT } from "../i18n";
 import type { ClassSpec, Primitive } from "../api/types";
+import { Icon } from "./Icon";
+import { ICONS } from "./iconMap";
 
 // WsiViewer（P7 楔子，SDD 04 T7 迁移）——OpenSeadragon 深缩放 + Annotorious 通用标注 + 核质心 overlay。
 //
@@ -259,13 +261,13 @@ export function WsiViewer() {
       </div>
       {/* 提示 / 状态 */}
       {loading ? (
-        <div style={{ ..._hint, color: "#4FB0FF" }}>⟳ 核检测中…（ROI 抽块 + StarDist 推理）</div>
+        <div style={{ ..._hint, color: "#4FB0FF" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /> 核检测中…（ROI 抽块 + StarDist 推理）</div>
       ) : (
         !pointSet && (
           <div style={_hint}>
             {tool === "bbox"
               ? "在切片上拖一个框，松开即保存（自动触发核检测）"
-              : "工具栏选「▭ 框选」或「⬠ 多边形」，在切片上绘制标注"}
+              : "工具栏选「框选」或「多边形」，在切片上绘制标注"}
           </div>
         )
       )}

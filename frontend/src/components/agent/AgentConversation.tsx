@@ -10,6 +10,8 @@ import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 import type { PermissionMode } from "../../agent/runtime/types";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
@@ -33,7 +35,7 @@ function ToolCallLine({ call }: { call: MessageToolCall }) {
     .join("  ");
   return (
     <div className="tool-call" title={args || undefined}>
-      <span className="tool-call-icon" aria-hidden="true">⚙</span>
+      <Icon icon={ICONS.config} size="sm" className="tool-call-icon" />
       <span>{t("agent_tool_call", { tool: call.name })}</span>
       {args && <span className="tool-call-args mono">{args}</span>}
     </div>
@@ -176,7 +178,7 @@ export function AgentConversation() {
           title={t("agent_history")}
           onClick={() => setDrawerOpen(true)}
         >
-          ☰
+          <Icon icon={ICONS.menu} size="md" />
         </button>
         <div className="agent-title" title={view?.title}>
           <span className={`connection-dot ${connected ? "online" : ""}`} />
@@ -246,8 +248,8 @@ export function AgentConversation() {
             {error?.traceId ? ` · ${error.traceId}` : ""}
           </span>
           {error && (
-            <button type="button" onClick={clearError}>
-              ✕
+            <button type="button" onClick={clearError} aria-label={t("ui_close")}>
+              <Icon icon={ICONS.close} size="sm" />
             </button>
           )}
         </div>
@@ -256,7 +258,7 @@ export function AgentConversation() {
       <div className="stream conversation-stream" ref={streamRef}>
         {!messages.length && !loading && (
           <div className="agent-empty">
-            <span>✦</span>
+            <Icon icon={ICONS.skill} size="lg" />
             <b>{t("agent_empty")}</b>
             <p>{t("agent_empty_hint")}</p>
           </div>
@@ -317,7 +319,7 @@ export function AgentConversation() {
                     type="button"
                     onClick={() => void regenerate()}
                   >
-                    ↻ {t("agent_regenerate")}
+                    <Icon icon={ICONS.regenerate} size="sm" /> {t("agent_regenerate")}
                   </button>
                 )}
             </div>

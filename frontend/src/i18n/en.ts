@@ -35,7 +35,7 @@ export const en = {
   cfg_context_window: "Context window",
   cfg_max_tokens: "Max output tokens",
   cfg_model_meta_note:
-    "Required for custom OpenAI-compatible models; max output must be smaller than context.",
+    "Prefilled from upstream metadata or defaults — usually leave as is; max output must be smaller than context.",
   // bottom panel
   p_meas: "Measurements",
   p_out: "Output",
@@ -79,6 +79,10 @@ export const en = {
   agent_archived_readonly: "Archived conversations are read-only.",
   agent_model_required: "Choose a model in connection settings to chat.",
   tl_cursor: "Select",
+  tl_bbox: "Bounding box",
+  tl_polygon: "Polygon",
+  tl_brush: "Brush",
+  tl_reset: "Reset to model",
   // 统一标注外壳（SDD 04）
   chrome_hint_bbox: "Drag on the image to draw a box; click one to select & adjust",
   chrome_hint_polygon: "Click vertices in order, double-click to close the contour",
@@ -103,8 +107,9 @@ export const en = {
   focus_hero_title: "Describe your research goal",
   focus_hero_sub: "Turn biomedical images of any modality into verifiable, reproducible insight.",
   focus_pick_image: "Select image…",
+  focus_ctx_open: "Current image context — click to pick one in the Files tab",
   focus_stage: "Image stage",
-  focus_stage_empty: "No image selected. Pick one in the Files tab or the top bar; the stage shows it here.",
+  focus_stage_empty: "No image selected. Pick one in the Files tab; the stage shows it here.",
   focus_side_panel: "Side panel",
   focus_side_collapse: "Collapse side panel",
   focus_tab_stage: "Stage",
@@ -223,6 +228,24 @@ export const en = {
   atlas_ref_excluded: "{n} local-only exemplar(s) not used (sharing restriction)",
   atlas_ref_missing: "exemplar unavailable (retired or deleted)",
   atlas_ref_open: "Open in Atlas",
+  // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
+  err_title: "This section stopped responding",
+  err_hint: "The rest of Glaux keeps working. Reload this section to try again.",
+  err_retry: "Reload section",
+  err_details: "Technical details",
+  err_copy: "Copy",
+  err_copied: "Copied",
+  // keyboard shortcuts（SDD feats/05）
+  sc_title: "Keyboard shortcuts",
+  sc_group_tool: "Tools",
+  sc_group_shell: "Shell",
+  sc_group_help: "Help",
+  sc_left: "Toggle session rail (Focus)",
+  sc_right: "Toggle right panel / bottom panel",
+  sc_mode: "Switch Focus ↔ Workbench",
+  sc_sheet: "Toggle this cheatsheet",
+  sc_dismiss: "Press ? or Esc to close",
+  ui_close: "Close",
 } as const;
 
 export type I18nKey = keyof typeof en;

@@ -4,9 +4,9 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（v1.1 Focus 右侧栏 2026-08-16 实现完成、开发侧自查见 §15 v1.1；待维护者验收后回到 `accepted`。v1 于 2026-08-13 `accepted`） |
+| SDD 状态 | `implemented`（v1.2 顶栏只读上下文标签 2026-08-19 实现完成、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`；待维护者验收后回 `accepted`） |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-08-16 |
+| 最近更新 | 2026-08-19 |
 | 目标阶段 | 前端外壳分层:为首要用户 B 提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
@@ -59,7 +59,7 @@
 | --- | --- | --- |
 | 模式切换动作 | — | 顶栏按钮,双向切换 |
 | 对话消息 | — | 沿用现有会话基础设施(feats/00),Focus 不改发送语义 |
-| 图像选择 | — | Focus 内经轻量选择器或对话完成;Workbench 仍经资源管理器 |
+| 图像选择 | — | Focus 内经右侧栏「文件」标签或对话完成(v1.2 起顶栏不再承担选择,D14);Workbench 仍经资源管理器 |
 | 修正手势 | — | 点选/圈画,Focus 舞台内可用(B 刚需,见 §7) |
 
 ### 4.2 系统输入
@@ -78,7 +78,7 @@
 
 ### 5.1 用户可见输出
 
-- Focus 布局:会话列表(可收起)/ 居中对话流 / **右侧栏**(可折叠,三个标签:舞台 · 文件 · 图谱;v1.1,D10)/ 极简顶栏(标识、图像上下文、设置、模式切换)。
+- Focus 布局:会话列表(可收起)/ 居中对话流 / **右侧栏**(可折叠,三个标签:舞台 · 文件 · 图谱;v1.1,D10)/ 极简顶栏(标识、**只读图像上下文标签**、设置、模式切换;v1.2,D14)。
 - Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮)。
 - 切换后界面即时呈现目标模式,数据原地保留。
 
@@ -113,7 +113,7 @@ flowchart TD
     APP[App.tsx<br/>数据装载 effect 与模式无关,仅挂载时跑一次] --> M{useSession.uiMode}
     M -- focus --> FS[FocusShell 新增]
     M -- workbench --> WB[现状树:TitleBar + ActivityBar + Shell dockview + StatusBar]
-    FS --> FT[FocusTopBar 新增<br/>标识 · 图像上下文选择器 · ⚙ 弹层 · ⇄]
+    FS --> FT[FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件标签) · ⚙ 弹层 · ⇄]
     FS --> SR[SessionRail 新增薄壳<br/>复用 SessionDrawer]
     FS --> CC[对话列<br/>复用 AgentConversation + ConversationComposer]
     FS --> RP[FocusSidePanel v1.1<br/>右侧栏壳:标签条 + 折叠条]
@@ -135,7 +135,7 @@ flowchart TD
 ## 7. 交互规则
 
 1. **对话优先**:Focus 下对话流是唯一常驻主体;空状态为居中输入框 + 示例任务卡(Codex 式空状态)。
-2. **右侧栏(v1.1,替代原"舞台按需")**:Focus 右侧是一个**常驻可折叠**的侧栏(参考 Codex 桌面端右侧面板),顶部标签条切换三种内容——**舞台**(默认)· **文件**(模态切换 + 图像导航,复用 Workbench 资源管理器视图)· **图谱**(feats/03 `AtlasView`);一次只显示一个标签。折叠后收成 40px 竖条(三个图标 = 三个标签,点击即展开到该标签),与左侧会话栏对称。舞台标签在无活动图时显示占位引导("在文件标签或顶栏选一张图"),不再整块消失。
+2. **右侧栏(v1.1,替代原"舞台按需")**:Focus 右侧是一个**常驻可折叠**的侧栏(参考 Codex 桌面端右侧面板),顶部标签条切换三种内容——**舞台**(默认)· **文件**(模态切换 + 图像导航,复用 Workbench 资源管理器视图)· **图谱**(feats/03 `AtlasView`);一次只显示一个标签。折叠后收成 40px 竖条(三个图标 = 三个标签,点击即展开到该标签),与左侧会话栏对称。舞台标签在无活动图时显示占位引导("在「文件」标签选一张图"),不再整块消失。
    自动切换:在文件标签选中图像 → 切到舞台;`run_task` 结果写回查看器 → 若右侧栏展开则切到舞台;会话卡片"在图谱中打开" → 展开并切到图谱。用户手动选的标签在此之外不被抢占。
 3. **舞台不可省**:点选/圈画修正手势与"低风险试一把"核对(需求清单 §2/§3.2)必须在 Focus 舞台可用——Focus 不是纯聊天,是**对话 + 舞台**。
 4. **度量呈现**:目标形态为对话内 `taskrun` 任务卡片 + 舞台叠加;Focus 无常驻度量表格面板。**v0 落点**:参考智能体尚未接领域工具(feats/00 §2),Pi 会话内不产生任务运行,故 v0 度量摘要卡挂在舞台(同一 store.metrics 数据),对话内嵌卡片待领域工具接入后补(见[实现计划 §1.3](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md))。
@@ -148,12 +148,13 @@ flowchart TD
 | 类别 | 组件 | 契约 |
 | --- | --- | --- |
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
-| 新增 | `FocusTopBar` | 标识 + 图像上下文选择器(读 images/volumes/slides + active*,写 setActive*)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换 |
+| 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,读 tasks/active* 派生「模态 · 当前对象 id」;点击 = `setFocusLayout({rightOpen:true, rightView:"files"})`,自身不写 active*)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换 |
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset);角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
 | 复用不改(v1.1) | `SideBar.ExplorerView` | 导出后在右侧栏"文件"标签复用(模态切换 + images/methods 树);Workbench 侧栏行为不变 |
 | 改动(v1.1) | `FocusTopBar` | 移除 v1.0 临时的 📖 图谱切换钮(feats/03 D-19 v1),右侧栏开合与标签切换全部收进 `FocusSidePanel` |
+| 改动(v1.2) | `FocusTopBar` | 移除内部 `ImageContextPicker`(两级原生 `<select>`)及其与 `ExplorerView` 重复的模态/列表派生逻辑,改为只读 chip;选择动作唯一入口为右侧栏「文件」标签(D14) |
 | 新增 | `ModeSwitch` | 无状态按钮,调 `setUiMode`;Focus/Workbench 顶栏共用 |
 | 复用不改 | AgentConversation、SessionDrawer、ConnectionConfig、各 Viewer | 语义零改动;仅被新壳组合 |
 | 复用微调 | ConversationComposer | 草稿从组件本地 state 升入 store(内存态,不落 localStorage)——两模式对话列是不同实例,切换重挂载时草稿必须保留(§15);发送清空/失败恢复语义不变 |
@@ -231,6 +232,14 @@ v1.1(Focus 右侧栏):
 - [x] 会话卡片"在图谱中打开"(feats/03)在 Focus 下展开右侧栏并切到图谱标签的对应案例。——`atlasView.test.ts` revealExemplar;`AtlasRefCard.test.tsx`
 - [x] 中英文文案齐全;`prefers-reduced-motion` 下标签切换与开合无位移动画。——i18n 类型对齐编译期保证;右侧栏沿用 `.focus-stage` 的 stagein 动效,已在 reduced-motion 块内关闭(标签切换本身无动效)
 
+v1.2(顶栏只读上下文标签):
+
+- [x] Focus 顶栏不再出现任何 `<select>`;上下文区呈现「模态标签 · 当前对象 id」一枚 chip,无活动对象时呈现「选择图像…」提示态。——`FocusTopBar.test.tsx`「显示模态 · 当前对象」(断言 `querySelectorAll("select")` 为 0)与「无活动对象时呈现提示态」
+- [x] 点击该 chip 展开右侧栏并切到「文件」标签(`rightOpen:true` / `rightView:"files"`);chip 自身不改变 `activeImage`/`activeVolume`/`activeSlide`。——`FocusTopBar.test.tsx`「点击展开右侧栏并切到文件标签」
+- [x] 切换模态或选中图像后 chip 文案随之更新(与 `ExplorerView` 同一 store,不存在第二份派生规则)。——`FocusTopBar.test.tsx`「CT 下读 activeVolume」;`ImageContextPicker` 及其 `isCT ? volumes : ...` 派生已整体删除,顶栏只读 `active*`
+- [x] chip 可键盘聚焦并以 Enter/Space 触发(`<button>` 语义),有 `aria-label`;中英文案齐全。——实现为原生 `<button type="button">` + `aria-label={t("focus_ctx_open")}`;新增 i18n 键 `focus_ctx_open` 中英齐全(键类型对齐编译期保证)
+- [x] 舞台占位引导文案不再提及顶栏选图。——`focus_stage_empty` 中英改为只指向「文件」标签
+
 ## 16. 决策记录
 
 | 编号 | 决策 | 理由 |
@@ -241,13 +250,14 @@ v1.1(Focus 右侧栏):
 | D4 | 反长回规则:新能力默认 Workbench 独占 | 防止 Focus 复杂度回潮,把"进 Focus"变成显式设计决策 |
 | D5 | 参照 Codex 的"对话+按需浮现",而非"删减版 IDE" | 删减版 IDE 仍是 IDE 隐喻;对话优先才匹配 B 的心智 |
 | D6 | Focus 必须含图像舞台(非纯聊天) | 无代码修正与"低风险试一把"核对是 B 刚需(需求清单 §2/§3.2) |
-| D7 | Focus 顶栏保留轻量图像上下文选择器,选图亦可经对话(关 Q2) | 设计稿含选择器方案,2026-08-13 评审通过;纯对话选图对批量场景太绕 |
+| D7(v1.2 修订) | ~~Focus 顶栏保留轻量图像上下文**选择器**~~ → 顶栏只保留**只读上下文标签**,选图入口收敛到右侧栏「文件」标签与对话(关 Q2) | v1 的理由(纯对话选图对批量场景太绕)在 v1.1 落地「文件」标签后已由后者满足;见 D14 |
 | D8 | Focus 彻底移除 StatusBar;图名/标定/坐标移入舞台角落(关 Q3) | 设计稿含该方案,评审通过;仪器信息就近呈现于其所描述的画面 |
 | D9 | 老用户(含已有 `glaux.layout.v1` 者)同样默认 Focus(关 Q4) | 规则统一:无 `glaux.uiMode.v1` 键即 Focus;专家一键即可回 Workbench,成本极低 |
 | D10(v1.1,2026-08-16) | Focus 右侧从"舞台按需展开"改为 Codex 式**常驻可折叠右侧栏 + 三标签(舞台/文件/图谱)** | feats/03 落地后右侧已有两种内容,"顶栏按钮二选一"是过渡形态;Codex 右侧面板"一次看一件事、随时折叠"与 G3 反长回一致——它是一个位置、三种视角,不是三块新面板 |
 | D11(v1.1) | 折叠态为 40px 图标竖条,与左侧会话栏对称;不做"完全消失 + 顶栏按钮" | 图标条即入口,免去顶栏再长按钮;对称结构让空状态仍然居中干净 |
 | D12(v1.1) | "文件"标签直接复用 Workbench 的 `ExplorerView`,不另写精简树 | 复用优先(charter 工程纪律);同一组件保证两模式导航语义一致;若日后过重再在同一组件内做 compact 变体 |
 | D13(v1.1) | 舞台不再随无活动图整块消失,改为占位引导 | 三标签结构下标签消失会让标签条跳动;占位引导同时承担"下一步做什么"的提示 |
+| D14(v1.2,2026-08-19) | 顶栏图像上下文由「模态 + 对象两级下拉」改为**只读 chip「模态 · 对象 id」,点击 = 展开右侧栏「文件」标签** | ① v1.1 的「文件」标签(D12 复用 `ExplorerView`)已含模态切换 + 图像列表 + 选中态,顶栏选择器把同一份派生规则(`isCT ? volumes : isWSI ? slides : images`)抄了第二遍,是两个真相源;② 顶栏在此处的真实价值是**常驻上下文显示**——右侧栏可折叠、且可能停在「图谱」标签,此时"当前在看哪张图"必须仍然可见,故不整块删除顶栏上下文区;③ 原生 `<select>` 箭头由系统绘制,与 feats/06 统一线性图标语言冲突,改 chip 后自然消失;④ 与 G3 反长回一致:一个位置只做一件事,顶栏显示、侧栏选择 |
 
 ## 17. 待确认问题
 

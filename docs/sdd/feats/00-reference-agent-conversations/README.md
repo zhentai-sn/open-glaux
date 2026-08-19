@@ -6,7 +6,7 @@
 | --- | --- |
 | SDD 状态 | `implemented` |
 | 创建日期 | 2026-07-27 |
-| 最近更新 | 2026-07-27 |
+| 最近更新 | 2026-08-19 |
 | 目标阶段 | 第一阶段：可持续使用的本地 AI 对话与会话管理 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
@@ -82,6 +82,12 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 - Runtime 优先从 Pi 内置 model catalog 解析模型元数据。无法解析的自定义模型必须同时提供
   `context_window` 与 `max_tokens`；`context_window >= 1024`、`max_tokens >= 1` 且
   `max_tokens < context_window`，禁止由 Glaux 静默猜测默认值。
+- 上条约束是 **runtime 契约层**的：runtime 收不到就报 `model_metadata_required`，永不自行代入。
+  **UI 层（2026-08-19 决议）反过来负责让用户不必手填**：拉取模型时尽力探测上游元数据
+  （Ollama `/api/show` 的 `model_info.*.context_length`；OpenAI 兼容 `/models` 条目上的
+  `context_length` / `max_context_length` / `max_output_tokens` 等常见字段），探到即预填选定模型的值；
+  探不到则预填默认 `context_window=128000`、`max_tokens=8192`。预填值**始终可见且可改**，
+  因此送到 runtime 的仍是用户可核对的显式值——不是静默猜测。
 - Glaux 不直接读写 Pi SQLite 内部表；所有 transcript、消息树和 compaction 操作必须通过 Pi Session/Harness API。
 
 ## 5. 输出
@@ -317,8 +323,8 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.provider` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.model` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.base_url` | text nullable | 自定义 Provider 可用 |
-| `connection.context_window` | integer nullable | 自定义模型必填；Pi 内置目录已知模型可省略 |
-| `connection.max_tokens` | integer nullable | 自定义模型必填；Pi 内置目录已知模型可省略 |
+| `connection.context_window` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
+| `connection.max_tokens` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
 
 ## 10. 幂等性
@@ -492,6 +498,8 @@ erDiagram
 - [x] `glaux.command.*` entries 不出现在模型输入和聊天消息列表中。
 - [x] Pi 内置目录已知模型可直接生成；自定义模型缺少 `context_window`/`max_tokens` 时返回
   `model_metadata_required`，不得使用 Glaux 自定义默认值。
+- [ ] 连接设置里选中一个 OpenAI 兼容模型后，上下文窗口/最大输出**已自动带值**（探到上游元数据用探测值，
+  否则 128000/8192），用户不改任何数字即可发起对话；两个字段仍可见可改。
 - [ ] 编辑器、左侧栏、底部面板及 Dock 布局行为无回归。
 - [ ] Agent 面板仍位于右侧 Dock，默认宽度为 `340px`，用户调整后的 Dock 布局可恢复。
 - [x] Python FastAPI、`science-core` 与现有 `/task/*` 行为无需修改即可通过既有测试。

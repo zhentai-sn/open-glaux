@@ -1,3 +1,5 @@
+import { Icon } from "./Icon";
+import { ICONS } from "./iconMap";
 import { TerminalView } from "./TerminalView";
 import { useI18n } from "../i18n";
 import { useSession, type PanelTab } from "../store/session";
@@ -96,8 +98,8 @@ export function BottomPanel() {
           </button>
         ))}
         <span className="pr">
-          <button title="collapse" onClick={toggle}>
-            {collapsed ? "⌃" : "⌄"}
+          <button title="collapse" onClick={toggle} aria-label="collapse">
+            <Icon icon={collapsed ? ICONS.chevronUp : ICONS.chevronDown} size="sm" />
           </button>
         </span>
       </div>

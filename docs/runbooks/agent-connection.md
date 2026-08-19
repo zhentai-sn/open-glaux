@@ -60,7 +60,7 @@ ollama serve                 # 默认 http://localhost:11434
 - `https` 远端放行；`http` **仅**放行解析到**回环**（localhost/127.0.0.1/::1）的 host —— 这是本地部署的口子。
 - 基于 DNS **解析后的 IP** 判定（防 `localhost.attacker.com` / DNS rebinding），拒其它私网段（IPv4/IPv6）。
 - 需连内网自建 GPU 机：给 **agent-runtime 进程**设 `GLAUX_VLM_HOST_ALLOW=gpu-box.internal`（逗号分隔多个）后重启 agent-runtime。
-- **透明代理 / fake-ip**（Clash/Surge/sing-box）：这类代理把域名映射到 `198.18.0.0/15`（RFC 2544 保留段）做透明转发，守卫按保留地址拒。若你的网关走 fake-ip，给 agent-runtime 设 `GLAUX_VLM_ALLOW_FAKEIP=1` 放行该段（其余私网仍拒）后重启。比逐个 `GLAUX_VLM_HOST_ALLOW` 省事。
+- **透明代理 / fake-ip**（Clash/Surge/sing-box）：这类代理把域名映射到 `198.18.0.0/15`（RFC 2544 保留段）做透明转发。该段**默认放行**（2026-08-19 决议：此段现实中不承载真实内部服务，误拒代价远高于放行风险），走 fake-ip 的机器无需任何配置；要收紧就给 agent-runtime 设 `GLAUX_VLM_ALLOW_FAKEIP=0` 后重启，其余私网无论开关一律拒。
   - 注意：WSL 内的进程能否真把 `198.18.x.x` 路由到 Windows 侧代理，取决于 WSL 网络模式（mirrored 通常可、NAT 可能不可）——放行只是过了守卫，能否连通是网络层的事。
 - 被拒时端点返回 `400 { error: { code: "egress_blocked", message } }`，且**不发起任何网络请求**。
 - **残留风险（待安全评审）**：解析在守卫、fetch 时再解析 = TOCTOU；彻底缓解需把 IP 钉进连接。

@@ -264,8 +264,8 @@ trace_id；不记录图像内容与 API key。
 - [ ] 对 science-core 未覆盖的任务，在外发开关开启时走 SAM API 产出建议态标注，
       `source = sam-api` 且审计日志有对应外发记录。
 - [ ] 外发开关关闭时，同样的指令返回 `EGRESS_DISABLED` 失败事件，无任何对外请求发出。
-- [ ] SAM API endpoint 配置为私网/fake-ip 地址且未显式放行时，出站守卫拒绝并返回
-      `EGRESS_BLOCKED`。
+- [ ] SAM API endpoint 配置为私网地址且未显式放行时，出站守卫拒绝并返回
+      `EGRESS_BLOCKED`（fake-ip 段 `198.18.0.0/15` 默认放行，见 `agent-runtime/src/security/net-guard.ts`）。
 - [ ] `observe` 模式下三个标注工具均不可被调用，agent 回复中不出现工具调用。
 - [ ] `suggest` 模式下 `segment_region` 触发逐次批准，用户拒绝后本次调用终止且无标注产出。
 - [ ] 同一 `annotation.suggested` 事件重复送达时，前端视口中只出现一个标注。

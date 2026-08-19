@@ -51,6 +51,9 @@ export interface ConnectionTestResult {
 export interface ConnectionModelInfo {
   id: string;
   vision: "yes" | "no" | "unknown";
+  /** 上游自报的上下文窗口 / 最大输出；探不到即缺省，前端回退默认值（SDD 00 §4）。 */
+  context_window?: number;
+  max_tokens?: number;
 }
 
 export interface ConnectionModelListResult {

@@ -75,25 +75,27 @@ describe("net-guard: assertUrlAllowed", () => {
     });
   });
 
-  it("blocks fake-ip range by default with a pointer to the toggle", async () => {
-    await expectBlocked(
-      assertUrlAllowed("https://gw.example.com/v1", { env, resolveHost: resolveTo("198.18.0.32") }),
-      /GLAUX_VLM_ALLOW_FAKEIP/u,
-    );
-  });
-
-  it("allows fake-ip range when toggled, but not real private ranges", async () => {
-    const toggled = { GLAUX_VLM_ALLOW_FAKEIP: "1" } as NodeJS.ProcessEnv;
+  it("allows fake-ip range by default, but not real private ranges", async () => {
     await assertUrlAllowed("https://gw.example.com/v1", {
-      env: toggled,
+      env,
       resolveHost: resolveTo("198.18.0.32"),
     });
     await expectBlocked(
       assertUrlAllowed("https://sneaky.example.com/v1", {
-        env: toggled,
+        env,
         resolveHost: resolveTo("10.0.0.5"),
       }),
       /内网/u,
+    );
+  });
+
+  it("blocks fake-ip range when explicitly disabled, pointing at the toggle", async () => {
+    await expectBlocked(
+      assertUrlAllowed("https://gw.example.com/v1", {
+        env: { GLAUX_VLM_ALLOW_FAKEIP: "0" } as NodeJS.ProcessEnv,
+        resolveHost: resolveTo("198.18.0.32"),
+      }),
+      /GLAUX_VLM_ALLOW_FAKEIP/u,
     );
   });
 
