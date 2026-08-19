@@ -81,6 +81,8 @@ export const en = {
   agent_attach_reject_total_too_large: "{name}: the images in this message are too large in total.",
   agent_attach_reject_read_failed: "{name}: could not be read, please try again.",
   agent_message_image: "Message image",
+  agent_image_zoom: "View {name} larger",
+  agent_image_preview: "Image preview",
   agent_loading: "Loading conversations…",
   agent_no_sessions: "No matching conversations.",
   agent_new_title: "New conversation",

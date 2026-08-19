@@ -223,6 +223,7 @@ interface SessionState {
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
   composerAttachments: Attachment[]; // 未发送的图像附件，与草稿同理不因重挂载丢失（SDD 00 D-021）
   shortcutSheetOpen: boolean; // 快捷键速查面板开合（SDD feats/05 §9）——瞬态，不持久化
+  imagePreview: { src: string; alt: string } | null; // 点击放大的图像（附件缩略图 / 消息图）——瞬态
 
   // actions
   setUiMode: (m: UiMode) => void;
@@ -258,6 +259,7 @@ interface SessionState {
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
   setComposerAttachments: (v: Attachment[]) => void;
+  setImagePreview: (v: { src: string; alt: string } | null) => void;
   toggleShortcutSheet: () => void;
   setShortcutSheet: (v: boolean) => void;
   notify: (tone: Notice["tone"], text: string) => void;
@@ -305,6 +307,7 @@ export const useSession = create<SessionState>((set) => ({
   composerDraft: "",
   composerAttachments: [],
   shortcutSheetOpen: false,
+  imagePreview: null,
 
   setUiMode: (m) =>
     set(() => {
@@ -383,6 +386,7 @@ export const useSession = create<SessionState>((set) => ({
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
   setComposerAttachments: (v) => set({ composerAttachments: v }),
+  setImagePreview: (v) => set({ imagePreview: v }),
   toggleShortcutSheet: () => set((s) => ({ shortcutSheetOpen: !s.shortcutSheetOpen })),
   setShortcutSheet: (v) => set({ shortcutSheetOpen: v }),
   // 入队而非覆盖：并发提示逐条呈现；上限 6 条防失控（超出丢最旧，仍保留最近的关键失败）。

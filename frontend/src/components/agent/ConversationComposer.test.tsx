@@ -48,6 +48,7 @@ describe("ConversationComposer image attachments", () => {
       composerDraft: "",
       composerAttachments: [],
       notices: [],
+      imagePreview: null,
     });
   });
 
@@ -62,6 +63,19 @@ describe("ConversationComposer image attachments", () => {
 
     fireEvent.click(screen.getByLabelText("Remove shot.png"));
     expect(useSession.getState().composerAttachments).toHaveLength(0);
+  });
+
+  it("opens the zoom overlay when the thumbnail is clicked, without removing it", async () => {
+    setup();
+    fireEvent.paste(screen.getByRole("textbox"), {
+      clipboardData: clipboardWith([pngFile()]),
+    });
+    await screen.findByAltText("shot.png");
+
+    fireEvent.click(screen.getByLabelText("View shot.png larger"));
+    expect(useSession.getState().imagePreview).toMatchObject({ alt: "shot.png" });
+    // 放大是查看,不是移除——附件仍在待发送列表里。
+    expect(useSession.getState().composerAttachments).toHaveLength(1);
   });
 
   it("sends an image-only message and clears the draft attachments", async () => {

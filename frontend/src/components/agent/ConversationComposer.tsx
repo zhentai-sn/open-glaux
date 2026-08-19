@@ -36,6 +36,7 @@ export function ConversationComposer({
   const attachments = useSession((s) => s.composerAttachments);
   const setAttachments = useSession((s) => s.setComposerAttachments);
   const notify = useSession((s) => s.notify);
+  const setPreview = useSession((s) => s.setImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -91,7 +92,16 @@ export function ConversationComposer({
         <ul className="composer-attachments" aria-label={t("agent_attachments")}>
           {attachments.map((item: Attachment) => (
             <li key={item.id}>
-              <img src={item.dataUrl} alt={item.name} />
+              {/* 用 button 包一层而非给 img 加 onClick：键盘可达（SDD 05 R1）。 */}
+              <button
+                type="button"
+                className="attachment-open"
+                title={t("agent_image_zoom", { name: item.name })}
+                aria-label={t("agent_image_zoom", { name: item.name })}
+                onClick={() => setPreview({ src: item.dataUrl, alt: item.name })}
+              >
+                <img src={item.dataUrl} alt={item.name} />
+              </button>
               <button
                 type="button"
                 className="attachment-remove"

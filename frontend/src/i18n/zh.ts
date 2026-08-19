@@ -77,6 +77,8 @@ export const zh: Record<I18nKey, string> = {
   agent_attach_reject_total_too_large: "{name}：本条消息图片合计体积超出上限。",
   agent_attach_reject_read_failed: "{name}：读取失败，请重试。",
   agent_message_image: "消息图片",
+  agent_image_zoom: "放大查看 {name}",
+  agent_image_preview: "图像预览",
   agent_loading: "正在加载会话…",
   agent_no_sessions: "没有匹配的会话。",
   agent_new_title: "新会话",

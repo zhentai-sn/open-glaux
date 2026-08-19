@@ -59,9 +59,13 @@ export function useGlobalKeys() {
       const el = document.activeElement;
       const st = useSession.getState();
 
-      // Esc：速查面板优先关闭；否则（非编辑 + 查看器上下文）复位工具（D-7）
+      // Esc：图像放大层最先关闭（它盖在最上层），其次速查面板；
+      // 否则（非编辑 + 查看器上下文）复位工具（D-7）
       if (e.key === "Escape") {
-        if (st.shortcutSheetOpen) {
+        if (st.imagePreview) {
+          st.setImagePreview(null);
+          e.preventDefault();
+        } else if (st.shortcutSheetOpen) {
           st.setShortcutSheet(false);
           e.preventDefault();
         } else if (!isEditable(el) && inViewerContext(el)) {

@@ -122,6 +122,7 @@ export function AgentConversation() {
     (state) => state.setPermissionMode,
   );
   const connection = useSession((state) => state.connection);
+  const setPreview = useSession((state) => state.setImagePreview);
   const { send, regenerate, abort } = useConversation();
   const [configOpen, setConfigOpen] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
@@ -328,11 +329,25 @@ export function AgentConversation() {
                 {images.length > 0 && (
                   <div className="message-images">
                     {images.map((image, imageIndex) => (
-                      <img
+                      <button
                         key={`${index}-img-${imageIndex}`}
-                        src={image.dataUrl}
-                        alt={t("agent_message_image")}
-                      />
+                        type="button"
+                        className="message-image-open"
+                        title={t("agent_image_zoom", {
+                          name: t("agent_message_image"),
+                        })}
+                        aria-label={t("agent_image_zoom", {
+                          name: t("agent_message_image"),
+                        })}
+                        onClick={() =>
+                          setPreview({
+                            src: image.dataUrl,
+                            alt: t("agent_message_image"),
+                          })
+                        }
+                      >
+                        <img src={image.dataUrl} alt={t("agent_message_image")} />
+                      </button>
                     ))}
                   </div>
                 )}

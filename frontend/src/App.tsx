@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FocusShell } from "./components/focus/FocusShell";
 import { Notice } from "./components/Notice";
 import { Shell } from "./components/Shell";
+import { ImagePreview } from "./components/ImagePreview";
 import { ShortcutSheet } from "./components/ShortcutSheet";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
@@ -80,6 +81,7 @@ export function App() {
         {shell}
       </ErrorBoundary>
       <ShortcutSheet />
+      <ImagePreview />
     </>
   );
 }

@@ -97,6 +97,25 @@ describe("useGlobalKeys（SDD feats/05）", () => {
     expect(useSession.getState().tool).toBe("reset");
   });
 
+  it("Esc 优先关图像放大层,再关速查面板,最后复位工具", () => {
+    render(createElement(Harness));
+    useSession.setState({
+      imagePreview: { src: "data:image/png;base64,AA", alt: "shot.png" },
+      shortcutSheetOpen: true,
+      tool: "bbox",
+    });
+
+    // 放大层在最上层,先关它,速查面板与工具都不动
+    press({ key: "Escape" });
+    expect(useSession.getState().imagePreview).toBeNull();
+    expect(useSession.getState().shortcutSheetOpen).toBe(true);
+    expect(useSession.getState().tool).toBe("bbox");
+
+    press({ key: "Escape" });
+    expect(useSession.getState().shortcutSheetOpen).toBe(false);
+    expect(useSession.getState().tool).toBe("bbox");
+  });
+
   it("卸载后移除监听（不再响应按键）", () => {
     // 卸载 hook 后按键不应改变 store
     function Once() {
