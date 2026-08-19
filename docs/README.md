@@ -92,6 +92,7 @@ docs/
 | --- | --- | --- | --- |
 | [charter.zh-CN.md](roadmaps/charter.zh-CN.md) | 活文档 | — | 纲领（路线图之源，不存档） |
 | [20260705-product-roadmap.zh-CN.md](roadmaps/20260705-product-roadmap.zh-CN.md) | 2026-07-05 | product | ✅ 当前 |
+| [20260818-frontend-quality-roadmap.zh-CN.md](roadmaps/20260818-frontend-quality-roadmap.zh-CN.md) | 2026-08-18 | frontend | `ready`（纲领落地：动效/无障碍/反馈打磨层） |
 
 ## 三、脑暴 brainstorms/
 
@@ -108,7 +109,7 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 | [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `implemented` | 内置参考智能体与本地会话管理 |
 | [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `accepted` | 双模式外壳 Focus / Workbench |
 | [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `draft` | 智能体图像标注能力 |
-| [03-atlas](sdd/feats/03-atlas/README.md) | `implemented` | Atlas · 图谱（人工策展的图文案例库） |
+| [03-atlas](sdd/feats/03-atlas/README.md) | `implemented`（v1.1 图册 + 右侧栏） | Atlas · 图谱（人工策展的图文案例库） |
 | [04-unified-annotation-toolbox](sdd/feats/04-unified-annotation-toolbox/README.md) | `ready` | 统一图像标注工具箱（bbox/polygon/brush） |
 
 ## 通用约定
