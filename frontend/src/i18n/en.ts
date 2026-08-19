@@ -223,6 +223,16 @@ export const en = {
   err_details: "Technical details",
   err_copy: "Copy",
   err_copied: "Copied",
+  // keyboard shortcuts（SDD feats/05）
+  sc_title: "Keyboard shortcuts",
+  sc_group_tool: "Tools",
+  sc_group_shell: "Shell",
+  sc_group_help: "Help",
+  sc_left: "Toggle session rail (Focus)",
+  sc_right: "Toggle right panel / bottom panel",
+  sc_mode: "Switch Focus ↔ Workbench",
+  sc_sheet: "Toggle this cheatsheet",
+  sc_dismiss: "Press ? or Esc to close",
 } as const;
 
 export type I18nKey = keyof typeof en;

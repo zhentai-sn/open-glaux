@@ -5,13 +5,16 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FocusShell } from "./components/focus/FocusShell";
 import { Notice } from "./components/Notice";
 import { Shell } from "./components/Shell";
+import { ShortcutSheet } from "./components/ShortcutSheet";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
 import { loadImages } from "./data/actions";
+import { useGlobalKeys } from "./keys/globalKeys";
 import { useSession } from "./store/session";
 
 export function App() {
+  useGlobalKeys(); // 全局快捷键分发（SDD feats/05）——单一监听点
   const uiMode = useSession((s) => s.uiMode);
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);
@@ -72,8 +75,11 @@ export function App() {
       </div>
     );
   return (
-    <ErrorBoundary key={uiMode} label="Glaux">
-      {shell}
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary key={uiMode} label="Glaux">
+        {shell}
+      </ErrorBoundary>
+      <ShortcutSheet />
+    </>
   );
 }

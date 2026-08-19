@@ -29,12 +29,12 @@ export function StatusBar() {
 
   return (
     <div className="status">
-      <button className="item">
-        <span>⎇</span> main
-      </button>
-      <button className="item">
+      <span className="item" aria-label={lang === "zh" ? "分支：main" : "branch: main"}>
+        <span aria-hidden="true">⎇</span> main
+      </span>
+      <span className="item" aria-label={lang === "zh" ? "当前图像" : "current image"}>
         <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
-      </button>
+      </span>
       <span className="item">
         {TOOL_GLYPH[tool]} <span>{t(TOOL_LABEL[tool])}</span>
       </span>

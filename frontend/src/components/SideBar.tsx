@@ -53,16 +53,18 @@ function ImageLeaf({
   onSelect: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
       className={"row" + (selected ? " sel" : "")}
       style={{ paddingLeft: depth * 12 + 4 }}
       onClick={onSelect}
+      aria-pressed={selected}
     >
       <span className="tw" />
       <span className="ico fico">▤</span>
       <span className="nm">{id}</span>
       {selected && <span className="dot">●</span>}
-    </div>
+    </button>
   );
 }
 
@@ -82,12 +84,18 @@ function Dir({
   const [open, setOpen] = useState(!!defaultOpen);
   return (
     <>
-      <div className="row" style={{ paddingLeft: depth * 12 + 4 }} onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className="row"
+        style={{ paddingLeft: depth * 12 + 4 }}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
         <span className="tw">{open ? "▾" : "▸"}</span>
         <span className={"nm" + (tag === "gold" ? " gold" : "")}>{name}</span>
         {tag === "gold" && <span className="tag">gold</span>}
         {tag === "agent" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
-      </div>
+      </button>
       {open && children}
     </>
   );
@@ -219,10 +227,10 @@ function ImportDataSourceForm() {
 
   return (
     <div className="dsimp">
-      <div className="dsimp-hd" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="dsimp-hd" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="tw">{open ? "▾" : "▸"}</span>
         <span>{lang === "zh" ? "＋ 导入数据源" : "＋ Import data source"}</span>
-      </div>
+      </button>
       {open && (
         <div className="dsimp-bd">
           <input
@@ -298,16 +306,31 @@ function MarketplaceView() {
                   : c.status === "installed"
                     ? t("cap_installed")
                     : t("cap_active");
+              // 可激活卡（未激活）才可键盘聚焦触发；已激活/只读卡为纯展示，不可聚焦（内含 ✕ 子按钮，故用 role 而非 button，避免按钮嵌套）。
+              const actionable = activatable && !active;
+              const doActivate = () => {
+                if (!actionable) return;
+                activate(c.id);
+                void reRunActiveModel();
+              };
               return (
                 <div
                   key={c.id}
                   className={"ext" + (active ? " on" : "")}
-                  style={{ cursor: activatable && !active ? "pointer" : "default", opacity: planned ? 0.55 : 1 }}
-                  onClick={() => {
-                    if (!activatable || active) return;
-                    activate(c.id);
-                    void reRunActiveModel();
-                  }}
+                  style={{ cursor: actionable ? "pointer" : "default", opacity: planned ? 0.55 : 1 }}
+                  role={actionable ? "button" : undefined}
+                  tabIndex={actionable ? 0 : undefined}
+                  onClick={doActivate}
+                  onKeyDown={
+                    actionable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            doActivate();
+                          }
+                        }
+                      : undefined
+                  }
                 >
                   <div className="top">
                     <div className="mi">{KIND_GLYPH[c.kind] ?? "◇"}</div>

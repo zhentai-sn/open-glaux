@@ -217,4 +217,14 @@ export const zh: Record<I18nKey, string> = {
   err_details: "技术详情",
   err_copy: "复制",
   err_copied: "已复制",
+  // keyboard shortcuts（SDD feats/05）
+  sc_title: "键盘快捷键",
+  sc_group_tool: "工具",
+  sc_group_shell: "外壳",
+  sc_group_help: "帮助",
+  sc_left: "开合会话栏（Focus）",
+  sc_right: "开合右侧栏 / 底部面板",
+  sc_mode: "切换 Focus ↔ Workbench",
+  sc_sheet: "开合本速查面板",
+  sc_dismiss: "按 ? 或 Esc 关闭",
 };

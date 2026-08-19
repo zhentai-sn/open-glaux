@@ -289,6 +289,14 @@ button {
   white-space: nowrap;
   height: 22px;
 }
+/* 文件树行/导入头由 <div> 语义化为 <button>（键盘可达 G10）：撑满宽度、左对齐，观感与原 div 一致 */
+button.row,
+button.dsimp-hd {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+button.row { font-size: 13px; }
 .row:hover {
   background: var(--hover);
 }
@@ -1442,6 +1450,56 @@ canvas {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ---- 快捷键速查面板（SDD feats/05） ---- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.sheet {
+  width: min(92vw, 460px);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  padding: var(--space-4);
+}
+.sheet-hd { color: var(--bright); font-size: var(--font-base); font-weight: 600; margin-bottom: var(--space-3); }
+.sheet-groups { display: flex; flex-direction: column; gap: var(--space-4); }
+.sheet-group-title {
+  color: var(--faint);
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
+}
+.sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: var(--font-sm);
+  color: var(--ink);
+}
+.sheet-keys {
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  color: var(--bright);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+}
+.sheet-ft { margin-top: var(--space-4); color: var(--faint); font-size: var(--font-xs); text-align: center; }
 
 /* 工具调用状态行——比正文更淡、更小的一行"⚙ 调用 run_task"，不占气泡 */
 .turn.assistant.tool {

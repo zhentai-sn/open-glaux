@@ -171,6 +171,7 @@ interface SessionState {
   // 即时提示 + Composer 草稿
   notices: Notice[]; // 提示队列：逐条呈现，不互相顶掉（医学失败提示不静默丢失，信任可见 G5）
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
+  shortcutSheetOpen: boolean; // 快捷键速查面板开合（SDD feats/05 §9）——瞬态，不持久化
 
   // actions
   setUiMode: (m: UiMode) => void;
@@ -201,6 +202,8 @@ interface SessionState {
   setCoords: (x: number, y: number) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
+  toggleShortcutSheet: () => void;
+  setShortcutSheet: (v: boolean) => void;
   notify: (tone: Notice["tone"], text: string) => void;
   dismissNotice: (id?: number) => void;
 }
@@ -242,6 +245,7 @@ export const useSession = create<SessionState>((set) => ({
 
   notices: [],
   composerDraft: "",
+  shortcutSheetOpen: false,
 
   setUiMode: (m) =>
     set(() => {
@@ -301,6 +305,8 @@ export const useSession = create<SessionState>((set) => ({
       return { connection: next };
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
+  toggleShortcutSheet: () => set((s) => ({ shortcutSheetOpen: !s.shortcutSheetOpen })),
+  setShortcutSheet: (v) => set({ shortcutSheetOpen: v }),
   // 入队而非覆盖：并发提示逐条呈现；上限 6 条防失控（超出丢最旧，仍保留最近的关键失败）。
   notify: (tone, text) =>
     set((s) => ({ notices: [...s.notices, { id: nextId(), tone, text }].slice(-6) })),

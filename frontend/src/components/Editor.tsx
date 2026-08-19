@@ -52,7 +52,7 @@ export function Editor() {
         <span style={{ color: "var(--ink)" }}>{image ?? "—"}</span>
       </div>
 
-      <div className="editor">
+      <div className="editor" data-viewer-surface>
         {image ? (
           <>
             <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>

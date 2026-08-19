@@ -83,7 +83,7 @@ export function StagePanel() {
           </span>
         </div>
       )}
-      <div className="focus-stage-canvas">
+      <div className="focus-stage-canvas" data-viewer-surface>
         <ErrorBoundary label="stage">
           <Viewer />
         </ErrorBoundary>
