@@ -2,6 +2,8 @@ import { reRunActiveModel } from "../../data/actions";
 import { useI18n } from "../../i18n";
 import { useSession, type Tool } from "../../store/session";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { Icon } from "../Icon";
+import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
 import { Viewer } from "../Viewer";
 
 // 图像舞台（SDD feats/01 §8）——Focus 的一等区域：同步核对回路的落点（纲领 G4）。
@@ -45,7 +47,7 @@ export function StagePanel() {
     return (
       <section className="focus-stage" aria-label={t("focus_stage")}>
         <div className="focus-stage-empty">
-          <span aria-hidden="true">▣</span>
+          <Icon icon={ICONS.file} size="lg" />
           <p>{t("focus_stage_empty")}</p>
         </div>
       </section>
@@ -63,11 +65,11 @@ export function StagePanel() {
             title={tl.label[lang]}
             onClick={() => onTool(tl.id as Tool)}
           >
-            {tl.glyph} <span>{tl.label[lang]}</span>
+            <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" /> <span>{tl.label[lang]}</span>
           </button>
         ))}
         <span className="focus-stage-grow" />
-        {loading && <span className="focus-stage-busy"><span className="spin" aria-hidden="true">⟳</span> {t("running")}</span>}
+        {loading && <span className="focus-stage-busy"><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
       </div>
       {entries.length > 0 && (
         <div className="focus-stage-metrics">

@@ -13,6 +13,8 @@ import {
 import { useI18n, type I18nKey } from "../i18n";
 import { useSession } from "../store/session";
 import { AtlasView } from "./atlas/AtlasView";
+import { Icon } from "./Icon";
+import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
 
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
@@ -61,9 +63,9 @@ function ImageLeaf({
       aria-pressed={selected}
     >
       <span className="tw" />
-      <span className="ico fico">▤</span>
+      <Icon icon={ICONS.file} size="sm" className="ico fico" />
       <span className="nm">{id}</span>
-      {selected && <span className="dot">●</span>}
+      {selected && <Icon icon={ICONS.check} size="sm" className="dot" />}
     </button>
   );
 }
@@ -91,7 +93,7 @@ function Dir({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        <span className="tw">{open ? "▾" : "▸"}</span>
+        <span className="tw"><Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" /></span>
         <span className={"nm" + (tag === "gold" ? " gold" : "")}>{name}</span>
         {tag === "gold" && <span className="tag">gold</span>}
         {tag === "agent" && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
@@ -181,19 +183,6 @@ const LAYERS: { layer: CapabilityLayer; key: I18nKey }[] = [
   { layer: "memory", key: "lay_memory" },
 ];
 
-const KIND_GLYPH: Record<string, string> = {
-  skill: "✦",
-  model: "◈",
-  adapter: "◈",
-  dataset: "▦",
-  reference_method: "⚖",
-  calibration_source: "⊹",
-  connector: "⇄",
-  mcp: "⧉",
-  knowledge_base: "❋",
-  correction_store: "↺",
-};
-
 // 导入数据源表单——POST /datasources（服务端可达的文件夹路径；缺标定后端自动探测）。
 // v0 只放开端到端可用的 WSI/CT；carotid/HC 数据结构复杂，导入后续（见计划 §2）。
 const IMPORTABLE: { modality: Modality; label: string }[] = [
@@ -228,7 +217,7 @@ function ImportDataSourceForm() {
   return (
     <div className="dsimp">
       <button type="button" className="dsimp-hd" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="tw">{open ? "▾" : "▸"}</span>
+        <span className="tw"><Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" /></span>
         <span>{lang === "zh" ? "＋ 导入数据源" : "＋ Import data source"}</span>
       </button>
       {open && (
@@ -333,7 +322,7 @@ function MarketplaceView() {
                   }
                 >
                   <div className="top">
-                    <div className="mi">{KIND_GLYPH[c.kind] ?? "◇"}</div>
+                    <div className="mi"><Icon icon={KIND_ICON[c.kind] ?? FALLBACK_ICON} size="md" /></div>
                     <div>
                       <div className="nm">{c.name}</div>
                       <div className="pub">
@@ -351,7 +340,7 @@ function MarketplaceView() {
                           void removeDataSource(dsId);
                         }}
                       >
-                        ✕
+                        <Icon icon={ICONS.close} size="sm" />
                       </button>
                     )}
                   </div>

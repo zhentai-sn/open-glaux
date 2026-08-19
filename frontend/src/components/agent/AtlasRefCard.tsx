@@ -4,6 +4,8 @@ import { atlasApi, type Exemplar } from "../../api/atlas";
 import type { AtlasReferencedPayload } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import { revealExemplar } from "../../store/atlas";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 // 会话中的"参考图谱 N 条"卡片（SDD feats/03 §5.1 / §12 / §13）：渲染 `atlas.referenced` payload——
 // 候选 N、选中 K、被外发限制排除 M；每条选中案例显示缩略图，点开跳到图谱详情；
@@ -76,7 +78,7 @@ export function AtlasRefCard({ payload }: { payload: AtlasReferencedPayload }) {
   return (
     <div className="atlas-ref-card" data-testid="atlas-ref-card">
       <div className="atlas-ref-head">
-        <span aria-hidden="true">📖</span>
+        <Icon icon={ICONS.atlas} size="sm" />
         <b>{n > 0 ? t("atlas_ref_title", { n }) : t("atlas_ref_none")}</b>
         {payload.candidate_ids.length > 0 && <span className="atlas-ref-meta">{t("atlas_ref_candidates", { n: payload.candidate_ids.length })}</span>}
       </div>

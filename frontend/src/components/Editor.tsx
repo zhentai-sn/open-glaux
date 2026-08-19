@@ -1,4 +1,6 @@
 import { ErrorBoundary } from "./ErrorBoundary";
+import { Icon } from "./Icon";
+import { FALLBACK_ICON, ICONS, TOOL_ICON } from "./iconMap";
 import { Viewer } from "./Viewer";
 import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
@@ -41,7 +43,7 @@ export function Editor() {
       <div className="tabs">
         {image && (
           <div className="tab on">
-            <span className="fico">▤</span>
+            <Icon icon={ICONS.file} size="sm" className="fico" />
             {image}
           </div>
         )}
@@ -59,7 +61,7 @@ export function Editor() {
             <div className="hud">
               <span className="tagpill">{label}</span>
               <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
-              {loading && <span className="tagpill" style={{ color: "var(--agent)" }}>…</span>}
+              {loading && <span className="tagpill" style={{ color: "var(--agent)" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /></span>}
             </div>
             <div className="etools" role="toolbar">
               {tools.map((tl) => (
@@ -69,13 +71,13 @@ export function Editor() {
                   aria-pressed={tool === tl.id}
                   onClick={() => onTool(tl.id as Tool)}
                 >
-                  {tl.glyph}
+                  <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" />
                   <span className="tip">{tl.label[lang]}</span>
                 </button>
               ))}
             </div>
             {modelVersion && <span className="repr">{modelVersion}</span>}
-            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}><span className="spin" aria-hidden="true">⟳</span> {t("running")}</span>}
+            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
           </>
         ) : (
           <div className="empty">{t("empty_editor")}</div>

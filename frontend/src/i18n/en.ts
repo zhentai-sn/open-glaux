@@ -233,6 +233,7 @@ export const en = {
   sc_mode: "Switch Focus ↔ Workbench",
   sc_sheet: "Toggle this cheatsheet",
   sc_dismiss: "Press ? or Esc to close",
+  ui_close: "Close",
 } as const;
 
 export type I18nKey = keyof typeof en;

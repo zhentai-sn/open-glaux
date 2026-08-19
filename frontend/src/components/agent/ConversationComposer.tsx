@@ -1,5 +1,7 @@
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 interface ConversationComposerProps {
   running: boolean;
@@ -70,7 +72,7 @@ export function ConversationComposer({
             disabled={disabled || !content.trim()}
             onClick={() => void submit()}
           >
-            ↑ {t("agent_send")}
+            <Icon icon={ICONS.send} size="sm" /> {t("agent_send")}
           </button>
         )}
       </div>

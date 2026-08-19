@@ -1,5 +1,7 @@
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
+import { Icon } from "./Icon";
+import { TOOL_ICON } from "./iconMap";
 
 const TOOL_LABEL = {
   cursor: "tl_cursor",
@@ -8,8 +10,6 @@ const TOOL_LABEL = {
   roi: "tl_roi",
   reset: "tl_reset",
 } as const;
-
-const TOOL_GLYPH = { cursor: "▸", editli: "◠", editma: "◡", roi: "▭", reset: "⟲" } as const;
 
 export function StatusBar() {
   const { t, lang, toggle } = useI18n();
@@ -36,7 +36,7 @@ export function StatusBar() {
         <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
       </span>
       <span className="item">
-        {TOOL_GLYPH[tool]} <span>{t(TOOL_LABEL[tool])}</span>
+        <Icon icon={TOOL_ICON[tool]} size="sm" /> <span>{t(TOOL_LABEL[tool])}</span>
       </span>
       <span className="sp" />
       <span className="item mono">

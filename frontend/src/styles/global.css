@@ -21,6 +21,12 @@ body {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
+/* 统一图标（SDD feats/06）：尺寸走 token（覆盖 lucide 默认 24），currentColor 继承 */
+.gicon { flex: none; vertical-align: middle; }
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
+.icon-md { width: var(--icon-md); height: var(--icon-md); }
+.icon-lg { width: var(--icon-lg); height: var(--icon-lg); }
+.icon-xl { width: var(--icon-xl); height: var(--icon-xl); }
 button {
   font-family: inherit;
   cursor: pointer;

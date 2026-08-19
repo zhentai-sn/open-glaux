@@ -17,6 +17,7 @@
     "@cornerstonejs/core": "^3.33.5",
     "@cornerstonejs/tools": "^3.33.5",
     "dockview-react": "^7.0.2",
+    "lucide-react": "^1.32.0",
     "nifti-reader-js": "^0.8.0",
     "openseadragon": "^4.1.1",
     "react": "^18.3.1",

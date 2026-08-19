@@ -5,14 +5,18 @@ import { toProbeInput } from "../../agent/useConversation";
 import type { VlmModelInfo, VlmProvider } from "../../api/types";
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 const LOCAL_PRESETS = [
   { label: "Ollama", baseUrl: "http://localhost:11434/v1" },
   { label: "LM Studio", baseUrl: "http://localhost:1234/v1" },
 ] as const;
 
-function visionMark(vision: VlmModelInfo["vision"]): string {
-  return vision === "yes" ? "👁" : vision === "no" ? "⊘" : "·";
+function VisionMark({ vision }: { vision: VlmModelInfo["vision"] }) {
+  if (vision === "yes") return <Icon icon={ICONS.eye} size="sm" />;
+  if (vision === "no") return <Icon icon={ICONS.eyeOff} size="sm" />;
+  return <span aria-hidden="true">·</span>;
 }
 
 function optionalInteger(value: string): number | null {
@@ -152,7 +156,7 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
           )}
           {models.map((model) => (
             <option key={model.id} value={model.id}>
-              {visionMark(model.vision)} {model.id}
+              <VisionMark vision={model.vision} /> {model.id}
             </option>
           ))}
         </select>
@@ -238,7 +242,7 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
         aria-label="Close"
         onClick={onClose}
       >
-        ✕
+        <Icon icon={ICONS.close} size="sm" />
       </button>
     </div>
   );

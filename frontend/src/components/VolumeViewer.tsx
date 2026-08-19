@@ -10,6 +10,8 @@ import {
 import { api, ApiError } from "../api/client";
 import { useSession } from "../store/session";
 import type { ClassSpec, Measure, Primitive } from "../api/types";
+import { Icon } from "./Icon";
+import { ICONS } from "./iconMap";
 
 // VolumeViewer（P6 楔子）——CS3D StackViewport 视 NIfTI 为 z-stack（3.33.5 无 3D VolumeViewport）。
 //
@@ -470,7 +472,7 @@ export function VolumeViewer() {
             onClick={() => setBrushOn((v) => !v)}
             style={{ ..._btn, background: brushOn ? "#4FB0FF" : "rgba(60,60,70,0.9)" }}
           >
-            {brushOn ? "画笔 ✓" : "画笔"}
+            画笔 {brushOn && <Icon icon={ICONS.check} size="sm" />}
           </button>
           {brushOn && (
             <>

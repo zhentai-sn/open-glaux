@@ -65,6 +65,12 @@
   --radius-md: 6px;
   --radius-lg: 8px;
 
+  /* 图标尺寸阶（SDD feats/06）——图标一律取阶，禁止写死；currentColor 着色 */
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 22px; /* 活动栏大图标 */
+
   /* 动效（纲领 §5）——时长/缓动一律走 token，组件内禁止写死 */
   --motion-fast: 140ms;
   --motion-base: 240ms;

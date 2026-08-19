@@ -227,4 +227,5 @@ export const zh: Record<I18nKey, string> = {
   sc_mode: "切换 Focus ↔ Workbench",
   sc_sheet: "开合本速查面板",
   sc_dismiss: "按 ? 或 Esc 关闭",
+  ui_close: "关闭",
 };

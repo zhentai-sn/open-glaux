@@ -3,6 +3,8 @@ import { selectImage, selectSlide, selectVolume, switchModality } from "../../da
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 import { OwlLogo } from "../OwlLogo";
 import { ModeSwitch } from "./ModeSwitch";
 
@@ -31,7 +33,7 @@ function ImageContextPicker() {
 
   return (
     <span className="focus-picker">
-      <span className="focus-picker-glyph" aria-hidden="true">📁</span>
+      <Icon icon={ICONS.folder} size="sm" className="focus-picker-glyph" />
       {opts.length > 1 && (
         <select
           className="focus-sel"
@@ -92,7 +94,7 @@ export function FocusTopBar({
           aria-expanded={configOpen}
           onClick={() => onConfigToggle(!configOpen)}
         >
-          ⚙
+          <Icon icon={ICONS.config} size="md" />
         </button>
         {configOpen && <ConnectionConfig onClose={() => onConfigToggle(false)} />}
       </span>

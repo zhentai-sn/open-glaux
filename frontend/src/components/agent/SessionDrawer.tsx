@@ -1,6 +1,8 @@
 import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import type { SessionListItem } from "../../agent/runtime/types";
+import { Icon } from "../Icon";
+import { ICONS } from "../iconMap";
 
 function SessionGroup({
   title,
@@ -47,7 +49,7 @@ function SessionGroup({
                 }
               }}
             >
-              ✎
+              <Icon icon={ICONS.edit} size="sm" />
             </button>
             <button
               type="button"
@@ -63,7 +65,7 @@ function SessionGroup({
                 )
               }
             >
-              {session.status === "active" ? "⌄" : "↥"}
+              <Icon icon={session.status === "active" ? ICONS.archive : ICONS.chevronUp} size="sm" />
             </button>
             <button
               type="button"
@@ -112,7 +114,7 @@ export function SessionDrawer() {
           aria-label="Close"
           onClick={() => setDrawerOpen(false)}
         >
-          ✕
+          <Icon icon={ICONS.close} size="sm" />
         </button>
       </div>
       <input

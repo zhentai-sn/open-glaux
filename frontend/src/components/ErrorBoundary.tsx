@@ -1,6 +1,8 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 
 import { useI18n } from "../i18n";
+import { Icon } from "./Icon";
+import { ICONS } from "./iconMap";
 
 // 局部错误边界：单个区域抛错时显示体面兜底（信任可见 G5），而非把整个 UI 打成黑屏 / 死 DOM。
 // fallback 拆成函数组件以复用 i18n；原始堆栈折叠进「详情」，不把技术信息直接甩给非开发用户。
@@ -31,8 +33,8 @@ function ErrorFallback({ error, onReset }: { error: Error; onReset: () => void }
 
   return (
     <div className="err-boundary" role="alert">
-      <div className="err-mark" aria-hidden="true">
-        ⚠
+      <div className="err-mark">
+        <Icon icon={ICONS.warning} size="lg" />
       </div>
       <div className="err-title">{t("err_title")}</div>
       <div className="err-hint">{t("err_hint")}</div>
