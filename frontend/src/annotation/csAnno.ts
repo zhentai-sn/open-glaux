@@ -76,7 +76,7 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
     annotationUID: csCoreUtils.uuidv4() as string,
     metadata: {
       toolName: "",
-      FrameOfReferenceId: frameOfReferenceId,
+      FrameOfReferenceUID: frameOfReferenceId,
       referencedImageId: imageId,
     },
     isLocked: false,
@@ -115,7 +115,11 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
   return null; // mask 走叠色渲染，不进 CS3D 标注层
 }
 
-/** store.annotations → CS3D 标注层 reconcile（增缺删旧；tmp 草稿与 mask 不下发）。 */
+/**
+ * store.annotations → CS3D 标注层 reconcile（增缺删旧；tmp 草稿与 mask 不下发）。
+ * `selector` 必须是视口的 **FrameOfReferenceUID**（或视口 element）——标注管理器按它分组，
+ * 工具渲染时以 `element → enabledElement.FrameOfReferenceUID` 反查；传 viewportId 会分错组不渲染。
+ */
 export function syncCsAnnotations(
   annotations: Annotation[],
   imageId: string,

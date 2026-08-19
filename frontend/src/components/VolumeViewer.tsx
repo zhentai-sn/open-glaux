@@ -322,8 +322,8 @@ export function VolumeViewer() {
   useEffect(() => {
     if (!ready || !zImageIdRef.current) return;
     const vp = vpRef.current;
-    const forId = (vp as unknown as { getFrameOfReferenceId?: () => string })?.getFrameOfReferenceId?.() ?? "GLAUX_CT";
-    syncCsAnnotations(annotations, zImageIdRef.current, forId, VP_ID);
+    const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_CT";
+    syncCsAnnotations(annotations, zImageIdRef.current, forId, forId);
   }, [annotations, ready, z]);
 
   // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）——真相源 store.toolOptions.voi。

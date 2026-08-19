@@ -347,8 +347,8 @@ export function CornerstoneViewer() {
   useEffect(() => {
     if (!ready || !imageIdRef.current) return;
     const vp = vpRef.current;
-    const forId = (vp as unknown as { getFrameOfReferenceId?: () => string })?.getFrameOfReferenceId?.() ?? "GLAUX_2D";
-    syncCsAnnotations(annotations, imageIdRef.current, forId, VP_ID);
+    const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_2D";
+    syncCsAnnotations(annotations, imageIdRef.current, forId, forId);
     // mask 着色画布懒加载（加载完成触发重绘）
     for (const a of annotations) {
       if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(a.id)) continue;
