@@ -31,6 +31,7 @@ stateDiagram-v2
 | 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.1 图册 + 右侧栏） | Glaux 项目维护者 | 2026-08-16 |
 | 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `ready` | Glaux 项目维护者 | 2026-08-16 |
 | 05 | [键盘可达性与全局快捷键](feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
+| 06 | [统一图标系统](feats/06-icon-system/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
 
 ## 维护约定
 

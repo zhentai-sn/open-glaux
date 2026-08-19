@@ -92,7 +92,7 @@ scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位�
 ### 借鉴/采用（无差异化的结构层，一律复用成熟资产）
 
 - **无障碍无头原语**：菜单/对话框/下拉/Tabs/Tooltip 用 **Radix UI** 或 **React Aria（Adobe）**——它们把键盘导航、focus 管理、`aria` 全解决了，正好补 P2 的 a11y 欠账，且无自带视觉、不与纲领"零装饰"冲突。**不要**引入 Material / Ant Design（自带消费级装饰观感，违反 G11，且交出视觉主权）。
-- **图标集**：产品本就对标 VS Code Dark+ 结构，直接采用 **Codicons**（VS Code 官方图标字体，MIT）——省去手绘平行 SVG，天然与结构语言一致。
+- **图标集**：采用 **lucide-react**（MIT，SVG 组件，tree-shakeable）——**订正**：初稿曾建议 Codicons，但落到本仓现状后发现 `ActivityBar` 既有图标即 feather/lucide 线性风格，Codicons（16px 填充像素网格）反而会冲突；lucide 与现状自洽。详见 [SDD 06 · D-1](../sdd/feats/06-icon-system/README.md)。
 - **视觉语言参照**：继续借 **VS Code Dark+** 的结构色与布局范式（已在做），这是"结构层"的合法复用。
 - **动效缓动/时长**：已有 token，参照业界合成器路径最佳实践即可，无需引第三方动画库（P0 纯 CSS 足够；避免 framer-motion 之类重依赖，除非出现 CSS 表达不了的编排）。
 
@@ -103,9 +103,9 @@ scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位�
 - **动效即因果**（§5 M1）：舞台展开、存疑段一次性脉冲——语义绑定领域回路，自建。
 - **仪器排版**：等宽 + `tabular-nums` 列对齐、单位常伴数值（G7）——规则已在纲领，落到组件是自己的活。
 
-**一句话**：**结构层尽量借（Radix/React Aria + Codicons + VS Code 语言），护城河层坚决自建（领域叠加 + 信任状态 + 因果动效 + 仪器排版）。** 这正是把产品纲领第六条决策过滤器套用到设计资产上的结论。
+**一句话**：**结构层尽量借（Radix/React Aria + lucide + VS Code 语言），护城河层坚决自建（领域叠加 + 信任状态 + 因果动效 + 仪器排版）。** 这正是把产品纲领第六条决策过滤器套用到设计资产上的结论。
 
-> 落地建议：Radix/React Aria 与 Codicons 的引入各自值得一份小 SDD（或并入既有 Feature SDD），因为会引入依赖并改组件契约；P0/P1/P3 属纯打磨，走本路线图 + 代码评审即可，不必每项立 SDD。
+> 落地建议：图标系统已按此立 [SDD 06](../sdd/feats/06-icon-system/README.md) 并实现（lucide-react）；Radix/React Aria 的引入同理值得一份小 SDD，因为会引入依赖并改组件契约；P0/P1 属纯打磨，走本路线图 + 代码评审即可。
 
 ---
 
@@ -125,7 +125,8 @@ scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位�
 - **P0 已落地**（2026-08-18）：`tokens.css` 补 12 个尺度 token（space/radius/font）；`global.css` 加交互动效基线（一条集中规则覆盖 24 个交互态）+ 12 处 `:active` 按压 + reduced-motion 关动画兜底；`@keyframes spin` + `.spin` 替换 3 处静态 ⟳；Atlas 列表加载态改 shimmer 骨架卡。lint/typecheck 净，46 测试通过。
 - **P1 已落地**（2026-08-19）：`ErrorBoundary` 重写为 i18n + token 样式 + 可折叠堆栈 + 复制；覆盖 App 顶层（按 uiMode keying）、dockview 四面板、Focus 对话列/右侧栏；`Notice` 单槽改队列（`notices[]`，逐条呈现、上限 6、精确 dismiss）+ 进入过渡 + 剩余计数徽标。新增 ErrorBoundary（3）与 notice 队列（4）共 7 个测试，全套 53 通过；生产构建净。**黑屏隐患（spike-error）已消除。**
 - **P2 已落地**（2026-08-19，另立 [SDD 05](../sdd/feats/05-keyboard-shortcuts-a11y/README.md) 先文档后实现）：文件树/导入头/能力卡/状态栏语义化（`div`→`button` / `role`+`tabIndex`，消除假按钮）；单一 `window` keydown 分发器 `useGlobalKeys`（工具键 V/L/M/R、`Cmd+B`/`Cmd+\` 面板、`Cmd+Shift+M` 模式、`?` 速查），输入/IME 放行、卸载移除；`ShortcutSheet` 速查面板。新增 9 项测试，全套 62 通过；lint/构建净。
-- **待办**：P3（收敛查看器内联样式）；设计资产采用（Radix/React Aria + Codicons）。
+- **图标系统已落地**（2026-08-19，[SDD 06](../sdd/feats/06-icon-system/README.md)）：全站 glyph/emoji 统一到 lucide-react 线性图标（含 ActivityBar 迁移、spinner/警告图标），`Icon` 封装 + 概念映射单一真相源，尺寸走 `--icon-*` token、`currentColor` 着色；包体 gzip +6.7KB。这是"静态质感"提升的最大杠杆。
+- **待办**：P3（收敛查看器内联样式/裸 hex，随后续顺带）；设计资产采用（Radix/React Aria 无障碍原语）。
 
 ## 变更记录
 
