@@ -257,7 +257,7 @@ export function WsiViewer() {
       </div>
       {/* 提示 / 状态 */}
       {loading ? (
-        <div style={{ ..._hint, color: "#4FB0FF" }}>⟳ 核检测中…（ROI 抽块 + StarDist 推理）</div>
+        <div style={{ ..._hint, color: "#4FB0FF" }}><span className="spin" aria-hidden="true">⟳</span> 核检测中…（ROI 抽块 + StarDist 推理）</div>
       ) : (
         !pointSet && (
           <div style={_hint}>

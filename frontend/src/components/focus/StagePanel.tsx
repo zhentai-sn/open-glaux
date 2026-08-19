@@ -67,7 +67,7 @@ export function StagePanel() {
           </button>
         ))}
         <span className="focus-stage-grow" />
-        {loading && <span className="focus-stage-busy">⟳ {t("running")}</span>}
+        {loading && <span className="focus-stage-busy"><span className="spin" aria-hidden="true">⟳</span> {t("running")}</span>}
       </div>
       {entries.length > 0 && (
         <div className="focus-stage-metrics">

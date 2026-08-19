@@ -75,7 +75,7 @@ export function Editor() {
               ))}
             </div>
             {modelVersion && <span className="repr">{modelVersion}</span>}
-            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}>⟳ {t("running")}</span>}
+            {loading && <span className="repr" style={{ left: "auto", right: 26, color: "var(--agent)", borderColor: "var(--agent-line)" }}><span className="spin" aria-hidden="true">⟳</span> {t("running")}</span>}
           </>
         ) : (
           <div className="empty">{t("empty_editor")}</div>

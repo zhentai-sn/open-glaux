@@ -33,9 +33,61 @@ button {
   outline-offset: -1px;
 }
 @media (prefers-reduced-motion: reduce) {
+  /* 纲领 §5 M5：位移/缩放/循环动效全关，功能语义靠瞬时切换保留（spinner 降级为静态字形，仍表状态） */
   * {
     transition: none !important;
+    animation: none !important;
   }
+}
+
+/* ---- 交互动效基线（纲领 §5 M2/M6：微交互 --motion-fast，只过渡颜色与合成属性；
+   reduced-motion 由上方 * 规则统一关闭；直接操纵对象——舞台画布/手柄——不在此列，保持零延迟 M4） ---- */
+.menu,
+.act,
+.act .tip,
+.row,
+.ext,
+.dsimp-hd,
+.tab,
+.ptab,
+.etool,
+.chips button,
+.atlas-chip,
+.atlas-card,
+.session-item,
+.cfgbtn,
+.cfgqbtn,
+.cfgopt,
+.cfgclose,
+.agent-iconbtn,
+.agent-regenerate,
+.modseg,
+.focus-side-tab,
+.focus-side-icon,
+.atlas-coll-row,
+.atlas-step,
+.atlas-region {
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+/* 按压反馈（G13 反馈无空窗 / M6 只动 transform）——小控件轻微下沉，卡片类不缩放避免抖动 */
+.menu:active:not(:disabled),
+.act:active,
+.tab:active,
+.ptab:active,
+.etool:active,
+.atlas-chip:active,
+.cfgbtn:active:not(:disabled),
+.cfgqbtn:active,
+.agent-iconbtn:active:not(:disabled),
+.modseg:active,
+.focus-side-tab:active,
+.focus-side-icon:active {
+  transform: translateY(0.5px);
 }
 
 .ide {
@@ -1373,6 +1425,23 @@ canvas {
 .notice.crit .notice-dot {
   background: var(--crit);
 }
+/* 队列剩余计数徽标（还有 N 条待呈现） */
+.notice-more {
+  flex: none;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--input);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-xs);
+}
+/* 进入过渡（G13 反馈无空窗；reduced-motion 下由全局 * 规则关闭，直接呈现） */
+.notice-enter { animation: glx-notice-in var(--motion-base) var(--ease-out); }
+@keyframes glx-notice-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* 工具调用状态行——比正文更淡、更小的一行"⚙ 调用 run_task"，不占气泡 */
 .turn.assistant.tool {
@@ -2186,6 +2255,62 @@ canvas {
   padding: 8px 12px;
 }
 .atlas-view.compact .atlas-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
+/* ---- 加载指示（纲领 §5 M3 过程感即信任感）——reduced-motion 下由全局 * 规则停转，spinner 降级为静态字形仍表状态 ---- */
+@keyframes glx-spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: glx-spin 0.9s linear infinite; }
+
+@keyframes glx-shimmer { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.8; } }
+.atlas-skeleton { pointer-events: none; }
+.atlas-skeleton .sk-card { border: 1px solid var(--line2); border-radius: var(--radius-lg); overflow: hidden; animation: glx-shimmer 1.4s var(--ease-in-out) infinite; }
+.atlas-skeleton .sk-thumb { width: 100%; aspect-ratio: 4 / 3; background: var(--input); }
+.atlas-skeleton .sk-lines { padding: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
+.atlas-skeleton .sk-line { height: 8px; border-radius: var(--radius-sm); background: var(--input); }
+.atlas-skeleton .sk-line.short { width: 55%; }
+
+/* ---- 错误边界兜底（信任可见 G5；替代旧内联样式，走 token） ---- */
+.err-boundary {
+  height: 100%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--ink);
+}
+.err-mark { color: var(--crit); font-size: 22px; line-height: 1; }
+.err-title { color: var(--bright); font-size: var(--font-base); }
+.err-hint { color: var(--mid); font-size: var(--font-sm); max-width: 360px; line-height: 1.5; }
+.err-actions { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
+.err-btn {
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink);
+  background: var(--input);
+  font-size: var(--font-sm);
+  transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+.err-btn:hover { border-color: var(--faint); }
+.err-btn:active { transform: translateY(0.5px); }
+.err-btn.primary { border-color: var(--agent-line); color: var(--agent); background: var(--agent-dim); }
+.err-details { width: 100%; max-width: 520px; margin-top: var(--space-2); text-align: left; }
+.err-details-head { display: flex; justify-content: flex-end; margin-bottom: var(--space-1); }
+.err-details pre {
+  max-height: 200px;
+  overflow: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--editor);
+  color: var(--faint);
+  font-size: var(--font-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .atlas-card {
   display: flex;
   flex-direction: column;
