@@ -216,6 +216,13 @@ export const en = {
   atlas_ref_excluded: "{n} local-only exemplar(s) not used (sharing restriction)",
   atlas_ref_missing: "exemplar unavailable (retired or deleted)",
   atlas_ref_open: "Open in Atlas",
+  // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
+  err_title: "This section stopped responding",
+  err_hint: "The rest of Glaux keeps working. Reload this section to try again.",
+  err_retry: "Reload section",
+  err_details: "Technical details",
+  err_copy: "Copy",
+  err_copied: "Copied",
 } as const;
 
 export type I18nKey = keyof typeof en;

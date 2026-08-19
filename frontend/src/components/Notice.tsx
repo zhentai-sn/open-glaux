@@ -2,12 +2,13 @@ import { useEffect } from "react";
 
 import { useSession } from "../store/session";
 
-// 查看器侧即时提示（单槽）：底部居中胶囊，info 5s / crit 9s 自动消失，点击立即关闭。
-// 取代旧 `messages/pushAgent` 通道（自 SDD 01 起无渲染，导致核检测/画笔/测量失败静默）。
+// 查看器侧即时提示（队列）：底部居中胶囊，逐条呈现——info 5s / crit 9s 自动消失，点击立即关闭。
+// 队列化取代旧单槽覆盖：并发提示不再互相顶掉（医学核检测/画笔/测量失败提示不静默丢失，信任可见 G5）。
 const AUTO_HIDE_MS = { info: 5000, crit: 9000 } as const;
 
 export function Notice() {
-  const notice = useSession((s) => s.notice);
+  const notice = useSession((s) => s.notices[0] ?? null);
+  const remaining = useSession((s) => Math.max(0, s.notices.length - 1));
   const dismiss = useSession((s) => s.dismissNotice);
 
   useEffect(() => {
@@ -21,13 +22,15 @@ export function Notice() {
   return (
     <div className="notice-host" aria-live="polite" role="status">
       <button
+        key={notice.id}
         type="button"
-        className={`notice ${notice.tone}`}
+        className={`notice notice-enter ${notice.tone}`}
         onClick={() => dismiss(notice.id)}
         title="Dismiss"
       >
         <span className="notice-dot" aria-hidden="true" />
         <span>{notice.text}</span>
+        {remaining > 0 && <span className="notice-more" aria-hidden="true">+{remaining}</span>}
       </button>
     </div>
   );

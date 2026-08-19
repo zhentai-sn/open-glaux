@@ -210,4 +210,11 @@ export const zh: Record<I18nKey, string> = {
   atlas_ref_excluded: "{n} 条本地案例因外发限制未使用",
   atlas_ref_missing: "案例不可用（已下架或删除）",
   atlas_ref_open: "在图谱中打开",
+  // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
+  err_title: "这块区域出问题了",
+  err_hint: "Glaux 其余部分仍可正常使用。重新加载这块区域可再试一次。",
+  err_retry: "重新加载",
+  err_details: "技术详情",
+  err_copy: "复制",
+  err_copied: "已复制",
 };

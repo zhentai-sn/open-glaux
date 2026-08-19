@@ -169,7 +169,7 @@ interface SessionState {
   connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
 
   // 即时提示 + Composer 草稿
-  notice: Notice | null;
+  notices: Notice[]; // 提示队列：逐条呈现，不互相顶掉（医学失败提示不静默丢失，信任可见 G5）
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
 
   // actions
@@ -240,7 +240,7 @@ export const useSession = create<SessionState>((set) => ({
 
   connection: loadConnection(),
 
-  notice: null,
+  notices: [],
   composerDraft: "",
 
   setUiMode: (m) =>
@@ -301,8 +301,12 @@ export const useSession = create<SessionState>((set) => ({
       return { connection: next };
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
-  notify: (tone, text) => set({ notice: { id: nextId(), tone, text } }),
-  // 带 id 只关闭对应那条（避免定时器关掉后来的新提示）；不带 id 强制关闭。
+  // 入队而非覆盖：并发提示逐条呈现；上限 6 条防失控（超出丢最旧，仍保留最近的关键失败）。
+  notify: (tone, text) =>
+    set((s) => ({ notices: [...s.notices, { id: nextId(), tone, text }].slice(-6) })),
+  // 带 id 只移除对应那条（定时器精确关自己，不误伤队列后来者）；不带 id 关掉队首。
   dismissNotice: (id) =>
-    set((s) => (id === undefined || s.notice?.id === id ? { notice: null } : {})),
+    set((s) => ({
+      notices: id === undefined ? s.notices.slice(1) : s.notices.filter((n) => n.id !== id),
+    })),
 }));
