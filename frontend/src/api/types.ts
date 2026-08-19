@@ -77,6 +77,9 @@ export type VlmProvider = "anthropic" | "openai_compatible";
 export interface VlmModelInfo {
   id: string;
   vision: "yes" | "no" | "unknown";
+  /** 上游自报的上下文窗口 / 最大输出；探不到即缺省，选中时回退默认值（SDD 00 §4）。 */
+  context_window?: number;
+  max_tokens?: number;
 }
 
 // --- 统一信封（多模态·P2）——镜像 glaux_core.contracts + /task/* 端点 ---------

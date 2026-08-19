@@ -4,7 +4,12 @@ import { AgentRuntimeError, agentRuntimeApi } from "../../agent/runtime/client";
 import { toProbeInput } from "../../agent/useConversation";
 import type { VlmModelInfo, VlmProvider } from "../../api/types";
 import { useI18n } from "../../i18n";
-import { useSession } from "../../store/session";
+import {
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_TOKENS,
+  type Connection,
+  useSession,
+} from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 
@@ -23,6 +28,20 @@ function optionalInteger(value: string): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * 选中模型时补齐上下文元数据（SDD 00 §4）：上游自报值优先，探不到落默认值。
+ * 只在字段为空时兜底默认值——用户手改过的数字不覆盖；上游有明确值则以上游为准。
+ */
+function metaForModel(model: VlmModelInfo | undefined, current: Connection) {
+  const contextWindow =
+    model?.context_window ?? current.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+  const wanted = model?.max_tokens ?? current.maxTokens ?? DEFAULT_MAX_TOKENS;
+  // runtime 要求 max_tokens < context_window：窗口小于默认输出时按 1/4 收窄，别把用户卡在 400。
+  const maxTokens =
+    wanted < contextWindow ? wanted : Math.max(1, Math.floor(contextWindow / 4));
+  return { contextWindow, maxTokens };
 }
 
 export function ConnectionConfig({ onClose }: { onClose: () => void }) {
@@ -69,7 +88,12 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
     setStatus(null);
     try {
       const result = await agentRuntimeApi.listModels(toProbeInput(connection));
-      setConnection({ models: result.models });
+      // 已选中的模型若在新列表里，顺带把上游自报的窗口/输出上限刷新进来。
+      const selected = result.models.find((model) => model.id === connection.model);
+      setConnection({
+        models: result.models,
+        ...(selected ? metaForModel(selected, connection) : {}),
+      });
       setStatus({
         tone: result.models.length ? "good" : "warn",
         text: result.models.length
@@ -146,7 +170,13 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
           className="cfgsel cfgsel-wide"
           aria-label={t("cfg_model")}
           value={connection.model}
-          onChange={(event) => setConnection({ model: event.target.value })}
+          onChange={(event) => {
+            const picked = models.find((model) => model.id === event.target.value);
+            setConnection({
+              model: event.target.value,
+              ...metaForModel(picked, connection),
+            });
+          }}
         >
           <option value="" disabled>
             {t("cfg_model_pick")}

@@ -19,19 +19,23 @@ export interface Connection {
   baseUrl: string; // "" → 用 provider 默认
   apiKey: string; // 仅本机 localStorage；发请求随 body 传后端
   model: string; // 选定模型 id
-  contextWindow: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
-  maxTokens: number | null; // 自定义模型必填；Pi 内置目录已知模型可为空
+  contextWindow: number | null; // 自定义模型必填；缺省用探测值/默认值预填（SDD 00 §4）
+  maxTokens: number | null; // 同上；Pi 内置目录已知模型可为空
   models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
   lastTest?: { ok: boolean; at: string; reason?: string };
 }
+
+/** 探不到上游元数据时的兜底（2026-08-19 决议，SDD 00 §4）——预填而非静默代入，用户可改。 */
+export const DEFAULT_CONTEXT_WINDOW = 128_000;
+export const DEFAULT_MAX_TOKENS = 8_192;
 
 const CONNECTION_DEFAULTS: Connection = {
   provider: "anthropic",
   baseUrl: "",
   apiKey: "",
   model: "",
-  contextWindow: null,
-  maxTokens: null,
+  contextWindow: DEFAULT_CONTEXT_WINDOW,
+  maxTokens: DEFAULT_MAX_TOKENS,
 };
 
 /** 载入连接：优先新键 glaux.connection；否则一次性从旧 vlmKey/vlmModel 迁移（旧键保留可回滚）。 */
@@ -40,7 +44,12 @@ function loadConnection(): Connection {
   const raw = localStorage.getItem("glaux.connection");
   if (raw) {
     try {
-      return { ...CONNECTION_DEFAULTS, ...JSON.parse(raw) };
+      const stored = JSON.parse(raw) as Partial<Connection>;
+      const merged: Connection = { ...CONNECTION_DEFAULTS, ...stored };
+      // 老版本存过 null（当时必填、初始为空）——载入时补回默认值，免得用户又被逼着填。
+      if (merged.contextWindow === null) merged.contextWindow = DEFAULT_CONTEXT_WINDOW;
+      if (merged.maxTokens === null) merged.maxTokens = DEFAULT_MAX_TOKENS;
+      return merged;
     } catch {
       /* 损坏 → 落回默认 + 迁移 */
     }

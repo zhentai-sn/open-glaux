@@ -39,6 +39,10 @@ export interface ProbeTestResult {
 export interface ProbeModelInfo {
   id: string;
   vision: Vision;
+  /** 上游自报的上下文窗口；探不到就没有这个字段（前端回退默认值，SDD 00 §4）。 */
+  context_window?: number;
+  /** 上游自报的最大输出 token；同上，探不到即缺省。 */
+  max_tokens?: number;
 }
 
 export interface ProbeModelListResult {
@@ -87,6 +91,51 @@ export function anthropicVision(modelId: string): Vision {
   }
   if (s.startsWith("claude-")) return "yes";
   return nameVision(modelId);
+}
+
+function positiveInt(value: unknown): number | undefined {
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+// 各家 OpenAI 兼容网关自报元数据的字段名不统一（OpenRouter / LM Studio / vLLM / 自建各写各的），
+// 按常见顺序取第一个正整数；一个都没有就留空，交前端回退默认值。
+const CONTEXT_KEYS = [
+  "context_length",
+  "max_context_length",
+  "context_window",
+  "max_model_len",
+  "loaded_context_length",
+] as const;
+const MAX_TOKENS_KEYS = [
+  "max_output_tokens",
+  "max_completion_tokens",
+  "max_tokens",
+] as const;
+
+function pickInt(entry: Record<string, unknown>, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const found = positiveInt(entry[key]);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** 从一条 `/models` 记录里挖上下文元数据；OpenRouter 把上限藏在 `top_provider` 里，一并看。 */
+export function modelMetaFromEntry(entry: Record<string, unknown>): {
+  context_window?: number;
+  max_tokens?: number;
+} {
+  const nested =
+    typeof entry.top_provider === "object" && entry.top_provider !== null
+      ? (entry.top_provider as Record<string, unknown>)
+      : {};
+  const contextWindow = pickInt(entry, CONTEXT_KEYS) ?? pickInt(nested, CONTEXT_KEYS);
+  const maxTokens = pickInt(entry, MAX_TOKENS_KEYS) ?? pickInt(nested, MAX_TOKENS_KEYS);
+  return {
+    ...(contextWindow === undefined ? {} : { context_window: contextWindow }),
+    ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
+  };
 }
 
 function normalizeBase(url: string | undefined, fallback: string): string {
@@ -186,19 +235,37 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
     }
   }
 
-  async function ollamaVision(root: string, modelId: string): Promise<Vision> {
+  /** 一次 `/api/show` 同时取视觉能力与上下文窗口（`model_info` 里键名随架构变，取 `*.context_length`）。 */
+  async function ollamaShow(
+    root: string,
+    modelId: string,
+  ): Promise<{ vision: Vision; contextWindow?: number }> {
     try {
       const r = await post(`${root}/api/show`, {}, { model: modelId });
-      if (r.status !== 200) return "unknown";
-      const caps = ((await r.json()) as { capabilities?: string[] }).capabilities ?? [];
-      if (caps.includes("vision")) return "yes";
-      return caps.length ? "no" : "unknown";
+      if (r.status !== 200) return { vision: "unknown" };
+      const body = (await r.json()) as {
+        capabilities?: string[];
+        model_info?: Record<string, unknown>;
+      };
+      const caps = body.capabilities ?? [];
+      const vision: Vision = caps.includes("vision")
+        ? "yes"
+        : caps.length
+          ? "no"
+          : "unknown";
+      const entry = Object.entries(body.model_info ?? {}).find(([key]) =>
+        key.endsWith(".context_length"),
+      );
+      const contextWindow = positiveInt(entry?.[1]);
+      return contextWindow === undefined ? { vision } : { vision, contextWindow };
     } catch {
-      return "unknown";
+      return { vision: "unknown" };
     }
   }
 
-  async function openaiListIds(input: ProbeInput): Promise<{ ids: string[]; base: string }> {
+  async function openaiListIds(
+    input: ProbeInput,
+  ): Promise<{ ids: string[]; base: string; entries: Map<string, Record<string, unknown>> }> {
     if (!input.base_url?.trim()) {
       throw new RuntimeError("invalid_request", "openai-compatible 需要 base_url", 400);
     }
@@ -210,9 +277,16 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
       err.status = r.status;
       throw err;
     }
-    const data = (await r.json()) as { data?: { id?: string }[] };
-    const ids = (data.data ?? []).map((d) => d?.id).filter((x): x is string => Boolean(x));
-    return { ids, base };
+    const data = (await r.json()) as { data?: Record<string, unknown>[] };
+    const ids: string[] = [];
+    const entries = new Map<string, Record<string, unknown>>();
+    for (const entry of data.data ?? []) {
+      const id = typeof entry?.id === "string" ? entry.id : "";
+      if (!id) continue;
+      ids.push(id);
+      entries.set(id, entry);
+    }
+    return { ids, base, entries };
   }
 
   function httpReason(status: number | null, provider: ProbeProvider): string | null {
@@ -250,15 +324,23 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
           const { ids } = await anthropicListIds(input);
           return { models: ids.map((id) => ({ id, vision: anthropicVision(id) })) };
         }
-        const { ids, base } = await openaiListIds(input);
+        const { ids, base, entries } = await openaiListIds(input);
         const root = ollamaRoot(base);
         const isOllama = await probeOllama(root);
         const models: ProbeModelInfo[] = [];
         for (const id of ids) {
+          const meta = modelMetaFromEntry(entries.get(id) ?? {});
           let v: Vision = "unknown";
-          if (isOllama) v = await ollamaVision(root, id);
+          if (isOllama) {
+            const shown = await ollamaShow(root, id);
+            v = shown.vision;
+            // Ollama 的 /models 不带窗口，只有 /api/show 有；已从 /models 拿到就不覆盖。
+            if (meta.context_window === undefined && shown.contextWindow !== undefined) {
+              meta.context_window = shown.contextWindow;
+            }
+          }
           if (v === "unknown") v = nameVision(id);
-          models.push({ id, vision: v });
+          models.push({ id, vision: v, ...meta });
         }
         return { models };
       } catch (error) {

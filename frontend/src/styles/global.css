@@ -1890,19 +1890,32 @@ canvas {
 .focus-brand { color: var(--bright); font-size: 12.5px; }
 .focus-tagline { color: var(--faint); font-size: 11px; }
 .focus-topbar-grow { flex: 1; }
-/* 顶栏右侧 chip 化（设计稿视图 ①：📁 数据上下文 · ⚙ · ⇄ 统一胶囊语言） */
-.focus-picker { display: flex; align-items: center; gap: 6px; }
-.focus-picker-glyph { font-size: 11.5px; color: var(--mid); }
-.focus-sel {
+/* 顶栏右侧 chip 化（设计稿视图 ①：数据上下文 · ⚙ · ⇄ 统一胶囊语言）。
+   v1.2/D14：上下文由两级 <select> 改为只读 chip——选图归右侧栏「文件」标签，
+   顶栏只显示「模态 · 当前对象」，同时消除原生 select 箭头与线性图标语言的冲突。 */
+.focus-ctx {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   background: var(--editor);
   color: var(--mid);
   border: 1px solid var(--line2);
   border-radius: 99px;
   font-size: 11.5px;
-  padding: 3px 9px;
-  max-width: 180px;
+  padding: 3px 10px;
+  max-width: 280px;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
 }
-.focus-sel:hover { color: var(--bright); border-color: var(--faint); }
+.focus-ctx:hover { color: var(--bright); border-color: var(--faint); }
+.focus-ctx.empty { color: var(--faint); }
+.focus-ctx-glyph { color: var(--faint); flex: none; }
+.focus-ctx:hover .focus-ctx-glyph { color: var(--mid); }
+.focus-ctx-sep { color: var(--line2); flex: none; }
+.focus-ctx-modality,
+.focus-ctx-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-ctx-id.mono { color: var(--bright); }
+.focus-ctx:hover .focus-ctx-id.mono { color: var(--bright); }
 .focus-cfg-anchor { position: relative; display: flex; }
 .focus-cfg-anchor .cfgpop { top: 30px; right: 0; } /* 弹层锚到 ⚙ 下方（默认锚 agent 面板） */
 .focus-cfg-anchor > .focus-iconbtn {

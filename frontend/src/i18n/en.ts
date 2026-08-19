@@ -35,7 +35,7 @@ export const en = {
   cfg_context_window: "Context window",
   cfg_max_tokens: "Max output tokens",
   cfg_model_meta_note:
-    "Required for custom OpenAI-compatible models; max output must be smaller than context.",
+    "Prefilled from upstream metadata or defaults — usually leave as is; max output must be smaller than context.",
   // bottom panel
   p_meas: "Measurements",
   p_out: "Output",
@@ -96,8 +96,9 @@ export const en = {
   focus_hero_title: "Describe your research goal",
   focus_hero_sub: "Turn biomedical images of any modality into verifiable, reproducible insight.",
   focus_pick_image: "Select image…",
+  focus_ctx_open: "Current image context — click to pick one in the Files tab",
   focus_stage: "Image stage",
-  focus_stage_empty: "No image selected. Pick one in the Files tab or the top bar; the stage shows it here.",
+  focus_stage_empty: "No image selected. Pick one in the Files tab; the stage shows it here.",
   focus_side_panel: "Side panel",
   focus_side_collapse: "Collapse side panel",
   focus_tab_stage: "Stage",
