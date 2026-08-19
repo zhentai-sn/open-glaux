@@ -56,7 +56,8 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 
 | 输入 | 必填 | 说明 |
 | --- | --- | --- |
-| 消息文本 | 是 | UTF-8 文本；去除首尾空白后不得为空 |
+| 消息文本 | 是 | UTF-8 文本；去除首尾空白后不得为空。带图像附件时可为空（见 D-021） |
+| 图像附件 | 否 | 粘贴、选择或拖放进 Composer 的图像；随该条 prompt 内联下发，见 §4.3 与 D-021 |
 | 当前会话 | 是 | 新会话可在首次发送前自动创建 |
 | Provider | 是 | 来自现有 Agent 连接配置 |
 | Model | 是 | 来自现有 Agent 连接配置 |
@@ -75,7 +76,14 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 
 ### 4.3 输入约束
 
-- 第一阶段只接受纯文本消息；附件入口可保留视觉占位，但不可发送。
+- 消息由文本与**图像附件**组成（2026-08-19，D-021）。附件在 Composer 里通过粘贴（`paste`）、
+  文件选择或拖放加入，以 base64 内联在 `prompt` 命令中下发，不落 Glaux 侧独立文件存储。
+  约束：MIME 限 `image/png`、`image/jpeg`、`image/webp`、`image/gif`；单张 base64 ≤ 12 MiB
+  （与 `/atlas/describe` 同一上限）；单条消息 ≤ 6 张、合计 base64 ≤ 24 MiB。超限在 UI 侧
+  拦截并提示，runtime 侧同样校验并返回 `invalid_request`。
+- 文本与附件至少有其一非空；纯附件消息合法（用户贴图后直接发送，等同"看这张图"）。
+- 图像附件仅限静态图像，不接受视频、PDF 或任意文件——领域影像（CT/WSI）仍走查看器上下文
+  与 `run_task`，不经此通道（D-021 理由 ③）。
 - 同一 Pi Session 同一时刻至多有一个非 `idle` 的 `AgentHarness` 操作。
 - 归档会话只读；恢复为 `active` 后方可继续发送。
 - API Key 只能存在于请求处理所需的内存中，禁止写入 SQLite、事件、错误详情和应用日志。
@@ -197,6 +205,9 @@ sequenceDiagram
   "command_id": "client-generated-uuid",
   "type": "prompt",
   "content": "解释当前影像中的可疑区域",
+  "images": [
+    { "data": "iVBORw0KGgo...", "mime_type": "image/png" }
+  ],
   "connection": {
     "provider": "openai-compatible",
     "model": "example-model",
@@ -210,7 +221,13 @@ sequenceDiagram
 
 约束：
 
-- `prompt` 必须包含非空 `content`。
+- `prompt` 必须包含非空 `content` 或非空 `images`（二者至少其一）。
+- `images[]` 每项为 `{ data, mime_type }`：`data` 是**不带 `data:` 前缀**的 base64；
+  `mime_type` 必须落在 §4.3 白名单内。数量与体积上限见 §4.3。
+- `images` 只在 `type = "prompt"` 时允许出现；`regenerate` / `abort` 携带即 `invalid_request`。
+- 带附件的 `prompt` **必须**同时带 `connection.vision = true`（D-022）。pi 在模型 `input` 不含
+  `"image"` 时不报错，而是把用户消息里的图换成 `(image omitted: ...)` 文本占位，模型照常作答——
+  漏传的表现是"能对话但读不懂图"，没有任何错误可循。`regenerate` 同样要带，因为它会连原图重发。
 - `regenerate` 不接收任意目标 ID，只操作活动路径上的最近一条 assistant 回答。
 - `abort` 不包含 `content` 或 `connection`。
 - `credential` 仅存在于该命令的内存生命周期中，不得出现在响应、日志、事件或数据库。
@@ -319,18 +336,21 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | --- | --- | --- |
 | `command_id` | UUID | 必填；客户端生成 |
 | `type` | enum | `prompt`、`regenerate`、`abort` |
-| `content` | text nullable | `prompt` 必填，其余禁止 |
+| `content` | text nullable | `prompt` 必填（`images` 非空时可为空串），其余禁止 |
+| `images` | array nullable | 仅 `prompt` 可用；元素 `{ data: base64 text, mime_type: enum }`；≤ 6 项，见 §4.3 |
 | `connection.provider` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.model` | text nullable | `prompt`/`regenerate` 必填 |
 | `connection.base_url` | text nullable | 自定义 Provider 可用 |
 | `connection.context_window` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.max_tokens` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
+| `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022） |
 
 ## 10. 幂等性
 
 - `POST /sessions` 使用客户端生成的 `session_id`；相同 ID、相同创建参数重复提交返回已有 Session，不重复创建。
-- `prompt` 与 `regenerate` 必须携带 `command_id`。Adapter 在执行前向 Pi Session 追加 `glaux.command.accepted` custom entry，记录 `command_id`、命令类型和内容摘要哈希，不记录 credential；结束后追加 `glaux.command.settled` 与结果。
+- `prompt` 与 `regenerate` 必须携带 `command_id`。Adapter 在执行前向 Pi Session 追加 `glaux.command.accepted` custom entry，记录 `command_id`、命令类型和内容摘要哈希（摘要覆盖 `content` **与 `images` 的逐张 sha256**，
+  使"同一 command_id 换图"能被判为冲突而非重复），不记录 credential；结束后追加 `glaux.command.settled` 与结果。
 - 同一 Session 中已存在相同 `command_id`、相同摘要哈希且已有 settled entry 时返回当前 SessionView，不再次调用 `AgentHarness`。
 - 相同命令仍在当前 Runtime 执行时返回 `202`；只有 accepted entry、没有 settled entry 且 Runtime 已重启时返回 `409 command_outcome_unknown`，禁止自动重放。
 - 相同 `command_id`、不同摘要哈希返回 `409 idempotency_conflict`。
@@ -490,6 +510,25 @@ erDiagram
 - [x] 压缩失败不会静默删除 Pi session entry；无法继续时返回 `context_overflow`。
 - [x] 重启后 Pi compaction entry 生效，后续对话可继续。
 
+### 15.4b 图像附件（D-021）
+
+- [x] 在 Composer 中 `Ctrl/Cmd+V` 粘贴剪贴板图像后出现缩略图，可逐张移除。
+- [ ] 点击"＋"选择文件、拖放文件到 Composer 得到同样结果（与粘贴共用同一 intake 路径，待人工确认）。
+- [x] 纯图像（文本为空）可以发送；文本与图像都为空时发送按钮保持禁用。
+- [x] 图像随 Pi transcript 持久化：重新读取会话时用户消息上仍带 `image` 块（runtime 集成测试）。
+- [ ] 已发送消息在会话流中以缩略图回显，刷新页面或切换会话后仍可见（待人工确认）。
+- [ ] 附件草稿与文本草稿一样存活于 store：Focus/Workbench 模式切换导致对话列重挂载后不丢失（待人工确认）。
+- [x] 非图像 MIME 与超 6 张在 UI 侧被拒绝并给出可见提示，不发出请求（组件测试覆盖 MIME 与张数；
+  体积上限与之共用 `addFiles` 同一校验路径）。
+- [x] runtime 侧独立校验同一组上限，越界返回 `400 invalid_request`；Fastify body 上限足以容纳
+  合法上限（≥ 32 MiB）。
+- [x] 同一 `command_id` 文本相同但图像不同时返回 `409 idempotency_conflict`。
+- [x] 对带图像的用户消息执行"重新生成"时，原图像随新分支一并重发，不退化为纯文本。
+- [x] 连接未声明 `vision` 时，pi 把用户消息里的图降级为文本占位而不报错——该行为由 Pi 兼容性
+  测试锁定，pi 升级改变它时会先失败（`pi-public-api.test.ts`）。
+- [x] 前端发图时恒传 `connection.vision = true`，`regenerate` 同样携带；transport 层透传该字段。
+- [ ] 真实 vision provider（Anthropic / OpenAI 兼容）贴图对话 smoke——与 §15.5 同属人工验收。
+
 ### 15.5 安全与兼容
 
 - [x] 自动扫描 Pi SQLite、Glaux companion table、custom entries、应用日志和错误响应，API Key/Authorization/Bearer token 均不存在。
@@ -547,6 +586,8 @@ erDiagram
 | D-017 | 2026-07-27 | SSE 原样承载 Pi AgentHarnessEvent | 降低映射成本并避免维护第二套 Agent 事件 taxonomy |
 | D-018 | 2026-07-27 | Glaux companion storage 只持久化标题、归档状态、权限模式 | 传输 receipt 使用 Pi namespaced custom entries，companion table 只保存 Pi 不负责的产品语义 |
 | D-019 | 2026-07-27 | 自定义模型显式提供 context window 与 max output tokens | Pi `Model` 强制需要两项元数据，官方 custom model 配置也要求显式声明；静默猜测会破坏压缩与溢出判断 |
+| D-022 | 2026-08-20 | 带图的 prompt 恒声明 `vision: true`，不依赖 `/connection/models` 的探测结论 | ① D-021 落地后首次真机贴图即失败，根因是 `ConnectionInput.vision` 从未被前端填、也未被 transport 解析，模型按 `input:["text"]` 构造，pi `downgradeUnsupportedImages` 把图换成占位文本——**不报错**，表现为"能对话但读不懂图"，是最难诊断的一类失败；② 探测结论不可靠：多数 OpenAI 兼容端点的 `/models` 不含视觉字段，判定为 `unknown`，若据此不发图则大量可用模型被误伤；③ 用户显式贴图即意图明确，让 provider 返回明确错误远优于本地静默降级后照常作答（G5 失败可见）；④ 旧注释"用户消息中的图像块无条件转换"与 pi 实际行为不符，已在 `contracts.ts` 更正并由兼容性测试锁定 |
+| D-021 | 2026-08-19 | Composer 支持粘贴/选择/拖放图像，随 `prompt` 以 base64 内联下发，不建 Glaux 侧附件存储 | ① 贴图提问是通用对话智能体的基础能力，"附件暂未开放"占位在有视觉模型可用时是纯粹的能力缺口；② Pi `AgentHarness.prompt(text, { images })` 与 pi-ai `ImageContent` 已原生支持，两条 provider 路径在 SDD 03 §7.6 落地时已核实，内联下发不需要新协议；③ 与领域影像分工明确——CT/WSI 等已入库对象走查看器上下文与 `run_task`（只传 id，不传像素），此通道只承载"用户手上这张图"，二者不合并；④ 不做独立附件存储：图像随 Pi transcript 持久化，天然获得会话删除、归档与重放语义，避免第二份生命周期 |
 | D-020 | 2026-07-27 | regenerate 导航到最近 user 的 parent 后 replay 原文 | Pi 0.82.1 `AgentHarness` 没有公开 continue API；`prompt()` 会自行追加 user entry，该方式在不使用私有 API 的前提下生成等价新分支 |
 
 ## 17. 开放问题

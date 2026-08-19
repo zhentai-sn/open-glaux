@@ -25,7 +25,7 @@ stateDiagram-v2
 
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
-| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented` | Glaux 项目维护者 | 2026-07-27 |
+| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-08-19 |
 | 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.1 右侧栏；v1 `accepted`） | Glaux 项目维护者 | 2026-08-16 |
 | 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `draft` | Glaux 项目维护者 | 2026-08-13 |
 | 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.1 图册 + 右侧栏） | Glaux 项目维护者 | 2026-08-16 |
