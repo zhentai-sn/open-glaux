@@ -46,7 +46,7 @@ export async function createRuntimeFixture(
   });
   await sessions.initialize();
   const handles: FauxProviderHandle[] = [];
-  registry = new HarnessRegistry(sessions, () => {
+  registry = new HarnessRegistry(sessions, (connection) => {
     const faux = fauxProvider({
       tokensPerSecond: options.tokensPerSecond ?? 0,
       models: [
@@ -54,6 +54,9 @@ export async function createRuntimeFixture(
           id: "fixture-model",
           contextWindow: options.contextWindow ?? 128_000,
           maxTokens: 4096,
+          // 复刻 model-runtime 的规则：视觉能力由连接声明。faux 默认 ["text","image"]，
+          // 照搬会让夹具永远支持图像，把"未声明 vision 就静默降级"这类故障测掉。
+          input: connection.vision ? ["text", "image"] : ["text"],
         },
       ],
     });

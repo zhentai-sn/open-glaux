@@ -66,6 +66,28 @@ export function messageText(message: unknown): string {
     .join("\n");
 }
 
+export interface MessageImage {
+  /** 直接可用于 <img src>；由 pi-ai `ImageContent {data, mimeType}` 拼出。 */
+  dataUrl: string;
+  mimeType: string;
+}
+
+/**
+ * 消息里的图像块（SDD 00 D-021）——用户贴的图随 transcript 持久化，刷新后仍要能回显。
+ */
+export function messageImages(message: unknown): MessageImage[] {
+  if (!message || typeof message !== "object") return [];
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block) => {
+    if (!block || typeof block !== "object") return [];
+    const value = block as { type?: unknown; data?: unknown; mimeType?: unknown };
+    if (value.type !== "image" || typeof value.data !== "string") return [];
+    const mimeType = typeof value.mimeType === "string" ? value.mimeType : "image/png";
+    return [{ dataUrl: `data:${mimeType};base64,${value.data}`, mimeType }];
+  });
+}
+
 export interface MessageToolCall {
   id: string;
   name: string;

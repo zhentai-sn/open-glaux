@@ -1,10 +1,15 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import {
+  MAX_PROMPT_IMAGE_BASE64,
+  MAX_PROMPT_IMAGES,
+  MAX_PROMPT_IMAGES_TOTAL_BASE64,
   PERMISSION_MODES,
+  PROMPT_IMAGE_MIME_TYPES,
   SESSION_STATUSES,
   type CreateSessionInput,
   type PatchSessionInput,
+  type PromptImage,
   type TransportCommand,
   type ViewerContext,
 } from "../contracts.js";
@@ -177,10 +182,14 @@ function parseCommand(value: unknown): TransportCommand {
     throw new RuntimeError("invalid_request", "A valid command UUID is required.", 400);
   }
   if (body.type === "abort") {
-    if (body.content !== undefined || body.connection !== undefined) {
+    if (
+      body.content !== undefined ||
+      body.connection !== undefined ||
+      body.images !== undefined
+    ) {
       throw new RuntimeError(
         "invalid_request",
-        "Abort does not accept content or connection.",
+        "Abort does not accept content, connection or images.",
         400,
       );
     }
@@ -191,14 +200,25 @@ function parseCommand(value: unknown): TransportCommand {
   }
   const connection = parseConnection(body.connection);
   if (body.type === "prompt") {
-    if (typeof body.content !== "string" || !body.content.trim()) {
-      throw new RuntimeError("invalid_request", "Prompt content is required.", 400);
+    if (body.content !== undefined && typeof body.content !== "string") {
+      throw new RuntimeError("invalid_request", "Prompt content must be a string.", 400);
+    }
+    const content = typeof body.content === "string" ? body.content : "";
+    const images = parsePromptImages(body.images);
+    // 文本与附件至少其一非空（SDD 00 §4.3）——纯图消息合法。
+    if (!content.trim() && images.length === 0) {
+      throw new RuntimeError(
+        "invalid_request",
+        "Prompt requires content or at least one image.",
+        400,
+      );
     }
     const viewer = parseViewer(body.viewer);
     return {
       command_id: body.command_id,
       type: "prompt",
-      content: body.content,
+      content,
+      ...(images.length ? { images } : {}),
       connection,
       ...(viewer ? { viewer } : {}),
     };
@@ -210,7 +230,61 @@ function parseCommand(value: unknown): TransportCommand {
       400,
     );
   }
+  if (body.images !== undefined) {
+    throw new RuntimeError(
+      "invalid_request",
+      "Regenerate does not accept images.",
+      400,
+    );
+  }
   return { command_id: body.command_id, type: "regenerate", connection };
+}
+
+/**
+ * 附件校验（SDD 00 §4.3）——MIME 白名单 + 单张 / 张数 / 合计三重上限。
+ * UI 侧已拦截同一组上限；此处是独立的第二道，因为 runtime 也接受非浏览器调用方。
+ */
+function parsePromptImages(value: unknown): PromptImage[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new RuntimeError("invalid_request", "images must be an array.", 400);
+  }
+  if (value.length > MAX_PROMPT_IMAGES) {
+    throw new RuntimeError(
+      "invalid_request",
+      `At most ${MAX_PROMPT_IMAGES} images per message.`,
+      400,
+    );
+  }
+  let total = 0;
+  return value.map((item) => {
+    const image = asObject(item);
+    const data = image.data;
+    const mimeType = image.mime_type;
+    if (typeof data !== "string" || !data.trim()) {
+      throw new RuntimeError("invalid_request", "images[].data is required.", 400);
+    }
+    if (
+      typeof mimeType !== "string" ||
+      !PROMPT_IMAGE_MIME_TYPES.includes(
+        mimeType as (typeof PROMPT_IMAGE_MIME_TYPES)[number],
+      )
+    ) {
+      throw new RuntimeError(
+        "invalid_request",
+        `images[].mime_type must be one of ${PROMPT_IMAGE_MIME_TYPES.join(", ")}.`,
+        400,
+      );
+    }
+    if (data.length > MAX_PROMPT_IMAGE_BASE64) {
+      throw new RuntimeError("invalid_request", "Image is too large.", 400);
+    }
+    total += data.length;
+    if (total > MAX_PROMPT_IMAGES_TOTAL_BASE64) {
+      throw new RuntimeError("invalid_request", "Images are too large in total.", 400);
+    }
+    return { data, mime_type: mimeType };
+  });
 }
 
 function parseConnection(value: unknown) {
@@ -239,6 +313,10 @@ function parseConnection(value: unknown) {
       : {}),
     ...(typeof connection.credential === "string"
       ? { credential: connection.credential }
+      : {}),
+    // 必须透传：丢掉它模型就按纯文本模型构造，pi-ai 会把用户消息里的图静默换成占位符。
+    ...(typeof connection.vision === "boolean"
+      ? { vision: connection.vision }
       : {}),
   };
 }

@@ -15,6 +15,7 @@ import { applyToolExecutionEvent } from "../agent/toolBridge";
 import type {
   ConnectionInput,
   PermissionMode,
+  PromptImage,
   SessionListItem,
   SessionStatus,
   SessionView,
@@ -23,6 +24,8 @@ import type {
 
 interface LiveSession {
   pendingUser?: string;
+  /** 与 pendingUser 同属"已发出、快照尚未回来"的乐观回显（SDD 00 D-021）。 */
+  pendingImages?: PromptImage[];
   streamingAssistant?: unknown;
 }
 
@@ -50,6 +53,7 @@ interface AgentSessionsState {
   deleteSession: (sessionId: string) => Promise<void>;
   sendPrompt: (
     content: string,
+    images: PromptImage[],
     connection: ConnectionInput,
     viewer?: ViewerContext,
   ) => Promise<void>;
@@ -244,13 +248,16 @@ export function createAgentSessionsStore(
         });
       },
 
-      sendPrompt: async (content, connection, viewer) => {
+      sendPrompt: async (content, images, connection, viewer) => {
         const sessionId = get().currentSessionId;
         if (!sessionId) return;
         set((state) => ({
           live: {
             ...state.live,
-            [sessionId]: { pendingUser: content },
+            [sessionId]: {
+              pendingUser: content,
+              ...(images.length ? { pendingImages: images } : {}),
+            },
           },
           error: null,
         }));
@@ -259,6 +266,7 @@ export function createAgentSessionsStore(
             command_id: crypto.randomUUID(),
             type: "prompt",
             content,
+            ...(images.length ? { images } : {}),
             connection,
             ...(viewer ? { viewer } : {}),
           });

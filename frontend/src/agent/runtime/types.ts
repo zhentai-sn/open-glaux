@@ -31,6 +31,11 @@ export interface ConnectionInput {
   context_window?: number;
   max_tokens?: number;
   credential?: string;
+  /**
+   * 模型是否按视觉模型对待。必须显式传：pi-ai 在模型 `input` 不含 `"image"` 时
+   * 会把用户消息里的图静默换成"(image omitted)"文本占位，不报错——表现为"读不懂图"。
+   */
+  vision?: boolean;
 }
 
 // --- 连接探测（/agent-api/v1/connection/*）——镜像 agent-runtime connection-probe -----------
@@ -102,11 +107,18 @@ export interface ViewerContext {
   roi_box?: [number, number, number, number];
 }
 
+/** 用户消息内联图像附件（SDD 00 §4.3 / D-021）；`data` 为不带 `data:` 前缀的 base64。 */
+export interface PromptImage {
+  data: string;
+  mime_type: string;
+}
+
 export type TransportCommand =
   | {
       command_id: string;
       type: "prompt";
       content: string;
+      images?: PromptImage[];
       connection: ConnectionInput;
       viewer?: ViewerContext;
     }

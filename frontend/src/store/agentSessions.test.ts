@@ -99,7 +99,7 @@ describe("agent session store", () => {
     const sessionId = store.getState().currentSessionId!;
     const credential = "store-secret-credential";
 
-    await store.getState().sendPrompt("hello", {
+    await store.getState().sendPrompt("hello", [], {
       provider: "anthropic",
       model: "model",
       credential,

@@ -1677,12 +1677,80 @@ canvas {
   justify-content: space-between;
   gap: 8px;
 }
-.attachment-disabled {
+/* 附件入口 + 缩略图条（SDD 00 D-021） */
+.composer-attach {
   overflow: hidden;
-  color: var(--faint);
-  font-size: 9.5px;
+  padding: 4px 7px;
+  color: var(--mid);
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.composer-attach:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--agent-line);
+}
+.composer-attach:disabled {
+  opacity: 0.4;
+}
+.conversation-composer.dragover {
+  background: var(--agent-dim);
+  box-shadow: inset 0 0 0 1px var(--agent-line);
+}
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.composer-attachments li {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+.composer-attachments img {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  object-fit: cover;
+}
+.attachment-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 50%;
+  background: var(--panel);
+}
+.attachment-remove:hover {
+  color: var(--crit);
+  border-color: var(--crit);
+}
+/* 消息里的图像（用户贴图回显） */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.message-images img {
+  max-width: 220px;
+  max-height: 220px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  object-fit: contain;
 }
 .composer-primary {
   min-width: 64px;
@@ -2114,9 +2182,9 @@ body.resizing .focus-rail { transition: none; }
   outline: none;
   box-shadow: none;
 }
-.focus-conversation .attachment-disabled {
+.focus-conversation .composer-attach {
   font-size: 11px;
-  color: var(--faint);
+  color: var(--mid);
   border: 1px dashed var(--line2);
   border-radius: 6px;
   padding: 2px 8px;

@@ -61,7 +61,12 @@ export interface ConnectionInput {
   credential?: string;
   /**
    * 模型是否具备视觉输入（前端由 /connection/models 的 vision 判定填入；Atlas describe 恒为 true）。
-   * 只影响 pi-ai 对**工具结果**中图像块的转换（用户消息中的图像块无条件转换）。
+   *
+   * 2026-08-20 更正：此前注释称"用户消息中的图像块无条件转换"，与 pi-ai 实际行为不符。
+   * `transformMessages` → `downgradeUnsupportedImages` 在 `model.input` 不含 `"image"` 时，
+   * 会把**用户消息和工具结果里的图像一并**替换成 `(image omitted: model does not support images)`
+   * 文本占位——不报错、不提示。因此凡是要发图的连接都必须显式带上 `vision: true`，
+   * 否则模型收到的只是一句"图已省略"，表现为"能对话但读不懂图"。
    */
   vision?: boolean;
 }
@@ -95,11 +100,36 @@ export interface ViewerContext {
   roi_box?: [number, number, number, number];
 }
 
+/**
+ * 用户消息里内联的图像附件（SDD 00 §4.3 / D-021）。
+ * `data` 是不带 `data:` 前缀的 base64；交给 `AgentHarness.prompt(text, { images })`。
+ */
+export interface PromptImage {
+  data: string;
+  mime_type: string;
+}
+
+/** 允许的附件 MIME（SDD 00 §4.3）——只收静态图像，领域影像走 run_task 不经此通道。 */
+export const PROMPT_IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+] as const;
+
+/** 单张 base64 上限，与 /atlas/describe 的 MAX_IMAGE_BASE64 对齐（~9MB 原图）。 */
+export const MAX_PROMPT_IMAGE_BASE64 = 12 * 1024 * 1024;
+/** 单条消息附件张数上限。 */
+export const MAX_PROMPT_IMAGES = 6;
+/** 单条消息附件 base64 合计上限。 */
+export const MAX_PROMPT_IMAGES_TOTAL_BASE64 = 24 * 1024 * 1024;
+
 export type TransportCommand =
   | {
       command_id: string;
       type: "prompt";
       content: string;
+      images?: PromptImage[];
       connection: ConnectionInput;
       viewer?: ViewerContext;
     }

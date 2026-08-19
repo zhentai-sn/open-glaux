@@ -177,7 +177,11 @@ export class SessionService {
   async touchTitleFromFirstMessage(sessionId: string, content: string): Promise<void> {
     const meta = this.requireMeta(sessionId);
     if (meta.title !== "New conversation") return;
-    this.metaRepo.update(sessionId, { title: titleFromContent(content) });
+    const title = titleFromContent(content);
+    // 纯图像消息（content 为空，SDD 00 D-021）不命名会话：留在 "New conversation"，
+    // 让下一条带文字的消息来定标题，而不是把标题钉成空串。
+    if (!title) return;
+    this.metaRepo.update(sessionId, { title });
   }
 
   async closeSession(session: Session): Promise<void> {

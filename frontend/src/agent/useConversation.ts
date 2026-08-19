@@ -3,6 +3,7 @@ import { useSession, type Connection } from "../store/session";
 import type {
   ConnectionInput,
   ConnectionProbeInput,
+  PromptImage,
   ViewerContext,
 } from "./runtime/types";
 
@@ -41,8 +42,27 @@ export function toProbeInput(connection: Connection): ConnectionProbeInput {
   };
 }
 
-export function toConnectionInput(connection: Connection): ConnectionInput {
+/**
+ * 这次请求是否要把模型当视觉模型用。
+ *
+ * 带图发送时恒为 `true`：用户显式贴了图，意图明确；若模型确实不支持，让 provider 回一个
+ * 明确错误，远好过 pi-ai 在本地把图换成"(image omitted)"占位符后照常作答——后者表现为
+ * "模型胡说八道"，无从诊断。不带图时按探测结论走（影响工具结果里的图像）。
+ */
+function visionFor(connection: Connection, hasImages: boolean): boolean {
+  if (hasImages) return true;
+  return (
+    connection.models?.find((model) => model.id === connection.model)?.vision ===
+    "yes"
+  );
+}
+
+export function toConnectionInput(
+  connection: Connection,
+  hasImages = false,
+): ConnectionInput {
   return {
+    vision: visionFor(connection, hasImages),
     provider:
       connection.provider === "openai_compatible"
         ? "openai-compatible"
@@ -64,9 +84,15 @@ export function useConversation() {
   const abort = useAgentSessions((state) => state.abort);
 
   return {
-    send: (content: string) =>
-      sendPrompt(content, toConnectionInput(connection), toViewerContext()),
-    regenerate: () => regenerate(toConnectionInput(connection)),
+    send: (content: string, images: PromptImage[] = []) =>
+      sendPrompt(
+        content,
+        images,
+        toConnectionInput(connection, images.length > 0),
+        toViewerContext(),
+      ),
+    // 重新生成会连原图一起重发（runtime 侧 regenerateLatest），所以视觉能力必须一并带上。
+    regenerate: () => regenerate(toConnectionInput(connection, true)),
     abort,
   };
 }

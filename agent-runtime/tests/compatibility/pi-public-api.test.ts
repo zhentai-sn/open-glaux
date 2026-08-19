@@ -15,6 +15,7 @@ import {
   fauxAssistantMessage,
   fauxProvider,
 } from "@earendil-works/pi-ai";
+import { transformMessages } from "@earendil-works/pi-ai/api/transform-messages";
 import {
   createNodeSqliteFactory,
   SqliteSessionRepo,
@@ -129,5 +130,50 @@ describe("Pi 0.82.1 public API compatibility", () => {
     expect(typeof AgentHarness.prototype.abort).toBe("function");
     expect(typeof AgentHarness.prototype.compact).toBe("function");
     expect(typeof AgentHarness.prototype.navigateTree).toBe("function");
+  });
+
+  /**
+   * 锁定 2026-08-20 故障的根因行为：pi 在模型 `input` 不含 "image" 时，**不报错**，
+   * 而是把用户消息里的图像换成文本占位符。Glaux 因此必须为要发图的连接显式声明
+   * `vision: true`（见 contracts.ts ConnectionInput.vision 与 model-runtime）。
+   * 若 pi 升级后改成报错或改了占位文案，这条会先失败，提醒同步修订 SDD 00。
+   */
+  it("silently downgrades user images when the model has no image input", () => {
+    const base = {
+      id: "m",
+      name: "m",
+      api: "openai-completions" as const,
+      provider: "openai-compatible",
+      baseUrl: "http://127.0.0.1:1/v1",
+      reasoning: false,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128_000,
+      maxTokens: 4096,
+    };
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: "what is this?" },
+          { type: "image" as const, data: "AAAA", mimeType: "image/png" },
+        ],
+        timestamp: 0,
+      },
+    ];
+
+    const textOnly = transformMessages(messages, { ...base, input: ["text"] });
+    const blocks = textOnly[0]!.content as { type: string; text?: string }[];
+    expect(blocks.some((block) => block.type === "image")).toBe(false);
+    expect(blocks.map((block) => block.text).join(" ")).toContain("image omitted");
+
+    const withVision = transformMessages(messages, {
+      ...base,
+      input: ["text", "image"],
+    });
+    expect(
+      (withVision[0]!.content as { type: string }[]).some(
+        (block) => block.type === "image",
+      ),
+    ).toBe(true);
   });
 });

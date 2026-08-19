@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +9,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 
-import { CommandService } from "../../src/pi/command-service.js";
+import { CommandService, commandDigest } from "../../src/pi/command-service.js";
 import { HarnessRegistry } from "../../src/pi/harness-registry.js";
 import { SessionService } from "../../src/pi/session-service.js";
 import { TEST_CONNECTION } from "../helpers/runtime-fixture.js";
@@ -26,9 +25,12 @@ describe("Runtime restart recovery", () => {
     const sessionId = crypto.randomUUID();
     const commandId = crypto.randomUUID();
     const content = "resume after restart";
-    const digest = createHash("sha256")
-      .update(JSON.stringify({ type: "prompt", content }))
-      .digest("hex");
+    const digest = commandDigest({
+      command_id: commandId,
+      type: "prompt",
+      content,
+      connection: TEST_CONNECTION,
+    });
 
     const first = new SessionService(options);
     await first.initialize();

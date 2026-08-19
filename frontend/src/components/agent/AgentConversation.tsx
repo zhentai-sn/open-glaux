@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  messageImages,
   messageRole,
   messageText,
   messageToolCalls,
@@ -132,15 +133,34 @@ export function AgentConversation() {
   const messages = useMemo(() => {
     const saved = view?.messages ?? [];
     const result = [...saved];
+    // 乐观回显：命令已发出、快照未回来时先把这一轮画上（带图时用 content 块数组，
+    // 与 transcript 里的形状一致，缩略图渲染走同一条路径）。
+    const pendingImages = live?.pendingImages ?? [];
     if (
-      live?.pendingUser &&
+      (live?.pendingUser || pendingImages.length) &&
       !saved.some(
         (message) =>
           messageRole(message) === "user" &&
-          messageText(message) === live.pendingUser,
+          messageText(message) === (live?.pendingUser ?? ""),
       )
     ) {
-      result.push({ role: "user", content: live.pendingUser });
+      result.push(
+        pendingImages.length
+          ? {
+              role: "user",
+              content: [
+                ...pendingImages.map((image) => ({
+                  type: "image",
+                  data: image.data,
+                  mimeType: image.mime_type,
+                })),
+                ...(live?.pendingUser
+                  ? [{ type: "text", text: live.pendingUser }]
+                  : []),
+              ],
+            }
+          : { role: "user", content: live?.pendingUser ?? "" },
+      );
     }
     if (live?.streamingAssistant) result.push(live.streamingAssistant);
     return result;
@@ -270,6 +290,7 @@ export function AgentConversation() {
           const role = messageRole(message);
           if (!role) return null;
           const text = messageText(message);
+          const images = messageImages(message);
           const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
           // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
           if (role === "assistant" && !text && toolCalls.length) {
@@ -304,10 +325,21 @@ export function AgentConversation() {
                     ))}
                   </div>
                 )}
+                {images.length > 0 && (
+                  <div className="message-images">
+                    {images.map((image, imageIndex) => (
+                      <img
+                        key={`${index}-img-${imageIndex}`}
+                        src={image.dataUrl}
+                        alt={t("agent_message_image")}
+                      />
+                    ))}
+                  </div>
+                )}
                 {role === "assistant" && text ? (
                   <Markdown text={text} />
                 ) : (
-                  text || (running ? "…" : "")
+                  text || (running && !images.length ? "…" : "")
                 )}
               </div>
               {role === "assistant" &&
