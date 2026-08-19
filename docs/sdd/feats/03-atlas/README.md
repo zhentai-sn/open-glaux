@@ -84,7 +84,7 @@
 ### 4.3 输入约束
 
 - PDF / 网页解析只抽取图片与其图注/邻近文本，不入库正文全文；扫描版 PDF 不支持（无嵌入图则报 `NO_FIGURES_FOUND`）。
-- 网页抓取走与 agent-runtime 一致的出站守卫规则（解析后 IP 判定 + 私网/链路本地/保留/fake-ip 拒绝，`GLAUX_VLM_HOST_ALLOW` / `GLAUX_VLM_ALLOW_FAKEIP` 同名开关），只抓 http(s)、不执行脚本、不带凭据；与 runtime 唯一差异：公开页面允许明文 http（只读抓取，无凭据可泄）。
+- 网页抓取走与 agent-runtime 一致的出站守卫规则（解析后 IP 判定 + 私网/链路本地/保留拒绝；fake-ip 段 `198.18.0.0/15` 默认放行，`GLAUX_VLM_HOST_ALLOW` / `GLAUX_VLM_ALLOW_FAKEIP` 同名开关），只抓 http(s)、不执行脚本、不带凭据；与 runtime 唯一差异：公开页面允许明文 http（只读抓取，无凭据可泄）。
 - 标签自由填写，但归一（去首尾空白、全半角、大小写）后入库；不做同义合并。
 - 外发许可缺省为 `local-only`；改为 `shareable` 须勾选"我确认有权将该图发往第三方模型服务"，勾选记录随案例保存（D-16）。
 
@@ -336,7 +336,7 @@ stateDiagram-v2
 
 - [x] 导入一份含嵌入图的文字版 PDF，Atlas 页面出现候选插图与邻近文本；勾选、框 ROI、填标签后，案例出现在列表中，`source_type = textbook`。
 - [x] 导入一个扫描版 PDF，返回 `NO_FIGURES_FOUND` 并提示手动上传，无残留记录。
-- [x] 输入一个公网网页 URL，页面内图片与 alt/figcaption 出现在候选列表；输入私网/fake-ip 地址返回 `FETCH_BLOCKED`，无对外请求。
+- [x] 输入一个公网网页 URL，页面内图片与 alt/figcaption 出现在候选列表；输入私网地址返回 `FETCH_BLOCKED`，无对外请求（fake-ip 段 `198.18.0.0/15` 默认放行，除非显式关闭开关）。
 - [x] 用 CLI 导入一个 COCO 多边形标注目录，`geometry` 为多边形、`roi` 为其外接框；重跑同一命令不产生重复记录。
 - [x] 同一图重复导入相同 ROI，返回同一 `exemplar_id`。
 - [x] 标签"电子致密物"与"电子致密物 "（尾空格）/ 全角输入检索结果一致。

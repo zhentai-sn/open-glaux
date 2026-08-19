@@ -27,7 +27,7 @@
 | `GLAUX_AGENT_RUNTIME_URL` | backend CLI | `http://127.0.0.1:8010` | CLI `--describe` 直连 runtime |
 | `GLAUX_BACKEND_URL` | agent-runtime | `http://127.0.0.1:8000` | runtime `AtlasClient` 访问 backend |
 | `GLAUX_VLM_HOST_ALLOW` | backend、agent-runtime | 空 | 出站守卫白名单（逗号分隔 host），网页导入 / 模型调用同规则 |
-| `GLAUX_VLM_ALLOW_FAKEIP` | backend、agent-runtime | 未设 | 放行 `198.18.0.0/15` fake-ip 段。**走 fake-ip 代理（Clash 等）的机器，网页导入会返回 `FETCH_BLOCKED`，需给 backend 设 `GLAUX_VLM_ALLOW_FAKEIP=1`** |
+| `GLAUX_VLM_ALLOW_FAKEIP` | backend、agent-runtime | **默认放行**（置 `0`/`false`/`no`/`off` 关闭） | `198.18.0.0/15` fake-ip 段默认放行——走 fake-ip 代理（Clash 等）的机器开箱即用；其余私网段无论开关一律拒 |
 | `GLAUX_VLM_PROVIDER / MODEL / BASE_URL / API_KEY / CONTEXT_WINDOW / MAX_TOKENS` | CLI `--describe`、`atlas-eval.ts` | — | 凭据取环境变量，只进 runtime 进程内存 |
 
 ## 导入方式一：教科书 PDF（Atlas 页面）
@@ -47,7 +47,7 @@
 ## 导入方式二：网页 URL
 
 同上，第一步选"网页 URL"。backend `POST /atlas/imports/url` 用 httpx + bs4 抽 `<img>` + alt / figcaption / 邻近段落；
-逐跳过出站守卫（解析后 IP：回环放行；私网 / 链路本地 / 保留 / fake-ip 拒绝 → `FETCH_BLOCKED`），公开地址允许明文 http，
+逐跳过出站守卫（解析后 IP：回环与 fake-ip 段放行；私网 / 链路本地 / 保留拒绝 → `FETCH_BLOCKED`），公开地址允许明文 http，
 不执行脚本、不带凭据、有大小与超时上限；抓取失败 `FETCH_FAILED` → 引导手动上传。
 
 ## 导入方式三：标注数据集（CLI）
@@ -89,6 +89,6 @@ manifest：`{"query": "…", "tags": ["TEM","EDD"], "items": [{"image": "img/001
 | --- | --- |
 | Atlas 页面显示"图谱不可用（HTTP_404）" | backend 是旧进程（无 `/atlas` 路由）→ 重启 backend |
 | "图谱不可用（ATLAS_UNAVAILABLE …）" | backend 缺 lancedb 依赖 → `cd backend && uv sync` |
-| 网页导入一律 `FETCH_BLOCKED` | 本机走 fake-ip 代理 → backend 设 `GLAUX_VLM_ALLOW_FAKEIP=1`；或 `GLAUX_VLM_HOST_ALLOW` 加白 |
+| 网页导入一律 `FETCH_BLOCKED` | 目标解析到真实私网 → `GLAUX_VLM_HOST_ALLOW` 加白；若报的是 `198.18.x.x`，检查是否被显式设了 `GLAUX_VLM_ALLOW_FAKEIP=0` |
 | "先在连接设置里选择一个视觉模型" | 描述生成需要 ⚙ 连接设置里选定支持图像的模型 |
 | 描述"待补描述" | VLM 返回非 JSON 两次 / 网络失败 → 详情页"生成描述"重试 |

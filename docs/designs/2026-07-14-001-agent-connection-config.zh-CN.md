@@ -147,7 +147,8 @@ provider: Literal["anthropic","openai_compatible"] = "anthropic"  # 新增
 ## 9. 开放问题
 
 1. **SSRF vs 本地放行策略**：本地回环白名单 + 私网拒解析 + 基于 IP 判定（§6）是 v0 方向；**其它内网 host 白名单是否可配、配在哪**（env / sources 同级），须安全评审拍板。
-   - **已加（缺省关，待评审确认）**：`GLAUX_VLM_HOST_ALLOW`（host 白名单，逗号分隔）、`GLAUX_VLM_ALLOW_FAKEIP`（放行 `198.18.0.0/15` fake-ip 段——Clash/Surge/sing-box 透明代理把域名映射到此保留段，是**实测撞到的**合法误拒场景；此段现实中不承载真实内部服务，故可选放行，其余私网仍拒）。评审需拍板：fake-ip 是否值得默认开、host 白名单粒度。
+   - `GLAUX_VLM_HOST_ALLOW`（host 白名单，逗号分隔，缺省空，待评审确认粒度）。
+   - `GLAUX_VLM_ALLOW_FAKEIP`（`198.18.0.0/15` fake-ip 段）——**2026-08-19 决议：改为默认放行**。理由：Clash/Surge/sing-box 透明代理把域名映射到此保留段是常态，是**实测反复撞到的**合法误拒场景（本机 `opencode.ai` → `198.18.0.45`）；此段现实中不承载真实内部服务，误拒代价远高于放行风险。需收紧时置 `0`/`false`/`no`/`off`，其余私网无论开关一律拒。
 2. ~~**模型列表过滤**~~ **【已决议】**：**不过滤，全列**；逐项标注视觉能力（👁 `yes` / 灰显 `unknown` / 明确 `no`），判定逻辑见 §5。用户仍可选 `unknown` 项自担风险。
 3. ~~**openai_compatible / 本地模型的图像意图**~~ **【已决议 + 收窄】**：视觉能力尽力而为检测（§5：anthropic 模型族 / Ollama `/api/show` / 名称启发式）；检测不到 → 标 `unknown` 不拦，真正看图失败在 `/interpret` 显式报错。**Ollama/LM Studio 已纳入 `openai_compatible`（US-5 / §0）**。
 4. **多连接**：v0 单连接；若很快要多，`Connection` 应提前带 `id/name`（本设计已在数据模型留 provider 维度，加 `id` 成本低）。
