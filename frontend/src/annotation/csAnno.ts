@@ -48,20 +48,24 @@ function toImage(imageId: string, w: Point3): [number, number] {
 export function csToPrimitive(ann: CsAnn, imageId: string): AnnotationPrimitive | null {
   const toolName = ann.metadata?.toolName;
   if (toolName === RectangleROITool.toolName) {
+    // RectangleROI 的 handles.points 是**四角**（对角是 [0] 与 [3]，[1]/[2] 是另两角）——
+    // 取 [0]/[1] 会拿到共边的两点（同一条边）→ 退化成零高矩形。按全部角点求 AABB，与角序无关。
     const pts = (ann.data?.handles as { points?: Point3[] } | undefined)?.points;
     if (!pts || pts.length < 2) return null;
-    const [ax, ay] = toImage(imageId, pts[0]);
-    const [bx, by] = toImage(imageId, pts[1]);
-    const x0 = Math.min(ax, bx);
-    const y0 = Math.min(ay, by);
-    const x1 = Math.max(ax, bx);
-    const y1 = Math.max(ay, by);
+    const img = pts.map((p) => toImage(imageId, p));
+    const xs = img.map(([x]) => x);
+    const ys = img.map(([, y]) => y);
+    const x0 = Math.min(...xs);
+    const y0 = Math.min(...ys);
+    const x1 = Math.max(...xs);
+    const y1 = Math.max(...ys);
     if (!(x1 > x0) || !(y1 > y0)) return null;
     return { kind: "bbox", x0, y0, x1, y1 };
   }
   if (toolName === PlanarFreehandROITool.toolName) {
-    const contour = (ann.data as { contour?: { points?: Point3[] } } | undefined)?.contour;
-    const pts = contour?.points;
+    // 轮廓点在 data.contour.polyline（CS3D 3.x ContourAnnotation 契约），不是 contour.points。
+    const contour = (ann.data as { contour?: { polyline?: Point3[] } } | undefined)?.contour;
+    const pts = contour?.polyline;
     if (!pts || pts.length < 3) return null;
     return { kind: "polyline", closed: true, points: pts.map((p) => toImage(imageId, p)) };
   }
@@ -89,10 +93,18 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
       metadata: { ...base.metadata, toolName: RectangleROITool.toolName },
       data: {
         handles: {
-          points: [toWorld(imageId, p.x0, p.y0), toWorld(imageId, p.x1, p.y1)],
+          // 四角，顺序须与工具一致（bottomLeft / bottomRight / topLeft / topRight）——
+          // 渲染与拖拽都按 [0]/[3] 取对角，少给点会渲染不出来。
+          points: [
+            toWorld(imageId, p.x0, p.y1),
+            toWorld(imageId, p.x1, p.y1),
+            toWorld(imageId, p.x0, p.y0),
+            toWorld(imageId, p.x1, p.y0),
+          ],
           activeHandleIndex: null,
           textBox: { hasMoved: false, worldPosition: toWorld(imageId, p.x1, p.y0) },
         },
+        label: "",
         cachedStats: {},
       },
     } as unknown as CsAnn;
@@ -107,7 +119,8 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
           activeHandleIndex: null,
           textBox: { hasMoved: false, worldPosition: toWorld(imageId, p.points[0][0], p.points[0][1]) },
         },
-        contour: { type: "ClosedContour", points: p.points.map(([x, y]) => toWorld(imageId, x, y)) },
+        contour: { polyline: p.points.map(([x, y]) => toWorld(imageId, x, y)), closed: true },
+        label: "",
         cachedStats: {},
       },
     } as unknown as CsAnn;
@@ -119,13 +132,15 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
  * store.annotations → CS3D 标注层 reconcile（增缺删旧；tmp 草稿与 mask 不下发）。
  * `selector` 必须是视口的 **FrameOfReferenceUID**（或视口 element）——标注管理器按它分组，
  * 工具渲染时以 `element → enabledElement.FrameOfReferenceUID` 反查；传 viewportId 会分错组不渲染。
+ * 返回是否有增删（调用方需主动触发标注重绘：程序化 add/remove 不会自己上屏）。
  */
 export function syncCsAnnotations(
   annotations: Annotation[],
   imageId: string,
   frameOfReferenceId: string,
   selector: string,
-): void {
+): boolean {
+  let changed = false;
   const want = new Set(annotations.filter((a) => !a.id.startsWith("tmp-")).map((a) => a.id));
   // 删：服务端已不存在的（切对象/删除回流）
   for (const [srvId, csId] of [...srvToCs]) {
@@ -134,6 +149,7 @@ export function syncCsAnnotations(
       annotation.state.removeAnnotation(csId);
       srvToCs.delete(srvId);
       csToSrv.delete(csId);
+      changed = true;
     }
   }
   // 增：store 有而 CS3D 层没有的（reload/拉取回灌）
@@ -144,7 +160,9 @@ export function syncCsAnnotations(
     const csId = annotation.state.addAnnotation(cs, selector);
     srvToCs.set(a.id, csId);
     csToSrv.set(csId, a.id);
+    changed = true;
   }
+  return changed; // 无人监听 ANNOTATION_ADDED 触发重绘——调用方据此主动 triggerAnnotationRender
 }
 
 // --- 事件桥：COMPLETED / MODIFIED / REMOVED → annotationBridge ------------------
@@ -246,9 +264,13 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
   };
 }
 
-// 默认落库目标：web: 方案去前缀（raster_2d）
+// 默认落库目标（raster_2d）：`web:<图片 URL>` → 对象 id。
+// 只去 `web:` 前缀会把整条 URL（/api/image/tech_401）当 image_id 发给后端——落库目标必须是对象 id。
+// 查看器一般注入 toTarget（activeImage 是权威值），这里是兜底解析。
 function defaultTarget(imageId: string): { image_id: string; z?: number | null } {
-  return { image_id: imageId.replace(/^web:/, "") };
+  const path = imageId.replace(/^web:/, "").split(/[?#]/)[0];
+  const seg = path.split("/").filter(Boolean);
+  return { image_id: decodeURIComponent(seg[seg.length - 1] ?? path) };
 }
 
 /** volume_3d 落库目标解析器：`nifti:<url>#z=<n>` → { image_id: volume id, z }。 */

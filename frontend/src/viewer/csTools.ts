@@ -94,9 +94,14 @@ export function activateTool(
   modality?: Modality,
   opts?: { wheelZoom?: boolean },
 ): void {
+  // 复位：**标注类**工具退到 passive 而非 disabled——CS3D 只渲染 active/passive/enabled 的
+  // 工具的标注，disabled 的一律不画。把绘制工具 disable 掉会让已落库/刚画完的 bbox/polygon
+  // 在切回光标的瞬间整片消失（画布上看着像"没保存"，其实库里在）。passive 还保留选中与
+  // 顶点编辑，正是光标态该有的行为。无标注的工具（相机/画笔/壁线手柄）仍走 disabled。
+  for (const name of [RectangleROITool.toolName, PlanarFreehandROITool.toolName]) {
+    tg.setToolPassive(name);
+  }
   for (const name of [
-    RectangleROITool.toolName,
-    PlanarFreehandROITool.toolName,
     BrushTool.toolName,
     PanTool.toolName,
     ZoomTool.toolName,

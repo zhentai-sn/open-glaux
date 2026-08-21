@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { annotation, ToolGroupManager } from "@cornerstonejs/tools";
+import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 
 import { Enums, RenderingEngine, csReady, type Types } from "../viewer/cornerstone";
 import {
@@ -314,16 +314,19 @@ export function VolumeViewer() {
       } catch {
         /* 静默回退 */
       }
-      drawOverlay();
+      drawOverlayRef.current();
     })();
-  }, [z, numSlices, activeVolume, drawOverlay]);
+    // 依赖里不放 drawOverlay：它每次重渲染都换标识，会让本 effect 无关重跑，
+    // 而开头的 removeAllAnnotations() 会把当前 z 已回灌/已画的标注整层清掉。
+  }, [z, numSlices, activeVolume]);
 
   // store.annotations → CS3D 标注层回灌（仅当前 z 的 bbox/polygon）
   useEffect(() => {
     if (!ready || !zImageIdRef.current) return;
     const vp = vpRef.current;
     const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_CT";
-    syncCsAnnotations(annotations, zImageIdRef.current, forId, forId);
+    if (syncCsAnnotations(annotations, zImageIdRef.current, forId, forId))
+      csToolsUtils.triggerAnnotationRenderForViewportIds([VP_ID]);
   }, [annotations, ready, z]);
 
   // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）——真相源 store.toolOptions.voi。

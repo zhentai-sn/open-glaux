@@ -6,7 +6,7 @@ import { sampleHandles } from "../viewer/wallGeom";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { attachCsAnnoBridge, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
-import { annotation, ToolGroupManager } from "@cornerstonejs/tools";
+import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
 import { useSession } from "../store/session";
 
@@ -98,7 +98,11 @@ export function CornerstoneViewer() {
       engineRef.current = engine;
       vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
       createToolGroup(TG_ID, VP_ID, RE_ID);
-      detach = attachCsAnnoBridge({ getImageId: () => imageIdRef.current });
+      // 落库目标用 store 的 activeImage（对象 id 的权威值），不从图片 URL 反推
+      detach = attachCsAnnoBridge({
+        getImageId: () => imageIdRef.current,
+        toTarget: () => ({ image_id: useSession.getState().activeImage ?? "" }),
+      });
       setReady(true);
     })();
     return () => {
@@ -306,6 +310,14 @@ export function CornerstoneViewer() {
     }
   }, [cf, wallEditing, ovByRole, sizeOverlay]);
 
+  // drawOverlay 每次重渲染都会换标识（依赖 cf/overlays/工具态）——载图与标注回灌副作用
+  // 不能把它放进依赖数组：那会让「切图」副作用在无关重渲染时重跑，其开头的
+  // removeAllAnnotations() 会把已画/已回灌的标注整层清掉（画完的框凭空消失即源于此）。
+  const drawOverlayRef = useRef(drawOverlay);
+  useEffect(() => {
+    drawOverlayRef.current = drawOverlay;
+  }, [drawOverlay]);
+
   // 载图：预取尺寸 → setStack → reset 相机 → 拉标注（bbox/polygon/mask 统一面）
   useEffect(() => {
     if (!ready || !activeImage) return;
@@ -335,20 +347,21 @@ export function CornerstoneViewer() {
       await vp.setStack([imageId]);
       vp.resetCamera();
       vp.render();
-      drawOverlay();
+      drawOverlayRef.current();
       void loadAnnotations(activeImage);
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, activeImage, drawOverlay]);
+  }, [ready, activeImage]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
     if (!ready || !imageIdRef.current) return;
     const vp = vpRef.current;
     const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_2D";
-    syncCsAnnotations(annotations, imageIdRef.current, forId, forId);
+    if (syncCsAnnotations(annotations, imageIdRef.current, forId, forId))
+      csToolsUtils.triggerAnnotationRenderForViewportIds([VP_ID]);
     // mask 着色画布懒加载（加载完成触发重绘）
     for (const a of annotations) {
       if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(a.id)) continue;
@@ -372,11 +385,11 @@ export function CornerstoneViewer() {
         }
         c.putImageData(d, 0, 0);
         maskImgs.current.set(a.id, cv);
-        drawOverlay();
+        drawOverlayRef.current();
       };
       img.src = api.annotations.maskUrl(a.id);
     }
-  }, [annotations, ready, drawOverlay]);
+  }, [annotations, ready]);
 
   // store.primitives 变化 → 同步工作副本 + 重绘（壁线拖拽中间态也走这里）
   useEffect(() => {
