@@ -238,3 +238,12 @@ def test_on_commit_failure_keeps_annotation(monkeypatch):
     assert r.status_code == 201, r.text
     assert "隔离环境不可用" in r.json()["hook_error"]
     assert len(client.get("/annotations", params={"image_id": "slide_001"}).json()["annotations"]) == 1
+
+
+def test_create_with_url_like_image_id_does_not_500():
+    """越界 image_id（形如图片 URL）不得让 dims 探测抛异常 → 500（前端曾误发整条 URL）。"""
+    r = client.post(
+        "/annotations",
+        json={"image_id": "/api/image/tech_401", "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9}},
+    )
+    assert r.status_code < 500, r.text

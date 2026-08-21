@@ -73,14 +73,19 @@ def _dims_for(image_id: str) -> tuple[int, int] | None:
             return (x, y)
     except Exception:  # noqa: BLE001
         pass
-    for p in config.IMAGES_DIR.glob(f"{image_id}.tif*"):
-        try:
-            from PIL import Image
+    try:
+        # glob 的 pattern 由 image_id 拼成——形如 "/api/image/x" 的越界值会让 Path.glob
+        # 抛 NotImplementedError（绝对模式不支持），整个包起来，未知对象一律走 best-effort。
+        for p in config.IMAGES_DIR.glob(f"{image_id}.tif*"):
+            try:
+                from PIL import Image
 
-            with Image.open(p) as im:
-                return im.size  # (width, height)
-        except Exception:  # noqa: BLE001
-            pass
+                with Image.open(p) as im:
+                    return im.size  # (width, height)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001 - 非法 id 不该 500，交给结构校验/best-effort
+        return None
     return None
 
 
