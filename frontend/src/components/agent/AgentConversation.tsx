@@ -5,6 +5,7 @@ import {
   messageRole,
   messageText,
   messageToolCalls,
+  messageToolResultDetails,
   type MessageToolCall,
 } from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
@@ -14,6 +15,7 @@ import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import type { PermissionMode } from "../../agent/runtime/types";
+import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
@@ -288,6 +290,18 @@ export function AgentConversation() {
           <div className="agent-empty">{t("agent_loading")}</div>
         )}
         {messages.map((message, index) => {
+          // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
+          const atlasRef = parseAtlasReferenced(messageToolResultDetails(message));
+          if (atlasRef) {
+            return (
+              <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <AtlasRefCard payload={atlasRef} />
+              </div>
+            );
+          }
           const role = messageRole(message);
           if (!role) return null;
           const text = messageText(message);

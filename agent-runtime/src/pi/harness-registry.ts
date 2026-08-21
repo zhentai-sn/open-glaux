@@ -24,6 +24,7 @@ import {
   createModelRuntime,
   type ModelRuntime,
 } from "./model-runtime.js";
+import { CONSULT_ATLAS_TOOL_NAME, createConsultAtlasTool } from "./tools/consult-atlas.js";
 import { createRunTaskTool } from "./tools/run-task.js";
 
 export interface HarnessRuntimeFactory {
@@ -36,19 +37,43 @@ export interface HarnessStartOptions {
   permissionMode?: PermissionMode;
 }
 
+/** 工具工厂拿到的完整上下文：领域上下文 + 本次连接与其模型运行时（图谱检索需要向模型发图）。 */
+export interface HarnessToolContext extends HarnessStartOptions {
+  connection?: ConnectionInput;
+  runtime?: ModelRuntime;
+}
+
 export type HarnessTool = AgentHarnessTool<undefined>;
 
 export interface HarnessToolFactory {
-  (options: HarnessStartOptions): HarnessTool[];
+  (options: HarnessToolContext): HarnessTool[];
 }
 
 /**
  * 缺省工具集：`observe` 模式下无工具（SDD 02 §7.3——只能文字描述）；其它模式挂 `run_task`。
  * 更细的逐次批准门控随 SDD 02 的 beforeToolCall 落地。
+ *
+ * `consult_atlas` 只在连接声明 `vision: true` 时挂上（SDD 03 D-21）：无视觉的模型收到的图会被
+ * pi-ai 静默换成"image omitted"占位，挂了它只会让模型以为自己翻过图谱。
  */
-export const defaultToolFactory: HarnessToolFactory = ({ viewer, permissionMode }) => {
+export const defaultToolFactory: HarnessToolFactory = ({
+  viewer,
+  permissionMode,
+  connection,
+  runtime,
+}) => {
   if (permissionMode === "observe") return [];
-  return [createRunTaskTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool];
+  const tools = [createRunTaskTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool];
+  if (connection?.vision && runtime) {
+    tools.push(
+      createConsultAtlasTool({
+        runtime,
+        connection,
+        ...(viewer ? { viewer } : {}),
+      }) as HarnessTool,
+    );
+  }
+  return tools;
 };
 
 const SYSTEM_PROMPT =
@@ -58,13 +83,18 @@ const SYSTEM_PROMPT =
   "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
   "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.";
 
-function systemPromptFor(viewer: ViewerContext | undefined): string {
-  if (!viewer?.image_id) return `${SYSTEM_PROMPT} No image is currently open in the viewer.`;
+const ATLAS_PROMPT =
+  " Glaux also keeps an Atlas: a human-curated casebook of reference images. Consult it with the " +
+  "consult_atlas tool before judging what a finding or structure looks like, and cite the case ids you used.";
+
+function systemPromptFor(viewer: ViewerContext | undefined, atlas = false): string {
+  const head = atlas ? `${SYSTEM_PROMPT}${ATLAS_PROMPT}` : SYSTEM_PROMPT;
+  if (!viewer?.image_id) return `${head} No image is currently open in the viewer.`;
   const parts = [`image_id=${viewer.image_id}`];
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.modality) parts.push(`modality=${viewer.modality}`);
   if (viewer.method) parts.push(`method=${viewer.method}`);
-  return `${SYSTEM_PROMPT} Viewer context: ${parts.join(", ")}.`;
+  return `${head} Viewer context: ${parts.join(", ")}.`;
 }
 
 interface HarnessSlot {
@@ -121,12 +151,16 @@ export class HarnessRegistry {
 
     const session = await this.sessions.openSession(sessionId);
     const runtime = this.runtimeFactory(connection);
+    const tools = this.toolFactory({ ...options, connection, runtime });
     const harness = new AgentHarness({
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: systemPromptFor(options.viewer),
-      tools: this.toolFactory(options),
+      systemPrompt: systemPromptFor(
+        options.viewer,
+        tools.some((tool) => tool.name === CONSULT_ATLAS_TOOL_NAME),
+      ),
+      tools,
     });
     const unsubscribeHarness = harness.subscribe((event) => {
       this.emitPiEvent(sessionId, commandId, event);

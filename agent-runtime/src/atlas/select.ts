@@ -1,11 +1,12 @@
 /**
  * 两步 VLM 的"翻图谱"步（SDD 03 §6.3 / D-11）：检索候选 ≤ 10 → VLM 从候选挑 1–3 张。
  *
- * 供 SDD 02 `locate_roi` 调用（第二步"带选中案例定位"由 `locate_roi` 完成）；本模块自身
+ * 由 `consult_atlas` 工具调用（SDD 03 D-21）；SDD 02 `locate_roi` 落地后共用本模块。本模块自身
  * 不发任何会话事件，只返回结构化结果 + `atlas.referenced` 事件 payload 的构造函数。
  *
  * - 候选 0 → 直接返回（调用方走无先验路径）。
  * - 候选 ≤ `skipSelectionUpTo`（默认 3）→ 跳过挑选，全部选中。
+ * - 无 `target`（查看器没开图，纯文字翻图谱）→ 同样跳过挑选，按检索序取前 k。
  * - `excluded_by_egress`：当外发档位为 `shareable` 时，另以 `egress=any` 检索一次求差
  *   （只比较 id，不取图）——用于卡片提示"N 条本地案例因外发限制未使用"。
  */
@@ -20,7 +21,8 @@ export interface SelectExemplarsInput {
   /** 图册范围（v1.1）：只在该图册及子图册内翻 */
   collection?: string;
   egress: Egress;
-  target: ImageInput;
+  /** 对照目标图；缺省（查看器无打开的图）时跳过挑选步，按检索序取前 k。 */
+  target?: ImageInput;
   traceId: string;
   k?: number;
   limit?: number;
@@ -105,6 +107,7 @@ export async function selectExemplars(
 
   const skipUpTo = input.skipSelectionUpTo ?? 3;
   if (withCrops.length <= skipUpTo) return build(withCrops);
+  if (!input.target) return build(withCrops.slice(0, input.k ?? 3));
 
   const chosen = await chooseAmongImages(rt, {
     target: input.target,

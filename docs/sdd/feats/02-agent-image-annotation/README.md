@@ -130,7 +130,7 @@ sequenceDiagram
 
 | 工具 | 入参 | 出参 | 说明 |
 | --- | --- | --- | --- |
-| `locate_roi` | image_ref, 目标描述 | bbox 列表 + 置信度 | 走现有 VLM 网关 grounding |
+| `locate_roi` | image_ref, 目标描述 | bbox 列表 + 置信度 | 走现有 VLM 网关 grounding；图谱先验直接复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（已由 03 D-21 的 `consult_atlas` 接通并测到，本工具落地时并入即可） |
 | `segment_region` | image_ref, bbox 或点提示 | mask/轮廓 + 置信度 + 来源 | 内部按 §7.2 路由 |
 | `propose_annotation` | image_ref, 几何数据, 标签, 溯源 | annotation_id | 产出建议态标注并推送前端 |
 

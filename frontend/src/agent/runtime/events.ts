@@ -116,6 +116,18 @@ export function messageToolCalls(message: unknown): MessageToolCall[] {
   });
 }
 
+/**
+ * `toolResult` 消息里的图谱引用产物（SDD 03 §12 / D-21）——runtime 侧 `consult_atlas` 把
+ * `details = {kind, payload}` 写进 transcript，会话视图保留该条消息（content 已剥空），
+ * 卡片因此刷新后仍在。返回原始 details，交由 `parseAtlasReferenced` 校形。
+ */
+export function messageToolResultDetails(message: unknown): unknown {
+  if (!message || typeof message !== "object") return null;
+  const m = message as { role?: unknown; isError?: unknown; details?: unknown };
+  if (m.role !== "toolResult" || m.isError) return null;
+  return m.details ?? null;
+}
+
 export function piEventType(event: unknown): string | null {
   if (!event || typeof event !== "object") return null;
   const type = (event as { type?: unknown }).type;

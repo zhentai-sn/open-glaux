@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../../i18n";
 import type { SessionView } from "../../agent/runtime/types";
@@ -88,6 +88,56 @@ describe("AgentConversation", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveValue("controlled");
     expect(screen.getByRole("textbox", { name: "Instruct the agent…" })).toBeEnabled();
+  });
+
+  // SDD 03 §12 / D-21：consult_atlas 的工具结果留在会话历史里，卡片刷新后仍在
+  it("renders the atlas reference card from a persisted tool result", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("nf", { status: 404 }));
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "What does EDD look like?" },
+            {
+              role: "toolResult",
+              toolCallId: "call-1",
+              toolName: "consult_atlas",
+              isError: false,
+              content: [],
+              details: {
+                kind: "glaux.atlas_referenced",
+                payload: {
+                  trace_id: "trace-1",
+                  candidate_ids: ["a", "b", "c", "d"],
+                  selected_ids: ["a", "b"],
+                  excluded_by_egress: 1,
+                  snapshots: [
+                    { exemplar_id: "a", caption: "EDD subepithelial", tags: ["TEM"] },
+                    { exemplar_id: "b", caption: "EDD mesangial", tags: ["TEM"] },
+                  ],
+                },
+              },
+            },
+            { role: "assistant", content: [{ type: "text", text: "Case a matches." }] },
+          ],
+        } as unknown as SessionView,
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <AgentConversation />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByTestId("atlas-ref-card")).toBeInTheDocument();
+    expect(screen.getAllByTestId("atlas-ref-item")).toHaveLength(2);
+    // 卡片不挤掉同一轮的正文
+    expect(screen.getByText("Case a matches.")).toBeInTheDocument();
+    fetchSpy.mockRestore();
   });
 
   it("makes an archived conversation read-only", () => {

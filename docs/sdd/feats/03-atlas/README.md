@@ -4,9 +4,9 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（v1.1 图册 collection + Focus 右侧栏接入 2026-08-16 实现完成、自查见 §15 v1.1；v1 §15.1 结论不变；待维护者端到端验收） |
+| SDD 状态 | `implemented`（v1.2 图谱接入会话 2026-08-20 实现完成、自查见 §15 v1.2；v1.1 图册 collection + Focus 右侧栏 2026-08-16 完成；v1 §15.1 结论不变；待维护者端到端验收） |
 | 创建日期 | 2026-08-16 |
-| 最近更新 | 2026-08-16 |
+| 最近更新 | 2026-08-20（v1.2 D-21：图谱接入会话改由 `consult_atlas` 工具做宿主，不再等 SDD 02 `locate_roi`） |
 | 目标阶段 | 第一阶段：人工导入的图谱 + agent 检索先验（VLM 两步 few-shot） |
 | 首个场景 | **膜性肾病 EDD（电子致密物）TEM 图谱**——肾脏超微病理，透射电镜图像 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
@@ -240,8 +240,10 @@ sequenceDiagram
 | 网页解析 | backend：`httpx` + HTML 解析；出站守卫需在 Python 侧按 `agent-runtime/src/security/net-guard.ts` 规则重建（backend 的 `net_guard.py` 已在退役 orchestration P3 删除） | 抽 `<img>` + alt / figcaption / 邻近段落 |
 | VLM 描述生成 | agent-runtime 新增端点 `/agent-api/v1/atlas/describe`，由前端（导入向导）或 CLI 调用；结果经 `PUT /atlas/exemplars/{id}/description` 写回 backend | 复用现有 provider 连接；凭据不经 backend |
 | REST | `backend/app/routers/atlas.py`（新增） | §5.2 端点 |
-| 检索先验接入 | `agent-runtime/src/pi/tools/`（02 的 `locate_roi` 内部）| 调 search，拼 few-shot |
-| 会话卡片 | `frontend/src/components/agent/` | "参考图谱 N 条" |
+| 检索先验接入 | `agent-runtime/src/pi/tools/consult-atlas.ts`（v1.2 D-21；02 的 `locate_roi` 落地后共用 `selectExemplars`）| 调 search，拼 few-shot，把选中案例作图像块交给模型 |
+| 工具门控 | `agent-runtime/src/pi/harness-registry.ts` 的 `defaultToolFactory` | 仅在 `connection.vision === true` 且非 `observe` 时挂 `consult_atlas`（D-22） |
+| 卡片持久化 | `agent-runtime/src/pi/session-service.ts` 的 `visibleMessage` | 会话视图保留带 `glaux.atlas_referenced` 的 `toolResult`（剥空 content） |
+| 会话卡片 | `frontend/src/components/agent/AtlasRefCard.tsx`，由 `AgentConversation` 按工具结果 details 渲染 | "参考图谱 N 条" |
 | CLI | `scripts/` 或 backend 模块入口 | 数据集批量导入 |
 
 ## 9. 数据或字段要求
@@ -307,7 +309,7 @@ stateDiagram-v2
 | 事件 | 触发时机 | payload 要点 |
 | --- | --- | --- |
 | `atlas.import.completed` | 一次导入批次结束 | batch_id、条数、source_type、trace_id |
-| `atlas.referenced` | agent 在一次 `locate_roi` 中使用了案例 | 候选 exemplar_id 列表、VLM 选中的 1–3 条、被外发限制排除的条数、trace_id、选中案例快照（caption/tags，供案例删除后降级展示）。runtime 侧类型 `AtlasReferencedPayload`（`contracts.ts`）；进入会话的载体：`locate_roi` 工具结果 `details = {kind: "glaux.atlas_referenced", payload}`，前端 `AtlasRefCard.parseAtlasReferenced` 解析（02 接线时沿用） |
+| `atlas.referenced` | agent 在一次 `consult_atlas`（v1.2 D-21；`locate_roi` 落地后同）中使用了案例 | 候选 exemplar_id 列表、VLM 选中的 1–3 条、被外发限制排除的条数、trace_id、选中案例快照（caption/tags，供案例删除后降级展示）。runtime 侧类型 `AtlasReferencedPayload`（`contracts.ts`）；进入会话的载体：`consult_atlas` 工具结果 `details = {kind: "glaux.atlas_referenced", payload}`，前端 `AtlasRefCard.parseAtlasReferenced` 解析（`locate_roi` 接线时沿用） |
 | `atlas.exemplar.retired` / `.restored` | 用户下架 / 恢复 | exemplar_id、trace_id |
 | `atlas.exemplar.deleted` | 用户硬删除 | exemplar_id、trace_id |
 
@@ -341,8 +343,9 @@ stateDiagram-v2
 - [x] 同一图重复导入相同 ROI，返回同一 `exemplar_id`。
 - [x] 标签"电子致密物"与"电子致密物 "（尾空格）/ 全角输入检索结果一致。
 - [x] `search` 请求 `egress=shareable` 时结果不含任何 `local-only` 案例；不含任何 `retired` 案例。
-- [ ] `locate_roi` 在图谱中有 ≥ 4 条匹配候选时，先出现一次 VLM 挑选调用（返回 1–3 个 exemplar_id），再出现一次带这些案例的定位调用；会话中出现"参考图谱 N 条"卡片，可点开对应案例。
-- [ ] `locate_roi` 在图谱无匹配时行为与无 Atlas 时一致，无额外 VLM 调用与错误。
+- [x] 图谱中有 ≥ 4 条匹配候选时，`consult_atlas` 先出现一次 VLM 挑选调用（返回 1–3 个 exemplar_id），选中案例作为图像块进入工具结果；会话中出现"参考图谱 N 条"卡片，可点开对应案例。——`consult-atlas-tool.test.ts`（目标图取自查看器、挑选结果、图像块、卡片 payload）+ `AgentConversation.test.tsx`（历史里渲染卡片）；`locate_roi` 落地后改由它承载定位步（D-21）
+- [x] 图谱无匹配时行为与无 Atlas 时一致，无额外 VLM 调用与错误——`consult-atlas-tool.test.ts` 0 命中路径：无图像块、不记引用、如实告知模型"无匹配案例"。
+- [x] 非视觉连接下 `consult_atlas` 不出现在工具集（D-22）——`consult-atlas-tool.test.ts` 门控用例。
 - [ ] 外发开关关闭时，任何案例都不发往外部 VLM，卡片提示被排除数量。
 - [x] 下架案例后，它不再出现在检索与默认列表，引用它的历史会话卡片仍可打开；恢复后重新可检索。
 - [x] 对被会话引用过的案例执行硬删除被拒绝；从未引用过的可硬删除。
@@ -380,11 +383,22 @@ v1.1（图册 + Focus 右侧栏）：
 
 - 首个场景（膜性肾病 EDD TEM）的**种子内容**尚未导入：需维护者自有 TEM 图 / 教科书插图；`agent-runtime/scripts/atlas-eval.ts` 已就绪但**首轮 IoU 数字未产出**（需 10 张自有测试图 + 人工框 + 一个视觉模型连接）。
 
-**无法验证（依赖 SDD 02 `locate_roi`，本 SDD 不修改 02 契约）**
+**v1.2（2026-08-20）：图谱接入会话**
 
-- ≥ 4 候选时"先挑选后定位"与会话中出现"参考图谱 N 条"卡片——挑选步 `selectExemplars` 与卡片组件均已实现并有测试（`atlas-select.test.ts` 覆盖 0 / ≤3 / ≥4 / 退化四条路径；`AtlasRefCard.test.tsx` 覆盖三种数量），但 `locate_roi` 尚不存在，会话中不会出现该调用与卡片。
-- 图谱无匹配时行为与无 Atlas 一致——`selectExemplars` 候选 0 直返且不调模型（有测试），接线后自然成立。
-- 外发开关关闭时案例不外发、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`（有测试），`excluded_by_egress` 计数与卡片提示已实现；02 §7.4 的 `GLAUX_ANNOT_ALLOW_EGRESS` 门控由 02 接线时叠加。
+v1.1 自查里"无法验证（依赖 SDD 02 `locate_roi`）"的三条，除定位步本身外均已由 D-21 的 `consult_atlas` 接通并测到：
+
+- 检索链与卡片已在真实会话链路里跑通（工具单测 + 经 harness 的集成用例 + 前端历史渲染用例）。
+- 卡片随会话历史持久化：`session-service.visibleMessage` 保留带 `glaux.atlas_referenced` 的
+  `toolResult` 并剥空 content——案例图不进快照，前端另经 `/atlas/exemplars/{id}/crop` 取。
+- 外发开关关闭时案例不外发、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`，
+  `excluded_by_egress` 计数在 `consult_atlas` 结果文案与卡片中均呈现（有测试）；02 §7.4 的
+  `GLAUX_ANNOT_ALLOW_EGRESS` 门控由 02 接线时叠加。
+
+**仍未达成**
+
+- "带选中案例定位"的第二步（出 bbox）仍属 SDD 02 `locate_roi`，本 SDD 不修改 02 契约；
+  `consult_atlas` 只把案例交给模型看，不产出坐标。
+- 首个场景种子内容与首轮 IoU 数字（见下）——`consult_atlas` 是 D-17 度量的前置条件，现已具备。
 
 ## 16. 决策记录
 
@@ -410,6 +424,8 @@ v1.1（图册 + Focus 右侧栏）：
 | D-17 | 价值验证方式：固定 10 张自有 TEM 图，比较有/无图谱时 VLM 定位 bbox 与人工框的 IoU；种子规模不预设，以此度量迭代 | 预设种子条数 | 无法先验知道多少图例够用 | 2026-08-16 |
 | D-18 | 导入预览 ROI 框选用轻量 DOM 矩形叠加（`RoiPicker`），不复用 cornerstone 矩形工具 | 复用 `CornerstoneViewer` | 候选插图是静态 PNG，cornerstone 栈解决的是医学影像渲染/坐标系问题，这里没有；轻量实现可在 Focus 窄栏与 jsdom 测试中直接跑 | 2026-08-16 |
 | D-19 | v1：Focus 右侧图谱与舞台互斥、顶栏 📖 切换。**v2（2026-08-16 同日修订）**：图谱是 Focus 右侧栏三个标签（舞台/文件/图谱）之一，右侧栏由 [01 v1.1 D10–D13](../01-dual-mode-shell/README.md) 定义；顶栏 📖 移除；从会话卡片"打开"时展开右侧栏并切到图谱标签 | 图谱作为舞台内标签 | v1 是过渡形态；Codex 式常驻可折叠右侧栏让"舞台 / 文件 / 图谱"成为同一位置的三种视角 | 2026-08-16 |
+| D-21 | 图谱接入会话的宿主改为**独立只读工具 `consult_atlas`**：模型自行决定何时翻图谱，检索链 `selectExemplars` 原样复用；`locate_roi` 落地后共用同一函数，本工具可留可退 | 继续等 SDD 02 `locate_roi`（03 原设计）；每轮对话自动前置检索 | `locate_roi` 连同整套标注工具、权限门控、前端 bbox 回写是一个大特性，图谱不该压在它后面；"翻图谱"本身就是一次独立的、只读的、模型可判断时机的动作；自动前置检索则是每轮都付 VLM 成本、且用户问"你是谁"也要翻一次 | 2026-08-20 |
+| D-22 | `consult_atlas` 仅在连接声明 `connection.vision === true` 时注册 | 恒挂工具，图发出去由模型自己处理 | pi-ai 的 `downgradeUnsupportedImages` 会把不支持图像的模型收到的图静默换成"image omitted"占位——挂了工具只会让模型以为自己翻过图谱，比没有图谱更坏（同 SDD 00 D-022 的判断） | 2026-08-20 |
 | D-20 | 图谱增加**图册（collection）**路径式层级作为整理维度：一案例属一图册，`/` 分级，缺省根目录；标签继续负责检索维度；`search` 可按图册限定范围 | 仅用标签分面树；固定两级分类 | 平铺 + 自由标签是 D-10 的副作用——标签是检索维度不是整理维度；"图册 = 教科书章节"与心智模型同构；路径式不需要预建目录，零受控词表 | 2026-08-16 |
 
 ## 17. 待确认问题

@@ -21,6 +21,7 @@ import type {
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
+import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -195,7 +196,7 @@ export class SessionService {
     const branch = await session.getBranch();
     const context = await session.buildContext();
     const messages = branch.flatMap((entry) =>
-      entry.type === "message" && isVisibleMessage(entry.message) ? [entry.message] : [],
+      entry.type === "message" ? visibleMessage(entry.message) : [],
     );
     const updatedAt = branch.reduce(
       (latest, entry) => (entry.timestamp > latest ? entry.timestamp : latest),
@@ -251,8 +252,25 @@ export class SessionService {
   }
 }
 
-function isVisibleMessage(message: AgentMessage): boolean {
-  return message.role === "user" || message.role === "assistant";
+/**
+ * 工具结果里需要随会话历史持久呈现的产物。只列图谱引用卡片：`glaux.task_output` 的
+ * primitives 是成百上千个轮廓点，靠实时事件写回查看器即可，不该进每次快照。
+ */
+const VIEWABLE_DETAILS_KINDS = new Set([ATLAS_REFERENCED_DETAILS_KIND]);
+
+/**
+ * 会话视图里保留哪些消息。
+ *
+ * user / assistant 原样保留。`toolResult` 原本整条丢弃，卡片就只能靠实时事件、刷新即消失；
+ * 带可呈现 details 的工具结果改为保留，但**剥掉 content**——图谱案例图是几百 KB 的 base64，
+ * 前端只用 details 渲染卡片（案例图另经 `/atlas/exemplars/{id}/crop` 取），不必进快照。
+ */
+function visibleMessage(message: AgentMessage): AgentMessage[] {
+  if (message.role === "user" || message.role === "assistant") return [message];
+  if (message.role !== "toolResult" || message.isError) return [];
+  const kind = (message.details as { kind?: unknown } | undefined)?.kind;
+  if (typeof kind !== "string" || !VIEWABLE_DETAILS_KINDS.has(kind)) return [];
+  return [{ ...message, content: [] }];
 }
 
 export function normalizeTitle(title: string): string {
