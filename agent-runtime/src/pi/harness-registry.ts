@@ -26,6 +26,7 @@ import {
 } from "./model-runtime.js";
 import { CONSULT_ATLAS_TOOL_NAME, createConsultAtlasTool } from "./tools/consult-atlas.js";
 import { createRunTaskTool } from "./tools/run-task.js";
+import { createLocateRoiTool, LOCATE_ROI_TOOL_NAME } from "./tools/locate-roi.js";
 import {
   createProposeAnnotationTool,
   PROPOSE_ANNOTATION_TOOL_NAME,
@@ -85,6 +86,14 @@ export const defaultToolFactory: HarnessToolFactory = ({
         ...(viewer ? { viewer } : {}),
       }) as HarnessTool,
     );
+    // `locate_roi` 同样吃图（自己看图指位置 + 可带图谱先验），故与 consult_atlas 同门控
+    tools.push(
+      createLocateRoiTool({
+        runtime,
+        connection,
+        ...(viewer ? { viewer } : {}),
+      }) as HarnessTool,
+    );
   }
   if (segmentationEgressAllowed() && process.env.GLAUX_SEG_API_TOKEN?.trim()) {
     tools.push(createSegmentRegionTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool);
@@ -106,10 +115,15 @@ const ATLAS_PROMPT =
   " Glaux also keeps an Atlas: a human-curated casebook of reference images. Consult it with the " +
   "consult_atlas tool before judging what a finding or structure looks like, and cite the case ids you used.";
 
+const LOCATE_PROMPT =
+  " To find where a described structure is, use locate_roi — it is your own vision plus atlas precedent, and it " +
+  "understands domain findings a general segmenter does not. It returns rectangles, not exact outlines.";
+
 const SEGMENT_PROMPT =
   " You can outline a structure with the segment_region tool; it returns candidate polygons, never finished " +
-  "annotations — the user confirms them. It is a general-purpose segmenter, so prefer run_task for calibrated " +
-  "measurements and modality-specific structures, and never fabricate coordinates when it finds nothing.";
+  "annotations — the user confirms them. It is a general-purpose segmenter that only knows everyday objects, so " +
+  "prefer locate_roi for domain findings and run_task for calibrated measurements, and never fabricate " +
+  "coordinates when nothing is found.";
 
 const PROPOSE_PROMPT =
   " To put a region on the image, call propose_annotation — one region per call, only the ones you judge correct. " +
@@ -121,10 +135,12 @@ function systemPromptFor(
   atlas = false,
   segment = false,
   propose = false,
+  locate = false,
 ): string {
   const head =
     SYSTEM_PROMPT +
     (atlas ? ATLAS_PROMPT : "") +
+    (locate ? LOCATE_PROMPT : "") +
     (segment ? SEGMENT_PROMPT : "") +
     (propose ? PROPOSE_PROMPT : "");
   if (!viewer?.image_id) return `${head} No image is currently open in the viewer.`;
@@ -199,6 +215,7 @@ export class HarnessRegistry {
         tools.some((tool) => tool.name === CONSULT_ATLAS_TOOL_NAME),
         tools.some((tool) => tool.name === SEGMENT_REGION_TOOL_NAME),
         tools.some((tool) => tool.name === PROPOSE_ANNOTATION_TOOL_NAME),
+        tools.some((tool) => tool.name === LOCATE_ROI_TOOL_NAME),
       ),
       tools,
     });

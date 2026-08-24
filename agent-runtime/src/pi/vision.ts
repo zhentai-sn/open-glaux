@@ -213,3 +213,97 @@ export async function chooseAmongImages(
   }
   return out;
 }
+
+// --- grounding：文字目标 → 归一化 bbox（SDD 02 §7.2 `locate_roi`）---------------
+
+const LOCATE_SYSTEM = [
+  "You are a biomedical image agent locating a structure the user described.",
+  "Coordinates use a normalized frame: (0,0) is the TOP-LEFT of the image and (1,1) the BOTTOM-RIGHT.",
+  'Answer with ONE JSON object only: {"boxes": [{"box": [x0, y0, x1, y1], "confidence": 0..1, "why": string}]}',
+  "- box: the tight bounding box of ONE instance, with x0 < x1 and y0 < y1, all within [0, 1].",
+  "- confidence: how sure you are that this box contains the requested structure.",
+  "- why: a few words on what makes you place it there.",
+  "Return the boxes most-confident first. If the structure is not visible, or you would be guessing,",
+  'return {"boxes": []} — an empty list is the correct answer, a fabricated box is not.',
+].join("\n");
+
+export interface LocatedBox {
+  /** 图像像素坐标 [x0, y0, x1, y1]（已由归一化坐标乘回尺寸）。 */
+  box: [number, number, number, number];
+  confidence: number;
+  why: string;
+}
+
+/**
+ * 让视觉模型指出目标结构的位置。模型答归一化坐标，本函数按图像尺寸换算回像素——
+ * 模型不知道图有多少像素，逼它输出像素坐标只会得到"1024 猜想"式的幻觉。
+ *
+ * 越界的框裁回图内；退化（零宽/零高）与非法数值直接丢弃，不做挽救：宁可少给一个框，
+ * 也不能把坏几何交给 `propose_annotation`。
+ */
+export async function locateInImage(
+  rt: VisionRuntime,
+  input: {
+    image: ImageInput;
+    target: string;
+    width: number;
+    height: number;
+    /** 参考案例（图谱先验）：先给模型看几张同类结构的示例再定位。 */
+    references?: SelectCandidate[];
+    maxBoxes?: number;
+    signal?: AbortSignal;
+  },
+): Promise<LocatedBox[]> {
+  const content: (TextContent | ImageContent)[] = [];
+  for (const ref of input.references ?? []) {
+    content.push(txt(`Reference example — ${ref.summary ?? ref.id}`));
+    content.push(img(ref.image));
+  }
+  if (input.references?.length) {
+    content.push(txt("Those were reference examples. Now the image to work on:"));
+  }
+  content.push(img(input.image));
+  content.push(txt(`Locate: ${input.target}`));
+
+  const raw = await completeJson(rt, LOCATE_SYSTEM, content, input.signal, "locate_failed");
+  const boxes = (raw as { boxes?: unknown }).boxes;
+  if (!Array.isArray(boxes)) {
+    throw new RuntimeError("locate_failed", "model output lacks boxes[]", 502);
+  }
+
+  const out: LocatedBox[] = [];
+  for (const entry of boxes) {
+    const parsed = toPixelBox(entry, input.width, input.height);
+    if (parsed) out.push(parsed);
+    if (out.length >= (input.maxBoxes ?? 10)) break;
+  }
+  return out;
+}
+
+/** 归一化框 → 像素框；非法/退化返回 null。 */
+function toPixelBox(entry: unknown, width: number, height: number): LocatedBox | null {
+  if (!entry || typeof entry !== "object") return null;
+  const e = entry as { box?: unknown; confidence?: unknown; why?: unknown };
+  if (!Array.isArray(e.box) || e.box.length < 4) return null;
+  const nums = e.box.slice(0, 4).map((v) => (typeof v === "number" ? v : Number(v)));
+  if (nums.some((v) => !Number.isFinite(v))) return null;
+
+  // 有的模型会直接答像素坐标——四个值都 > 1 时按像素理解，避免把整图当成一个框
+  const looksNormalized = nums.every((v) => v >= 0 && v <= 1);
+  const scaled = looksNormalized ? [nums[0]! * width, nums[1]! * height, nums[2]! * width, nums[3]! * height] : nums;
+
+  const x0 = clamp(Math.min(scaled[0]!, scaled[2]!), 0, width);
+  const x1 = clamp(Math.max(scaled[0]!, scaled[2]!), 0, width);
+  const y0 = clamp(Math.min(scaled[1]!, scaled[3]!), 0, height);
+  const y1 = clamp(Math.max(scaled[1]!, scaled[3]!), 0, height);
+  if (!(x1 - x0 >= 1) || !(y1 - y0 >= 1)) return null; // 退化框丢弃
+
+  const confidence = typeof e.confidence === "number" && Number.isFinite(e.confidence)
+    ? clamp(e.confidence, 0, 1)
+    : 0;
+  return { box: [x0, y0, x1, y1], confidence, why: asString(e.why) };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
