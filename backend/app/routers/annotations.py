@@ -43,6 +43,10 @@ class AnnotationIn(BaseModel):
     mask_png_b64: str | None = Field(default=None, description="kind=mask 必填（可带 data: 前缀）")
     label: str = ""
     class_id: int | None = None
+    # 建议态标注入口（SDD 02）：agent 产出一律 status=suggested + source=agent，
+    # 人工确认后经 PATCH 转 confirmed。store 早已支持这两列，此前只是 REST 层未暴露。
+    status: str = Field(default="draft", description="draft / suggested / confirmed / rejected")
+    source: str = Field(default="manual", description="manual / model / agent")
 
 
 class AnnotationPatch(BaseModel):
@@ -51,6 +55,7 @@ class AnnotationPatch(BaseModel):
     mask_png_b64: str | None = None
     label: str | None = None
     class_id: int | None = None
+    status: str | None = Field(default=None, description="确认/驳回建议态标注：confirmed / rejected")
 
 
 # --- dims 解析（范围校验用；未知对象 → None → 跳过校验） -----------------------
@@ -127,7 +132,14 @@ def _plugin_for(image_id: str):
 
 
 def _dispatch_on_commit(ann: dict) -> tuple[dict | None, str | None]:
-    """标注落库后按注册表派发钩子。返回 (hook_result, hook_error)——钩子失败不回滚标注。"""
+    """标注落库后按注册表派发钩子。返回 (hook_result, hook_error)——钩子失败不回滚标注。
+
+    建议态（`suggested`）不派发：它还没被人确认，此时跑任务等于让 agent 的猜测直接
+    产生 Detection 副作用（SDD 02 非目标"自动确认标注"）。人工确认转 `confirmed`
+    时再由确认路径派发。
+    """
+    if ann.get("status") == "suggested":
+        return None, None
     plugin = _plugin_for(ann["image_id"])
     if plugin is None or not plugin.on_commit:
         return None, None
@@ -182,6 +194,8 @@ def create_annotation(body: AnnotationIn) -> dict:
             primitive=body.primitive,
             label=body.label,
             class_id=body.class_id,
+            status=body.status,
+            source=body.source,
             mask_png_b64=body.mask_png_b64,
         )
     except AnnotationError as e:
@@ -197,24 +211,35 @@ def create_annotation(body: AnnotationIn) -> dict:
 
 @router.patch("/annotations/{annotation_id}", tags=["annotations"])
 def update_annotation(annotation_id: str, body: AnnotationPatch) -> dict:
-    """更新几何/标签（携带 base_seq；不匹配 → 409 CONFLICT，不落写）。"""
+    """更新几何/标签/状态（携带 base_seq；不匹配 → 409 CONFLICT，不落写）。
+
+    建议态确认（`suggested` → `confirmed`）在此补派 `on_commit`——创建时因未确认而
+    跳过的钩子，到确认这一刻才该跑（SDD 02：人工确认后才转正式标注）。
+    """
     if body.primitive is not None and body.mask_png_b64 is not None:
         body.primitive = {**body.primitive, "mask_png_b64": body.mask_png_b64}
     try:
-        if body.primitive is not None:
-            cur = get_store().get(annotation_id)
-            if cur is not None:
-                _check_within_dims(cur["image_id"], validate_primitive(cur["primitive"]["kind"], body.primitive))
+        before = get_store().get(annotation_id)
+        if body.primitive is not None and before is not None:
+            _check_within_dims(before["image_id"], validate_primitive(before["primitive"]["kind"], body.primitive))
         ann = get_store().update(
             annotation_id,
             body.base_seq,
             primitive=body.primitive,
             label=body.label,
             class_id=body.class_id,
+            status=body.status,
         )
     except AnnotationError as e:
         raise _http_error(e) from e
-    return {"annotation": ann}
+    out: dict = {"annotation": ann}
+    if before is not None and before["status"] == "suggested" and ann["status"] == "confirmed":
+        hook_result, hook_error = _dispatch_on_commit(ann)
+        if hook_result is not None:
+            out["hook_result"] = hook_result
+        if hook_error is not None:
+            out["hook_error"] = hook_error
+    return out
 
 
 @router.delete("/annotations/{annotation_id}", status_code=204, tags=["annotations"])

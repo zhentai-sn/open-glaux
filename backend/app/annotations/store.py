@@ -167,6 +167,7 @@ class AnnotationStore:
         primitive: dict | None = None,
         label: str | None = None,
         class_id: int | None = None,
+        status: str | None = None,
     ) -> dict:
         cur = self.get(annotation_id)
         if cur is None:
@@ -175,6 +176,8 @@ class AnnotationStore:
             raise AnnotationError(
                 "CONFLICT", f"base_seq 过期（本地 {base_seq}，服务端 {cur['seq']}）——请刷新后重试"
             )
+        if status is not None and status not in _STATUSES:
+            raise AnnotationError("INVALID_GEOMETRY", f"非法 status：{status!r}")
         kind = cur["primitive"]["kind"]
         new_prim = validate_primitive(kind, primitive) if primitive is not None else cur["primitive"]
         mask_ref = cur.get("mask_ref")
@@ -184,13 +187,14 @@ class AnnotationStore:
             new_prim["ref"] = mask_ref
         cur = self._conn.execute(
             """UPDATE annotations
-               SET primitive_json = ?, label = ?, class_id = ?, mask_ref = ?,
+               SET primitive_json = ?, label = ?, class_id = ?, status = ?, mask_ref = ?,
                    seq = seq + 1, updated_at = ?
                WHERE id = ? AND seq = ?""",
             (
                 json.dumps(new_prim),
                 cur["label"] if label is None else label,
                 cur["class_id"] if class_id is None else class_id,
+                cur["status"] if status is None else status,
                 mask_ref, _now(), annotation_id, base_seq,
             ),
         )

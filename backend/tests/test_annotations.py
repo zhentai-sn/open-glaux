@@ -247,3 +247,133 @@ def test_create_with_url_like_image_id_does_not_500():
         json={"image_id": "/api/image/tech_401", "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9}},
     )
     assert r.status_code < 500, r.text
+
+
+# --- 建议态标注（SDD 02：agent 产出 → 人工确认转正） ---------------------------
+
+
+def test_create_suggested_by_agent():
+    """agent 产出一律 status=suggested + source=agent，REST 层须透传到 store。"""
+    r = client.post("/annotations", json={
+        "image_id": "img_sugg_1",
+        "primitive": {"kind": "bbox", "x0": 10, "y0": 10, "x1": 40, "y1": 40},
+        "label": "left kidney",
+        "status": "suggested",
+        "source": "agent",
+    })
+    assert r.status_code == 201, r.text
+    ann = r.json()["annotation"]
+    assert ann["status"] == "suggested"
+    assert ann["source"] == "agent"
+
+
+def test_create_defaults_stay_manual_draft():
+    """不传时保持既有默认，人工标注路径零行为变化。"""
+    r = client.post("/annotations", json={
+        "image_id": "img_sugg_2",
+        "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
+    })
+    ann = r.json()["annotation"]
+    assert (ann["status"], ann["source"]) == ("draft", "manual")
+
+
+def test_illegal_status_rejected():
+    r = client.post("/annotations", json={
+        "image_id": "img_sugg_3",
+        "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
+        "status": "totally-made-up",
+    })
+    assert r.status_code == 422, r.text
+
+
+def test_confirm_suggested_annotation():
+    """人工确认：suggested → confirmed，seq 递增。"""
+    created = client.post("/annotations", json={
+        "image_id": "img_confirm",
+        "primitive": {"kind": "bbox", "x0": 5, "y0": 5, "x1": 25, "y1": 25},
+        "status": "suggested",
+        "source": "agent",
+    }).json()["annotation"]
+
+    r = client.patch(
+        f"/annotations/{created['id']}",
+        json={"base_seq": created["seq"], "status": "confirmed"},
+    )
+    assert r.status_code == 200, r.text
+    ann = r.json()["annotation"]
+    assert ann["status"] == "confirmed"
+    assert ann["source"] == "agent"  # 溯源保留：确认不抹掉"这条来自 agent"
+    assert ann["seq"] == created["seq"] + 1
+
+
+def test_reject_suggested_annotation():
+    created = client.post("/annotations", json={
+        "image_id": "img_reject",
+        "primitive": {"kind": "bbox", "x0": 5, "y0": 5, "x1": 25, "y1": 25},
+        "status": "suggested",
+        "source": "agent",
+    }).json()["annotation"]
+    r = client.patch(
+        f"/annotations/{created['id']}",
+        json={"base_seq": created["seq"], "status": "rejected"},
+    )
+    assert r.json()["annotation"]["status"] == "rejected"
+
+
+def test_suggested_does_not_fire_on_commit(monkeypatch):
+    """建议态不派发钩子——agent 的猜测不得直接产生 Detection 副作用。"""
+    monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
+    calls = []
+    import app.kernel as kernel
+    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+
+    r = client.post("/annotations", json={
+        "image_id": "slide_001",
+        "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
+        "status": "suggested",
+        "source": "agent",
+    })
+    assert r.status_code == 201, r.text
+    assert "hook_result" not in r.json()
+    assert calls == []
+
+
+def test_confirm_fires_on_commit(monkeypatch):
+    """确认那一刻补派钩子——创建时跳过的任务到此才跑。"""
+    monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
+    calls = []
+    import app.kernel as kernel
+    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+
+    created = client.post("/annotations", json={
+        "image_id": "slide_001",
+        "primitive": {"kind": "bbox", "x0": 2, "y0": 2, "x1": 8, "y1": 8},
+        "status": "suggested",
+        "source": "agent",
+    }).json()["annotation"]
+    assert calls == []
+
+    r = client.patch(
+        f"/annotations/{created['id']}",
+        json={"base_seq": created["seq"], "status": "confirmed"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["hook_result"]["task"] == "nuclei_detection"
+    assert len(calls) == 1
+
+
+def test_plain_edit_does_not_refire_on_commit(monkeypatch):
+    """非"确认"的普通编辑不该补派钩子（只有 suggested→confirmed 这一跃迁才派）。"""
+    monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
+    calls = []
+    import app.kernel as kernel
+    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+
+    created = client.post("/annotations", json={
+        "image_id": "slide_001",
+        "primitive": {"kind": "bbox", "x0": 2, "y0": 2, "x1": 8, "y1": 8},
+    }).json()["annotation"]
+    calls.clear()
+
+    client.patch(f"/annotations/{created['id']}", json={"base_seq": created["seq"], "label": "改个名"})
+    assert calls == []
