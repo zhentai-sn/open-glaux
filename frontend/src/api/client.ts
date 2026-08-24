@@ -180,11 +180,22 @@ export const api = {
       ),
     /** 创建标注；on_commit 钩子产物在 hook_result/hook_error。 */
     create: (input: AnnotationInput) => post<AnnotationCreated>("/annotations", input),
-    /** 更新几何/标签（base_seq 乐观并发；过期 → 409）。 */
+    /** 更新几何/标签/状态（base_seq 乐观并发；过期 → 409）。 */
     update: (
       id: string,
-      body: { base_seq: number; primitive?: unknown; mask_png_b64?: string; label?: string; class_id?: number | null },
-    ) => patch<{ annotation: Annotation }>(`/annotations/${encodeURIComponent(id)}`, body),
+      body: {
+        base_seq: number;
+        primitive?: unknown;
+        mask_png_b64?: string;
+        label?: string;
+        class_id?: number | null;
+        /** 建议态确认/驳回（SDD 02）：suggested → confirmed / rejected。 */
+        status?: Annotation["status"];
+      },
+    ) => patch<{ annotation: Annotation; hook_result?: unknown; hook_error?: string | null }>(
+      `/annotations/${encodeURIComponent(id)}`,
+      body,
+    ),
     /** 删除（base_seq 乐观并发；mask 文件连带删）。 */
     remove: (id: string, baseSeq: number) =>
       del(`/annotations/${encodeURIComponent(id)}?base_seq=${baseSeq}`),

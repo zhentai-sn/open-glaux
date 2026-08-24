@@ -2725,6 +2725,38 @@ body.resizing .focus-rail { transition: none; }
 .atlas-ref-caption { font-size: 10.5px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .atlas-ref-excluded { margin-top: 6px; color: var(--warn); font-size: 11px; }
 
+/* ==== 建议标注卡片（SDD 02 §6）：agent 提出、人来确认 ==== */
+.suggestion-card {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--agent-line);
+  background: var(--agent-dim);
+  border-radius: 8px;
+  font-size: 12px;
+}
+/* 待确认的建议用左侧竖条点出"这里等你处理"，与画布上的橙色虚线同色呼应 */
+.suggestion-card.pending { border-left: 3px solid var(--warn); }
+.suggestion-head { display: flex; align-items: center; gap: 6px; }
+.suggestion-head b { color: var(--bright); }
+.suggestion-note { margin-top: 4px; color: var(--mid); font-size: 11px; }
+.suggestion-badge { font-size: 10.5px; color: var(--faint); margin-left: auto; }
+.suggestion-badge.suggested { color: var(--warn); }
+.suggestion-badge.confirmed { color: var(--good); }
+.suggestion-badge.rejected,
+.suggestion-badge.missing { color: var(--faint); }
+.suggestion-actions { display: flex; gap: 6px; margin-top: 8px; }
+.suggestion-actions button {
+  padding: 3px 12px;
+  font-size: 11.5px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--editor);
+  color: var(--ink);
+  cursor: pointer;
+}
+.suggestion-actions button:hover { border-color: var(--agent-line); }
+.suggestion-actions .btn-primary { background: var(--accent); color: var(--bright); }
+
 /* ==== Focus 右侧栏（SDD feats/01 v1.1 D10–D13）：常驻可折叠，三标签 舞台/文件/图谱 ==== */
 .focus-side {
   flex: 1;

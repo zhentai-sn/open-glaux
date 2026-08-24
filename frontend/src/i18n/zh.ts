@@ -234,6 +234,14 @@ export const zh: Record<I18nKey, string> = {
   atlas_ref_excluded: "{n} 条本地案例因外发限制未使用",
   atlas_ref_missing: "案例不可用（已下架或删除）",
   atlas_ref_open: "在图谱中打开",
+  // 建议标注卡片（SDD 02）——agent 只能提出，确认与否由人决定
+  suggestion_title: "建议标注：{label}",
+  suggestion_confirm: "确认",
+  suggestion_reject: "驳回",
+  suggestion_state_pending: "待你确认",
+  suggestion_state_confirmed: "已确认",
+  suggestion_state_rejected: "已驳回",
+  suggestion_state_missing: "标注已不存在",
   // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
   err_title: "这块区域出问题了",
   err_hint: "Glaux 其余部分仍可正常使用。重新加载这块区域可再试一次。",

@@ -16,6 +16,7 @@ import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import type { PermissionMode } from "../../agent/runtime/types";
 import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
+import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
@@ -290,8 +291,9 @@ export function AgentConversation() {
           <div className="agent-empty">{t("agent_loading")}</div>
         )}
         {messages.map((message, index) => {
+          const toolDetails = messageToolResultDetails(message);
           // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
-          const atlasRef = parseAtlasReferenced(messageToolResultDetails(message));
+          const atlasRef = parseAtlasReferenced(toolDetails);
           if (atlasRef) {
             return (
               <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
@@ -299,6 +301,18 @@ export function AgentConversation() {
                   <OwlLogo size={18} />
                 </div>
                 <AtlasRefCard payload={atlasRef} />
+              </div>
+            );
+          }
+          // 建议标注卡片：propose_annotation 的工具结果（SDD 02 §6），确认/驳回由人来点
+          const proposed = parseAnnotationProposed(toolDetails);
+          if (proposed?.annotation_id) {
+            return (
+              <div className="turn assistant tool" key={`sugg-${index}-${proposed.annotation_id}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <SuggestionCard payload={proposed} />
               </div>
             );
           }

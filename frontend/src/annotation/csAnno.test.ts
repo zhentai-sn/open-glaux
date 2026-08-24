@@ -126,3 +126,59 @@ describe("primitiveToCs", () => {
     expect(csToPrimitive(primitiveToCs(srvAnn(poly), IMG, "F") as CsAnn, IMG)).toEqual(poly);
   });
 });
+
+// --- 建议态渲染（SDD 02）：状态驱动样式与可见性 ------------------------------
+
+const { annotation: csAnnState } = await import("@cornerstonejs/tools");
+const { syncCsAnnotations, resetCsAnnoBridge } = await import("./csAnno");
+
+function suggestion(over: Partial<ReturnType<typeof srvAnn>> = {}) {
+  return { ...srvAnn({ kind: "bbox", x0: 1, y0: 1, x1: 9, y1: 9 }), ...over };
+}
+
+describe("syncCsAnnotations · 建议态", () => {
+  it("suggested 落成橙色虚线，与人工标注一眼可辨", () => {
+    resetCsAnnoBridge();
+    const styles: Record<string, unknown> = {};
+    const spy = vi
+      .spyOn(csAnnState.config.style, "setAnnotationStyles")
+      .mockImplementation((uid, s) => {
+        styles[uid] = s;
+      });
+    vi.spyOn(csAnnState.state, "addAnnotation").mockReturnValue("cs-1");
+
+    syncCsAnnotations([suggestion({ id: "s1", status: "suggested", source: "agent" })], IMG, "FOR", "FOR");
+    expect(spy).toHaveBeenCalled();
+    expect(styles["cs-1"]).toMatchObject({ lineDash: "6,4" });
+    expect(String((styles["cs-1"] as Record<string, string>).color)).toMatch(/255, 165, 0/u);
+    vi.restoreAllMocks();
+  });
+
+  it("rejected 不进画布——驳回的建议留库可审计但不占视野", () => {
+    resetCsAnnoBridge();
+    const add = vi.spyOn(csAnnState.state, "addAnnotation").mockReturnValue("cs-2");
+    vi.spyOn(csAnnState.config.style, "setAnnotationStyles").mockImplementation(() => {});
+
+    syncCsAnnotations([suggestion({ id: "s2", status: "rejected", source: "agent" })], IMG, "FOR", "FOR");
+    expect(add).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("确认后清空建议样式——几何没变，只有状态跃迁也要重刷", () => {
+    resetCsAnnoBridge();
+    const styles: Record<string, unknown> = {};
+    vi.spyOn(csAnnState.config.style, "setAnnotationStyles").mockImplementation((uid, s) => {
+      styles[uid] = s;
+    });
+    vi.spyOn(csAnnState.state, "addAnnotation").mockReturnValue("cs-3");
+
+    const pending = suggestion({ id: "s3", status: "suggested", source: "agent" });
+    syncCsAnnotations([pending], IMG, "FOR", "FOR");
+    expect(styles["cs-3"]).toMatchObject({ lineDash: "6,4" });
+
+    const changed = syncCsAnnotations([{ ...pending, status: "confirmed" as const }], IMG, "FOR", "FOR");
+    expect(styles["cs-3"]).toEqual({}); // 回到与人工标注同一外观
+    expect(changed).toBe(true); // 需触发重绘
+    vi.restoreAllMocks();
+  });
+});

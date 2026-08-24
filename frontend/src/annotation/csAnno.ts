@@ -24,6 +24,8 @@ const srvToCs = new Map<string, string>();
 const silentRemove = new Set<string>();
 // 绘制完成待落库：防 sync 回灌与 COMPLETED 事件重复添加
 const pendingCs = new Set<string>();
+// 已渲染标注的 status：确认建议后几何不变、只有状态变，据此判断是否需要重刷样式
+const renderedStatus = new Map<string, Annotation["status"]>();
 
 /** 测试/切对象复位：清全部映射（CS3D 侧标注由调用方 removeAllAnnotations）。 */
 export function resetCsAnnoBridge(): void {
@@ -31,6 +33,7 @@ export function resetCsAnnoBridge(): void {
   srvToCs.clear();
   silentRemove.clear();
   pendingCs.clear();
+  renderedStatus.clear();
 }
 
 // --- 坐标换算（imageId 相关：world ↔ image px）--------------------------------
@@ -141,7 +144,8 @@ export function syncCsAnnotations(
   selector: string,
 ): boolean {
   let changed = false;
-  const want = new Set(annotations.filter((a) => !a.id.startsWith("tmp-")).map((a) => a.id));
+  const renderable = annotations.filter(isRenderable);
+  const want = new Set(renderable.filter((a) => !a.id.startsWith("tmp-")).map((a) => a.id));
   // 删：服务端已不存在的（切对象/删除回流）
   for (const [srvId, csId] of [...srvToCs]) {
     if (!want.has(srvId)) {
@@ -149,21 +153,63 @@ export function syncCsAnnotations(
       annotation.state.removeAnnotation(csId);
       srvToCs.delete(srvId);
       csToSrv.delete(csId);
+      renderedStatus.delete(srvId);
       changed = true;
     }
   }
   // 增：store 有而 CS3D 层没有的（reload/拉取回灌）
-  for (const a of annotations) {
-    if (a.id.startsWith("tmp-") || srvToCs.has(a.id)) continue;
+  for (const a of renderable) {
+    if (a.id.startsWith("tmp-")) continue;
+    const existing = srvToCs.get(a.id);
+    if (existing) {
+      // 已在层里：几何由 MODIFIED 事件维护，这里只跟状态跃迁（确认建议 → 换回实线）
+      if (renderedStatus.get(a.id) !== a.status) {
+        applySuggestionStyle(existing, a);
+        renderedStatus.set(a.id, a.status);
+        changed = true;
+      }
+      continue;
+    }
     const cs = primitiveToCs(a, imageId, frameOfReferenceId);
     if (!cs) continue;
     const csId = annotation.state.addAnnotation(cs, selector);
     srvToCs.set(a.id, csId);
     csToSrv.set(csId, a.id);
+    applySuggestionStyle(csId, a);
+    renderedStatus.set(a.id, a.status);
     changed = true;
   }
   return changed; // 无人监听 ANNOTATION_ADDED 触发重绘——调用方据此主动 triggerAnnotationRender
 }
+
+/**
+ * `rejected` 不进画布：驳回的建议留在库里可审计（SDD 02），但不该继续占着视野。
+ * 其余状态（draft / suggested / confirmed）照常渲染。
+ */
+function isRenderable(a: Annotation): boolean {
+  return a.status !== "rejected";
+}
+
+/**
+ * 建议态的视觉区分（SDD 02）：橙色虚线，与人工标注的实线一眼可辨——
+ * 用户必须能不假思索地看出"这条是 agent 猜的，还没被我确认"。
+ * 确认后（`confirmed`）样式清空，回到与人工标注同一外观。
+ */
+function applySuggestionStyle(csId: string, a: Annotation): void {
+  if (a.status === "suggested") {
+    annotation.config.style.setAnnotationStyles(csId, {
+      color: SUGGESTION_COLOR,
+      colorHighlighted: SUGGESTION_COLOR,
+      colorSelected: SUGGESTION_COLOR,
+      lineDash: SUGGESTION_DASH,
+    });
+    return;
+  }
+  annotation.config.style.setAnnotationStyles(csId, {});
+}
+
+const SUGGESTION_COLOR = "rgb(255, 165, 0)";
+const SUGGESTION_DASH = "6,4";
 
 // --- 事件桥：COMPLETED / MODIFIED / REMOVED → annotationBridge ------------------
 

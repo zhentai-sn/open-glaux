@@ -101,6 +101,7 @@ export const ICONS = {
   warning: AlertTriangle,
   spinner: Loader2,
   atlas: BookOpen,
+  annotation: Square, // 建议标注卡片（SDD 02）——与工具栏的 bbox 同形，指向同一概念
   skill: Sparkles,
   swap: ArrowLeftRight,
   send: ArrowUp,

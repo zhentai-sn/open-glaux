@@ -95,6 +95,39 @@ export async function patchAnnotation(
   }
 }
 
+/**
+ * 确认/驳回建议态标注（SDD 02）——agent 产出的 `suggested` 由人决定去留。
+ *
+ * 确认时后端会补派创建时跳过的 `on_commit`（建议态不该先产生 Detection 副作用），
+ * 故这里与 `createAnnotation` 一样走 `applyHook` 回流；驳回不派钩子。
+ * 驳回后标注仍在库里（`rejected`，留痕可审计），只是画布不再渲染。
+ */
+export async function resolveSuggestion(
+  id: string,
+  baseSeq: number,
+  decision: "confirmed" | "rejected",
+): Promise<Annotation | null> {
+  const s = useSession.getState();
+  const mySeq = ++editSeq;
+  try {
+    const resp = await api.annotations.update(id, { base_seq: baseSeq, status: decision });
+    if (mySeq !== editSeq) return null;
+    s.upsertAnnotation(resp.annotation);
+    applyHook(resp as AnnotationCreated);
+    return resp.annotation;
+  } catch (err) {
+    if (mySeq !== editSeq) return null;
+    const conflict = err instanceof ApiError && err.status === 409;
+    s.notify(
+      "crit",
+      conflict
+        ? "该建议已被更新，请刷新后重试"
+        : `建议${decision === "confirmed" ? "确认" : "驳回"}未生效（后端失败）`,
+    );
+    return null;
+  }
+}
+
 /** 删除标注（base_seq 乐观并发；409 → 提示）。 */
 export async function removeAnnotation(id: string, baseSeq: number): Promise<boolean> {
   const s = useSession.getState();
