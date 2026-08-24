@@ -26,6 +26,11 @@ import {
 } from "./model-runtime.js";
 import { CONSULT_ATLAS_TOOL_NAME, createConsultAtlasTool } from "./tools/consult-atlas.js";
 import { createRunTaskTool } from "./tools/run-task.js";
+import {
+  createSegmentRegionTool,
+  segmentationEgressAllowed,
+  SEGMENT_REGION_TOOL_NAME,
+} from "./tools/segment-region.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -55,6 +60,10 @@ export interface HarnessToolFactory {
  *
  * `consult_atlas` 只在连接声明 `vision: true` 时挂上（SDD 03 D-21）：无视觉的模型收到的图会被
  * pi-ai 静默换成"image omitted"占位，挂了它只会让模型以为自己翻过图谱。
+ *
+ * `segment_region` 需两个条件同时成立（SDD 02 §7.4）：外发经 `GLAUX_ANNOT_ALLOW_EGRESS`
+ * 显式放行，且分割后端已配 token。任一不满足就不注册——挂一个必然失败的工具只会让模型
+ * 反复重试并把失败当成"图里没有该结构"。
  */
 export const defaultToolFactory: HarnessToolFactory = ({
   viewer,
@@ -73,6 +82,9 @@ export const defaultToolFactory: HarnessToolFactory = ({
       }) as HarnessTool,
     );
   }
+  if (segmentationEgressAllowed() && process.env.GLAUX_SEG_API_TOKEN?.trim()) {
+    tools.push(createSegmentRegionTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool);
+  }
   return tools;
 };
 
@@ -87,8 +99,18 @@ const ATLAS_PROMPT =
   " Glaux also keeps an Atlas: a human-curated casebook of reference images. Consult it with the " +
   "consult_atlas tool before judging what a finding or structure looks like, and cite the case ids you used.";
 
-function systemPromptFor(viewer: ViewerContext | undefined, atlas = false): string {
-  const head = atlas ? `${SYSTEM_PROMPT}${ATLAS_PROMPT}` : SYSTEM_PROMPT;
+const SEGMENT_PROMPT =
+  " You can outline a structure with the segment_region tool; it returns candidate polygons, never finished " +
+  "annotations — the user confirms them. It is a general-purpose segmenter, so prefer run_task for calibrated " +
+  "measurements and modality-specific structures, and never fabricate coordinates when it finds nothing.";
+
+function systemPromptFor(
+  viewer: ViewerContext | undefined,
+  atlas = false,
+  segment = false,
+): string {
+  const head =
+    SYSTEM_PROMPT + (atlas ? ATLAS_PROMPT : "") + (segment ? SEGMENT_PROMPT : "");
   if (!viewer?.image_id) return `${head} No image is currently open in the viewer.`;
   const parts = [`image_id=${viewer.image_id}`];
   if (viewer.task) parts.push(`task=${viewer.task}`);
@@ -159,6 +181,7 @@ export class HarnessRegistry {
       systemPrompt: systemPromptFor(
         options.viewer,
         tools.some((tool) => tool.name === CONSULT_ATLAS_TOOL_NAME),
+        tools.some((tool) => tool.name === SEGMENT_REGION_TOOL_NAME),
       ),
       tools,
     });
