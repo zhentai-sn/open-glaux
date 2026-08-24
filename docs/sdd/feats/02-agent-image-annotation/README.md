@@ -4,14 +4,19 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `draft` |
+| SDD 状态 | `ready` |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-08-13 |
+| 最近更新 | 2026-08-22（Q1–Q6 全部收敛，见 §17；决策补 D-5～D-11） |
 | 目标阶段 | 第一阶段：自然语言指令驱动的"建议态"标注闭环 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
-草案要点：工具系统、精度层路由与前端标注写入的边界已经对齐；国内 SAM 推理 API 的
-供应商选型、mask 传输格式与坐标转换细节仍是开放问题（见 §17），收敛后方可推进 `ready`。
+§17 六个开放问题已于 2026-08-22 全部收敛——分割后端选定 Gitee AI（模力方舟）`sam3`
+并**实测**过全部关键契约（延迟、mask 编码、两处 schema 与实现不符、医学模态命中率），
+其余五问的答案均已由实测或既有实现坐实。可进入实现规划。
+
+> 实测改变了工具分工：裸 SAM3 的开放词表建立在自然图像上，**医学模态实测 0 命中**，
+> 故领域结构的定位由 `locate_roi`（视觉模型 grounding + 图谱先验）承担，`segment_region`
+> 只负责通用场景的像素级边界。详见 §7.2 与 D-6。
 
 ## 1. 负责人
 
@@ -20,7 +25,7 @@
 | 产品与范围 | Glaux 项目维护者 |
 | Agent Runtime（工具系统） | Glaux Agent Runtime 维护者 |
 | 前端（标注渲染与确认流） | Glaux 前端维护者 |
-| 精度层（science-core / SAM API） | Glaux science-core 维护者 |
+| 精度层（science-core / 分割后端） | Glaux science-core 维护者 |
 | 验收 | Glaux 项目维护者 |
 
 ## 2. 非目标
@@ -30,7 +35,8 @@
 - 浏览器自动化（Playwright / computer-use 式截图点击）。标注通过结构化工具直接写入
   前端标注状态，不模拟任何鼠标键盘操作（决策 D-1）。
 - 操作外部第三方网页的通用浏览器工具（查文献、抓取、填表）。若立项另起 Feature SDD。
-- MedSAM / SAM2 的自部署 GPU 推理服务；第一阶段只走托管 API（决策 D-3）。
+- MedSAM / SAM3 的自部署 GPU 推理服务；第一阶段只走托管 API（决策 D-3 / D-5）。
+  医学微调权重的本地部署是 D-6 指出的下一步方向，但不在本阶段范围内。
 - 自动确认标注。所有 agent 产出的标注一律为"建议态"，必须人工确认后才转正式标注。
 - 3D 体数据的跨切片自动传播（SAM2 memory 传播）；第一阶段仅支持单帧/单切片标注。
 - 标注的导出、版本管理、多人协作与审阅流。
@@ -68,9 +74,9 @@
 
 ### 4.3 输入约束
 
-- 影像发往外部 SAM API 前，数据外发开关（`GLAUX_ANNOT_ALLOW_EGRESS`，命名待定）
-  必须显式开启；默认关闭，关闭时通用场景路由直接失败并向用户说明原因。
-- SAM API 的 endpoint 必须通过出站守卫校验——复用 agent-runtime 已有的
+- 影像发往外部分割后端前，数据外发开关 `GLAUX_ANNOT_ALLOW_EGRESS`（D-7）必须显式开启；
+  默认关闭，关闭时 `segment_region` 直接不注册（§7.3），该能力对模型不可见。
+- 分割后端的 endpoint 必须通过出站守卫校验——复用 agent-runtime 已有的
   [`security/net-guard.ts`](../../../../agent-runtime/src/security/net-guard.ts)（2026-08-16 自
   backend `net_guard.py` 移植：解析后 IP 判定 + host 白名单 + fake-ip 显式开关）。
 - API key 只存在于请求处理所需内存，禁止写入 SQLite、事件、日志（沿用
@@ -80,10 +86,11 @@
 
 ### 5.1 用户可见输出
 
-- 会话中的工具调用过程卡片：正在定位 → 正在分割 → 标注已生成（含失败态）。
-- 影像视口中的建议态标注：与正式标注有明确视觉区分（虚线/半透明/角标，样式由前端定），
-  附"接受 / 调整 / 拒绝"操作。
-- 精度层来源标识：标注元数据中注明产自 science-core（含校准信息）还是外部 SAM API。
+- 会话中的工具调用状态行（沿用既有"⚙ 调用 &lt;tool&gt;"渲染）与产出卡片：图谱引用卡片、
+  建议标注卡片（含"确认 / 驳回"，含失败与"本次未提出"两种降级态）。
+- 影像视口中的建议态标注：**橙色虚线**，与人工标注的实线一眼可辨；确认后换回实线，
+  驳回后从画布消失（库中留 `rejected`）。
+- 来源标识：标注的 `source` 字段（`agent`），确认后保留不变，可审计。
 
 ### 5.2 系统输出
 
@@ -104,35 +111,46 @@
 sequenceDiagram
     participant U as 用户
     participant A as Agent (pi-agent-core)
-    participant V as VLM 网关（粗定位）
-    participant P as 精度层（science-core 或 SAM API）
+    participant X as 图谱（selectExemplars）
+    participant M as 视觉模型 / 分割后端
+    participant B as backend (/annotations)
     participant F as 前端 (cornerstone3D)
 
     U->>A: "标出左侧颈动脉斑块"
     A->>A: beforeToolCall 权限门控（§7.3）
-    A->>V: locate_roi(image, 描述)
-    V-->>A: 粗框 bbox（图像像素坐标）
-    A->>P: segment(image_ref, bbox)（路由规则 §7.2）
-    P-->>A: mask / 轮廓点集 + 置信度
-    A->>A: mask → polygon 简化 → 世界坐标转换
-    A->>F: SSE: annotation.suggested（§12）
-    F->>F: addAnnotation(suggested 态)
-    U->>F: 接受 / 调整 / 拒绝
-    F-->>A: SSE 回执: annotation.resolved
+    A->>X: locate_roi 内：检索候选 → VLM 挑 1–3 条
+    X-->>A: 参考案例（图 + 摘要）
+    A->>M: 带先验做 grounding（或 segment_region 走分割后端）
+    M-->>A: 归一化 bbox / COCO_RLE mask + 置信度
+    A->>A: 乘回像素 / mask → 多边形简化（图像像素坐标）
+    A->>B: propose_annotation → POST /annotations (suggested, agent)
+    B-->>A: annotation（不派发 on_commit）
+    A->>F: 工具结果 details = glaux.annotation_proposed（§12）
+    F->>F: 画布橙色虚线 + 会话建议卡片
+    U->>F: 确认 / 驳回
+    F->>B: PATCH status=confirmed|rejected（带 base_seq）
+    B-->>F: 确认时补派 on_commit → Detection 回流
 ```
 
-失败路径：粗定位无结果、分割置信度低于阈值、外发开关关闭、出站守卫拒绝，均产出
-明确失败事件并终止本次工具调用（§13）。
+失败路径：定位/分割无结果、置信度全部低于阈值、几何退化、后端拒绝，处理见 §13——
+"没找到"以正常空结果返回并明确要求模型不要编坐标，真错误才抛。
 
 ## 7. 核心规则
 
 ### 7.1 工具集（第一阶段）
 
+工具的目标图**恒取查看器当前打开的图**（`viewer.image_id`），模型不能指定任意 image_ref——
+避免它拿到不属于当前上下文的影像（D-9）。
+
 | 工具 | 入参 | 出参 | 说明 |
 | --- | --- | --- | --- |
-| `locate_roi` | image_ref, 目标描述 | bbox 列表 + 置信度 | 走现有 VLM 网关 grounding；图谱先验直接复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（已由 03 D-21 的 `consult_atlas` 接通并测到，本工具落地时并入即可） |
-| `segment_region` | image_ref, bbox 或点提示 | mask/轮廓 + 置信度 + 来源 | 内部按 §7.2 路由 |
-| `propose_annotation` | image_ref, 几何数据, 标签, 溯源 | annotation_id | 产出建议态标注并推送前端 |
+| `locate_roi` | 目标描述, use_atlas, max_results, min_confidence | bbox 列表（图像像素）+ 置信度 + 理由 | 视觉模型 grounding；默认带图谱先验，复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（D-6：**领域结构走这条**） |
+| `segment_region` | 目标描述, max_results, min_confidence | 多边形列表（图像像素）+ 置信度 + 面积 | 走 §7.2 托管分割后端；通用场景的像素级边界 |
+| `propose_annotation` | label, bbox **或** polygon, z, note | annotation_id | 落建议态标注（`status=suggested, source=agent`）；几何二选一，退化几何拒绝 |
+
+模型答**归一化坐标**再由 runtime 乘回像素（D-8）：模型不知道图有多少像素，逼它直接输出
+像素坐标只会得到"1024 猜想"式的幻觉。四值全落在 `[0,1]` 才按归一化解读，否则按像素——
+兼容直接答像素的模型。越界裁回图内，退化框（零宽/零高）丢弃，不把坏几何交给下游。
 
 工具注册在 agent-runtime 的 harness 创建处——
 [`harness-registry.ts`](../../../../agent-runtime/src/pi/harness-registry.ts) 已有 `toolFactory`
@@ -144,9 +162,39 @@ sequenceDiagram
 
 ### 7.2 精度层路由
 
-1. 任务命中 science-core 已支持的分割能力 → 本地调用（保留 dice 校验与校准溯源）。
-2. 未命中 → 走托管 SAM 推理 API（国内供应商，见 §17-Q1），要求外发开关已开启。
-3. 两者都不可用 → 失败，向用户说明（不降级为 VLM 直接猜坐标）。
+按"谁认识这个结构"分派，而非按"谁更精确"：
+
+1. 任务命中 science-core 已支持的能力 → `run_task` 本地调用（保留 dice 校验与校准溯源）。
+   **校准测量恒走这条**，分割后端不产出带单位的量。
+2. 领域结构（超声斑块、TEM 电子致密物、切片核等）→ `locate_roi`：视觉模型 grounding
+   + 图谱先验。出矩形框，精度到不了像素级，但认识概念。
+3. 通用场景的像素级边界 → `segment_region`：托管分割后端（Gitee AI `sam3`，见 D-5），
+   要求外发开关已开启（§7.4）。
+4. 都不可用或都无结果 → 如实失败，**不降级为让模型直接猜坐标**（工具描述里明写
+   "Do not invent coordinates"；0 命中与低置信度全滤是两条不同的提示）。
+
+> **为什么不是"SAM 兜底一切"**（推翻了 D-2 的隐含假设，见 D-6）：2026-08-24 实测，
+> `sam3` 对 `ultrasound.png`（plaque / 斑块 / carotid artery / 颈动脉 / vessel /
+> blood vessel / artery wall / anything / object 九组中英 prompt）、`ct.png`（liver）、
+> `wsi.png`（cell nucleus）**全部 `num_segments: 0`**；同一接口对 `hand.png`(hand)、
+> `eye.png`(eye) 正常返回，置信度 0.94。这不是接口问题，是领域缺口。
+
+**分割后端契约**（实测值，2026-08-24；换后端须重新核对）：
+
+| 项 | 值 |
+| --- | --- |
+| 端点 | `POST {base}/images/segmentation`，multipart |
+| 必传字段 | `model`、`image`、**`prompt`** |
+| 延迟 | 2.0–2.5s（1.3MB 图）；13 次中 1 次 120s 无响应 |
+| 超时 / 重试 | 30s；超时与 5xx 重试一次，4xx 与额度错误不重试 |
+| mask 编码 | `COCO_RLE_base64`（base64 外层 + COCO LEB128 变体，列优先游程） |
+| 额度耗尽 | HTTP **400**（非 402），报文含"计费资源" → 单独错误码，不重试 |
+
+两处 **schema 与实现不符**，实现按实测为准（D-10）：
+
+1. **`prompt` 实际必传**，其 OpenAPI schema 完全未声明该字段（缺失时 400 `必传参数: prompt`）；
+2. **`mask.size` 实为 `[width, height]`**，schema 声明为 `[height, width]`——按声明解读会让
+   几何纵向糊成长条。回归测试以"解码 bbox 必须与后端自报 bbox 吻合"做交叉验证。
 
 ### 7.3 权限门控（permission_mode 首次接线）
 
@@ -157,44 +205,70 @@ sequenceDiagram
 | `controlled` | 三个工具均可用，`propose_annotation` 产物必须人工确认（本阶段默认） |
 | `autonomous` | 同 `controlled`；本阶段不提供免确认路径（自动确认在 §2 非目标中） |
 
-门控实现于 pi-agent-core 的 `beforeToolCall` 钩子，读取会话 `permission_mode`。
+逐次批准门控实现于 pi-agent-core 的 `beforeToolCall` 钩子，读取会话 `permission_mode`；
+交互形态为**会话内卡片**（Q5 → D-11），不弹窗。
+
+除权限模式外，工具还有两层注册期门控（不满足则**不注册**，而非运行期报错——挂一个必然
+失败的工具只会让模型反复重试，并把失败误读为"图里没有该结构"）：
+
+| 工具 | 注册条件 | 理由 |
+| --- | --- | --- |
+| `locate_roi` | `connection.vision === true` | 要向模型发图；无视觉的模型收到的图会被 pi-ai 静默换成 "image omitted" 占位（同 SDD 00 D-022） |
+| `segment_region` | `GLAUX_ANNOT_ALLOW_EGRESS` 放行 **且** `GLAUX_SEG_API_TOKEN` 存在 | 图要发往第三方分割服务 |
+| `propose_annotation` | 非 `observe` 即可 | 只写本机 backend，且产出恒为建议态——这是 agent 触碰标注体系的安全出口 |
 
 ### 7.4 数据外发规则
 
-- 影像数据离开本机（发往 SAM API）是显式 opt-in 行为：环境变量开关 + 配置中写明
-  供应商与外发内容；UI 在首次触发时提示一次。
-- 外发内容仅限：当前帧图像（或其裁剪）、bbox/点提示。禁止携带患者标识、文件路径、
-  会话文本。
+- 影像数据离开本机（发往分割后端）是显式 opt-in 行为：环境变量开关 `GLAUX_ANNOT_ALLOW_EGRESS`
+  （缺省关闭，只认 `1`/`true`/`yes`；Q6 → D-7）+ 配置中写明供应商与外发内容；
+  UI 在首次触发时提示一次。
+- 外发内容仅限：当前帧图像（或其裁剪）、文本 prompt。禁止携带患者标识、文件路径、会话文本。
 - pre-alpha 阶段仅允许对公开数据集影像开启外发。
+- **`locate_roi` 不受该开关约束**：它只把图发往用户自己配置的模型连接（与会话同一条，
+  用户已知情），不经第三方分割服务。但随行的图谱案例是否包含 `local-only`，仍由
+  `egressFor(connection)` 判定——只有 base_url 解析为回环的本机模型才带（SDD 03 §7.4）。
+- 该开关与 fake-ip（`198.18.0.0/15`）SSRF 策略一并进安全评审，评审前维持现状。
 
 ## 8. 涉及对象
 
 | 对象 | 位置 | 说明 |
 | --- | --- | --- |
-| Tool registry 与门控 | `agent-runtime/src/pi/tools/`（已有 `run-task.ts`；本 SDD 新增三个工具）+ `harness-registry.ts` 的 `toolFactory` | 三个标注工具 + beforeToolCall |
+| Tool registry 与门控 | `agent-runtime/src/pi/harness-registry.ts` 的 `defaultToolFactory` | 三个标注工具的注册条件（§7.3）+ 系统提示分工 |
+| `locate_roi` | `agent-runtime/src/pi/tools/locate-roi.ts` | grounding + 图谱先验；尺寸从字节头读 |
+| `segment_region` | `agent-runtime/src/pi/tools/segment-region.ts` | 调分割后端，出多边形 |
+| `propose_annotation` | `agent-runtime/src/pi/tools/propose-annotation.ts` | 写建议态标注 |
+| 分割后端客户端 | `agent-runtime/src/annotation/segmentation-client.ts` | 供应商适配、错误分类、重试 |
+| mask → 多边形 | `agent-runtime/src/annotation/mask-to-polygon.ts` | COCO RLE 解码 + 轮廓 + 简化 |
+| 视觉 grounding | `agent-runtime/src/pi/vision.ts` 的 `locateInImage` | 复用 `completeJson`；归一化坐标换算 |
 | 出站守卫（Node） | `agent-runtime/src/security/net-guard.ts`（已有） | 复用，无需新增 |
-| SAM API 客户端 | agent-runtime（新增） | 供应商适配、mask 解码、重试 |
-| VLM 粗定位调用 | agent-runtime | 复用现有 provider 连接（`pi/model-runtime.ts`） |
-| science-core 分割入口 | `science-core/glaux_core/segmentation/` | 经 backend REST 暴露给 runtime |
-| SSE 事件扩展 | `agent-runtime/src/transport/` | 新增标注事件类型 |
-| 标注渲染与确认 UI | `frontend/src/components/agent/`、影像视口组件 | 建议态样式 + 接受/拒绝 |
-| 坐标转换 | 前端 | 图像像素坐标 → cornerstone 世界坐标 |
+| science-core 分割入口 | 现有 `/task/run`（D-9：不新开端点） | 校准测量恒走这条 |
+| 建议态落库 | `backend/app/routers/annotations.py` + `annotations/store.py` | REST 暴露 `status`/`source`；建议态不派发 `on_commit`，确认时补派 |
+| 建议态渲染 | `frontend/src/annotation/csAnno.ts` | `suggested` 橙色虚线；`rejected` 不进画布 |
+| 确认流 | `frontend/src/annotation/bridge.ts` 的 `resolveSuggestion` | PATCH status；确认走 `applyHook` 回流 |
+| 建议卡片 | `frontend/src/components/agent/SuggestionCard.tsx` | 确认/驳回；状态取 store 实时值 |
+| 坐标转换 | 前端 `csAnno`（D-9） | 图像像素坐标 → cornerstone 世界坐标 |
 
 ## 9. 数据或字段要求
 
-建议态标注对象（前端标注状态内，字段名以实现时 cornerstone 契约为准）：
+建议态标注**不另立实体**：直接用 SDD 04 的 `Annotation`，经 `POST /annotations` 落库
+（Q3/Q4 → D-9）。REST 层暴露 `status` / `source` 两个字段，store 层原已支持。
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `annotation_id` | string (uuid) | 是 | 幂等键（§10） |
-| `status` | enum | 是 | `suggested` / `accepted` / `rejected` |
-| `geometry` | polygon 点集或 bbox | 是 | 世界坐标系 |
-| `label` | string | 是 | agent 给出的语义标签 |
-| `source` | enum | 是 | `science-core` / `sam-api` |
-| `provider` | string | source=sam-api 时必填 | 供应商标识 |
-| `confidence` | number 0-1 | 是 | 精度层输出 |
-| `trace_id` | string | 是 | 贯穿工具调用全链路 |
-| `instruction` | string | 是 | 用户指令原文（溯源） |
+| 字段 | 取值（agent 产出时） | 说明 |
+| --- | --- | --- |
+| `id` | 服务端分配 | 幂等键（§10） |
+| `status` | `suggested` | 人工确认转 `confirmed`，驳回转 `rejected` |
+| `source` | `agent` | **确认后保留不变**——溯源不被抹掉，可审计"哪些标注源于 agent" |
+| `primitive` | `bbox` 或 `polyline(closed)` | **图像像素坐标**（不是世界坐标，见下） |
+| `label` | agent 给出的语义标签 | |
+| `z` | 体数据切片号；2D/WSI 为 null | |
+| `seq` | 服务端分配 | 乐观并发；确认/驳回须带 `base_seq` |
+
+置信度、理由、trace_id 等**不进标注实体**，走工具结果的 `details`（§12）——它们是本次
+产出的元信息，不是标注本身的属性；标注一旦确认就该与人工标注同形。
+
+**坐标职责边界**（Q3 → D-9）：runtime 只讲**图像像素坐标**，像素↔世界坐标的变换全部
+留在前端 `csAnno`。runtime 不碰视口，也不需要前端向它暴露任何视口元数据。
+mask 同理不穿过契约——在 runtime 侧解码简化成多边形，前端只见矢量几何。
 
 ## 10. 幂等规则
 
@@ -208,39 +282,60 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> suggested: propose_annotation 成功
-    suggested --> accepted: 用户接受（可先调整几何）
-    suggested --> rejected: 用户拒绝
-    accepted --> [*]
+    suggested --> confirmed: 用户确认（可先调整几何）
+    suggested --> rejected: 用户驳回
+    confirmed --> [*]
     rejected --> [*]
 ```
 
+状态名用 SDD 04 既有的 `confirmed`（不是 `accepted`）——同一实体不该有两套状态词表。
+
 - `suggested` 态标注不参与测量/验证/导出；会话关闭不销毁，随影像上下文恢复。
-- `accepted` 后转为正式标注，脱离本 SDD 管辖（归影像标注既有逻辑）。
-- agent 对 `accepted`/`rejected` 态标注无任何写权限。
+- `confirmed` 后即 SDD 04 的正式标注，脱离本 SDD 管辖。
+- **`on_commit` 任务钩子在建议态不派发**（D-9）：未经确认的猜测不得直接产生 Detection
+  副作用。确认那一刻由确认路径补派，且仅 `suggested → confirmed` 这一跃迁触发，
+  普通编辑不重复派。
+- `rejected` 标注留在库里可审计，但不再渲染进画布——驳回不是删除。
+- agent 对 `confirmed`/`rejected` 态标注无任何写权限；它也无法把自己的产出转成
+  `confirmed`——`propose_annotation` 恒写 `suggested`，这是"绝不自动确认"的执行点。
 
 ## 12. 审计或事件规则
 
-新增 SSE 事件（复用现有 `pi.event` 通道与事件信封）：
+**不新增 SSE 事件类型**（D-11）：工具调用的起止已由 pi 既有事件流覆盖（前端已渲染
+"⚙ 调用 &lt;tool&gt;"状态行），产出经**工具结果的 `details`** 进入会话，与 SDD 03 D-21 的
+`glaux.atlas_referenced` 同一范式。这样卡片随会话历史天然持久化，不必另建回放通道。
 
-| 事件 | 触发时机 | payload 要点 |
+| details.kind | 产出方 | payload 要点 |
 | --- | --- | --- |
-| `annotation.tool.started` | 工具调用受理 | tool 名、trace_id |
-| `annotation.suggested` | 建议态标注产出 | §9 全部字段 |
-| `annotation.tool.failed` | 任一环节失败 | 错误码、脱敏详情、trace_id |
-| `annotation.resolved` | 用户接受/拒绝 | annotation_id、结果、操作时间 |
+| `glaux.roi_located` | `locate_roi` | image_id、target、boxes[{box, confidence, why}]、filtered_out、可选 atlas |
+| `glaux.segment_region` | `segment_region` | image_id、target、regions[{label, confidence, bbox, points, area}]、filtered_out |
+| `glaux.annotation_proposed` | `propose_annotation` | annotation_id（**可为 null** 表示本次未提出）、image_id、label、note、reason、primitive、z、seq |
+| `glaux.atlas_referenced` | `locate_roi` 的图谱先验步 | 同 SDD 03 §12（复用同一契约与卡片组件） |
 
-审计：每次外发（SAM API 调用）记录一条审计日志：供应商、endpoint host、图像尺寸、
+失败不另发事件：错误经 `RuntimeError` 走既有工具错误通道，模型收到可读原因后自行纠正
+（如后端 422 的几何越界原样回传，便于改坐标重试）。
+
+审计：每次外发（分割后端调用）记录一条审计日志：供应商、endpoint host、图像尺寸、
 trace_id；不记录图像内容与 API key。
 
 ## 13. 异常和人工处理
 
-| 失败类别 | 错误码（示意） | 用户感知 | 处理 |
+"没找到"不是错误：0 命中与"低置信度全滤"都以正常结果返回，但文案区分两者，并明确
+要求模型不要编坐标——把它当异常抛出反而会诱导重试。
+
+| 失败类别 | 错误码 | 用户感知 | 处理 |
 | --- | --- | --- | --- |
-| 粗定位无结果 | `ROI_NOT_FOUND` | "未能定位目标，请补充描述或手动框选" | 引导手动粗提示 |
-| 分割置信度低于阈值 | `LOW_CONFIDENCE` | 展示但显著标记低置信度 | 仍走人工确认 |
-| 外发开关关闭 | `EGRESS_DISABLED` | 明确提示需开启配置 | 不静默降级 |
+| 定位/分割无结果 | —（正常返回，空列表） | "未能定位目标，请补充描述或手动框选" | 提示改措辞、改走 `run_task`，或告知用户找不到 |
+| 置信度全部低于阈值 | —（正常返回，`filtered_out` 计数） | 如实说明有候选但都不够可信 | 同上，且不展示低可信几何 |
+| 外发开关关闭 | —（工具**不注册**） | 该能力不出现 | 不静默降级，也不挂必然失败的工具 |
+| 分割后端未配 token | `segmentation_not_configured` | 提示需配置 | 构造即抛，不裸调打到 401 |
+| 分割额度耗尽 | `segmentation_quota_exhausted` | "额度不足，请充值" | 不重试（与参数错误区分） |
+| 分割后端超时/5xx | `segmentation_failed` | 可重试提示 | 重试一次后失败 |
+| 未知 mask 编码 | `segmentation_failed` | 提示后端契约变化 | 直接报错，**不静默产出错误几何** |
+| 取图失败 / 尺寸解析不出 | `image_unavailable` | 提示图不可用 | 不猜默认尺寸（尺寸错则整套坐标全错） |
+| 定位输出非法 JSON | `locate_failed` | 提示模型输出异常 | 重试一次后失败 |
+| 建议态写入被拒 | `annotation_rejected` | 提示几何越界等原因 | 后端 422 原因原样回传，模型可改坐标重试 |
 | 出站守卫拒绝 | `EGRESS_BLOCKED` | 提示 endpoint 不在白名单 | 运维处理 |
-| SAM API 超时/限流 | `PROVIDER_ERROR` | 可重试提示 | 有限重试后失败 |
 
 所有失败带 trace_id，可与审计日志串联排查。
 
@@ -249,52 +344,89 @@ trace_id；不记录图像内容与 API key。
 - 依赖 [00-reference-agent-conversations](../00-reference-agent-conversations/README.md)：
   会话、SSE 通道、`permission_mode` 字段契约。本 SDD 将其中"权限模式仅存储"升级为
   "在 beforeToolCall 中生效"，属于对该 SDD 预留缝隙的兑现，不构成契约冲突。
-- 依赖 [04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)（`ready`）：
-  §11 "accepted 后归影像标注既有逻辑"的实体与端点由 SDD 04 承接——建议态标注落库走
-  `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status；
-  推进本 SDD 至 `ready` 时应核对 SDD 04 §9 契约并收敛 §17-Q3/Q4。
+- 依赖 [04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)（`implemented`）：
+  §11 "`confirmed` 后归影像标注既有逻辑"的实体与端点由 SDD 04 承接——建议态标注落库走
+  `POST /annotations`（`status=suggested, source=agent`），确认/驳回即 PATCH status。
+  Q3/Q4 已据其 §9 契约收敛为 D-9：不另立实体、不新开端点，只在 REST 层暴露 store
+  早已支持的两个字段。SDD 04 §2 预留的"以 `source`/`status` 留接缝"至此兑现。
+- 依赖 [03-atlas](../03-atlas/README.md)（`implemented`）：`locate_roi` 的图谱先验步直接
+  复用其 §6.3 的 `selectExemplars` 与 `glaux.atlas_referenced` 卡片契约（03 D-21 已接通）。
 - 依赖 backend / science-core 现有分割入口，以及 agent-runtime 的出站守卫与工具挂载点
   （[退役 orchestration 设计](../../../designs/2026-08-16-001-retire-orchestration.zh-CN.md) 已落地；引用代码路径见 §8）。
 - 被未来"Glaux-as-MCP-server"、"外部网页浏览器工具"等 SDD 引用（均未立项）。
 
 ## 15. 验收标准
 
-- [ ] 在 `controlled` 模式下，对 science-core 已支持的任务下达自然语言指令，视口中出现
-      建议态标注，`source = science-core`，且未发生任何外部网络调用。
-- [ ] 对 science-core 未覆盖的任务，在外发开关开启时走 SAM API 产出建议态标注，
-      `source = sam-api` 且审计日志有对应外发记录。
-- [ ] 外发开关关闭时，同样的指令返回 `EGRESS_DISABLED` 失败事件，无任何对外请求发出。
-- [ ] SAM API endpoint 配置为私网地址且未显式放行时，出站守卫拒绝并返回
+- [ ] 在 `controlled` 模式下对当前图下达自然语言指令，视口中出现建议态标注（橙色虚线），
+      会话中出现带确认/驳回的建议卡片。
+- [ ] 领域结构（如 TEM 电子致密物）经 `locate_roi` 定位成功，且结果中带图谱先验引用；
+      同一指令在 `use_atlas: false` 下也能返回（先验是加成不是前提）。
+- [ ] 通用结构经 `segment_region` 产出像素级多边形，审计日志有对应外发记录。
+- [ ] 外发开关关闭时 `segment_region` **不出现在工具集**，agent 不会尝试调用它；
+      无任何对外请求发出。
+- [ ] 分割 endpoint 配置为私网地址且未显式放行时，出站守卫拒绝并返回
       `EGRESS_BLOCKED`（fake-ip 段 `198.18.0.0/15` 默认放行，见 `agent-runtime/src/security/net-guard.ts`）。
+- [ ] 非视觉连接下 `locate_roi` 不出现在工具集。
 - [ ] `observe` 模式下三个标注工具均不可被调用，agent 回复中不出现工具调用。
 - [ ] `suggest` 模式下 `segment_region` 触发逐次批准，用户拒绝后本次调用终止且无标注产出。
-- [ ] 同一 `annotation.suggested` 事件重复送达时，前端视口中只出现一个标注。
-- [ ] 用户拒绝建议态标注后，该标注从视口消失且 agent 无法再引用/修改它。
-- [ ] 建议态标注被接受前，不出现在任何测量或验证结果中。
+- [ ] 建议态标注创建时**不触发** `on_commit`；确认那一刻触发一次，普通编辑不重复触发。
+- [ ] 用户驳回建议后该标注从视口消失（库中留 `rejected` 可查），agent 无法再引用/修改它。
+- [ ] 建议态标注被确认前，不出现在任何测量或验证结果中。
+- [ ] 确认后 `source` 仍为 `agent`——溯源不被抹掉。
+- [ ] 分割/定位 0 命中时，agent 如实告知找不到，**不输出编造的坐标**。
 - [ ] 任一失败路径均产生带 trace_id 的失败事件，且 API key 不出现在日志与事件 payload 中。
+
+**开发侧已验证**（实现随 `ready` 同期落地，非验收替代品）：
+
+| 项 | 证据 |
+| --- | --- |
+| mask → 多边形 | `mask-to-polygon.test.ts`（9 例）；fixture 为 `sam3` 真实响应，以解码 bbox 与后端自报 bbox 吻合做交叉验证 |
+| 分割客户端 | `segmentation-client.test.ts`（8 例）+ 真实端到端（eye.png 2543ms / 2 段 / 14 与 18 点） |
+| `segment_region` | `segment-region-tool.test.ts`（11 例，含门控四态） |
+| `propose_annotation` | `propose-annotation-tool.test.ts`（12 例，含"恒 suggested+agent"） |
+| `locate_roi` | `locate-roi-tool.test.ts`（15 例，含坐标换算/裁剪/退化/先验退化） |
+| 建议态落库与确认 | `backend/tests/test_annotations.py`（8 例，含钩子派发时机） |
+| 前端渲染与确认流 | `SuggestionCard.test.tsx`（11 例）+ `csAnno.test.ts` 建议态 3 例 |
 
 ## 16. 决策记录
 
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
 | D-1 | 标注经结构化工具直写前端状态，不用浏览器自动化 | Playwright 模拟点击；computer-use 截图+坐标 | 影像画布是 Canvas，DOM 选择器无效；VLM 坐标精度（像素~几十像素误差）不满足医学标注；Label Studio/CVAT 同为此模式 | 2026-08-13 |
-| D-2 | 精度层双路：science-core 优先，SAM API 兜底 | 仅 science-core；仅 SAM | science-core 覆盖有限但带校准溯源；SAM 补通用场景 | 2026-08-13 |
-| D-3 | SAM 走国内托管 API，不自部署 GPU | 自部署 MedSAM/SAM2 | 团队约束"优先 API"；免 GPU 运维；供应商见 §17-Q1 | 2026-08-13 |
+| D-2 | 精度层双路：science-core 优先，分割后端兜底 | 仅 science-core；仅 SAM | science-core 覆盖有限但带校准溯源；分割后端补通用场景。**注**：其"SAM 能兜住医学场景"的隐含假设已被 D-6 推翻，双路结构不变但分派依据改为"谁认识这个结构" | 2026-08-13（D-6 修正 2026-08-22） |
+| D-3 | SAM 走国内托管 API，不自部署 GPU | 自部署 MedSAM/SAM2 | 团队约束"优先 API"；免 GPU 运维；供应商见 D-5 | 2026-08-13 |
 | D-4 | 全部标注为建议态 + 强制人工确认 | autonomous 免确认 | 医学场景精度责任划分；pre-alpha 边界"研究洞察非临床" | 2026-08-13 |
+| D-5 | 分割后端选 **Gitee AI（模力方舟）`sam3`** serverless（Q1 收敛） | 阿里云 ModelScope / 视觉智能开放平台、百度智能云、腾讯云 TI；自部署 SAM3 | 唯一实测可用的 SAM3 文本 prompt 分割托管 API：2.0–2.5s、契约清晰、按量计费、零运维。自部署 SAM3 需 10–12GB 显存，本机是 Intel Arc 核显跑不了 CUDA，另一台 4060 Ti 16G 尚未接通 | 2026-08-22 |
+| D-6 | 领域结构定位归 `locate_roi`（视觉 grounding + 图谱先验），`segment_region` 只管通用场景 | 全部走 SAM 分割（D-2 的隐含假设） | 裸 SAM3 医学模态**实测 0 命中**（超声 9 组中英 prompt / CT / WSI 全空，同接口对自然图像置信度 0.94）——开放词表建立在自然图像概念上。这也让图谱先验从"锦上添花"变成刚需 | 2026-08-22 |
+| D-7 | 外发开关用环境变量 `GLAUX_ANNOT_ALLOW_EGRESS`，缺省关闭（Q6 收敛） | 连接配置 UI 里的开关 | pre-alpha 阶段外发是运维决策不是用户偏好；环境变量不会被误点开，也便于在部署层统一管控。UI 开关待安全评审后再议 | 2026-08-22 |
+| D-8 | 模型答**归一化坐标**，runtime 按图像尺寸乘回像素 | 要求模型直接输出像素坐标 | 模型不知道图有多少像素，直接要像素只会得到"1024 猜想"式幻觉；归一化是它唯一有校准感的坐标系。尺寸从 PNG/JPEG 字节头读，不另开 `/meta` 端点 | 2026-08-22 |
+| D-9 | 建议态**不另立实体**，直接用 SDD 04 的 `Annotation`（`status=suggested, source=agent`）；坐标契约恒为图像像素，世界坐标变换留前端（Q2/Q3/Q4 收敛） | 建议态单独一套实体与端点；runtime 做世界坐标变换 | SDD 04 §2 早已留好这条缝；同一实体两套状态词表只会带来同步成本。runtime 碰视口坐标就得知道视口，那是前端的知识。`on_commit` 在建议态不派发、确认时补派，是这条决策的直接推论 | 2026-08-22 |
+| D-10 | 分割后端契约以**实测**为准，与其 OpenAPI schema 冲突处按实测实现并在代码注释里记明 | 按 schema 实现，出错再查 | 实测发现两处不符（`prompt` 必传但未声明、`size` 实为 `[w,h]`）。按 schema 写会得到纵向糊成长条的几何，且要到联调才暴露。回归测试用真实响应做 fixture 锁住这两点 | 2026-08-22 |
+| D-11 | 不新增 SSE 事件类型，产出走**工具结果 `details`**；`suggest` 逐次批准用会话内卡片（Q5 收敛） | 新增 `annotation.*` 事件族；弹窗批准 | SDD 03 D-21 已验证 `details` 这条范式：卡片随会话历史天然持久化，不必另建回放通道。弹窗打断阅片节奏，且与既有会话交互不同构 | 2026-08-22 |
 
 ## 17. 待确认问题
 
-- [ ] **Q1（关键）国内 SAM 推理 API 供应商选型。** 候选（均需实测核验：是否提供
-      SAM/SAM2 交互式分割、是否支持 box/point prompt、延迟、计价、医学影像效果）：
-      阿里云 ModelScope（魔搭）推理 API、阿里云视觉智能开放平台（通用分割）、
-      百度智能云图像分割、腾讯云 TI 平台。若均无合格的 prompt 式分割 API，需回到
-      D-3 重议（可能改为轻量自部署或推迟通用场景路由）。
-- [ ] Q2 mask 传输格式：SAM API 返回的 mask（RLE/PNG/多边形）如何在 runtime 侧统一
-      解码为 polygon；简化算法与点数上限。
-- [ ] Q3 坐标转换职责边界：像素 → 世界坐标的变换在前端做还是 runtime 做；前端需要向
-      runtime 暴露哪些视口元数据。
-- [ ] Q4 science-core 分割经 backend REST 暴露给 agent-runtime 的接口契约（现有
-      `/task/*` 是否够用，还是需要新端点）。
-- [ ] Q5 `suggest` 模式"逐次批准"的 UI 交互形态（会话内卡片确认 vs 弹窗）。
-- [ ] Q6 外发开关的最终命名与配置位置（环境变量 vs 连接配置 UI），并与安全评审中的
-      SSRF 策略（fake-ip 议题）一并过审。
+**全部收敛（2026-08-22）**——`ready` 文档不保留未关闭的开放问题。
+
+- [x] **Q1 分割 API 供应商选型** → **D-5**：Gitee AI（模力方舟）`sam3`。实测通过，
+      契约见 §7.2。原候选（阿里云 ModelScope / 视觉智能、百度、腾讯 TI）未提供
+      SAM3 级别的文本 prompt 分割托管接口。
+- [x] **Q2 mask 传输格式与解码** → **D-10 / §7.2**：`COCO_RLE_base64`；runtime 侧
+      解码 → Moore 邻域轮廓跟踪 → Douglas-Peucker 简化，点数上限 256（实测 218/265 点
+      简化到 15/16 点，压缩比 14–17×）。纯算法零依赖，TS 侧无 pycocotools。
+- [x] **Q3 坐标转换职责边界** → **D-9**：runtime 只讲图像像素坐标，世界坐标变换全部
+      留前端 `csAnno`；前端**不需要**向 runtime 暴露任何视口元数据。
+- [x] **Q4 science-core 分割的 REST 契约** → **D-9**：现有 `/task/run` 够用，不新开端点；
+      标注落库复用 SDD 04 的 `POST /annotations`（仅在 REST 层暴露 store 早已支持的
+      `status`/`source` 两个字段）。
+- [x] **Q5 逐次批准的交互形态** → **D-11**：会话内卡片，不弹窗。
+- [x] **Q6 外发开关命名与位置** → **D-7**：环境变量 `GLAUX_ANNOT_ALLOW_EGRESS`，缺省关闭。
+      与 fake-ip SSRF 策略一并进安全评审（评审是独立议题，不阻塞本 SDD 实现）。
+
+**实现阶段需盯的两件事**（不是开放问题，是已知风险）：
+
+1. **医学场景的分割精度尚无数字**。`locate_roi` 出的是矩形框，够定位不够测量；真正的
+   医学像素级边界要么走 science-core，要么等本地医学微调权重（4060 Ti 那台机器接通后）。
+   SDD 03 D-17 的 IoU 度量是检验这条的手段，需 10 张自有 TEM 图 + 人工框。
+2. **全链路尚未做过"真模型 → 真分割 → 真画布"的完整走查**。各层分别验证过（单测、
+   计算样式、客户端真实端到端），但端到端观感需人工过一遍。

@@ -27,7 +27,7 @@ stateDiagram-v2
 | --- | --- | --- | --- | --- |
 | 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-08-19 |
 | 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.1 右侧栏；v1 `accepted`） | Glaux 项目维护者 | 2026-08-16 |
-| 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `draft` | Glaux 项目维护者 | 2026-08-13 |
+| 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `ready`（Q1–Q6 收敛，分割后端实测选型） | Glaux 项目维护者 | 2026-08-22 |
 | 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.2 接入会话 `consult_atlas`） | Glaux 项目维护者 | 2026-08-20 |
 | 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `implemented`（浏览器走查验收待补） | Glaux 项目维护者 | 2026-08-17 |
 | 05 | [键盘可达性与全局快捷键](feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
