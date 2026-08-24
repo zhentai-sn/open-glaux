@@ -231,14 +231,16 @@ describe("default tool factory · atlas gating", () => {
       connection: { ...TEST_CONNECTION, vision: true },
       runtime,
     });
-    expect(withVision.map((t) => t.name)).toEqual([RUN_TASK_TOOL_NAME, CONSULT_ATLAS_TOOL_NAME]);
+    // 包含式断言：工具集会随 SDD 02 继续增长，这里只关心 consult_atlas 的视觉门控
+    expect(withVision.map((t) => t.name)).toContain(CONSULT_ATLAS_TOOL_NAME);
+    expect(withVision.map((t) => t.name)).toContain(RUN_TASK_TOOL_NAME);
 
     const withoutVision = defaultToolFactory({
       permissionMode: "controlled",
       connection: TEST_CONNECTION,
       runtime,
     });
-    expect(withoutVision.map((t) => t.name)).toEqual([RUN_TASK_TOOL_NAME]);
+    expect(withoutVision.map((t) => t.name)).not.toContain(CONSULT_ATLAS_TOOL_NAME);
   });
 
   it("observe mode has no tools at all, vision or not", () => {

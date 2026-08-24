@@ -27,6 +27,10 @@ import {
 import { CONSULT_ATLAS_TOOL_NAME, createConsultAtlasTool } from "./tools/consult-atlas.js";
 import { createRunTaskTool } from "./tools/run-task.js";
 import {
+  createProposeAnnotationTool,
+  PROPOSE_ANNOTATION_TOOL_NAME,
+} from "./tools/propose-annotation.js";
+import {
   createSegmentRegionTool,
   segmentationEgressAllowed,
   SEGMENT_REGION_TOOL_NAME,
@@ -85,6 +89,9 @@ export const defaultToolFactory: HarnessToolFactory = ({
   if (segmentationEgressAllowed() && process.env.GLAUX_SEG_API_TOKEN?.trim()) {
     tools.push(createSegmentRegionTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool);
   }
+  // `propose_annotation` 无外发门控：只写本机 backend，且产出恒为建议态、须人工确认，
+  // 是 agent 触碰标注体系的安全出口。`observe` 已在开头挡掉。
+  tools.push(createProposeAnnotationTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool);
   return tools;
 };
 
@@ -104,13 +111,22 @@ const SEGMENT_PROMPT =
   "annotations — the user confirms them. It is a general-purpose segmenter, so prefer run_task for calibrated " +
   "measurements and modality-specific structures, and never fabricate coordinates when it finds nothing.";
 
+const PROPOSE_PROMPT =
+  " To put a region on the image, call propose_annotation — one region per call, only the ones you judge correct. " +
+  "Every proposal waits for the user to confirm or reject it; you never confirm your own work, and you should say " +
+  "plainly that the annotation is a suggestion.";
+
 function systemPromptFor(
   viewer: ViewerContext | undefined,
   atlas = false,
   segment = false,
+  propose = false,
 ): string {
   const head =
-    SYSTEM_PROMPT + (atlas ? ATLAS_PROMPT : "") + (segment ? SEGMENT_PROMPT : "");
+    SYSTEM_PROMPT +
+    (atlas ? ATLAS_PROMPT : "") +
+    (segment ? SEGMENT_PROMPT : "") +
+    (propose ? PROPOSE_PROMPT : "");
   if (!viewer?.image_id) return `${head} No image is currently open in the viewer.`;
   const parts = [`image_id=${viewer.image_id}`];
   if (viewer.task) parts.push(`task=${viewer.task}`);
@@ -182,6 +198,7 @@ export class HarnessRegistry {
         options.viewer,
         tools.some((tool) => tool.name === CONSULT_ATLAS_TOOL_NAME),
         tools.some((tool) => tool.name === SEGMENT_REGION_TOOL_NAME),
+        tools.some((tool) => tool.name === PROPOSE_ANNOTATION_TOOL_NAME),
       ),
       tools,
     });

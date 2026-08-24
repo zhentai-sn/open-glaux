@@ -125,10 +125,13 @@ describe("run_task tool (unit)", () => {
 
 describe("default tool factory", () => {
   it("exposes run_task except in observe mode", () => {
-    expect(defaultToolFactory({ permissionMode: "controlled" }).map((t) => t.name)).toEqual([
+    // 包含式断言：工具集会随 SDD 02 的落地继续增长，这里只关心 run_task 的挂载规则
+    expect(defaultToolFactory({ permissionMode: "controlled" }).map((t) => t.name)).toContain(
       RUN_TASK_TOOL_NAME,
-    ]);
-    expect(defaultToolFactory({ permissionMode: "suggest" })).toHaveLength(1);
+    );
+    expect(defaultToolFactory({ permissionMode: "suggest" }).map((t) => t.name)).toContain(
+      RUN_TASK_TOOL_NAME,
+    );
     expect(defaultToolFactory({ permissionMode: "observe" })).toEqual([]);
   });
 });
