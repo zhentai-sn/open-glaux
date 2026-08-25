@@ -80,9 +80,9 @@ const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 export type FocusRightView = "stage" | "files" | "atlas";
 const RIGHT_VIEWS: readonly FocusRightView[] = ["stage", "files", "atlas"];
 
-/** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——范围本身即产品立场：怎么拖都还是对话优先。 */
+/** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——对话列由 CONVERSATION_MIN_W 保底，右侧图像栏允许占据更大空间。 */
 export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
-export const SIDE_W = { min: 280, max: 880 } as const;
+export const SIDE_W = { min: 280, max: 1200 } as const;
 /** 对话列的最低可用宽度：拖拽时两侧栏被此值反向夹住（窄窗口的上界另由 CSS max-width 兜底）。 */
 export const CONVERSATION_MIN_W = 360;
 

@@ -2176,7 +2176,7 @@ body.resizing .focus-rail { transition: none; }
 
 /* ---- 对话列：Focus 主体。流/配置条/Composer 居中列宽 ≤720px（纲领模式层尺度） ---- */
 .focus-conversation {
-  flex: 1.15;
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2759,16 +2759,16 @@ body.resizing .focus-rail { transition: none; }
 
 /* ==== Focus 右侧栏（SDD feats/01 v1.1 D10–D13）：常驻可折叠，三标签 舞台/文件/图谱 ==== */
 .focus-side {
-  flex: 1;
+  flex: 1.2;
   min-width: 0;
-  max-width: 55%; /* 窄窗口兜底：右侧栏再宽也留给对话列过半 */
+  max-width: 65%; /* 窄窗口兜底：图像栏再宽也给对话列留可用宽度（拖拽路径另有 CONVERSATION_MIN_W 保底） */
   display: flex;
   flex-direction: column;
   background: var(--sidebar);
   border-left: 1px solid var(--line);
   animation: stagein var(--motion-base) var(--ease-out);
 }
-/* v1.3：用户拖过右侧栏后由比例自适应切为定宽（--focus-side-w）；没拖过则维持 v1.1 的 1.15:1 比例。 */
+/* v1.3：用户拖过右侧栏后由比例自适应切为定宽（--focus-side-w）；没拖过则按 1:1.2 比例偏向图像栏。 */
 .focus-body[data-side-fixed="1"] .focus-side:not(.collapsed) {
   flex: none;
   width: var(--focus-side-w);
