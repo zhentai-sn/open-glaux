@@ -19,11 +19,12 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
-from .. import config, datasource_registry as dsreg, mock
+from .. import config, mock
+from .. import datasource_registry as dsreg
 from ..schemas import (
     Capability,
-    DataSourceInfo,
     DatasourceImportRequest,
+    DataSourceInfo,
     ImageMeta,
     Modality,
     ModelInfo,
@@ -221,10 +222,12 @@ class VolumeMaskEditRequest(BaseModel):
 @router.post("/volume/{volume_id}/mask-edit", tags=["dataset"])
 def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
     """P6 U4：画笔编辑回流——patch labelmap + 重 measure + 返回新 metrics。"""
-    from glaux_core.contracts import VolumeMask
     from glaux_core.calibration.calibration import resolve_ct_calibration
-    from glaux_core.tasks import REGISTRY as _REG, LIVER_KIDNEY_CLASSES, TaskType as _TT
+    from glaux_core.contracts import VolumeMask
     from glaux_core.measurement.ct import measure_liver_kidney as _measure_lk
+    from glaux_core.tasks import LIVER_KIDNEY_CLASSES
+    from glaux_core.tasks import REGISTRY as _REG
+    from glaux_core.tasks import TaskType as _TT
 
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")

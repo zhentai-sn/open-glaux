@@ -13,7 +13,6 @@ import zlib
 
 from .schemas import ImageMeta, ModelInfo
 
-
 # --- 数据集（mock CUBS-tech 切片） -------------------------------------------
 
 CF_CANONICAL = 0.0559

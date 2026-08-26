@@ -9,7 +9,8 @@
 - **开发者模式**（``GLAUX_DEV_MODE=1``，缺省）：内置源 = config 的 4 个 env 根的**实时视图**
   （:func:`_builtin_live`）——行为 == 现状；且因是实时读 ``config.X_ROOT``（非快照），
   测试对 config 根的 monkeypatch 立即反映。
-- **产品模式**（``GLAUX_DEV_MODE=0``）：无内置源；用户经 :func:`register_folder` 导入文件夹后才有源。
+- **产品模式**（``GLAUX_DEV_MODE=0``）：无内置源；
+  用户经 :func:`register_folder` 导入文件夹后才有源。
 
 导入源持久化到 ``sources.json``；内置源不落盘（每次实时从 config 读，避免落盘旧值盖回）。
 护城河延伸：导入无标定的源标 ``needs_calibration``（跑任务时上层 422 硬拒绝，不出假值）。
@@ -21,9 +22,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from . import config
 
@@ -49,7 +50,7 @@ class DataSource:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "DataSource":
+    def from_dict(cls, d: dict) -> DataSource:
         return cls(
             id=d["id"],
             name=d["name"],

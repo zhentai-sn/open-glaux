@@ -1,4 +1,6 @@
-"""P7 楔子：WSI 核检测适配层（StarDist-HE 隔离子进程）——缓存优先 + 隔离子进程兜底；主进程无 torch/TF。
+"""P7 楔子：WSI 核检测适配层（StarDist-HE 隔离子进程）。
+
+缓存优先 + 隔离子进程兜底；主进程无 torch/TF。
 
 镜像 :mod:`segment_ts` 的分层，但按 WSI 特性拆分职责（护城河：数据 IO 在主进程，模型在隔离子进程）：
 - **主进程**（本模块 + :mod:`dataset_wsi` + :mod:`glaux_core.detection.nuclei_post`）：
@@ -9,7 +11,8 @@
   「patch 图 → 质心」的模型部分（StarDist/TF 只存在于该子进程，FastAPI 主进程绝不 import）。
 - 缺缓存又缺隔离环境 → :class:`WsiSegmentUnavailable` 显式失败，不静默假造质心。
 
-ROI 抽块推理（整片不可行）：``roi=(x0,y0,x1,y1)`` level-0 px。缓存键 = ``(slide_id, roi_hash, method)``。
+ROI 抽块推理（整片不可行）：``roi=(x0,y0,x1,y1)`` level-0 px。
+缓存键 = ``(slide_id, roi_hash, method)``。
 """
 
 from __future__ import annotations

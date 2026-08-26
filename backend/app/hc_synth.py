@@ -19,12 +19,11 @@ import re
 from functools import lru_cache
 
 import numpy as np
-from PIL import Image
-
 from glaux_core.io.contour import Ellipse
 from glaux_core.measurement.hc import hc_from_ellipse
 from glaux_core.segmentation.base import ROI
 from glaux_core.segmentation.contour import BrightRingEllipseAdapter, ContourRequest
+from PIL import Image
 
 MODALITY = "fetal_hc"
 PREFIX = "hc_"

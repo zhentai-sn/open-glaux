@@ -17,11 +17,11 @@ from functools import lru_cache
 
 import numpy as np
 
-from . import config
-
 # science-core（经 config 挂上 sys.path）——纯 numpy/PIL，主进程无 torch/cv2。
 from glaux_core.io.contour import fit_ellipse  # noqa: E402
 from glaux_core.io.hc18 import Hc18Dataset  # noqa: E402
+
+from . import config
 
 _METHOD = "CSM"  # 真分割方法名（对齐 UI 模型注册表）
 _GT = "GT-ellipse"  # 参考（HC18 标注椭圆）

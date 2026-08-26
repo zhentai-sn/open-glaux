@@ -81,7 +81,9 @@ def validate_primitive(kind: str, primitive: dict) -> dict:
         except (TypeError, ValueError) as e:
             raise AnnotationError("INVALID_GEOMETRY", f"polygon 点坐标非法：{e}") from e
         if not primitive.get("closed", True):
-            raise AnnotationError("INVALID_GEOMETRY", "标注多边形须闭合（closed=true）；开放折线归任务管线")
+            raise AnnotationError(
+                "INVALID_GEOMETRY", "标注多边形须闭合（closed=true）；开放折线归任务管线"
+            )
         return {"kind": "polyline", "closed": True, "points": pts}
     # mask：几何在 PNG 里，primitive 只带 ref（由 store 落盘后填）
     return {"kind": "mask"}
@@ -179,7 +181,9 @@ class AnnotationStore:
         if status is not None and status not in _STATUSES:
             raise AnnotationError("INVALID_GEOMETRY", f"非法 status：{status!r}")
         kind = cur["primitive"]["kind"]
-        new_prim = validate_primitive(kind, primitive) if primitive is not None else cur["primitive"]
+        new_prim = (
+            validate_primitive(kind, primitive) if primitive is not None else cur["primitive"]
+        )
         mask_ref = cur.get("mask_ref")
         if primitive is not None and kind == "mask":
             # 换 mask 内容：primitive 携带 mask_png_b64（router 透传）
@@ -213,7 +217,9 @@ class AnnotationStore:
             raise AnnotationError(
                 "CONFLICT", f"base_seq 过期（本地 {base_seq}，服务端 {row['seq']}）——请刷新后重试"
             )
-        self._conn.execute("DELETE FROM annotations WHERE id = ? AND seq = ?", (annotation_id, base_seq))
+        self._conn.execute(
+            "DELETE FROM annotations WHERE id = ? AND seq = ?", (annotation_id, base_seq)
+        )
         self._conn.commit()
         # mask 文件连带删除（ref 是独立列，不在 primitive 里）
         if row["mask_ref"]:

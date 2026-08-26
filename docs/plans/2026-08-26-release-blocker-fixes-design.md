@@ -4,7 +4,8 @@
 
 Glaux `v0.1.0` 在执行全仓发布门禁时发现三类阻断：Agent Runtime 与 Frontend 的 TypeScript 类型检查失败，Backend 的 Starlette `TestClient` 在当前依赖组合下挂起。已有业务测试本身未暴露生产行为错误。
 
-本轮仅修复测试夹具、类型声明和 Backend 开发依赖，不改变生产运行时行为。
+本轮修复测试夹具、类型声明、Backend 开发依赖及既有 Ruff 静态质量债务，
+不改变生产运行时行为。
 
 ## 目标
 
@@ -19,6 +20,7 @@ Glaux `v0.1.0` 在执行全仓发布门禁时发现三类阻断：Agent Runtime 
 - 不改变 Frontend 注解状态、数据流或界面交互。
 - 不替换 Backend 运行时 HTTP 客户端，不调整 API 契约。
 - 不跳过、降级或删除现有发布门禁。
+- 不通过修改 Ruff 规则、增加全局忽略或排除文件来消除检查结果。
 
 ## 方案比较
 
@@ -59,6 +61,9 @@ Glaux `v0.1.0` 在执行全仓发布门禁时发现三类阻断：Agent Runtime 
 - 在 `[project.optional-dependencies].dev` 中增加 `httpx2`。
 - 保留 `[project.dependencies]` 中的 `httpx`，因为生产代码仍使用该包。
 - 使用 `uv lock` 更新 `uv.lock`，不手工编辑生成文件。
+- 清理发布基线已有的 Ruff 错误；仅排序 import、移除未使用 import、删除多余
+  `f` 前缀、拆分语句与超长行。
+- 格式清理不得改变表达式、字符串值、控制流、接口或测试断言。
 
 ## 验证策略
 

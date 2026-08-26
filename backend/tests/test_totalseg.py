@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest import mock
 
@@ -11,7 +10,6 @@ import numpy as np
 import pytest
 
 from app import config, dataset_ct, segment_ts
-
 
 # --- dataset_ct ------------------------------------------------------------
 

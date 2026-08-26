@@ -1,4 +1,6 @@
-"""P6 楔子：CT 体积分割适配层（TotalSegmentator v2.4.0 隔离子进程）——缓存优先 + 隔离子进程兜底；主进程无 torch。
+"""P6 楔子：CT 体积分割适配层（TotalSegmentator v2.4.0 隔离子进程）。
+
+缓存优先 + 隔离子进程兜底；主进程无 torch。
 
 镜像 IMT / HC 的分层：
 - 数据侧：``backend/app/dataset_ct.py`` 读 NIfTI（主进程允许 nibabel，不重模型）。
@@ -107,7 +109,7 @@ def segment(
         raise TsSegmentUnavailable(f"P6 v0 仅支持 totalsegmentator_v2 method，得 {method!r}")
     cached = _cached_labelmap(volume_id, method)
     if cached is not None:
-        return str(cached), f"TotalSegmentator v2.4.0 (cached)"
+        return str(cached), "TotalSegmentator v2.4.0 (cached)"
     if not config.ts_live_available():
         raise TsSegmentUnavailable(
             f"TotalSegmentator 无 {volume_id} 缓存，且隔离环境不可用（{config.TS_PYTHON}）"

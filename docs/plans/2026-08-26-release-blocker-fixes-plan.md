@@ -28,6 +28,9 @@
 
 ## 4. 完整发布验证
 
+- 清理 Backend 干净 `HEAD` 已存在的 Ruff 基线错误，只做无行为变化的机械修复。
+- 不修改 Ruff 规则、忽略列表或文件扫描范围。
+
 - Agent Runtime：`npm test`、`npm run typecheck`、`npm run build`。
 - Frontend：`npm test`、`npm run lint`、`npm run build`。
 - Backend：全量 `pytest`、`ruff check`。

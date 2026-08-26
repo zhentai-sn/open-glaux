@@ -71,7 +71,10 @@ def test_z_filter_for_ct_slices():
             "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 5, "y1": 5},
         })
     assert len(client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"]) == 2
-    assert len(client.get("/annotations", params={"image_id": "ct_001", "z": 3}).json()["annotations"]) == 1
+    assert (
+        len(client.get("/annotations", params={"image_id": "ct_001", "z": 3}).json()["annotations"])
+        == 1
+    )
 
 
 # --- base_seq 并发（409）-------------------------------------------------------
@@ -237,14 +240,20 @@ def test_on_commit_failure_keeps_annotation(monkeypatch):
     })
     assert r.status_code == 201, r.text
     assert "隔离环境不可用" in r.json()["hook_error"]
-    assert len(client.get("/annotations", params={"image_id": "slide_001"}).json()["annotations"]) == 1
+    assert (
+        len(client.get("/annotations", params={"image_id": "slide_001"}).json()["annotations"])
+        == 1
+    )
 
 
 def test_create_with_url_like_image_id_does_not_500():
     """越界 image_id（形如图片 URL）不得让 dims 探测抛异常 → 500（前端曾误发整条 URL）。"""
     r = client.post(
         "/annotations",
-        json={"image_id": "/api/image/tech_401", "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9}},
+        json={
+            "image_id": "/api/image/tech_401",
+            "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
+        },
     )
     assert r.status_code < 500, r.text
 
@@ -325,7 +334,9 @@ def test_suggested_does_not_fire_on_commit(monkeypatch):
     monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
     calls = []
     import app.kernel as kernel
-    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+    monkeypatch.setattr(
+        kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"}
+    )
 
     r = client.post("/annotations", json={
         "image_id": "slide_001",
@@ -343,7 +354,9 @@ def test_confirm_fires_on_commit(monkeypatch):
     monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
     calls = []
     import app.kernel as kernel
-    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+    monkeypatch.setattr(
+        kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"}
+    )
 
     created = client.post("/annotations", json={
         "image_id": "slide_001",
@@ -367,7 +380,9 @@ def test_plain_edit_does_not_refire_on_commit(monkeypatch):
     monkeypatch.setattr(ann_router, "_plugin_for", lambda _id: _FakePlugin())
     calls = []
     import app.kernel as kernel
-    monkeypatch.setattr(kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"})
+    monkeypatch.setattr(
+        kernel, "run_task", lambda spec: calls.append(spec) or {"task": "nuclei_detection"}
+    )
 
     created = client.post("/annotations", json={
         "image_id": "slide_001",
@@ -375,5 +390,8 @@ def test_plain_edit_does_not_refire_on_commit(monkeypatch):
     }).json()["annotation"]
     calls.clear()
 
-    client.patch(f"/annotations/{created['id']}", json={"base_seq": created["seq"], "label": "改个名"})
+    client.patch(
+        f"/annotations/{created['id']}",
+        json={"base_seq": created["seq"], "label": "改个名"},
+    )
     assert calls == []

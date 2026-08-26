@@ -12,6 +12,40 @@ from __future__ import annotations
 
 import numpy as np
 
+# science-core（经 config 挂上 sys.path）
+from glaux_core.calibration.calibration import (  # noqa: E402
+    CalibrationResult,
+    CFSource,
+    resolve_ct_calibration,
+    resolve_wsi_calibration,
+)
+from glaux_core.contracts import (  # noqa: E402
+    Detection,
+    EllipseShape,
+    PointSet,
+    Polyline,
+    TaskOutput,
+    VolumeMask,
+    measurement_to_dict,
+    primitive_from_dict,
+    task_output_to_dict,
+)
+from glaux_core.io.boundaries import Boundary  # noqa: E402
+from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
+from glaux_core.tasks import (  # noqa: E402
+    LIVER_KIDNEY_CLASSES,
+    NUCLEI_CLASSES,
+)
+from glaux_core.tasks import (
+    REGISTRY as _REGISTRY,
+)
+from glaux_core.tasks import (
+    TaskType as _TaskType,
+)
+from glaux_core.tasks import (
+    plugin_to_view as _plugin_to_view,
+)
+
 from . import (
     config,
     dataset,
@@ -28,32 +62,6 @@ from .schemas import (
     IMTResult,
     ModelInfo,
     TaskSpec,
-)
-
-# science-core（经 config 挂上 sys.path）
-from glaux_core.calibration.calibration import CalibrationResult, CFSource  # noqa: E402
-from glaux_core.contracts import (  # noqa: E402
-    Detection,
-    EllipseShape,
-    Polyline,
-    TaskOutput,
-    measurement_to_dict,
-    primitive_from_dict,
-    task_output_to_dict,
-)
-from glaux_core.io.boundaries import Boundary  # noqa: E402
-from glaux_core.measurement.pdm import imt as _imt  # noqa: E402
-from glaux_core.tasks import (  # noqa: E402
-    LIVER_KIDNEY_CLASSES,
-    NUCLEI_CLASSES,
-    REGISTRY as _REGISTRY,
-    TaskType as _TaskType,
-    plugin_to_view as _plugin_to_view,
-)
-from glaux_core.contracts import PointSet, VolumeMask  # noqa: E402
-from glaux_core.calibration.calibration import (  # noqa: E402
-    resolve_ct_calibration,
-    resolve_wsi_calibration,
 )
 
 
@@ -137,7 +145,8 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
 
     if plugin.adapter_kind == "volume":
         # P6：CT 模态——数据入口边界走 segment_ts（缓存 + 隔离子进程）+ dataset_ct（标定）。
-        # 与 wall_pair / contour 同形：构造 VolumeMask（含 path 与 classes），落 Detection.primitives。
+        # 与 wall_pair / contour 同形：构造 VolumeMask（含 path 与 classes），
+        # 落 Detection.primitives。
         if not spec.image_id or not dataset_ct.is_ct(spec.image_id):
             raise ValueError(f"非 CT volume id：{spec.image_id}——硬拒绝，不在错模态上瞎跑")
         if not config.ct_data_available():
@@ -166,7 +175,8 @@ def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
 
     if plugin.adapter_kind == "wsi":
         # P7：病理 WSI 核检测——数据入口边界走 segment_wsi（缓存 + 隔离子进程 ROI 抽块 + 去重）+
-        # dataset_wsi（MPP 标定）。与 volume 同形：构造 PointSet（含质心 + classes + roi），落 Detection。
+        # dataset_wsi（MPP 标定）。与 volume 同形：
+        # 构造 PointSet（含质心 + classes + roi），落 Detection。
         if not spec.image_id or not dataset_wsi.is_wsi(spec.image_id):
             raise ValueError(f"非 WSI slide id：{spec.image_id}——硬拒绝，不在错模态上瞎跑")
         if not config.wsi_data_available():
@@ -322,7 +332,10 @@ def models() -> list[ModelInfo]:
             ModelInfo(
                 id="CSM",
                 pub="gauravxthakur · CSM (HuggingFace)",
-                desc="Convolutional Segmentation Machine · HC18 · Apache-2.0 · 头部分割 → 椭圆 → Ramanujan 周长",
+                desc=(
+                    "Convolutional Segmentation Machine · HC18 · Apache-2.0 · "
+                    "头部分割 → 椭圆 → Ramanujan 周长"
+                ),
                 active=True,
                 backend="isolated:uv/py3.12/torch-cpu",
                 modality="fetal_hc",
@@ -370,7 +383,9 @@ def models() -> list[ModelInfo]:
 
 
 def capabilities() -> list[dict]:
-    """能力注册表（「插件市场」的单一真相源，§5）——用「环境四层」本体把 skill/model/dataset/…收成一套清单。
+    """能力注册表（「插件市场」的单一真相源，§5）。
+
+    用「环境四层」本体把 skill/model/dataset/…收成一套清单。
 
     真实优先：Skill = TaskPlugin（REGISTRY）、Model/ReferenceMethod = models() 按 backend 分类、
     Dataset/CalibrationSource = 真实可用性；Connector/MCP/KnowledgeBase 出有类型占位卡

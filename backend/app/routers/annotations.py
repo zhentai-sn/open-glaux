@@ -55,7 +55,9 @@ class AnnotationPatch(BaseModel):
     mask_png_b64: str | None = None
     label: str | None = None
     class_id: int | None = None
-    status: str | None = Field(default=None, description="确认/驳回建议态标注：confirmed / rejected")
+    status: str | None = Field(
+        default=None, description="确认/驳回建议态标注：confirmed / rejected"
+    )
 
 
 # --- dims 解析（范围校验用；未知对象 → None → 跳过校验） -----------------------
@@ -221,7 +223,10 @@ def update_annotation(annotation_id: str, body: AnnotationPatch) -> dict:
     try:
         before = get_store().get(annotation_id)
         if body.primitive is not None and before is not None:
-            _check_within_dims(before["image_id"], validate_primitive(before["primitive"]["kind"], body.primitive))
+            _check_within_dims(
+                before["image_id"],
+                validate_primitive(before["primitive"]["kind"], body.primitive),
+            )
         ann = get_store().update(
             annotation_id,
             body.base_seq,

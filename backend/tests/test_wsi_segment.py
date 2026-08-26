@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config, kernel, segment_wsi
+from app import config, segment_wsi
 from app.main import app
 from app.segment_wsi import WsiSegmentUnavailable
 
@@ -72,7 +72,7 @@ def test_segment_cache_hit(tmp_path, monkeypatch):
     _p1, mv1 = segment_wsi.segment("slide_001", roi, "stardist_he")
     assert "live" in mv1
     # 二次：缓存命中，不再跑子进程（把 run 换成会炸的，证明没被调）
-    def boom(*a, **k):  # noqa: ANN
+    def boom(*a, **k):
         raise AssertionError("缓存命中不应再跑子进程")
     monkeypatch.setattr(segment_wsi.subprocess, "run", boom)
     _p2, mv2 = segment_wsi.segment("slide_001", roi, "stardist_he")
@@ -152,7 +152,11 @@ def test_wsi_verify_reproduces_reference(monkeypatch):
     if not ref_path.is_file():
         pytest.skip("需 ship 的 slide_001_ref_nuclei.json")
     # mock segment → 直接返回 reference 自身（模拟缓存命中同一份检测）
-    monkeypatch.setattr(segment_wsi, "segment", lambda sid, roi, method="stardist_he": (str(ref_path), "cached"))
+    monkeypatch.setattr(
+        segment_wsi,
+        "segment",
+        lambda sid, roi, method="stardist_he": (str(ref_path), "cached"),
+    )
     r = client.get("/wsi/slide_001/verify")
     assert r.status_code == 200, r.text
     d = r.json()

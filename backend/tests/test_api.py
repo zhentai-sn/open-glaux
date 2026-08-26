@@ -84,7 +84,10 @@ def test_capabilities_registry_four_layers():
     assert {"skill:far_wall_cca_imt", "skill:fetal_hc"} <= ids
     assert all(c["layer"] == "action" for c in caps if c["kind"] == "skill")
     # 真实 model（caroSegDeep 动作层）
-    assert any(c["id"] == "caroSegDeep" and c["kind"] == "model" and c["layer"] == "action" for c in caps)
+    assert any(
+        c["id"] == "caroSegDeep" and c["kind"] == "model" and c["layer"] == "action"
+        for c in caps
+    )
     # dataset（表征层）
     assert any(c["kind"] == "dataset" and c["layer"] == "representation" for c in caps)
     # 有类型占位卡（planned）：connector/mcp/knowledge_base

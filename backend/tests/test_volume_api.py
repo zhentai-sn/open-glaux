@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 import io
-import os
-from unittest import mock
 
 import nibabel as nib
 import numpy as np
@@ -32,7 +30,10 @@ def _png_b64_mask(mask: np.ndarray) -> str:
 
 
 def _seed_labelmap(tmp_path, monkeypatch, Z=10, Y=10, X=10, vox=(0.5, 0.5, 1.5)):
-    """造 CT 体积 + 假 labelmap，落 tmp_path 模拟 data/ct/ + TS_CACHE/，返回 (volume_id, method, ct_path, lbl_path)。"""
+    """造 CT 体积 + 假 labelmap，模拟 data/ct/ + TS_CACHE/。
+
+    返回 (volume_id, method, ct_path, lbl_path)。
+    """
     monkeypatch.setattr(config, "CT_ROOT", tmp_path / "ct")
     monkeypatch.setattr(config, "TS_CACHE", tmp_path / "cache")
     volume_id = "ct_001"
@@ -212,7 +213,9 @@ def test_mask_edit_endpoint_happy_path(tmp_path, monkeypatch):
     assert data["metrics"]["liver_volume_mm3"]["value"] == pytest.approx(200 * 0.375, rel=1e-3)
     # HU mean 不在 mask-edit 响应里（v0 raw_ref 留 None）
     assert "liver_hu_mean" not in data["metrics"]
-    assert data["labelmap_ref"].endswith("labelmap?task=totalseg_liver_kidney&method=totalsegmentator_v2")
+    assert data["labelmap_ref"].endswith(
+        "labelmap?task=totalseg_liver_kidney&method=totalsegmentator_v2"
+    )
     assert data["model_version"] == "human@edit"
 
 
@@ -231,12 +234,18 @@ def test_mask_edit_endpoint_rejects_unknown_class(tmp_path, monkeypatch):
 def test_mask_edit_endpoint_rejects_bad_task(tmp_path, monkeypatch):
     """task 不在 Literal 列表 → pydantic 422 校验拒绝（快且早于 handler）。"""
     volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    r = client.post(f"/volume/{volume_id}/mask-edit", json={"task": "far_wall_cca_imt", "slices": []})
+    r = client.post(
+        f"/volume/{volume_id}/mask-edit",
+        json={"task": "far_wall_cca_imt", "slices": []},
+    )
     assert r.status_code == 422
 
 
 def test_mask_edit_endpoint_rejects_non_ct_id(tmp_path, monkeypatch):
-    r = client.post("/volume/ct_999/mask-edit", json={"task": "totalseg_liver_kidney", "slices": []})
+    r = client.post(
+        "/volume/ct_999/mask-edit",
+        json={"task": "totalseg_liver_kidney", "slices": []},
+    )
     # 422 校验失败 / 404 找不到 / 422 backend raise——皆可；只要求 4xx
     assert 400 <= r.status_code < 500
 
@@ -275,7 +284,10 @@ def test_mask_edit_concurrency_stale_rejected(tmp_path, monkeypatch):
 
 
 def test_mask_edit_no_base_seq_still_serializes(tmp_path, monkeypatch):
-    """base_seq 省略 → 不做乐观并发校验，但仍成功且 seq 前进（后端锁串行化，修裸 read-modify-write）。"""
+    """base_seq 省略时不做乐观并发校验，但仍成功且 seq 前进。
+
+    后端锁负责串行化，修复裸 read-modify-write。
+    """
     volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
     dataset_ct.reset_edit_seq(volume_id, method)
     mask = np.zeros((10, 10), dtype=bool)
@@ -295,7 +307,8 @@ def test_mask_edit_no_base_seq_still_serializes(tmp_path, monkeypatch):
 def test_verify_dice_perfect_overlap(tmp_path, monkeypatch):
     """pred == ref → 每类 Dice 1.0；零空类（class 0 也是非空）按公式 = 1.0。"""
     from glaux_core.verification.dice import dice_per_class
-    pred = np.zeros((4, 4, 4), dtype=np.int32); pred[1:3, 1:3, 1:3] = 1
+    pred = np.zeros((4, 4, 4), dtype=np.int32)
+    pred[1:3, 1:3, 1:3] = 1
     ref = pred.copy()
     out = dice_per_class(pred, ref, [0, 1])
     assert out[1] == pytest.approx(1.0)
@@ -318,8 +331,10 @@ def test_verify_dice_half_overlap():
 
 def test_verify_dice_no_overlap():
     from glaux_core.verification.dice import dice_per_class
-    pred = np.zeros((4, 4, 4), dtype=np.int32); pred[0:2, :, :] = 1
-    ref = np.zeros((4, 4, 4), dtype=np.int32); ref[2:4, :, :] = 1
+    pred = np.zeros((4, 4, 4), dtype=np.int32)
+    pred[0:2, :, :] = 1
+    ref = np.zeros((4, 4, 4), dtype=np.int32)
+    ref[2:4, :, :] = 1
     out = dice_per_class(pred, ref, [1])
     assert out[1] == 0.0
 

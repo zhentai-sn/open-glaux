@@ -116,7 +116,9 @@ class Capability(BaseModel):
     """
 
     id: str
-    kind: str  # model | adapter | skill | mcp | dataset | connector | reference_method | calibration_source | knowledge_base | correction_store
+    # model | adapter | skill | mcp | dataset | connector | reference_method |
+    # calibration_source | knowledge_base | correction_store
+    kind: str
     layer: Literal["representation", "action", "verification", "memory"]
     name: str
     provider: str = ""

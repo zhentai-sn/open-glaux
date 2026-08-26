@@ -17,8 +17,7 @@ from functools import lru_cache
 import nibabel as nib
 import numpy as np
 
-from . import config, segment_ts
-
+from . import segment_ts
 
 _ID_RE = re.compile(r"^ct_\d{3}$")
 
@@ -163,7 +162,8 @@ def patch_labelmap(
 ) -> tuple[str, np.ndarray]:
     """画笔编辑 → patch labelmap → 返回 (新缓存路径, 修改后的 labelmap ndarray)。
 
-    - ``slices``: 形如 ``[{"z": 80, "mask_png_ref": "data:..."}]``；每条 (z, mask_png, class_id, mode)。
+    - ``slices``: 形如 ``[{"z": 80, "mask_png_ref": "data:..."}]``；
+      每条包含 (z, mask_png, class_id, mode)。
     - 原 labelmap + 掩膜 union → 写新 labelmap（同缓存键覆盖）→ 返回 ndarray。
     - class_id 必须在 VolumeMask.classes 内（class_id_to_role 提供）——否则 ValueError 硬拒绝。
     - z 越界（< 0 或 >= Z 维）→ ValueError 硬拒绝，不静默接受。
@@ -178,7 +178,8 @@ def patch_labelmap(
     labelmap = labelmap_nib(volume_id, method)
     arr = np.asarray(labelmap.dataobj).astype(np.int32, copy=False)
     # nibabel 体素轴序是 (X, Y, Z)；前端 VolumeViewer 沿 Z（末轴）切轴状位、PNG 宽=X 高=Y。
-    # 必须沿轴 2 切（arr[:, :, z]），而非旧代码的 arr[z]（切轴 0=X=矢状面，patch 错平面 + 尺寸不符 422）。
+    # 必须沿轴 2 切（arr[:, :, z]），而非旧代码的 arr[z]
+    # （切轴 0=X=矢状面，patch 错平面 + 尺寸不符 422）。
     X, Y, Z = arr.shape
 
     # 验证：所有 class_id 在白名单内（防止 paint class_id=999 这种越权）
@@ -200,6 +201,7 @@ def patch_labelmap(
     # 解码 PNG 掩膜 + 应用
     import base64
     import io
+
     from PIL import Image  # Pillow 是常见栈；主进程允许
 
     for s in slices:

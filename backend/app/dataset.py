@@ -10,13 +10,13 @@ import io
 import re
 from functools import lru_cache
 
-from PIL import Image
-
-from . import config
+from glaux_core.io.boundaries import Boundary  # noqa: E402
 
 # 复用 science-core 的读取器（磁盘格式的单一事实源）。
 from glaux_core.io.cubs import load_cf, read_profile  # noqa: E402
-from glaux_core.io.boundaries import Boundary  # noqa: E402
+from PIL import Image
+
+from . import config
 
 _TECH_RE = re.compile(r"^tech_(\d+)$")
 
