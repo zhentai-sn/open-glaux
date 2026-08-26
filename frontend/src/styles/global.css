@@ -2189,7 +2189,6 @@ body.resizing .focus-rail { transition: none; }
 .focus-conversation .agent .session-drawer { display: none; }
 .focus-conversation .agent-empty { display: none; }
 .focus-conversation .agent-toolbar { display: none; }
-.focus-conversation .conversation-stream,
 .focus-conversation .agent-configbar,
 .focus-conversation .agent-error,
 .focus-conversation .conversation-composer {
@@ -2198,6 +2197,61 @@ body.resizing .focus-rail { transition: none; }
   margin-left: auto;
   margin-right: auto;
 }
+/* 滚动层铺满对话列，让滚动条停在右边界；消息本身仍作为 720px 阅读列居中。 */
+.focus-conversation .conversation-stream {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  gap: var(--space-3);
+  scrollbar-color: var(--line2) transparent;
+  scrollbar-width: thin;
+}
+.focus-conversation .conversation-stream > .turn {
+  width: 100%;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.focus-conversation .conversation-stream::-webkit-scrollbar { width: 6px; }
+.focus-conversation .conversation-stream::-webkit-scrollbar-track { background: transparent; }
+.focus-conversation .conversation-stream::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line2);
+}
+.focus-conversation .conversation-stream::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+/* Focus 是宽屏阅读面：助手正文平铺，用户输入保留紧凑的右侧气泡。工具/建议卡仍维持卡片语义。 */
+.focus-conversation .turn.assistant:not(.tool) > .abody.plain {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.focus-conversation .turn.user > .bubble {
+  max-width: min(70%, 560px);
+  padding: var(--space-1) var(--space-2);
+}
+.focus-conversation .agent-regenerate {
+  opacity: 0.45;
+  transition:
+    opacity var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+.focus-conversation .turn.assistant:hover > .agent-regenerate,
+.focus-conversation .turn.assistant:focus-within > .agent-regenerate { opacity: 1; }
+/* 专业紧凑型正文密度：只影响 Focus，Workbench 的窄栏排版保持原样。 */
+.focus-conversation .md { font-size: var(--font-base); line-height: 1.5; }
+.focus-conversation .md p { margin: var(--space-1) 0; }
+.focus-conversation .md h1,
+.focus-conversation .md h2,
+.focus-conversation .md h3,
+.focus-conversation .md h4 { margin: var(--space-2) 0 var(--space-1); line-height: 1.35; }
+.focus-conversation .md ul,
+.focus-conversation .md ol { margin: var(--space-1) 0; }
+.focus-conversation .md li { margin: 0; }
+.focus-conversation .md pre,
+.focus-conversation .md blockquote,
+.focus-conversation .md table { margin-top: var(--space-1); margin-bottom: var(--space-1); }
+.focus-conversation .md hr { margin: var(--space-2) 0; }
 /* 连接/权限条移到输入框下方（Claude Code 式状态行）：flex order 重排 + 弱化为无边框小字。
    Workbench 不受影响（作用域仅 .focus-conversation）。
    注意：opacity<1 会创建 stacking context 且本条 DOM 序在 composer 之前——必须抬 z-index，
