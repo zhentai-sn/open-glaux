@@ -17,12 +17,7 @@ const LOCAL_PRESETS = [
   { label: "Ollama", baseUrl: "http://localhost:11434/v1" },
   { label: "LM Studio", baseUrl: "http://localhost:1234/v1" },
 ] as const;
-
-function VisionMark({ vision }: { vision: VlmModelInfo["vision"] }) {
-  if (vision === "yes") return <Icon icon={ICONS.eye} size="sm" />;
-  if (vision === "no") return <Icon icon={ICONS.eyeOff} size="sm" />;
-  return <span aria-hidden="true">·</span>;
-}
+const MODEL_LIST_ID = "glaux-model-options";
 
 function optionalInteger(value: string): number | null {
   if (!value.trim()) return null;
@@ -108,7 +103,6 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
   };
 
   const models = connection.models ?? [];
-  const modelInList = models.some((model) => model.id === connection.model);
 
   return (
     <div className="cfgpop" role="dialog" aria-label={t("cfg_title")}>
@@ -165,44 +159,32 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
         onChange={(event) => setConnection({ apiKey: event.target.value })}
       />
 
-      {models.length ? (
-        <select
-          className="cfgsel cfgsel-wide"
-          aria-label={t("cfg_model")}
-          value={connection.model}
-          onChange={(event) => {
-            const picked = models.find((model) => model.id === event.target.value);
-            setConnection({
-              model: event.target.value,
-              ...metaForModel(picked, connection),
-            });
-          }}
-        >
-          <option value="" disabled>
-            {t("cfg_model_pick")}
-          </option>
-          {!modelInList && connection.model && (
-            <option value={connection.model}>{connection.model}</option>
-          )}
+      <input
+        className="cfgin"
+        type="text"
+        list={models.length ? MODEL_LIST_ID : undefined}
+        aria-label={t("cfg_model")}
+        placeholder={
+          connection.provider === "anthropic"
+            ? "claude-haiku-4-5-20251001"
+            : t("cfg_model_ph")
+        }
+        value={connection.model}
+        onChange={(event) => {
+          const model = event.target.value;
+          const picked = models.find((candidate) => candidate.id === model);
+          setConnection({
+            model,
+            ...(picked ? metaForModel(picked, connection) : {}),
+          });
+        }}
+      />
+      {models.length > 0 && (
+        <datalist id={MODEL_LIST_ID}>
           {models.map((model) => (
-            <option key={model.id} value={model.id}>
-              <VisionMark vision={model.vision} /> {model.id}
-            </option>
+            <option key={model.id} value={model.id} />
           ))}
-        </select>
-      ) : (
-        <input
-          className="cfgin"
-          type="text"
-          aria-label={t("cfg_model")}
-          placeholder={
-            connection.provider === "anthropic"
-              ? "claude-haiku-4-5-20251001"
-              : t("cfg_model_ph")
-          }
-          value={connection.model}
-          onChange={(event) => setConnection({ model: event.target.value })}
-        />
+        </datalist>
       )}
 
       {connection.provider === "openai_compatible" && (
