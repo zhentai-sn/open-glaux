@@ -4,6 +4,8 @@
 // 坐标换算依赖 imageId 的 imagePlaneModule 元数据，这里以 ×2 的假变换替身，只验形状与取点。
 import { describe, expect, it, vi } from "vitest";
 
+import type { Annotation, AnnotationPrimitive } from "../api/types";
+
 vi.mock("@cornerstonejs/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@cornerstonejs/core")>();
   return {
@@ -22,7 +24,7 @@ type CsAnn = Parameters<typeof csToPrimitive>[0];
 
 const IMG = "web:/api/image/tech_401";
 
-function srvAnn(primitive: Parameters<typeof primitiveToCs>[0]["primitive"]) {
+function srvAnn(primitive: AnnotationPrimitive): Annotation {
   return {
     id: "a1",
     image_id: "tech_401",
@@ -88,11 +90,11 @@ describe("primitiveToCs", () => {
     expect(pts).toHaveLength(4);
     expect(pts[0]).toEqual([20, 80, 0]); // bottomLeft
     expect(pts[3]).toEqual([100, 20, 0]); // topRight
-    expect(cs.metadata.FrameOfReferenceUID).toBe("FOR-1"); // 分组键：写错名字则标注永不渲染
+    expect(cs.metadata?.FrameOfReferenceUID).toBe("FOR-1"); // 分组键：写错名字则标注永不渲染
   });
 
   it("polyline → contour.polyline + closed", () => {
-    const prim = {
+    const prim: AnnotationPrimitive = {
       kind: "polyline" as const,
       closed: true,
       points: [
@@ -114,7 +116,7 @@ describe("primitiveToCs", () => {
   it("往返：bbox / polyline 经 CS3D 形状回到原契约", () => {
     const bbox = { kind: "bbox" as const, x0: 10, y0: 10, x1: 50, y1: 40 };
     expect(csToPrimitive(primitiveToCs(srvAnn(bbox), IMG, "F") as CsAnn, IMG)).toEqual(bbox);
-    const poly = {
+    const poly: AnnotationPrimitive = {
       kind: "polyline" as const,
       closed: true,
       points: [

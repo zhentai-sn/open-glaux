@@ -24,7 +24,7 @@ Glaux `v0.1.0` 在执行全仓发布门禁时发现三类阻断：Agent Runtime 
 
 ### 方案 A：测试契约对齐 + 精确类型声明 + 官方开发依赖（采用）
 
-- Agent Runtime 测试通过局部辅助函数传入完整五参数调用；测试运行时夹具实现无副作用的 `disposeCredential()`；边界框辅助函数显式返回二元组。
+- Agent Runtime 测试显式传入完整五参数调用；测试运行时夹具实现无副作用的 `disposeCredential()`；边界框辅助函数显式返回二元组。
 - Frontend 测试夹具显式声明 `Annotation`，补齐字面量与可空元数据类型处理；翻译键映射显式声明为 `I18nKey`。
 - Backend 保留运行时 `httpx`，仅在 `dev` 可选依赖中增加 `httpx2`，并由 `uv` 重新生成锁文件。
 
@@ -43,7 +43,7 @@ Glaux `v0.1.0` 在执行全仓发布门禁时发现三类阻断：Agent Runtime 
 ### Agent Runtime
 
 - 仅修改阻断测试文件。
-- 每个相关测试文件使用局部辅助函数封装 `execute(toolCallId, params, signal, onUpdate, context)` 的完整调用；未使用的后三项显式传入 `undefined`。
+- 相关测试按仓库既有惯例显式调用 `execute(toolCallId, params, signal, onUpdate, context)`；未使用的后三项传入 `undefined`。
 - `VisionRuntime` 测试夹具补充空实现 `disposeCredential()`，使其满足工具工厂要求的 `ModelRuntime`。
 - `bboxOf` 显式返回 `[number, number]`，避免数组解构项被推断为可能缺失。
 

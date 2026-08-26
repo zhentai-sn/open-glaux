@@ -54,7 +54,13 @@ describe("propose_annotation", () => {
       fetch: fakeBackend(captured),
     });
 
-    await tool.execute("c1", { label: "左肾", bbox: [10, 20, 60, 80] }, undefined);
+    await tool.execute(
+      "c1",
+      { label: "左肾", bbox: [10, 20, 60, 80] },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured).toHaveLength(1);
     expect(captured[0]!.body.status).toBe("suggested");
     expect(captured[0]!.body.source).toBe("agent");
@@ -66,7 +72,15 @@ describe("propose_annotation", () => {
       viewer: { image_id: "img_1" },
       fetch: fakeBackend([]),
     });
-    const text = textOf(await tool.execute("c2", { label: "nucleus", bbox: [1, 1, 5, 5] }, undefined));
+    const text = textOf(
+      await tool.execute(
+        "c2",
+        { label: "nucleus", bbox: [1, 1, 5, 5] },
+        undefined,
+        undefined,
+        undefined,
+      ),
+    );
     expect(text).toMatch(/awaiting their confirmation/u);
     expect(text).toMatch(/do not re-propose/u);
   });
@@ -82,7 +96,13 @@ describe("propose_annotation", () => {
       [9, 2],
       [5, 9],
     ];
-    const result = await tool.execute("c3", { label: "lesion", polygon }, undefined);
+    const result = await tool.execute(
+      "c3",
+      { label: "lesion", polygon },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured[0]!.body.primitive).toEqual({ kind: "polyline", closed: true, points: polygon });
     const details = result.details as AnnotationProposedDetails;
     expect(details.payload.annotation_id).toBe("ann_001");
@@ -94,7 +114,13 @@ describe("propose_annotation", () => {
       viewer: { image_id: "img_1" },
       fetch: fakeBackend(captured),
     });
-    await tool.execute("c4", { label: "x", bbox: [90, 70, 30, 20] }, undefined);
+    await tool.execute(
+      "c4",
+      { label: "x", bbox: [90, 70, 30, 20] },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured[0]!.body.primitive).toEqual({ kind: "bbox", x0: 30, y0: 20, x1: 90, y1: 70 });
   });
 
@@ -108,6 +134,8 @@ describe("propose_annotation", () => {
       "c5",
       { label: "x", bbox: [1, 1, 5, 5], polygon: [[1, 1], [2, 2], [3, 3]] },
       undefined,
+      undefined,
+      undefined,
     );
     expect(captured).toHaveLength(0);
     expect(textOf(result)).toMatch(/not both/u);
@@ -120,7 +148,7 @@ describe("propose_annotation", () => {
       viewer: { image_id: "img_1" },
       fetch: fakeBackend(captured),
     });
-    const result = await tool.execute("c6", { label: "x" }, undefined);
+    const result = await tool.execute("c6", { label: "x" }, undefined, undefined, undefined);
     expect(captured).toHaveLength(0);
     expect((result.details as AnnotationProposedDetails).payload.reason).toBe("missing_geometry");
   });
@@ -131,7 +159,13 @@ describe("propose_annotation", () => {
       viewer: { image_id: "img_1" },
       fetch: fakeBackend(captured),
     });
-    const result = await tool.execute("c7", { label: "x", bbox: [5, 5, 5, 40] }, undefined);
+    const result = await tool.execute(
+      "c7",
+      { label: "x", bbox: [5, 5, 5, 40] },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured).toHaveLength(0);
     expect((result.details as AnnotationProposedDetails).payload.reason).toBe("degenerate_geometry");
   });
@@ -139,7 +173,13 @@ describe("propose_annotation", () => {
   it("没开图时不写库并如实说明", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({ viewer: {}, fetch: fakeBackend(captured) });
-    const result = await tool.execute("c8", { label: "x", bbox: [1, 1, 5, 5] }, undefined);
+    const result = await tool.execute(
+      "c8",
+      { label: "x", bbox: [1, 1, 5, 5] },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured).toHaveLength(0);
     expect((result.details as AnnotationProposedDetails).payload.reason).toBe("no_image");
   });
@@ -150,7 +190,13 @@ describe("propose_annotation", () => {
     ) as unknown as typeof fetch;
     const tool = createProposeAnnotationTool({ viewer: { image_id: "img_1" }, fetch: doFetch });
     await expect(
-      tool.execute("c9", { label: "x", bbox: [1, 1, 99999, 99999] }, undefined),
+      tool.execute(
+        "c9",
+        { label: "x", bbox: [1, 1, 99999, 99999] },
+        undefined,
+        undefined,
+        undefined,
+      ),
     ).rejects.toThrow(/越出图像范围/u);
   });
 
@@ -160,7 +206,13 @@ describe("propose_annotation", () => {
       viewer: { image_id: "vol_1" },
       fetch: fakeBackend(captured),
     });
-    await tool.execute("c10", { label: "liver", bbox: [1, 1, 9, 9], z: 42 }, undefined);
+    await tool.execute(
+      "c10",
+      { label: "liver", bbox: [1, 1, 9, 9], z: 42 },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(captured[0]!.body.z).toBe(42);
   });
 });

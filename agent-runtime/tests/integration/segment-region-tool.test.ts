@@ -62,13 +62,25 @@ describe("segment_region 工具", () => {
   it("查看器没开图时直接告知，不发任何请求", async () => {
     const doFetch = vi.fn() as unknown as typeof fetch;
     const tool = createSegmentRegionTool({ viewer: {}, fetch: doFetch });
-    const result = await tool.execute("call-1", { target: "eye" }, undefined);
+    const result = await tool.execute(
+      "call-1",
+      { target: "eye" },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(textOf(result)).toMatch(/No image is open/u);
     expect(doFetch).not.toHaveBeenCalled();
   });
 
   it("产出图像像素坐标的多边形，按面积从大到小", async () => {
-    const result = await toolWith().execute("call-2", { target: "eye" }, undefined);
+    const result = await toolWith().execute(
+      "call-2",
+      { target: "eye" },
+      undefined,
+      undefined,
+      undefined,
+    );
     const details = result.details as SegmentRegionDetails;
 
     expect(details.kind).toBe("glaux.segment_region");
@@ -86,7 +98,13 @@ describe("segment_region 工具", () => {
   });
 
   it("文字结果点明这是候选而非已成标注", async () => {
-    const result = await toolWith().execute("call-3", { target: "eye" }, undefined);
+    const result = await toolWith().execute(
+      "call-3",
+      { target: "eye" },
+      undefined,
+      undefined,
+      undefined,
+    );
     const text = textOf(result);
     expect(text).toMatch(/candidates, not annotations yet/u);
     expect(text).toMatch(/image pixels/u);
@@ -97,6 +115,8 @@ describe("segment_region 工具", () => {
     const result = await toolWith().execute(
       "call-4",
       { target: "eye", min_confidence: 0.95 },
+      undefined,
+      undefined,
       undefined,
     );
     const details = result.details as SegmentRegionDetails;
@@ -111,6 +131,8 @@ describe("segment_region 工具", () => {
       "call-5",
       { target: "eye", max_results: 1 },
       undefined,
+      undefined,
+      undefined,
     );
     const details = result.details as SegmentRegionDetails;
     expect(details.payload.regions).toHaveLength(1);
@@ -120,7 +142,13 @@ describe("segment_region 工具", () => {
 
   it("0 命中时明确要求模型不要编坐标（医学模态实测即此路径）", async () => {
     const empty = JSON.stringify({ num_segments: 0, segments: [] });
-    const result = await toolWith(empty).execute("call-6", { target: "plaque" }, undefined);
+    const result = await toolWith(empty).execute(
+      "call-6",
+      { target: "plaque" },
+      undefined,
+      undefined,
+      undefined,
+    );
     const text = textOf(result);
     expect(text).toMatch(/found nothing matching/u);
     expect(text).toMatch(/Do not invent coordinates/u);

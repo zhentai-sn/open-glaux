@@ -66,7 +66,7 @@ describe("mask-to-polygon · 真实 sam3 响应", () => {
 
     const swapped = rleToMask({ ...s.mask, size: [s.mask.size[1], s.mask.size[0]] });
     // 交换后前景像素总数不变，但落点全错——bbox 会横跨整个高度
-    const bboxOf = (m: ReturnType<typeof rleToMask>) => {
+    const bboxOf = (m: ReturnType<typeof rleToMask>): [number, number] => {
       let y0 = Infinity;
       let y1 = -Infinity;
       for (let y = 0; y < m.height; y += 1)

@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AtlasExemplar } from "../../src/atlas/client.js";
 import { defaultToolFactory } from "../../src/pi/harness-registry.js";
+import type { ModelRuntime } from "../../src/pi/model-runtime.js";
 import {
   createLocateRoiTool,
   LOCATE_ROI_TOOL_NAME,
@@ -85,7 +86,7 @@ function fakeBackend(opts: { exemplars?: AtlasExemplar[]; image?: Uint8Array | n
   return { fetch: fetchImpl, calls };
 }
 
-function visionRuntime(answers: string[]): { rt: VisionRuntime; contexts: Context[] } {
+function visionRuntime(answers: string[]): { rt: ModelRuntime; contexts: Context[] } {
   const contexts: Context[] = [];
   const faux = fauxProvider({ models: [{ id: "vlm", input: ["text", "image"] }] });
   faux.setResponses(
@@ -96,7 +97,7 @@ function visionRuntime(answers: string[]): { rt: VisionRuntime; contexts: Contex
   );
   const models = createModels();
   models.setProvider(faux.provider);
-  return { rt: { models, model: faux.getModel() }, contexts };
+  return { rt: { models, model: faux.getModel(), disposeCredential() {} }, contexts };
 }
 
 const HOSTED = { provider: "openai-compatible", base_url: "https://api.example.com/v1" };
@@ -144,6 +145,8 @@ describe("locate_roi", () => {
       "c1",
       { target: "斑块", use_atlas: false },
       undefined,
+      undefined,
+      undefined,
     );
     const details = result.details as RoiLocatedDetails;
     expect(details.payload.boxes).toHaveLength(1);
@@ -161,6 +164,8 @@ describe("locate_roi", () => {
     const result = await toolFor(backend.fetch, rt).execute(
       "c2",
       { target: "x", use_atlas: false },
+      undefined,
+      undefined,
       undefined,
     );
     const box = (result.details as RoiLocatedDetails).payload.boxes[0]!.box;
@@ -184,6 +189,8 @@ describe("locate_roi", () => {
       "c3",
       { target: "x", use_atlas: false },
       undefined,
+      undefined,
+      undefined,
     );
     expect((result.details as RoiLocatedDetails).payload.boxes).toHaveLength(1);
   });
@@ -197,6 +204,8 @@ describe("locate_roi", () => {
       "c4",
       { target: "x", use_atlas: false },
       undefined,
+      undefined,
+      undefined,
     );
     expect((result.details as RoiLocatedDetails).payload.boxes[0]!.box).toEqual([100, 120, 300, 340]);
   });
@@ -207,6 +216,8 @@ describe("locate_roi", () => {
     const result = await toolFor(backend.fetch, rt).execute(
       "c5",
       { target: "斑块", use_atlas: false },
+      undefined,
+      undefined,
       undefined,
     );
     expect(textOf(result)).toMatch(/Do not invent a location/u);
@@ -227,6 +238,8 @@ describe("locate_roi", () => {
       "c6",
       { target: "x", use_atlas: false, min_confidence: 0.5 },
       undefined,
+      undefined,
+      undefined,
     );
     const p = (result.details as RoiLocatedDetails).payload;
     expect(p.boxes).toHaveLength(1);
@@ -239,7 +252,13 @@ describe("locate_roi", () => {
       JSON.stringify({ selected: ["e1", "e2"] }), // 挑选步
       JSON.stringify({ boxes: [{ box: [0.2, 0.2, 0.5, 0.5], confidence: 0.8 }] }), // 定位步
     ]);
-    const result = await toolFor(backend.fetch, rt).execute("c7", { target: "EDD" }, undefined);
+    const result = await toolFor(backend.fetch, rt).execute(
+      "c7",
+      { target: "EDD" },
+      undefined,
+      undefined,
+      undefined,
+    );
 
     expect(contexts).toHaveLength(2); // 两步都调了模型
     const details = result.details as RoiLocatedDetails;
@@ -261,7 +280,13 @@ describe("locate_roi", () => {
     const { rt } = visionRuntime([
       JSON.stringify({ boxes: [{ box: [0.2, 0.2, 0.5, 0.5], confidence: 0.8 }] }),
     ]);
-    const result = await toolFor(backend.fetch, rt).execute("c8", { target: "EDD" }, undefined);
+    const result = await toolFor(backend.fetch, rt).execute(
+      "c8",
+      { target: "EDD" },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect((result.details as RoiLocatedDetails).payload.boxes).toHaveLength(1);
     expect((result.details as RoiLocatedDetails).payload.atlas).toBeUndefined();
   });
@@ -269,7 +294,13 @@ describe("locate_roi", () => {
   it("没开图时不调模型", async () => {
     const backend = fakeBackend();
     const { rt, contexts } = visionRuntime([]);
-    const result = await toolFor(backend.fetch, rt, null).execute("c9", { target: "x" }, undefined);
+    const result = await toolFor(backend.fetch, rt, null).execute(
+      "c9",
+      { target: "x" },
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(textOf(result)).toMatch(/No image is open/u);
     expect(contexts).toHaveLength(0);
   });
@@ -278,7 +309,13 @@ describe("locate_roi", () => {
     const backend = fakeBackend({ image: new Uint8Array([1, 2, 3, 4]) });
     const { rt } = visionRuntime([]);
     await expect(
-      toolFor(backend.fetch, rt).execute("c10", { target: "x", use_atlas: false }, undefined),
+      toolFor(backend.fetch, rt).execute(
+        "c10",
+        { target: "x", use_atlas: false },
+        undefined,
+        undefined,
+        undefined,
+      ),
     ).rejects.toThrow(/尺寸/u);
   });
 });

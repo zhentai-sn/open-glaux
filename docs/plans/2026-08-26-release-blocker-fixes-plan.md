@@ -4,7 +4,7 @@
 
 ## 1. 对齐 Agent Runtime 测试契约
 
-- 为 locate ROI、propose annotation 与 segment region 测试增加局部执行辅助函数，按生产契约传入五个参数。
+- 为 locate ROI、propose annotation 与 segment region 测试按生产契约传入五个参数。
 - 为 locate ROI 的模型运行时夹具补充空 `disposeCredential()`。
 - 将 mask-to-polygon 的边界框返回类型明确为二元组。
 

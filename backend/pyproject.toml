@@ -33,7 +33,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff>=0.4",
-    "httpx>=0.27",  # TestClient
+    "httpx>=0.27",
+    "httpx2>=2.0.0",  # Starlette TestClient
     "pytest>=8.0",
 ]
 

@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { Annotation } from "../../api/types";
 import { resolveSuggestion } from "../../annotation/bridge";
 import { useI18n } from "../../i18n";
+import type { I18nKey } from "../../i18n/en";
 import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
@@ -96,7 +97,7 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
 
 function StatusBadge({ status }: { status: Annotation["status"] | "missing" }) {
   const { t } = useI18n();
-  const key: Record<typeof status, string> = {
+  const key: Record<typeof status, I18nKey> = {
     suggested: "suggestion_state_pending",
     confirmed: "suggestion_state_confirmed",
     rejected: "suggestion_state_rejected",
