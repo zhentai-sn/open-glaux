@@ -5,10 +5,11 @@
 
 import importlib.util
 import sys
+from importlib.metadata import version
 
 from fastapi.testclient import TestClient
 
-from app import config
+from app import __version__, config
 from app.main import app
 
 client = TestClient(app)
@@ -30,6 +31,7 @@ def test_health_no_tf_in_process():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json()["tf_in_process"] is False
+    assert r.json()["version"] == __version__ == version("glaux-backend")
 
 
 def test_no_tf_importable_in_main_process():

@@ -1,7 +1,7 @@
 # Glaux — 开发编排。前端 Vite(5173) + 后端 FastAPI(8000) + Agent Runtime(8010)。
 # 前端经同源代理访问 /api 与 /agent-api（见 frontend/vite.config.ts）。
 
-.PHONY: dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend lint
+.PHONY: dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend test-version lint version version-check
 
 ## 同时起三个进程（需要 GNU make -j 或三个终端）：
 ##   make -j3 dev
@@ -29,7 +29,10 @@ install-agent-runtime:
 	cd agent-runtime && npm install
 
 ## 校验
-test: test-agent-runtime test-frontend test-backend
+test: test-version test-agent-runtime test-frontend test-backend
+
+test-version:
+	python3 scripts/test_version_matrix.py
 
 test-agent-runtime:
 	cd agent-runtime && npm test
@@ -44,3 +47,9 @@ lint:
 	cd backend && uv run ruff check .
 	cd frontend && npm run lint
 	cd agent-runtime && npm run lint
+
+version:
+	python3 scripts/version_matrix.py
+
+version-check:
+	python3 scripts/version_matrix.py --check

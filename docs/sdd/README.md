@@ -21,6 +21,12 @@ stateDiagram-v2
 | `implemented` | 已按规范实现 | 实现完成并通过自动化与人工开发验证 |
 | `accepted` | 已完成业务验收 | 第 15 节验收标准全部通过 |
 
+## 公共规范
+
+| 编号 | 规范 | 状态 | 负责人 | 更新时间 |
+| --- | --- | --- | --- | --- |
+| 01 | [多组件版本与发布治理](01-version-release-governance.md) | `implemented` | Glaux 项目维护者 | 2026-08-26 |
+
 ## Feature SDD
 
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |

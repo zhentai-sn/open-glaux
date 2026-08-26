@@ -6,6 +6,7 @@ import { createModelRuntime } from "./pi/model-runtime.js";
 import { SessionService } from "./pi/session-service.js";
 import { buildServer } from "./transport/server.js";
 import { SseBroker } from "./transport/sse-broker.js";
+import { RUNTIME_VERSION } from "./version.js";
 
 const config = loadRuntimeConfig();
 let registry: HarnessRegistry | undefined;
@@ -21,7 +22,7 @@ const broker = new SseBroker(registry);
 const server = buildServer({
   healthCheck: async () => {
     await sessions.initialize();
-    return { version: "0.1.0" };
+    return { version: RUNTIME_VERSION };
   },
   routes: { sessions, commands, registry, broker },
   probe: createConnectionProbe(),
