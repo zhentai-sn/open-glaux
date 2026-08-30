@@ -204,6 +204,8 @@ describe("connection probe · anthropic", () => {
     expect(anthropicVision("claude-3-5-haiku-latest")).toBe("yes");
     expect(anthropicVision("something-else")).toBe("unknown");
     expect(nameVision("qwen2-vl-7b")).toBe("yes");
+    // id 里没有 vl/vision 记号的原生多模态模型——漏判会让所有视觉工具静默消失
+    expect(nameVision("MiniMaxAI/MiniMax-M3")).toBe("yes");
     expect(nameVision("mistral-7b")).toBe("unknown");
   });
 });

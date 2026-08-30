@@ -73,6 +73,10 @@ const VISION_NAME_TOKENS = [
   "llava", "vision", "gpt-4o", "gpt-4-turbo", "gemini", "pixtral",
   "minicpm-v", "moondream", "bakllava", "cogvlm", "internvl", "granite-vision",
   "qwen-vl", "qwen2-vl", "qwen2.5-vl", "llama-3.2-vision", "-vl", "vl-", ":vl",
+  // MiniMax M2 起原生多模态（ViT 编码器，收图与视频），但 id 里没有任何 vl/vision 记号，
+  // 单靠通用记号会被判 unknown → 前端按无视觉连接，consult_atlas / locate_roi /
+  // view_current_image 全都不注册，用户只会看到"模型看不见图"。
+  "minimax-m2", "minimax-m3",
 ] as const;
 
 export function nameVision(modelId: string): Vision {

@@ -32,6 +32,10 @@ import {
   PROPOSE_ANNOTATION_TOOL_NAME,
 } from "./tools/propose-annotation.js";
 import {
+  createViewCurrentImageTool,
+  VIEW_CURRENT_IMAGE_TOOL_NAME,
+} from "./tools/view-image.js";
+import {
   createSegmentRegionTool,
   segmentationEgressAllowed,
   SEGMENT_REGION_TOOL_NAME,
@@ -78,6 +82,10 @@ export const defaultToolFactory: HarnessToolFactory = ({
 }) => {
   if (permissionMode === "observe") return [];
   const tools = [createRunTaskTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool];
+  if (connection?.vision) {
+    // 只负责"看见"：不吃 runtime，也不外发——像素只走会话自己那条模型连接。
+    tools.push(createViewCurrentImageTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool);
+  }
   if (connection?.vision && runtime) {
     tools.push(
       createConsultAtlasTool({
@@ -115,6 +123,11 @@ const ATLAS_PROMPT =
   " Glaux also keeps an Atlas: a human-curated casebook of reference images. Consult it with the " +
   "consult_atlas tool before judging what a finding or structure looks like, and cite the case ids you used.";
 
+const VIEW_PROMPT =
+  " You are not looking at the image by default. Call view_current_image to actually see what the user has open, " +
+  "before you describe it, judge it, or answer any question about what it shows. Never describe an image you have " +
+  "not viewed in this conversation, and never treat the viewer context below as a description of the picture.";
+
 const LOCATE_PROMPT =
   " To find where a described structure is, use locate_roi — it is your own vision plus atlas precedent, and it " +
   "understands domain findings a general segmenter does not. It returns rectangles, not exact outlines.";
@@ -136,10 +149,12 @@ function systemPromptFor(
   segment = false,
   propose = false,
   locate = false,
+  view = false,
 ): string {
   const head =
     SYSTEM_PROMPT +
     (atlas ? ATLAS_PROMPT : "") +
+    (view ? VIEW_PROMPT : "") +
     (locate ? LOCATE_PROMPT : "") +
     (segment ? SEGMENT_PROMPT : "") +
     (propose ? PROPOSE_PROMPT : "");
@@ -148,7 +163,12 @@ function systemPromptFor(
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.modality) parts.push(`modality=${viewer.modality}`);
   if (viewer.method) parts.push(`method=${viewer.method}`);
-  return `${head} Viewer context: ${parts.join(", ")}.`;
+  // 措辞刻意强调"目录标签"：这几个字段来自数据集与 UI 选择，不代表画面内容。
+  // 早期版本只给这一行，模型便把标签当观察复述，用户看到的图与模型说的对不上。
+  return (
+    `${head} Viewer context (catalogue labels recorded by the dataset and the UI, ` +
+    `not a description of what the image shows): ${parts.join(", ")}.`
+  );
 }
 
 interface HarnessSlot {
@@ -216,6 +236,7 @@ export class HarnessRegistry {
         tools.some((tool) => tool.name === SEGMENT_REGION_TOOL_NAME),
         tools.some((tool) => tool.name === PROPOSE_ANNOTATION_TOOL_NAME),
         tools.some((tool) => tool.name === LOCATE_ROI_TOOL_NAME),
+        tools.some((tool) => tool.name === VIEW_CURRENT_IMAGE_TOOL_NAME),
       ),
       tools,
     });
