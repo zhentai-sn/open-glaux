@@ -11,6 +11,11 @@ from types import ModuleType
 
 import pytest
 
+# 必须先于任何 app 数据模块导入：science-core 不在 backend 的依赖里，是由 config 在 import 时
+# 插进 sys.path 的（见 config.py「源码装配」）。而 app/__init__.py 是薄壳、不碰 config，
+# 于是 `from app import dataset` 会在 dataset.py 的 `import glaux_core` 处直接炸。
+# 这一行就是那次装配；不要因为「看起来没用到」而删掉或让 linter 合并顺序。
+from app import config as _config  # noqa: F401  isort:skip
 from app import dataset, dataset_ct, dataset_wsi, hc_real, hc_synth
 
 _CACHED_MODULES: tuple[ModuleType, ...] = (
