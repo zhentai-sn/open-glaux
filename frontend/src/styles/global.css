@@ -1982,11 +1982,36 @@ canvas {
 }
 
 /* ---- modality switch (sidebar) ---- */
+/* SDD 08 §5.5/D-9：切换器排版按**容器**宽度定，不按外壳模式——Workbench 侧栏（260px）与
+   Focus 浏览器列（240px）都很窄，且都可拖宽；绑外壳会立刻出现「拖宽了还是竖着」的错配。
+   `.sb-view` 声明为查询容器，`.modsw` 缺省纵向（窄是常态），够宽才转横向分段。 */
+.sb-view {
+  container-type: inline-size;
+  container-name: sbview;
+}
 .modsw {
   display: flex;
+  flex-direction: column;
   gap: 4px;
   padding: 6px 8px 8px;
   border-bottom: 1px solid var(--line);
+}
+/* 阈值 = 候选数 × 120px（§5.5）：120px 是最长模态标签单行放得下的宽度，低于它横排必然折行。
+   CSS 数不了子元素，故候选数由 data-n 带进来，逐档枚举（候选上限即模态数）。 */
+@container sbview (min-width: 240px) {
+  .modsw[data-n="2"] { flex-direction: row; }
+}
+@container sbview (min-width: 360px) {
+  .modsw[data-n="3"] { flex-direction: row; }
+}
+@container sbview (min-width: 480px) {
+  .modsw[data-n="4"] { flex-direction: row; }
+}
+@container sbview (min-width: 600px) {
+  .modsw[data-n="5"] { flex-direction: row; }
+}
+@container sbview (min-width: 720px) {
+  .modsw[data-n="6"] { flex-direction: row; }
 }
 .modseg {
   flex: 1;
@@ -1998,7 +2023,15 @@ canvas {
   border: 1px solid var(--line);
   border-radius: 6px;
   cursor: pointer;
+  /* 纵向排版下每行一枚、标签完整；不截断也不省略号（§5.5 硬约束） */
+  text-align: left;
 }
+@container/* 横排时文字居中；纵排保持左对齐（上面的 text-align:left）。用同一组阈值。 */
+@container sbview (min-width: 240px) { .modsw[data-n="2"] .modseg { text-align: center; } }
+@container sbview (min-width: 360px) { .modsw[data-n="3"] .modseg { text-align: center; } }
+@container sbview (min-width: 480px) { .modsw[data-n="4"] .modseg { text-align: center; } }
+@container sbview (min-width: 600px) { .modsw[data-n="5"] .modseg { text-align: center; } }
+@container sbview (min-width: 720px) { .modsw[data-n="6"] .modseg { text-align: center; } }
 .modseg:hover {
   color: var(--ink);
   border-color: var(--agent-line);

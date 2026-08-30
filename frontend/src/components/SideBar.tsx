@@ -45,7 +45,7 @@ function ModalitySwitch() {
     m === "natural_image" ? t("mod_general_images") : tasks.find((tk) => tk.modality === m)?.label[lang] ?? m;
 
   return (
-    <div className="modsw">
+    <div className="modsw" data-n={opts.length}>
       {opts.map((m) => (
         <button
           key={m}
