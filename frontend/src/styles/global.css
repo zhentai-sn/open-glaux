@@ -2891,6 +2891,36 @@ body.resizing .focus-rail { transition: none; }
 .focus-side-body > * { flex: 1; min-height: 0; }
 .focus-side-body .focus-stage { animation: none; }
 .focus-side-body .sb-view { overflow-y: auto; }
+/* v1.4（SDD 01 D16）：舞台常驻，浏览器列与它左右分栏。窄屏降级态不加 data-split，
+   此时浏览器列走上面的纵向 flex 占满整栏，与 v1.1 的整栏互斥形态一致。 */
+.focus-side-body[data-split="1"] { flex-direction: row; }
+/* 分隔条的 flex:none 定义在本文件更靠前处，会被上面的 `.focus-side-body > *`（同特异度、更靠后）
+   盖成 flex:1 撑成一整列——这里显式收回，别删。 */
+.focus-side-body > .focus-resizer { flex: none; }
+.focus-side-body[data-split="1"] > .focus-side-browser {
+  flex: 0 0 auto;
+  width: var(--focus-browser-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+}
+.focus-side-body[data-split="1"] > .focus-side-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 降级态：浏览器列不定宽，直接占满（选择器不带 data-split，故只命中降级分支）。 */
+.focus-side-body > .focus-side-browser,
+.focus-side-body > .focus-side-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 .focus-stage-empty {
   flex: 1;
   display: flex;

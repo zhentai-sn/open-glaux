@@ -123,9 +123,7 @@ export function applyToolExecutionEvent(event: unknown): boolean {
   s.setSource("agent");
   const model = details.output.provenance?.model_version;
   s.setModelVersion(model === undefined || model === null ? "" : String(model));
-  // SDD 01 v1.1 §7-2：Focus 下结果写回查看器时，右侧栏若展开则切到舞台（折叠时不打扰）
-  if (s.uiMode === "focus" && s.focusLayout.rightOpen && s.focusLayout.rightView !== "stage") {
-    s.setFocusLayout({ rightView: "stage" });
-  }
+  // SDD 01 v1.4 §7-2：舞台已是右侧栏常驻底座，展开即可见，故此处不再切标签——
+  // 旧的「切到舞台」会把用户正在用的浏览器列关掉，正是 D16/D17 要消除的抢占。折叠时不打扰。
   return true;
 }

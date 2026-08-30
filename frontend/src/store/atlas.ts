@@ -39,7 +39,7 @@ export const useAtlasUi = create<AtlasUiState>((set) => ({
  */
 export function revealExemplar(id: string): void {
   const s = useSession.getState();
-  if (s.uiMode === "focus") s.setFocusLayout({ rightView: "atlas", rightOpen: true });
+  if (s.uiMode === "focus") s.setFocusLayout({ browserView: "atlas", rightOpen: true });
   else s.setSidebarView("atlas");
   useAtlasUi.getState().openExemplar(id);
 }

@@ -127,6 +127,8 @@ export const zh: Record<I18nKey, string> = {
   focus_rail_collapse: "收起会话栏",
   focus_resize_rail: "调整会话栏宽度——方向键微调，Home 复位",
   focus_resize_side: "调整右侧栏宽度——方向键微调，Home 复位",
+  focus_resize_browser: "调整浏览器列宽度——方向键微调，Home 复位",
+  focus_browser_close: "关闭浏览器列，只留舞台",
   focus_src_agent: "来源 · agent",
   focus_src_human: "来源 · human",
   focus_example_1_title: "测量颈动脉 IMT",

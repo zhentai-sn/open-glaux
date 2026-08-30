@@ -103,7 +103,7 @@ describe("AtlasRefCard", () => {
   it("点开条目 → focus 右侧切 atlas 并进入该案例详情", async () => {
     wrap({ trace_id: "t", candidate_ids: ["a"], selected_ids: ["a"], excluded_by_egress: 0, snapshots: [] });
     fireEvent.click(await screen.findByTestId("atlas-ref-item"));
-    expect(useSession.getState().focusLayout.rightView).toBe("atlas");
+    expect(useSession.getState().focusLayout.browserView).toBe("atlas");
     expect(useAtlasUi.getState()).toMatchObject({ screen: "detail", selectedId: "a" });
   });
 });

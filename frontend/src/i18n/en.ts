@@ -131,6 +131,8 @@ export const en = {
   focus_rail_collapse: "Collapse sessions",
   focus_resize_rail: "Resize sessions pane — arrow keys adjust, Home resets",
   focus_resize_side: "Resize side panel — arrow keys adjust, Home resets",
+  focus_resize_browser: "Resize browser column — arrow keys adjust, Home resets",
+  focus_browser_close: "Close browser column, stage only",
   focus_src_agent: "source · agent",
   focus_src_human: "source · human",
   focus_example_1_title: "Measure carotid IMT",

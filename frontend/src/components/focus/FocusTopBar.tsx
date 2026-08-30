@@ -31,7 +31,7 @@ function ImageContextChip() {
       className={"focus-ctx" + (activeId ? "" : " empty")}
       title={t("focus_ctx_open")}
       aria-label={t("focus_ctx_open")}
-      onClick={() => setFocusLayout({ rightOpen: true, rightView: "files" })}
+      onClick={() => setFocusLayout({ rightOpen: true, browserView: "files" })}
     >
       <Icon icon={ICONS.folder} size="sm" className="focus-ctx-glyph" />
       {modalityLabel && <span className="focus-ctx-modality">{modalityLabel}</span>}

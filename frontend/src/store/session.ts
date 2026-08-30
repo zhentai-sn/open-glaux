@@ -76,13 +76,25 @@ export type UiMode = "focus" | "workbench";
 const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版本，旧键作废回默认
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
-/** Focus 右侧栏当前标签（SDD feats/01 v1.1 §9 / D10；feats/03 D-19 v2）：舞台 / 文件 / 图谱。 */
-export type FocusRightView = "stage" | "files" | "atlas";
-const RIGHT_VIEWS: readonly FocusRightView[] = ["stage", "files", "atlas"];
+/**
+ * Focus 右侧栏的浏览器列（SDD feats/01 v1.4 §9 / D16、D18）：文件 / 图谱，二者互斥。
+ * `null` = 浏览器列关闭，侧栏纯舞台——舞台自 v1.4 起常驻，不再是三标签之一，故枚举里没有 "stage"。
+ */
+export type FocusBrowserView = "files" | "atlas";
+const BROWSER_VIEWS: readonly FocusBrowserView[] = ["files", "atlas"];
 
 /** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——对话列由 CONVERSATION_MIN_W 保底，右侧图像栏允许占据更大空间。 */
 export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
 export const SIDE_W = { min: 280, max: 1200 } as const;
+/** 右侧栏内浏览器列的允许宽度（SDD feats/01 v1.4 §9）。 */
+export const BROWSER_W = { min: 240, max: 480, def: 300 } as const;
+/** 分栏时舞台的最低宽度：浏览器列的拖拽上界由「实测侧栏宽 − 此值」反向夹住。 */
+export const STAGE_MIN = 360;
+/**
+ * 侧栏分栏阈值（SDD feats/01 v1.4 §9）——低于 `enter` 退回整栏互斥，高于 `exit` 才恢复分栏。
+ * 24px 迟滞：否则拖到临界宽度时会在两种形态间反复重排。
+ */
+export const SIDE_SPLIT = { enter: 640, exit: 664 } as const;
 /** 对话列的最低可用宽度：拖拽时两侧栏被此值反向夹住（窄窗口的上界另由 CSS max-width 兜底）。 */
 export const CONVERSATION_MIN_W = 360;
 
@@ -93,14 +105,16 @@ export const CONVERSATION_MIN_W = 360;
 export interface FocusLayout {
   railOpen: boolean;
   rightOpen: boolean;
-  rightView: FocusRightView;
+  browserView: FocusBrowserView | null;
+  browserW: number | null;
   railW: number | null;
   sideW: number | null;
 }
 export const FOCUS_LAYOUT_DEFAULTS: FocusLayout = {
   railOpen: false,
   rightOpen: true,
-  rightView: "stage",
+  browserView: null,
+  browserW: null,
   railW: null,
   sideW: null,
 };
@@ -129,19 +143,25 @@ function loadFocusLayout(): FocusLayout {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         // v1.0 存的是 stageOpen（舞台开合）；v1.1 起为右侧栏 rightOpen——旧值迁移，字段级校验
-        const p = parsed as Partial<FocusLayout> & { stageOpen?: unknown };
+        const p = parsed as Partial<FocusLayout> & { stageOpen?: unknown; rightView?: unknown };
         const rightOpen =
           typeof p.rightOpen === "boolean"
             ? p.rightOpen
             : typeof p.stageOpen === "boolean"
               ? p.stageOpen
               : FOCUS_LAYOUT_DEFAULTS.rightOpen;
+        // v1.1–v1.3 存的是三值 rightView；v1.4 起舞台常驻，"stage" 即「没有浏览器列」→ null。
+        // 非法值同样落 null（纯舞台是最保守的形态：不会把用户丢进一个空浏览器）。
+        const legacy = BROWSER_VIEWS.includes(p.rightView as FocusBrowserView)
+          ? (p.rightView as FocusBrowserView)
+          : null;
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
           rightOpen,
-          rightView: (RIGHT_VIEWS as readonly unknown[]).includes(p.rightView)
-            ? (p.rightView as FocusRightView)
-            : FOCUS_LAYOUT_DEFAULTS.rightView,
+          browserView: BROWSER_VIEWS.includes(p.browserView as FocusBrowserView)
+            ? (p.browserView as FocusBrowserView)
+            : legacy,
+          browserW: loadWidth(p.browserW, BROWSER_W),
           railW: loadWidth(p.railW, RAIL_W),
           sideW: loadWidth(p.sideW, SIDE_W),
         };

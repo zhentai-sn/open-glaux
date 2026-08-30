@@ -1,5 +1,5 @@
 // 图谱页面 store 契约（SDD feats/03 §8 / §9 / D-14）：sidebarView 可为 atlas；
-// focusLayout.rightView 缺省 stage、损坏回退 stage、设置持久化；revealExemplar 按外壳模式亮出面板。
+// focusLayout.browserView 缺省 null、旧 rightView 迁移、损坏回退 null、设置持久化；revealExemplar 按外壳模式亮出面板。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1";
@@ -21,38 +21,66 @@ describe("sidebarView = atlas", () => {
   });
 });
 
-describe("focusLayout.rightView", () => {
+describe("focusLayout.browserView（SDD 01 v1.4 §9/§15）", () => {
   beforeEach(() => localStorage.clear());
 
-  it("缺省 stage", async () => {
+  const EMPTY = { railOpen: false, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null };
+
+  it("缺省 null（纯舞台）", async () => {
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout.rightView).toBe("stage");
+    expect(useSession.getState().focusLayout.browserView).toBeNull();
   });
 
-  it("v1.0 持久化 {railOpen, stageOpen} → stageOpen 迁移为 rightOpen，rightView 补 stage（SDD 01 v1.1 §9）", async () => {
+  it("v1.0 持久化 {railOpen, stageOpen} → stageOpen 迁移为 rightOpen，browserView 落 null", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: true, stageOpen: false }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: false, rightView: "stage", railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ ...EMPTY, railOpen: true, rightOpen: false });
   });
 
-  it("rightOpen 优先于旧 stageOpen；files 为合法 rightView", async () => {
+  // v1.1–v1.3 的三值 rightView 迁移：舞台常驻后 "stage" 就是「没有浏览器列」。
+  it("旧 rightView:'stage' → browserView null", async () => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightOpen: true, rightView: "stage" }));
+    const { useSession } = await fresh();
+    expect(useSession.getState().focusLayout).toEqual(EMPTY);
+  });
+
+  it("旧 rightView:'files'/'atlas' → 原样保留为 browserView", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightOpen: true, stageOpen: false, rightView: "files" }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, rightView: "files", railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ ...EMPTY, browserView: "files" });
+
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightView: "atlas" }));
+    const second = await fresh();
+    expect(second.useSession.getState().focusLayout.browserView).toBe("atlas");
   });
 
-  it("损坏值 → 回退 stage", async () => {
+  it("损坏值 → 回退 null", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightView: "banana" }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout.rightView).toBe("stage");
+    expect(useSession.getState().focusLayout.browserView).toBeNull();
+
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ browserView: "banana" }));
+    const second = await fresh();
+    expect(second.useSession.getState().focusLayout.browserView).toBeNull();
   });
 
-  it("合法值 atlas → 恢复；setFocusLayout 持久化", async () => {
-    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightView: "atlas" }));
+  it("新字段优先于旧 rightView；setFocusLayout 持久化", async () => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ browserView: "atlas", rightView: "files" }));
     const { useSession } = await fresh();
-    expect(useSession.getState().focusLayout.rightView).toBe("atlas");
-    useSession.getState().setFocusLayout({ rightView: "stage" });
-    expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY)!).rightView).toBe("stage");
+    expect(useSession.getState().focusLayout.browserView).toBe("atlas");
+    useSession.getState().setFocusLayout({ browserView: null });
+    expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY)!).browserView).toBeNull();
+  });
+
+  it("browserW 越界夹回 [240,480]，非法值回 null", async () => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ browserW: 9000 }));
+    expect((await fresh()).useSession.getState().focusLayout.browserW).toBe(480);
+
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ browserW: 10 }));
+    expect((await fresh()).useSession.getState().focusLayout.browserW).toBe(240);
+
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ browserW: "x" }));
+    expect((await fresh()).useSession.getState().focusLayout.browserW).toBeNull();
   });
 });
 
@@ -88,9 +116,9 @@ describe("revealExemplar", () => {
   it("focus 模式 → 右侧栏展开并切到图谱标签；详情指向该案例", async () => {
     const { useSession, useAtlasUi, revealExemplar } = await fresh();
     useSession.setState({ uiMode: "focus" });
-    useSession.getState().setFocusLayout({ rightOpen: false, rightView: "stage" });
+    useSession.getState().setFocusLayout({ rightOpen: false, browserView: null });
     revealExemplar("ex-1");
-    expect(useSession.getState().focusLayout).toMatchObject({ rightView: "atlas", rightOpen: true });
+    expect(useSession.getState().focusLayout).toMatchObject({ browserView: "atlas", rightOpen: true });
     expect(useAtlasUi.getState()).toMatchObject({ screen: "detail", selectedId: "ex-1" });
   });
 
