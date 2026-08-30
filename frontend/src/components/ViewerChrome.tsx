@@ -8,6 +8,7 @@ import { useSession, type Tool } from "../store/session";
 import type { ClassSpec, Primitive } from "../api/types";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
+import { TOOL_HINT } from "./toolHint";
 
 // CT 标准窗宽窗位预设（HU）——医学常识常数；标签走 i18n（chrome_preset_*）。
 const CT_PRESETS = [
@@ -33,7 +34,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   const tools = useMemo(() => {
     const caps = new Set(tv?.capabilities ?? []);
     return (tv?.tools ?? []).filter((tl) => {
-      if (tl.id === "bbox" || tl.id === "polygon" || tl.id === "brush") return caps.has(tl.id);
+      if (tl.id === "bbox" || tl.id === "polygon" || tl.id === "brush" || tl.id === "wall") return caps.has(tl.id);
       return true; // cursor/reset 恒在
     });
   }, [tv]);
@@ -46,7 +47,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
 
   const { brush, voi } = toolOptions;
   const isCt = modality === "ct_abdomen";
-  const hintKey = tool === "bbox" ? "chrome_hint_bbox" : tool === "polygon" ? "chrome_hint_polygon" : null;
+  const hintKey = TOOL_HINT[tool] ?? null;
 
   return (
     <>

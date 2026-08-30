@@ -132,7 +132,7 @@ class TaskPlugin:
     viewer: str  # 前端查看器引擎提示："raster_2d" | "volume_3d" | "wsi" | "video"
     tools: tuple[ToolDef, ...]
     overlays: tuple[OverlaySpec, ...]
-    capabilities: tuple[str, ...] = ()  # SDD 04：引擎能力位（"bbox"/"polygon"/"brush"），wsi 无 brush
+    capabilities: tuple[str, ...] = ()  # SDD 04：引擎能力位（"bbox"/"polygon"/"brush"/"wall"），wsi 无 brush
     on_commit: dict | None = None  # SDD 04：标注落库后钩子，如 {"bbox": {"action": "run_task"}}
 
 
@@ -208,6 +208,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
             ToolDef("bbox", "▭", "Bounding box", "框标注"),
             ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
+            ToolDef("wall", "≈", "Wall edit", "壁线编辑"),
             ToolDef("brush", "✎", "Brush", "画笔"),
             ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
@@ -215,7 +216,9 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("LI", "#4FB0FF", editable=True),
             OverlaySpec("MA", "#FF8A5B", editable=True),
         ),
-        capabilities=("bbox", "polygon", "brush"),
+        # "wall" 是 IMT 专属能力位：壁线形变手柄自成一个工具，不再占用 polygon。
+        # polygon 在所有模态一律是自由多边形（落 /annotations），语义不因模态而变。
+        capabilities=("bbox", "polygon", "brush", "wall"),
     ),
     TaskType.FETAL_HC: TaskPlugin(
         task=TaskType.FETAL_HC,

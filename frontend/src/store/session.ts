@@ -155,8 +155,12 @@ function loadFocusLayout(): FocusLayout {
 
 export type View = "explorer" | "market" | "atlas"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD feats/03）
 export type PanelTab = "meas" | "out" | "prob" | "term";
-/** SDD 04：统一工具集合——替代旧的 editli/editma/roi（任务专属编辑并入 polygon/bbox 语义）。 */
-export type Tool = "cursor" | "bbox" | "polygon" | "brush" | "reset";
+/**
+ * SDD 04：统一工具集合——替代旧的 editli/editma/roi（roi 更名 bbox）。
+ * `wall` 是任务专属编辑（IMT 壁线形变），单独占一个工具位：曾经把它挂在 polygon 上，
+ * 结果 IMT 模态的「多边形标注」既画不出多边形、无壁线时还静默无响应。
+ */
+export type Tool = "cursor" | "bbox" | "polygon" | "wall" | "brush" | "reset";
 
 /** SDD 04：工具参数（随 switchModality 复位）——从查看器本地 state 提升为全局真相源。 */
 export interface ToolOptions {

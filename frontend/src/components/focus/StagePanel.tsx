@@ -1,9 +1,12 @@
+import { useMemo } from "react";
+
 import { reRunActiveModel } from "../../data/actions";
 import { useI18n } from "../../i18n";
 import { useSession, type Tool } from "../../store/session";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
+import { TOOL_HINT } from "../toolHint";
 import { Viewer } from "../Viewer";
 
 // 图像舞台（SDD feats/01 §8）——Focus 的一等区域：同步核对回路的落点（纲领 G4）。
@@ -27,7 +30,14 @@ export function StagePanel() {
 
   const image = activeImage ?? activeVolume ?? activeSlide;
   const tv = tasks.find((tk) => tk.modality === modality);
-  const tools = tv?.tools ?? [];
+  // 工具按钮 = 注册表 tools × 引擎能力位过滤（与 ViewerChrome 同一规则；
+  // 曾只有 IDE 外壳过滤，Focus 会把没有能力位的工具也摆出来，点下去静默失效）
+  const tools = useMemo(() => {
+    const caps = new Set(tv?.capabilities ?? []);
+    return (tv?.tools ?? []).filter((tl) =>
+      tl.id === "bbox" || tl.id === "polygon" || tl.id === "brush" || tl.id === "wall" ? caps.has(tl.id) : true,
+    );
+  }, [tv]);
 
   // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {
@@ -38,6 +48,9 @@ export function StagePanel() {
     }
     setTool(id);
   };
+
+  // 绘制提示（与 IDE 外壳同源）——Focus 此前不显示任何提示，用户无从得知交互方式
+  const hintKey = TOOL_HINT[tool] ?? null;
 
   // 度量摘要（注册表顺序，仅列 store.metrics 里存在的项）
   const entries = tv && metrics ? tv.metrics.map((m) => metrics[m.key]).filter(Boolean) : [];
@@ -68,6 +81,7 @@ export function StagePanel() {
             <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" /> <span>{tl.label[lang]}</span>
           </button>
         ))}
+        {hintKey && <span className="focus-stage-hint">{t(hintKey)}</span>}
         <span className="focus-stage-grow" />
         {loading && <span className="focus-stage-busy"><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
       </div>

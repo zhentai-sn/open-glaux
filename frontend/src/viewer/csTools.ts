@@ -15,12 +15,12 @@ import {
   WindowLevelTool,
   ZoomTool,
   addTool,
+  annotation,
   init as toolsInit,
   type Types as ToolTypes,
 } from "@cornerstonejs/tools";
 
 import type { Tool, ToolOptions } from "../store/session";
-import type { Modality } from "../api/types";
 import { ImtWallHandleTool } from "./imtWallTool";
 
 let _ready: Promise<void> | null = null;
@@ -46,6 +46,13 @@ export function csToolsReady(): Promise<void> {
 const PRIMARY = { bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }] };
 const WHEEL = { bindings: [{ mouseButton: ToolEnums.MouseBindings.Wheel }] };
 
+// 3.33.5 的 AnnotationStyle d.ts 的 Properties 联合漏了 `textBoxVisibility`——但运行期
+// 默认样式表与 AnnotationTool.getLinkedTextBoxStyle 都在读它，是 d.ts 的缺口而非无此开关。
+// 故此处显式断言一次（集中在这个常量里，调用点保持干净）。
+const HIDE_TEXT_BOX = {
+  global: { textBoxVisibility: false },
+} as unknown as ToolTypes.AnnotationStyle.ToolStyleConfig;
+
 /** 新建 ToolGroup 并挂 viewport + 全部工具（id 冲突先拆旧组）。 */
 export function createToolGroup(
   groupId: string,
@@ -59,6 +66,11 @@ export function createToolGroup(
   }
   const tg = ToolGroupManager.createToolGroup(groupId);
   if (!tg) return null; // spike 注意项：id 重复 → undefined，防御返回
+  // 关掉 CS3D 的标注数值标签（Area/Mean/Max/Std Dev/Perimeter + 那条虚线引线）。
+  // 两个理由：①这些是 CS3D 自带的测量值，而本项目的权威口径在 /task/measure（见文件头），
+  //   把非权威数字摆在图上会被误读成测量结果；②每个标注挂一块多行文本，几个标注就糊满画布。
+  // 用框架自己的样式开关（textBoxVisibility），作用域限本 ToolGroup，不改全局默认样式。
+  annotation.config.style.setToolGroupToolStyles(groupId, HIDE_TEXT_BOX);
   tg.addViewport(viewportId, renderingEngineId);
   tg.addTool(RectangleROITool.toolName);
   tg.addTool(PlanarFreehandROITool.toolName);
@@ -82,8 +94,9 @@ export function destroyToolGroup(groupId: string): void {
 
 /**
  * store.tool → ToolGroup 激活态映射（SDD 04 §7.1）。
- * `capabilities` 为注册表引擎能力位（wsi 无 brush 等）；越界工具回退 pan。
- * IMT 模态的 polygon 激活壁线形变手柄（D-12/D-14：任务绑定几何优先）。
+ * `capabilities` 为注册表引擎能力位（wsi 无 brush、仅 IMT 有 wall 等）；越界工具回退 pan。
+ * 工具与模态**解耦**：polygon 一律是自由多边形，壁线形变走独立的 wall 工具（D-12/D-14：
+ * 壁线数据归属仍是 Detection，提交走 /task/measure，不落 /annotations）。
  * `opts.wheelZoom=false`（volume_3d）：滚轮留给查看器切 z，不绑 ZoomTool。
  */
 export function activateTool(
@@ -91,7 +104,6 @@ export function activateTool(
   tool: Tool,
   capabilities: readonly string[],
   options?: ToolOptions,
-  modality?: Modality,
   opts?: { wheelZoom?: boolean },
 ): void {
   // 复位：**标注类**工具退到 passive 而非 disabled——CS3D 只渲染 active/passive/enabled 的
@@ -117,11 +129,9 @@ export function activateTool(
   if (tool === "bbox" && capabilities.includes("bbox")) {
     tg.setToolActive(RectangleROITool.toolName, PRIMARY);
   } else if (tool === "polygon" && capabilities.includes("polygon")) {
-    if (modality === "carotid_imt") {
-      tg.setToolActive(ImtWallHandleTool.toolName, PRIMARY);
-    } else {
-      tg.setToolActive(PlanarFreehandROITool.toolName, PRIMARY);
-    }
+    tg.setToolActive(PlanarFreehandROITool.toolName, PRIMARY);
+  } else if (tool === "wall" && capabilities.includes("wall")) {
+    tg.setToolActive(ImtWallHandleTool.toolName, PRIMARY);
   } else if (tool === "brush" && capabilities.includes("brush")) {
     if (options) {
       tg.setToolConfiguration(BrushTool.toolName, { radius: options.brush.radius });

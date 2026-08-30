@@ -63,8 +63,8 @@ def test_tasks_registry_exposed():
     assert imt["viewer"] == "raster_2d" and imt["adapter_kind"] == "wall_pair"
     assert imt["modality"] == "carotid_imt" and by_id["fetal_hc"]["modality"] == "fetal_hc"
     assert any(m["key"] == "IMT_mean" for m in imt["metrics"])
-    assert {t["id"] for t in imt["tools"]} >= {"cursor", "bbox", "polygon", "brush"}
-    assert imt["capabilities"] == ["bbox", "polygon", "brush"]  # SDD 04 能力位下发
+    assert {t["id"] for t in imt["tools"]} >= {"cursor", "bbox", "polygon", "wall", "brush"}
+    assert imt["capabilities"] == ["bbox", "polygon", "brush", "wall"]  # SDD 04 能力位下发
     assert imt["overlays"][0]["role"] == "LI"
     hc = by_id["fetal_hc"]
     assert hc["adapter_kind"] == "contour"

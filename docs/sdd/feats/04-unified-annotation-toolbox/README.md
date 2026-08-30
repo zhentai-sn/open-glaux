@@ -100,7 +100,7 @@ flowchart LR
 
 | 现有 | 替换为 | 行为保持 |
 | --- | --- | --- |
-| IMT `editli/editma` 高斯手柄 | CS3D 自定义 BaseTool（D-12/D-16） | 拖手柄形变壁线不变；`polygon` 按钮在 IMT 专属壁线编辑 |
+| IMT `editli/editma` 高斯手柄 | CS3D 自定义 BaseTool（D-12/D-17） | 拖手柄形变壁线不变；入口是独立的 `wall` 按钮（不再占用 `polygon`） |
 | WSI `roi` 框选 | 通用 `bbox` | 框落库为标注 + `on_commit` 触发核检测（双语义） |
 | CT 私有画笔 | 通用 `brush`（CS3D） | 提交仍走 `POST /volume/{id}/mask-edit`（§7.4） |
 
@@ -108,8 +108,9 @@ flowchart LR
 
 ### 7.1 工具集合与声明
 
-- 统一 `Tool` 集合：`cursor / bbox / polygon / brush / reset`；store 新增 `toolOptions`（`brush: {mode, class_id, radius}`、`voi: {ww, wl}`），随 `switchModality` 复位；
-- `TaskPlugin` 新增引擎级能力声明：`raster_2d` 支持 cursor/bbox/polygon/brush；`volume_3d` 同左 + `{z_scroll, voi}`；`wsi` 支持 cursor/bbox/polygon（brush 无服务端落点，禁用）；
+- 统一 `Tool` 集合：`cursor / bbox / polygon / brush / reset`，外加任务专属编辑工具 `wall`（IMT 壁线形变，D-17）；store 新增 `toolOptions`（`brush: {mode, class_id, radius}`、`voi: {ww, wl}`），随 `switchModality` 复位；
+- `TaskPlugin` 新增引擎级能力声明：`raster_2d` 支持 cursor/bbox/polygon/brush（IMT 另有 `wall`）；`volume_3d` 同左 + `{z_scroll, voi}`；`wsi` 支持 cursor/bbox/polygon（brush 无服务端落点，禁用）；
+- **通用工具的语义不因模态而变**：`polygon` 在任何模态都是自由多边形（落 `/annotations`）。任务专属编辑另立工具位，通过能力位限定可见范围——把专属交互塞进通用按钮会让该按钮在那个模态下"画不出东西"，且在前置产物缺失时静默失效；
 - 工具栏显示 = 引擎能力 ∩ 任务推荐；StatusBar 工具展示从注册表取，禁止硬编码表；
 - `reset` 只重跑活动模型（影响 Detection），不清标注。
 
@@ -258,6 +259,7 @@ stateDiagram-v2
 - [ ] CT 模态 `store.tool === "brush"` 生效（共享工具栏画笔按钮可用），VolumeViewer 本地 `brushOn` 与私有工具条删除；StatusBar 工具显示随注册表，`TOOL_LABEL` 硬编码表删除。
 - [ ] WSI 用 bbox 框选：框落库为标注且触发核检测（`on_commit`），检测行为（计数/密度）与旧 ROI 工具一致；框选过小（<24px）仍提示不触发。
 - [ ] IMT 壁线编辑经统一框架完成，`/task/measure` 输出与替换前一致（同一图像同一形变的 IMT_mean 偏差 ≤ 1e-6 mm）。
+- [ ] IMT 模态下 `polygon` 画的是自由多边形并落 `/annotations`；壁线形变在独立的 `wall` 按钮下（D-17），两者互不遮蔽。
 - [ ] `PATCH` 携带过期 `base_seq` 时返回 409 且不落写；前端收到 409 时 Notice 提示并丢弃过期响应，不覆盖最新态。
 - [ ] `POST` 几何越出图像 dims 时返回 422 `INVALID_GEOMETRY`，前端草稿被移除。
 - [ ] `switchModality` 后 `tool` 回 `cursor`、`toolOptions` 复位，无跨模态状态泄漏（连续切换三模态后各工具行为正常）。
@@ -279,7 +281,8 @@ stateDiagram-v2
 | D-13 | CT brush 不走 `/annotations`，仍走 `mask-edit` | 统一到 annotations | labelmap 是任务结果而非标注；成熟闭环不重写 | 2026-08-16 |
 | D-14 | IMT 壁线编辑仍走既有 `/task` 编辑端点（交互换通用折线编辑），不走 `/annotations` | 统一到 annotations | 壁线编辑必须同步重算测量（`/task/measure` 权威口径）；数据归属 Detection 而非自由标注 | 2026-08-16 |
 | D-15 | 2D/CT brush 宿主退化为 overlay 自持 mask 缓冲（提交分别走 `/annotations` kind=mask / `mask-edit`）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；退化方案行为等价且不阻塞本期交付 | 2026-08-17 |
-| D-16 | IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存 | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
+| D-16 | ~~IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存~~ **已被 D-17 推翻** | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
+| D-17 | 壁线形变独立成 `wall` 工具（IMT 专属能力位），`polygon` 归还给自由多边形；两者各占一个工具位 | 维持 D-16 的单入口复用 | D-16 的前提「主键交互只能激活一个工具」不成立——工具位本就互斥切换，多一个按钮不冲突。实际代价是：IMT 上「多边形标注」画不出多边形，且 caroSegDeep 未产出壁线时（`editableWalls()` 为空）连形变都没有，按下鼠标直接 return，用户看到的是**完全静默**的按钮。通用工具的语义必须跨模态一致 | 2026-08-30 |
 
 ## 17. 待确认问题
 

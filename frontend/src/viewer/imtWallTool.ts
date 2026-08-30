@@ -55,14 +55,20 @@ export class ImtWallHandleTool extends BaseTool {
     return vp.worldToCanvas(world) as [number, number];
   }
 
-  mouseDownCallback(evt: ToolTypes.EventTypes.InteractionEventType): void {
+  /**
+   * 按下抓手柄。**必须是 `preMouseDownCallback`**：CS3D 的 mouseDown 分发器只调
+   * `preMouseDownCallback` / `postMouseDownCallback`（见 eventDispatchers/mouseEventHandlers/
+   * mouseDown.js），压根不认 `mouseDownCallback`——挂错名字则 drag 状态永不建立，
+   * 后续 mouseDrag/mouseUp 全部早退，工具静默失效。返回 true 表示事件已消费。
+   */
+  preMouseDownCallback(evt: ToolTypes.EventTypes.InteractionEventType): boolean {
     const imageId = this.imageId();
-    if (!imageId) return;
+    if (!imageId) return false;
     const walls = this.editableWalls();
-    if (!walls.length) return;
+    if (!walls.length) return false;
     const world = evt.detail.currentPoints.world;
     const hitCanvas = this.toCanvas(evt, world);
-    if (!hitCanvas) return;
+    if (!hitCanvas) return false;
     for (const poly of walls) {
       for (const i of sampleHandles(poly.points)) {
         const w = csCoreUtils.imageToWorldCoords(imageId, poly.points[i] as CoreTypes.Point2) as CoreTypes.Point3;
@@ -80,10 +86,11 @@ export class ImtWallHandleTool extends BaseTool {
             sigma,
             prePrims: clonePrims(useSession.getState().primitives),
           };
-          return;
+          return true;
         }
       }
     }
+    return false; // 未命中手柄：让位给分发器后续处理（不吞事件）
   }
 
   mouseDragCallback(evt: ToolTypes.EventTypes.InteractionEventType): void {

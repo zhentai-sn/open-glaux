@@ -6,13 +6,14 @@ import { ViewerChrome } from "./ViewerChrome";
 import { I18nProvider } from "../i18n";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
-import { TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
+import { TOOL_OPTIONS_DEFAULTS, useSession, type Tool } from "../store/session";
 import type { TaskView } from "../api/types";
 
 const UNIFIED_TOOLS = [
   { id: "cursor", glyph: "▸", label: { en: "Select / Pan", zh: "选择 / 平移" } },
   { id: "bbox", glyph: "▭", label: { en: "Bounding box", zh: "框标注" } },
   { id: "polygon", glyph: "⬠", label: { en: "Polygon", zh: "多边形标注" } },
+  { id: "wall", glyph: "≈", label: { en: "Wall edit", zh: "壁线编辑" } },
   { id: "brush", glyph: "✎", label: { en: "Brush", zh: "画笔" } },
   { id: "reset", glyph: "⟲", label: { en: "Reset to model", zh: "重置为模型输出" } },
 ];
@@ -33,11 +34,11 @@ function makeTask(modality: TaskView["modality"], capabilities: string[]): TaskV
   };
 }
 
-function mount(modality: TaskView["modality"], capabilities: string[]) {
+function mount(modality: TaskView["modality"], capabilities: string[], tool: Tool = "cursor") {
   useSession.setState({
     modality,
     tasks: [makeTask(modality, capabilities)],
-    tool: "cursor",
+    tool,
     toolOptions: { brush: { ...TOOL_OPTIONS_DEFAULTS.brush }, voi: { ...TOOL_OPTIONS_DEFAULTS.voi } },
     primitives: [],
   });
@@ -56,9 +57,10 @@ beforeEach(() => {
 // 按钮内容 = lucide 图标（SDD 06）+ .tip 文案（注册表 label，SDD 04）；
 // 断言走文案，不再断言 glyph 字符——字符渲染已随 SDD 06 退役。
 describe("引擎能力位过滤", () => {
-  it("WSI（capabilities 无 brush）不渲染画笔按钮，bbox/polygon 在", () => {
+  it("WSI（capabilities 无 brush/wall）不渲染画笔与壁线按钮，bbox/polygon 在", () => {
     mount("pathology", ["bbox", "polygon"]);
     expect(screen.queryByText("Brush")).toBeNull();
+    expect(screen.queryByText("Wall edit")).toBeNull();
     expect(screen.getByText("Bounding box")).toBeTruthy();
     expect(screen.getByText("Polygon")).toBeTruthy();
     expect(screen.getByText("Select / Pan")).toBeTruthy(); // cursor 恒在
@@ -70,11 +72,29 @@ describe("引擎能力位过滤", () => {
     expect(screen.getByText("Brush")).toBeTruthy();
   });
 
-  it("raster_2d 三能力齐备", () => {
-    mount("carotid_imt", ["bbox", "polygon", "brush"]);
+  it("raster_2d 四能力齐备（IMT 含壁线编辑）", () => {
+    mount("carotid_imt", ["bbox", "polygon", "brush", "wall"]);
     expect(screen.getByText("Bounding box")).toBeTruthy();
     expect(screen.getByText("Polygon")).toBeTruthy();
     expect(screen.getByText("Brush")).toBeTruthy();
+    expect(screen.getByText("Wall edit")).toBeTruthy();
+  });
+});
+
+// 提示必须与工具的真实交互一致：CS3D PlanarFreehandROI 是按住拖拽勾画，
+// 旧文案「逐点点击顶点」照做画不出任何东西（回归夹具）。
+describe("绘制提示", () => {
+  it("polygon 态显示拖拽勾画提示，且不含逐点点击的说法", () => {
+    mount("carotid_imt", ["bbox", "polygon", "brush", "wall"], "polygon");
+    expect(screen.getByText(en.chrome_hint_polygon)).toBeTruthy();
+    expect(en.chrome_hint_polygon).toMatch(/drag/i);
+    expect(en.chrome_hint_polygon).not.toMatch(/click vertices/i);
+  });
+
+  it("wall 态显示壁线提示，与 polygon 不共用一条", () => {
+    mount("carotid_imt", ["bbox", "polygon", "brush", "wall"], "wall");
+    expect(screen.getByText(en.chrome_hint_wall)).toBeTruthy();
+    expect(en.chrome_hint_wall).not.toBe(en.chrome_hint_polygon);
   });
 });
 
@@ -83,6 +103,7 @@ describe("i18n 键", () => {
     const keys = [
       "chrome_hint_bbox",
       "chrome_hint_polygon",
+      "chrome_hint_wall",
       "chrome_brush_paint",
       "chrome_brush_erase",
       "chrome_brush_radius",

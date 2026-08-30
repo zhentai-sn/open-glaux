@@ -87,11 +87,15 @@ export const zh: Record<I18nKey, string> = {
   tl_cursor: "选择",
   tl_bbox: "框标注",
   tl_polygon: "多边形标注",
+  tl_wall: "壁线编辑",
   tl_brush: "画笔",
   tl_reset: "重置为模型输出",
   // 统一标注外壳（SDD 04）
   chrome_hint_bbox: "在图上拖拽画框；点已有框可选中调整",
-  chrome_hint_polygon: "依次点击顶点，双击闭合轮廓",
+  // 提示必须与 CS3D PlanarFreehandROI 的真实交互一致：它是按住拖拽勾画，MOUSE_CLICK
+  // 直接结束绘制，且点数不足会丢弃标注——旧文案写"逐点点击"，照做画不出任何东西。
+  chrome_hint_polygon: "按住拖拽勾画轮廓，松开自动闭合；点已有轮廓可选中调整",
+  chrome_hint_wall: "拖动壁线上的手柄调整形状；未检出壁线时先运行模型",
   chrome_brush_paint: "画",
   chrome_brush_erase: "擦",
   chrome_brush_radius: "半径",

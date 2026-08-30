@@ -31,12 +31,14 @@ describe("useGlobalKeys（SDD feats/05）", () => {
     (document.activeElement as HTMLElement | null)?.blur?.();
   });
 
-  it("body 焦点下单键 R/P/B/V 切换工具（SDD 04 统一工具集）", () => {
+  it("body 焦点下单键 R/P/W/B/V 切换工具（SDD 04 统一工具集 + 壁线编辑）", () => {
     render(createElement(Harness));
     press({ key: "r" });
     expect(useSession.getState().tool).toBe("bbox");
     press({ key: "p" });
     expect(useSession.getState().tool).toBe("polygon");
+    press({ key: "w" });
+    expect(useSession.getState().tool).toBe("wall");
     press({ key: "b" });
     expect(useSession.getState().tool).toBe("brush");
     press({ key: "v" });

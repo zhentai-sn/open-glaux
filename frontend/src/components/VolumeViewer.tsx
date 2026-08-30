@@ -213,8 +213,8 @@ export function VolumeViewer() {
     if (!ready) return;
     const tg = ToolGroupManager.getToolGroup(TG_ID);
     if (!tg) return;
-    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, modality, { wheelZoom: false });
-  }, [ready, tool, toolOptions, capabilities, modality]);
+    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, { wheelZoom: false });
+  }, [ready, tool, toolOptions, capabilities]);
 
   // 切 volume → 建每帧一个 imageId 的 stack + 设 numSlices
   useEffect(() => {

@@ -2401,6 +2401,16 @@ body.resizing .focus-rail { transition: none; }
 .focus-tool[aria-pressed="true"] { background: var(--agent-dim); color: var(--agent); }
 .focus-stage-grow { flex: 1; }
 .focus-stage-busy { color: var(--agent); font-size: 11px; }
+.focus-stage-hint {
+  color: var(--faint);
+  font-size: 11px;
+  margin-left: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .focus-stage-metrics {
   display: flex;
   align-items: center;

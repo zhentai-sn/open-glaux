@@ -40,6 +40,7 @@ import {
   Sparkles,
   Spline,
   Square,
+  Waves,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -50,13 +51,14 @@ import type { Tool } from "../store/session";
 // 未知键回退 FALLBACK_ICON（替代旧 ◇），不崩不空白。
 export const FALLBACK_ICON: LucideIcon = Diamond;
 
-// 工具（当前 IMT 集；随 SDD 04 工具集迁移，与 SDD 05 键位映射同源，D-2）
-// SDD 04 统一工具集（cursor/bbox/polygon/brush/reset）× SDD 06 线性图标。
-// 旧的 editli/editma 已并入 polygon 语义，故不再各占一枚图标。
+// 工具（与 SDD 05 键位映射同源，D-2）× SDD 06 线性图标。
+// SDD 04 统一工具集（cursor/bbox/polygon/brush/reset）+ 任务专属编辑 wall（IMT 壁线）：
+// 旧的 editli/editma 曾并入 polygon，现由 wall 单独承接（polygon 归还给自由多边形）。
 export const TOOL_ICON: Record<Tool, LucideIcon> = {
   cursor: MousePointer2,
   bbox: Square, // 框选
-  polygon: Spline, // 多边形/壁线轮廓
+  polygon: Spline, // 自由多边形轮廓
+  wall: Waves, // 壁线形变（LI/MA 双线）
   brush: Brush, // 涂抹（掩膜）
   reset: RotateCcw,
 };

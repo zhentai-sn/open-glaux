@@ -79,8 +79,7 @@ export function CornerstoneViewer() {
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
   const capabilities = taskView?.capabilities ?? [];
   const ovByRole = useMemo(() => new Map(overlays.map((o) => [o.role, o])), [overlays]);
-  const isImt = modality === "carotid_imt";
-  const wallEditing = tool === "polygon" && isImt;
+  const wallEditing = tool === "wall"; // 手柄只在壁线编辑态画（能力位由注册表限定为 IMT）
 
   // 像素坐标 → overlay 画布坐标（CSS px，与 worldToCanvas / pointer 同一空间）
   const projRef = useRef<(x: number, y: number) => [number, number]>(() => [0, 0]);
@@ -126,8 +125,8 @@ export function CornerstoneViewer() {
     const tg = ToolGroupManager.getToolGroup(TG_ID);
     if (!tg) return;
     // brush 在 raster_2d 是 overlay 自持缓冲（spike3 退化方案）→ 激活态回退 pan
-    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, modality);
-  }, [ready, tool, toolOptions, capabilities, modality]);
+    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions);
+  }, [ready, tool, toolOptions, capabilities]);
 
   const sizeOverlay = useCallback(() => {
     const el = elRef.current;
