@@ -29,7 +29,7 @@ from pathlib import Path
 from . import config
 
 # 与 schemas.Modality 同集合（此处用 str 避免 import schemas 引入 pydantic 到数据层）。
-MODALITIES = ("carotid_imt", "fetal_hc", "ct_abdomen", "pathology")
+MODALITIES = ("carotid_imt", "fetal_hc", "ct_abdomen", "pathology", "natural_image")
 
 
 @dataclass(frozen=True)
@@ -114,6 +114,15 @@ def _builtin_specs() -> list[tuple]:
             config.WSI_ROOT,
             {"mpp": "openslide props"},
         ),
+        # SDD 08 D-4：SDD 07 的 4 张演示照片与其余示例同进同退——否则「空态」永远不为空，
+        # 导入引导就没有位置站。标定为空是常态（通用图像无标定），不代表 needs_calibration。
+        (
+            "natural-demo",
+            "Natural images · demo",
+            "natural_image",
+            config.NATURAL_ROOT,
+            {},
+        ),
     ]
 
 
@@ -139,10 +148,12 @@ def _builtin_live() -> list[DataSource]:
 
 # --- 导入/连接器源（持久化；进程内单例，单后端进程假设，见计划 §5 并发注）----
 _SOURCES: dict[str, DataSource] = {}
+#: 用户显式「加载示例数据」打开的内置源 id（SDD 08 §5.2）。只存 id，源本体仍是 config 实时视图。
+_SAMPLES_ON: set[str] = set()
 
 
 def _load_persisted() -> None:
-    """回读落盘的导入/连接器源（不含 builtin）。文件缺失/损坏 → 忽略（起空）。"""
+    """回读落盘的导入/连接器源与已打开的示例 id。文件缺失/损坏 → 忽略（起空）。"""
     fp = sources_file()
     if not fp.is_file():
         return
@@ -158,21 +169,33 @@ def _load_persisted() -> None:
         if src.origin == "builtin":
             continue  # builtin 实时从 config 读，不认落盘的
         _SOURCES[src.id] = src
+    # 旧文件没有 "samples" 键 → 空集合，行为与改前一致（只增不改，老清单照常回读）
+    known = {sid for sid, *_ in _builtin_specs()}
+    for sid in raw.get("samples", []):
+        if isinstance(sid, str) and sid in known:
+            _SAMPLES_ON.add(sid)
 
 
 def _save_persisted() -> None:
-    """把导入/连接器源写盘（原子：写临时文件再 rename）。"""
+    """把导入/连接器源与已打开的示例 id 写盘（原子：写临时文件再 rename）。"""
     fp = sources_file()
     fp.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"sources": [s.to_dict() for s in _SOURCES.values() if s.origin != "builtin"]}
+    payload = {
+        "sources": [s.to_dict() for s in _SOURCES.values() if s.origin != "builtin"],
+        "samples": sorted(_SAMPLES_ON),
+    }
     tmp = fp.with_suffix(fp.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     tmp.replace(fp)
 
 
 def init() -> None:
-    """启动装配：回读落盘的导入源。内置源是实时视图无需 seed。幂等（测试/重启可重复调）。"""
+    """启动装配：回读落盘的导入源与示例开关。
+
+    内置源是实时视图无需 seed。幂等（测试/重启可重复调）。
+    """
     _SOURCES.clear()
+    _SAMPLES_ON.clear()
     _load_persisted()
 
 
@@ -180,10 +203,14 @@ def init() -> None:
 
 
 def list_all() -> list[DataSource]:
-    """所有源（builtin 在前，稳定排序）——开发者模式含内置实时视图 + 落盘导入源。"""
+    """所有源（builtin 在前，稳定排序）。
+
+    内置源的可见性有两条路：开发者模式（全部实时可见，== 改前行为），或用户显式「加载示例数据」
+    打开过的那些（``_SAMPLES_ON``）。两条都不满足 → 产品模式的空清单，文件栏据此渲染空态。
+    """
     merged: dict[str, DataSource] = {}
-    if dev_mode():
-        for s in _builtin_live():
+    for s in _builtin_live():
+        if dev_mode() or s.id in _SAMPLES_ON:
             merged[s.id] = s
     merged.update(_SOURCES)  # 导入源（id 与 builtin 不撞）
     return sorted(merged.values(), key=lambda s: (s.origin != "builtin", s.modality, s.id))
@@ -257,7 +284,9 @@ def register_folder(
     empty = not any(root.iterdir())
     if empty:
         status = "empty"
-    elif cal:
+    elif cal or modality == "natural_image":
+        # 通用图像没有标定这回事（无 TaskPlugin、不出带单位结果），空 calibration 是常态而非缺失；
+        # 若也标 needs_calibration，上层会对一张普通照片 422，那是把医学护栏套到了非医学对象上。
         status = "active"
     else:
         status = "needs_calibration"
@@ -274,6 +303,23 @@ def register_folder(
     _SOURCES[src.id] = src
     _save_persisted()
     return src
+
+
+def register_builtin_samples() -> list[DataSource]:
+    """把内置示例根中**确实有数据**的那些显式打开（SDD 08 §5.2 / §7 规则 11）。
+
+    与开发者模式的实时视图区别只在「显式」：产品模式下默认没有内置源，用户点「加载示例数据」才有。
+    落盘的是 **id 集合**而非源快照——示例的 root 仍每次从 config 实时读，避免落盘旧路径盖回新配置
+    （与 builtin 一贯的实时视图立场一致）。
+
+    幂等：重复调用不新增条目（§10）。空目录不注册也不报错——没有示例是正常状态，不是错误状态。
+    """
+    live = {s.id: s for s in _builtin_live() if s.status == "active"}
+    if not live:
+        return []
+    _SAMPLES_ON.update(live)
+    _save_persisted()
+    return [live[sid] for sid in sorted(live)]
 
 
 def remove(source_id: str) -> bool:

@@ -84,6 +84,24 @@ WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_ou
 # --- 通用自然图像：SAM API 演示资产（非 science-core 任务、无标定）-------------
 NATURAL_ROOT = _env_path("GLAUX_NATURAL_ROOT", REPO_ROOT / "data/natural")
 
+
+def _env_int(key: str, default: int) -> int:
+    """整型环境变量——非数字/非正数回缺省（配置写错不该让服务起不来，也不该放开上限）。"""
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    try:
+        v = int(raw.strip())
+    except ValueError:
+        return default
+    return v if v > 0 else default
+
+
+# --- 浏览器图像上传（SDD 08 §4.3）：单文件与单次数量上限 -----------------------
+# 只有这两道闸；总容量配额是后续工作，不在本轮范围（见实施计划 §10）。
+UPLOAD_MAX_BYTES = _env_int("GLAUX_UPLOAD_MAX_BYTES", 32 * 1024 * 1024)  # 32 MiB
+UPLOAD_MAX_FILES = _env_int("GLAUX_UPLOAD_MAX_FILES", 20)
+
 # --- Atlas · 图谱（SDD 03）：LanceDB 案例表 + 原图/裁剪图目录 ------------------------
 # 独立于数据集根（图谱是跨数据源的人工资产）；下设 db/（LanceDB）与 images/。
 ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", HOME / "glaux_atlas")
@@ -124,6 +142,11 @@ def root_has_data(modality: str, root: Path) -> bool:
         return root.is_dir() and any(
             p.suffix.lower() in _WSI_SUFFIXES for p in root.glob("slide_*")
         )
+    if modality == "natural_image":
+        # 通用图像无命名约定（用户上传的什么名字都有），故判后缀而非前缀。
+        from . import upload_store
+
+        return root.is_dir() and any(upload_store.is_supported_file(p) for p in root.iterdir())
     return False
 
 

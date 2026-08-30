@@ -15,6 +15,7 @@ from . import __version__, datasource_registry
 from .routers.annotations import router as annotations_router
 from .routers.api import router
 from .routers.atlas import router as atlas_router
+from .routers.uploads import router as uploads_router
 
 # 数据源注册表装配（开发者模式 seed 内置源；产品模式空源起步）——见 datasource_registry。
 datasource_registry.init()
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(atlas_router)  # Atlas · 图谱（SDD 03）
 app.include_router(annotations_router)  # 统一标注（SDD 04）
+app.include_router(uploads_router)  # 浏览器图像上传（SDD 08）
 
 
 @app.get("/health", tags=["meta"])

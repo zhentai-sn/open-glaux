@@ -109,6 +109,15 @@ def datasources_import(req: DatasourceImportRequest) -> DataSourceInfo:
     return DataSourceInfo(**src.to_dict())
 
 
+@router.post("/datasources/samples", response_model=list[DataSourceInfo], tags=["dataset"])
+def datasources_load_samples() -> list[DataSourceInfo]:
+    """显式加载仓库自带的示例数据源（SDD 08 §5.2）。
+
+    幂等；内置根都没数据时返回空数组而非报错——没有示例是正常状态。
+    """
+    return [DataSourceInfo(**s.to_dict()) for s in dsreg.register_builtin_samples()]
+
+
 @router.delete("/datasources/{source_id}", tags=["dataset"])
 def datasources_remove(source_id: str) -> dict:
     """删除一个导入源（builtin 不可删）。"""
@@ -354,11 +363,13 @@ def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
 
 @router.get("/image/{image_id}", tags=["dataset"])
 def image(image_id: str) -> Response:
-    # 自然图像必须在 mock 回退前按固定前缀截住：未知 natural_* 也应 404，不能被 mock
-    # 合成图吞掉，否则伪造 ID 会看似成功且 Agent 实际分割的是另一张图。
-    if image_id.startswith("natural_"):
+    # 通用图像必须在 mock 回退前按固定前缀截住：未知 ID 也应 404，不能被 mock 合成图吞掉，
+    # 否则伪造 ID 会看似成功且 Agent 实际分割的是另一张图。
+    # 两类前缀：natural_*（SDD 07 内置白名单）与 nat-*（SDD 08 导入源，服务端派生 ID）。
+    if image_id.startswith(("natural_", "nat-")):
         try:
-            return Response(content=dataset_natural.image_jpeg(image_id), media_type="image/jpeg")
+            data, media = dataset_natural.image_bytes(image_id)
+            return Response(content=data, media_type=media)
         except FileNotFoundError as e:
             raise HTTPException(404, f"图像不存在：{image_id}") from e
     if KERNEL_OK and hc_dataset.is_hc(image_id):  # 合成 HC 图（无需外部数据）

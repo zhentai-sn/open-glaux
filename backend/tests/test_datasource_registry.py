@@ -30,14 +30,16 @@ def test_seed_builtin_roots_match_config():
     assert by_id["hc18"].root == config.HC18_ROOT
     assert by_id["ct-demo"].root == config.CT_ROOT
     assert by_id["wsi-demo"].root == config.WSI_ROOT
-    # 四模态各恰一个内置源
+    assert by_id["natural-demo"].root == config.NATURAL_ROOT  # SDD 08 D-4
+    # 每个模态各恰一个内置源
     assert {s.modality for s in by_id.values() if s.origin == "builtin"} == set(reg.MODALITIES)
 
 
-def test_dev_mode_on_seeds_four_builtins():
+def test_dev_mode_on_seeds_one_builtin_per_modality():
+    """开发者模式下每个模态一个内置源——SDD 08 D-4 起含 natural_image，故为 5 而非 4。"""
     reg.init()
     builtins = [s for s in reg.list_all() if s.origin == "builtin"]
-    assert len(builtins) == 4
+    assert len(builtins) == len(reg.MODALITIES) == 5
 
 
 def test_product_mode_no_builtins(monkeypatch):

@@ -81,6 +81,29 @@ class DataSourceInfo(BaseModel):
     status: Literal["active", "needs_calibration", "empty", "planned"]
 
 
+class UploadAccepted(BaseModel):
+    """一个受理并落盘的上传文件（SDD 08 §9.2）。``filename`` 只用于回显，不参与任何路径。"""
+
+    id: str
+    filename: str
+    bytes: int
+
+
+class UploadRejected(BaseModel):
+    """一个被拒的上传文件；``reason`` 为 §9.2 的三值 enum。"""
+
+    filename: str
+    reason: Literal["unsupported_type", "too_large", "corrupt"]
+
+
+class UploadResult(BaseModel):
+    """``POST /uploads/images`` 响应：写入的数据源 + 逐文件受理/拒绝清单。"""
+
+    source: DataSourceInfo
+    accepted: list[UploadAccepted]
+    rejected: list[UploadRejected]
+
+
 class DatasourceImportRequest(BaseModel):
     """导入一个文件夹为数据源。``path`` 须在服务端白名单根下（防任意目录读）。"""
 
