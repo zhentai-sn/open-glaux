@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { SessionService } from "../../src/pi/session-service.js";
+import { ANNOTATION_PROPOSED_DETAILS_KIND } from "../../src/pi/tools/propose-annotation.js";
 
 async function createService() {
   const dataDir = await mkdtemp(join(tmpdir(), "glaux-session-service-"));
@@ -113,5 +114,56 @@ describe("SessionService lifecycle", () => {
     }
 
     expect((await readFile(join(dataDir, "glaux-meta.sqlite"))).length).toBeGreaterThan(0);
+  });
+
+  it("keeps successful annotation proposal details in snapshots and strips tool content", async () => {
+    const { service } = await createService();
+    const sessionId = crypto.randomUUID();
+
+    try {
+      await service.createSession({ session_id: sessionId });
+      const session = await service.openSession(sessionId);
+      await session.appendMessage({
+        role: "toolResult",
+        toolCallId: "proposal-ok",
+        toolName: "propose_annotation",
+        content: [{ type: "text", text: "large tool prose that the view does not need" }],
+        details: {
+          kind: ANNOTATION_PROPOSED_DETAILS_KIND,
+          payload: {
+            annotation_id: "ann-1",
+            image_id: "natural_cat",
+            label: "小猫",
+            primitive: { kind: "bbox", x0: 1, y0: 2, x1: 30, y1: 40 },
+            z: null,
+            seq: 1,
+          },
+        },
+        isError: false,
+        timestamp: Date.now(),
+      });
+      await session.appendMessage({
+        role: "toolResult",
+        toolCallId: "proposal-error",
+        toolName: "propose_annotation",
+        content: [{ type: "text", text: "failed" }],
+        details: { kind: ANNOTATION_PROPOSED_DETAILS_KIND },
+        isError: true,
+        timestamp: Date.now(),
+      });
+      await service.closeSession(session);
+
+      const toolResults = (await service.getSession(sessionId)).messages.filter(
+        (message) => (message as { role?: string }).role === "toolResult",
+      ) as Array<{ content?: unknown[]; details?: { kind?: string; payload?: unknown } }>;
+      expect(toolResults).toHaveLength(1);
+      expect(toolResults[0]?.details).toMatchObject({
+        kind: ANNOTATION_PROPOSED_DETAILS_KIND,
+        payload: { annotation_id: "ann-1", image_id: "natural_cat" },
+      });
+      expect(toolResults[0]?.content).toEqual([]);
+    } finally {
+      await service.close();
+    }
   });
 });

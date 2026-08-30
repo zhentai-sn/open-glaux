@@ -47,6 +47,18 @@ const DETAILS = {
   },
 };
 
+const PROPOSED_DETAILS = {
+  kind: "glaux.annotation_proposed",
+  payload: {
+    annotation_id: "ann-cat-1",
+    image_id: "natural_cat",
+    label: "小猫",
+    primitive: { kind: "bbox", x0: 221, y0: 220, x1: 1279, y1: 2777 },
+    z: null,
+    seq: 1,
+  },
+};
+
 describe("toolBridge.applyToolExecutionEvent", () => {
   beforeEach(() => localStorage.clear());
 
@@ -71,6 +83,105 @@ describe("toolBridge.applyToolExecutionEvent", () => {
     expect(bridge.applyToolExecutionEvent(toolEnd({ kind: "nope" }))).toBe(false);
     expect(bridge.applyToolExecutionEvent({ type: "message_end" })).toBe(false);
     expect(session.getState().metrics).toBeNull();
+  });
+
+  it("applies propose_annotation to the current viewer immediately and idempotently", async () => {
+    const { session, bridge } = await fresh();
+    session.getState().setActiveImage("natural_cat");
+    const event = toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" });
+
+    expect(bridge.applyToolExecutionEvent(event)).toBe(true);
+    expect(bridge.applyToolExecutionEvent(event)).toBe(true);
+
+    expect(session.getState().annotations).toEqual([
+      {
+        id: "ann-cat-1",
+        image_id: "natural_cat",
+        label: "小猫",
+        primitive: { kind: "bbox", x0: 221, y0: 220, x1: 1279, y1: 2777 },
+        z: null,
+        class_id: null,
+        status: "suggested",
+        source: "agent",
+        seq: 1,
+      },
+    ]);
+
+    session.getState().upsertAnnotation({
+      ...session.getState().annotations[0]!,
+      status: "confirmed",
+      seq: 2,
+    });
+    expect(bridge.applyToolExecutionEvent(event)).toBe(true);
+    expect(session.getState().annotations[0]).toMatchObject({
+      id: "ann-cat-1",
+      status: "confirmed",
+      seq: 2,
+    });
+  });
+
+  it("ignores stale, failed, empty and malformed annotation proposals", async () => {
+    const { session, bridge } = await fresh();
+    session.getState().setActiveImage("natural_dog");
+    expect(
+      bridge.applyToolExecutionEvent(
+        toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" }),
+      ),
+    ).toBe(false);
+
+    session.getState().setActiveImage("natural_cat");
+    expect(
+      bridge.applyToolExecutionEvent(
+        toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation", isError: true }),
+      ),
+    ).toBe(false);
+    expect(
+      bridge.applyToolExecutionEvent(
+        toolEnd(
+          { ...PROPOSED_DETAILS, payload: { ...PROPOSED_DETAILS.payload, annotation_id: null } },
+          { toolName: "propose_annotation" },
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      bridge.applyToolExecutionEvent(
+        toolEnd(
+          {
+            ...PROPOSED_DETAILS,
+            payload: { ...PROPOSED_DETAILS.payload, primitive: { kind: "bbox", x0: "bad" } },
+          },
+          { toolName: "propose_annotation" },
+        ),
+      ),
+    ).toBe(false);
+    expect(session.getState().annotations).toEqual([]);
+  });
+
+  it("applies a closed polygon proposal without retaining untrusted extra fields", async () => {
+    const { session, bridge } = await fresh();
+    session.getState().setActiveImage("natural_cat");
+    const details = {
+      ...PROPOSED_DETAILS,
+      payload: {
+        ...PROPOSED_DETAILS.payload,
+        annotation_id: "ann-cat-polygon",
+        primitive: {
+          kind: "polyline",
+          closed: true,
+          points: [[10, 20], [30, 20], [20, 40]],
+          role: "untrusted-extra",
+        },
+      },
+    };
+
+    expect(
+      bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" })),
+    ).toBe(true);
+    expect(session.getState().annotations[0]?.primitive).toEqual({
+      kind: "polyline",
+      closed: true,
+      points: [[10, 20], [30, 20], [20, 40]],
+    });
   });
 });
 
@@ -105,5 +216,24 @@ describe("toViewerContext", () => {
     });
     s.setActiveSlide(null);
     expect(conv.toViewerContext().image_id).toBeUndefined();
+  });
+
+  it("sends natural images without a stale medical task, method or calibration", async () => {
+    const { session, conv } = await fresh();
+    const s = session.getState();
+    s.setTasks([IMT_TASK]);
+    s.setModality("natural_image");
+    s.setActiveImage("natural_cat");
+    s.setImageMeta({
+      id: "natural_cat",
+      center: "Natural images",
+      cf: null,
+      methods: [],
+      modality: "natural_image",
+    });
+    expect(conv.toViewerContext()).toEqual({
+      modality: "natural_image",
+      image_id: "natural_cat",
+    });
   });
 });

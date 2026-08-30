@@ -22,6 +22,7 @@ import type {
 import { RuntimeError } from "../errors.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
 import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
+import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -253,10 +254,13 @@ export class SessionService {
 }
 
 /**
- * 工具结果里需要随会话历史持久呈现的产物。只列图谱引用卡片：`glaux.task_output` 的
- * primitives 是成百上千个轮廓点，靠实时事件写回查看器即可，不该进每次快照。
+ * 工具结果里需要随会话历史持久呈现的卡片。`glaux.task_output` 等纯 Viewer 结果靠实时
+ * 事件写回，不进每次快照；建议标注 details 体积小且承载确认/驳回入口，必须保留。
  */
-const VIEWABLE_DETAILS_KINDS = new Set([ATLAS_REFERENCED_DETAILS_KIND]);
+const VIEWABLE_DETAILS_KINDS = new Set([
+  ATLAS_REFERENCED_DETAILS_KIND,
+  ANNOTATION_PROPOSED_DETAILS_KIND,
+]);
 
 /**
  * 会话视图里保留哪些消息。
