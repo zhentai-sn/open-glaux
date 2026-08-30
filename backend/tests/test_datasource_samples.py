@@ -1,7 +1,6 @@
 """示例数据显式加载（SDD 08 §5.2 / §7 规则 11 / §10）。
 
-本轮（实施计划 A2 波）**尚未**翻 ``GLAUX_DEV_MODE`` 缺省，故这里一律显式置 0 来验产品模式：
-缺省翻转与随之而来的既有测试改造属 C 波，不在本文件范围。
+测试进程整体跑在开发者模式（见 conftest 的 ``pytest_configure``），故这里显式置 0 来验产品模式。
 """
 
 from __future__ import annotations
@@ -29,6 +28,17 @@ def _product_mode(tmp_path, monkeypatch):
 def test_product_mode_starts_empty():
     assert reg.list_all() == []
     assert client.get("/datasources").json() == []
+
+
+def test_dev_mode_default_is_off(monkeypatch):
+    """缺省即产品模式（SDD 08 D-4）——新用户第一屏是导入引导，不是四个演示数据集。
+
+    这条守的是缺省值本身，故必须把变量整个删掉再看，不能只置 0。
+    """
+    monkeypatch.delenv("GLAUX_DEV_MODE", raising=False)
+    assert reg.dev_mode() is False
+    reg.init()
+    assert [s for s in reg.list_all() if s.origin == "builtin"] == []
 
 
 def test_load_samples_opens_only_roots_with_data(monkeypatch):

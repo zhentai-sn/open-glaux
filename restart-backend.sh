@@ -3,6 +3,8 @@
 pid=$(pgrep -f "uvicorn app.main" | head -1)
 if [ -n "$pid" ]; then kill "$pid" 2>/dev/null; echo "已停旧 backend (pid $pid)"; sleep 3; fi
 cd ~/code/pre-tech/open-glaux/backend
+# SDD 08 D-4：开发环境显式开发者模式（内置示例源可见），与 run-backend.sh 一致。
+export GLAUX_DEV_MODE=${GLAUX_DEV_MODE:-1}
 setsid nohup uv run uvicorn app.main:app --port 8000 > ~/code/pre-tech/open-glaux/.dev-logs/backend.log 2>&1 &
 echo "backend 重启中..."
 sleep 10

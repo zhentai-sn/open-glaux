@@ -6,10 +6,19 @@
 CI 无数据只会跳过，属于隐性用例间耦合。逐条清空，让缓存只在单条用例内生效。
 """
 
+import os
 from functools import lru_cache
 from types import ModuleType
 
 import pytest
+
+# 整套测试跑在开发者模式下（内置示例源可见）。SDD 08 D-4 把 GLAUX_DEV_MODE 的生产缺省翻为 0
+# 之后，「有数据」不再是默认状态；大量既有用例隐含依赖它——与其逐个放宽断言（那会掩盖真实回归），
+# 不如把这个前提写明。
+# 必须在**模块导入期**设，而不是 autouse fixture：像 test_api.HAS_HC_DATA 这类模块级常量在导入期
+# 就求值了，函数级 fixture 那时还没跑。用 setdefault，外部显式指定的值仍然优先；
+# 验产品模式的单条用例照旧 monkeypatch.setenv(..., "0") 覆盖。
+os.environ.setdefault("GLAUX_DEV_MODE", "1")
 
 # 必须先于任何 app 数据模块导入：science-core 不在 backend 的依赖里，是由 config 在 import 时
 # 插进 sys.path 的（见 config.py「源码装配」）。而 app/__init__.py 是薄壳、不碰 config，

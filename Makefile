@@ -8,7 +8,8 @@
 dev: backend frontend agent-runtime
 
 backend:
-	cd backend && uv run uvicorn app.main:app --reload --port 8000
+	# SDD 08 D-4：开发环境显式开发者模式（内置示例源可见）
+	cd backend && GLAUX_DEV_MODE=$${GLAUX_DEV_MODE:-1} uv run uvicorn app.main:app --reload --port 8000
 
 frontend:
 	cd frontend && npm run dev

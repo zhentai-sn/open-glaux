@@ -66,8 +66,13 @@ class DataSource:
 
 
 def dev_mode() -> bool:
-    """开发者模式（缺省 on）——是否提供内置源。产品部署置 ``GLAUX_DEV_MODE=0``。"""
-    return os.environ.get("GLAUX_DEV_MODE", "1").strip().lower() not in ("0", "false", "no", "")
+    """开发者模式——是否自动提供全部内置源。
+
+    **缺省 off（SDD 08 D-4）**：新用户第一屏该是「把你的数据放进来」，而不是四个演示数据集；
+    示例改由「加载示例数据」显式打开（:func:`register_builtin_samples`）。
+    开发环境在启动脚本里显式置 ``GLAUX_DEV_MODE=1`` 回到旧行为。
+    """
+    return os.environ.get("GLAUX_DEV_MODE", "0").strip().lower() not in ("0", "false", "no", "")
 
 
 def datasets_root() -> Path:

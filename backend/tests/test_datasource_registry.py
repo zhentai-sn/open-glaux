@@ -13,7 +13,8 @@ def _isolate(tmp_path, monkeypatch):
     """每测隔离：落盘清单 + 导入白名单根指向 tmp，注册表清空。"""
     monkeypatch.setenv("GLAUX_SOURCES_FILE", str(tmp_path / "sources.json"))
     monkeypatch.setenv("GLAUX_DATASETS_ROOT", str(tmp_path))
-    monkeypatch.delenv("GLAUX_DEV_MODE", raising=False)  # 缺省 = 开发者模式 on
+    # SDD 08 D-4 起缺省是**产品模式**，故想验开发者模式必须显式置 1（原来靠 delenv 吃缺省）
+    monkeypatch.setenv("GLAUX_DEV_MODE", "1")
     reg._SOURCES.clear()
     yield
     reg._SOURCES.clear()
