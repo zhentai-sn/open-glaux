@@ -2891,7 +2891,7 @@ body.resizing .focus-rail { transition: none; }
 .focus-side-body > * { flex: 1; min-height: 0; }
 .focus-side-body .focus-stage { animation: none; }
 .focus-side-body .sb-view { overflow-y: auto; }
-/* v1.4（SDD 01 D16）：舞台常驻，浏览器列与它左右分栏。窄屏降级态不加 data-split，
+/* v1.4（SDD 01 D16/D19）：舞台常驻在左，浏览器列贴侧栏最右缘。窄屏降级态不加 data-split，
    此时浏览器列走上面的纵向 flex 占满整栏，与 v1.1 的整栏互斥形态一致。 */
 .focus-side-body[data-split="1"] { flex-direction: row; }
 /* 分隔条的 flex:none 定义在本文件更靠前处，会被上面的 `.focus-side-body > *`（同特异度、更靠后）
@@ -2904,7 +2904,7 @@ body.resizing .focus-rail { transition: none; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line); /* D19：列在右侧，分界线随之改到左边 */
 }
 .focus-side-body[data-split="1"] > .focus-side-stage {
   flex: 1 1 auto;

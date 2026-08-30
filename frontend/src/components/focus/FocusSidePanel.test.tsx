@@ -85,6 +85,11 @@ describe("FocusSidePanel v1.4 · 舞台常驻 + 分栏", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
     expect(screen.getByTestId("files-view")).toBeInTheDocument();
     expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+    // D19：舞台在左、浏览器列贴最右缘——用文档顺序断言，DOCUMENT_POSITION_FOLLOWING = 4
+    expect(
+      screen.getByTestId("stage-view").compareDocumentPosition(screen.getByTestId("files-view")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     act(() => useSession.setState({ activeImage: "tech_401" }));
     expect(screen.getByTestId("stage-view")).toHaveTextContent("stage:tech_401");
@@ -177,13 +182,22 @@ describe("FocusSidePanel v1.4 · 分隔条", () => {
     expect(screen.getByRole("separator")).toHaveAttribute("aria-valuemax", String(BROWSER_W.max));
   });
 
+  // side="right"：浏览器列在分隔条右边，故 ← 变宽、→ 变窄（与会话栏那条相反）。
   it("键盘调节写回 browserW 并持久化", () => {
     stubSideWidth(1200);
     useSession.setState({ focusLayout: layout({ browserView: "files" }) });
     ui();
-    fireEvent.keyDown(screen.getByRole("separator"), { key: "ArrowRight" });
+    fireEvent.keyDown(screen.getByRole("separator"), { key: "ArrowLeft" });
     expect(useSession.getState().focusLayout.browserW).toBe(BROWSER_W.def + 16);
     expect(JSON.parse(localStorage.getItem(KEY)!).browserW).toBe(BROWSER_W.def + 16);
+  });
+
+  it("缺省宽度即最窄（D19）", () => {
+    stubSideWidth(1200);
+    useSession.setState({ focusLayout: layout({ browserView: "files" }) });
+    ui();
+    expect(BROWSER_W.def).toBe(BROWSER_W.min);
+    expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", String(BROWSER_W.min));
   });
 });
 

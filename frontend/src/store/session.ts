@@ -86,8 +86,8 @@ const BROWSER_VIEWS: readonly FocusBrowserView[] = ["files", "atlas"];
 /** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——对话列由 CONVERSATION_MIN_W 保底，右侧图像栏允许占据更大空间。 */
 export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
 export const SIDE_W = { min: 280, max: 1200 } as const;
-/** 右侧栏内浏览器列的允许宽度（SDD feats/01 v1.4 §9）。 */
-export const BROWSER_W = { min: 240, max: 480, def: 300 } as const;
+/** 右侧栏内浏览器列的允许宽度（SDD feats/01 v1.4 §9）。缺省即最窄：默认把像素让给舞台（D19）。 */
+export const BROWSER_W = { min: 240, max: 480, def: 240 } as const;
 /** 分栏时舞台的最低宽度：浏览器列的拖拽上界由「实测侧栏宽 − 此值」反向夹住。 */
 export const STAGE_MIN = 360;
 /**

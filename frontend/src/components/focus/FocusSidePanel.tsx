@@ -154,9 +154,10 @@ export function FocusSidePanel() {
         data-view={browserView ?? "stage"}
         data-split={showSplit ? "1" : undefined}
       >
-        {hasBrowser && (
-          <div className="focus-side-browser">
-            {browserView === "files" ? <ExplorerView /> : <AtlasView compact />}
+        {/* D19：舞台在左、浏览器列贴最右缘——对话谈论的正是舞台上那张图，二者相邻。 */}
+        {showStage && (
+          <div className="focus-side-stage">
+            <StagePanel />
           </div>
         )}
         {showSplit && (
@@ -164,15 +165,15 @@ export function FocusSidePanel() {
             value={browserW ?? BROWSER_W.def}
             min={BROWSER_W.min}
             max={browserMax}
-            side="left"
+            side="right"
             label={t("focus_resize_browser")}
             onChange={(w) => setFocusLayout({ browserW: w })}
             onReset={() => setFocusLayout({ browserW: null })}
           />
         )}
-        {showStage && (
-          <div className="focus-side-stage">
-            <StagePanel />
+        {hasBrowser && (
+          <div className="focus-side-browser">
+            {browserView === "files" ? <ExplorerView /> : <AtlasView compact />}
           </div>
         )}
       </div>
