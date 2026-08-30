@@ -4,15 +4,16 @@
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `ready` |
+| SDD 状态 | `implemented` |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-08-22（Q1–Q6 全部收敛，见 §17；决策补 D-5～D-11） |
+| 最近更新 | 2026-08-26（补齐建议态工具结果实时写回与会话快照契约，见 D-12） |
 | 目标阶段 | 第一阶段：自然语言指令驱动的"建议态"标注闭环 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
 §17 六个开放问题已于 2026-08-22 全部收敛——分割后端选定 Gitee AI（模力方舟）`sam3`
 并**实测**过全部关键契约（延迟、mask 编码、两处 schema 与实现不符、医学模态命中率），
-其余五问的答案均已由实测或既有实现坐实。可进入实现规划。
+其余五问的答案均已由实测或既有实现坐实。D-12 的实时 Viewer 写回与建议卡片快照持久化
+已于 2026-08-26 实现并通过开发侧验证；完整浏览器确认/驳回走查完成后再转 `accepted`。
 
 > 实测改变了工具分工：裸 SAM3 的开放词表建立在自然图像上，**医学模态实测 0 命中**，
 > 故领域结构的定位由 `locate_roi`（视觉模型 grounding + 图谱先验）承担，`segment_region`
@@ -104,6 +105,9 @@
 - 每次工具调用要么产出一个建议态标注，要么产出一个带错误码的明确失败事件；不允许静默失败。
 - 建议态标注在人工确认前不进入任何测量、验证或下游流程。
 - agent 不能修改或删除已确认的正式标注。
+- `propose_annotation` 成功事件到达前端后，当前对象的 Viewer 必须立即出现建议态标注；
+  不得依赖切图、刷新或轮询才能显示。
+- 建议卡片必须随会话快照持久化；页面刷新后仍可恢复确认/驳回入口。
 
 ## 6. 核心流程
 
@@ -125,7 +129,8 @@ sequenceDiagram
     A->>A: 乘回像素 / mask → 多边形简化（图像像素坐标）
     A->>B: propose_annotation → POST /annotations (suggested, agent)
     B-->>A: annotation（不派发 on_commit）
-    A->>F: 工具结果 details = glaux.annotation_proposed（§12）
+    A->>F: tool_execution_end.details = glaux.annotation_proposed（§12）
+    F->>F: 校验 image_id/primitive/seq → upsert 当前 Viewer
     F->>F: 画布橙色虚线 + 会话建议卡片
     U->>F: 确认 / 驳回
     F->>B: PATCH status=confirmed|rejected（带 base_seq）
@@ -158,7 +163,9 @@ sequenceDiagram
 [`run_task`](../../../../agent-runtime/src/pi/tools/run-task.ts)（封装 backend `/task/run`）。本 SDD 的三个
 标注工具在同一处登记，`run_task` 由 `segment_region` 等取代后删除。使用 pi-agent-core 原生 `AgentHarnessTool` 契约。
 前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool_execution_end`）和
-"⚙ 调用 <tool>"状态行渲染，可直接沿用。
+"⚙ 调用 <tool>"状态行渲染。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
+Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍为当前活动
+对象时应用，用户已切图则丢弃实时写回（持久化记录仍可在重新打开对象时由 `/annotations` 恢复）。
 
 ### 7.2 精度层路由
 
@@ -274,6 +281,7 @@ mask 同理不穿过契约——在 runtime 侧解码简化成多边形，前端
 
 - 幂等键为 `annotation_id`，由 runtime 在 `propose_annotation` 受理时生成。
 - 同一 `annotation_id` 的 `annotation.suggested` 事件重复送达时，前端只渲染一次。
+- 实时事件重复到达时复用 Session Store 的 `upsertAnnotation`，不得追加同 ID 的第二个轮廓。
 - 用户对同一 `annotation_id` 的 resolve（接受/拒绝）只生效一次，后续重复回执忽略。
 - agent 重试整个工具链会产生新的 `annotation_id`（视为新建议），不复用旧键。
 
@@ -304,6 +312,11 @@ stateDiagram-v2
 **不新增 SSE 事件类型**（D-11）：工具调用的起止已由 pi 既有事件流覆盖（前端已渲染
 "⚙ 调用 &lt;tool&gt;"状态行），产出经**工具结果的 `details`** 进入会话，与 SDD 03 D-21 的
 `glaux.atlas_referenced` 同一范式。这样卡片随会话历史天然持久化，不必另建回放通道。
+
+Agent Runtime 的会话视图必须保留 `glaux.annotation_proposed` 与 `glaux.atlas_referenced` 两类
+可展示 details，并剥离工具正文；`glaux.task_output` 等大型/纯 Viewer 结果不进入快照。前端实时
+消费 `tool_execution_end` 时把合法的建议态 details upsert 到当前 Annotation Store；首次载图或
+刷新仍以 Backend `GET /annotations` 为事实源（D-12）。
 
 | details.kind | 产出方 | payload 要点 |
 | --- | --- | --- |
@@ -359,6 +372,12 @@ trace_id；不记录图像内容与 API key。
 
 - [ ] 在 `controlled` 模式下对当前图下达自然语言指令，视口中出现建议态标注（橙色虚线），
       会话中出现带确认/驳回的建议卡片。
+- [ ] `propose_annotation` 成功后无需切图或刷新，当前 Viewer 在同一轮工具事件中立即显示标注；
+      同一事件重复送达不产生重复轮廓。
+- [ ] 工具执行期间切换到另一对象时，旧 `image_id` 的建议不得写入当前 Viewer；重新打开原对象
+      后可由 `/annotations` 恢复。
+- [ ] 页面刷新并恢复同一会话后，建议卡片仍存在；当前对象的标注状态由 `/annotations` 恢复，
+      卡片可继续确认或驳回。
 - [ ] 领域结构（如 TEM 电子致密物）经 `locate_roi` 定位成功，且结果中带图谱先验引用；
       同一指令在 `use_atlas: false` 下也能返回（先验是加成不是前提）。
 - [ ] 通用结构经 `segment_region` 产出像素级多边形，审计日志有对应外发记录。
@@ -387,6 +406,8 @@ trace_id；不记录图像内容与 API key。
 | `locate_roi` | `locate-roi-tool.test.ts`（15 例，含坐标换算/裁剪/退化/先验退化） |
 | 建议态落库与确认 | `backend/tests/test_annotations.py`（8 例，含钩子派发时机） |
 | 前端渲染与确认流 | `SuggestionCard.test.tsx`（11 例）+ `csAnno.test.ts` 建议态 3 例 |
+| 建议态实时写回 | `toolBridge.test.ts`：bbox/polygon 即时 upsert、重复事件幂等、已确认状态不回退、切图/错误/畸形 details 拒绝；Frontend 全量 `150 passed` |
+| 建议卡片快照 | `session-lifecycle.test.ts`：成功 details 保留且正文剥离、失败结果过滤；Agent Runtime 全量 `161 passed`；真实会话 `ad44e71f-…` 快照已恢复 `glaux.annotation_proposed` |
 
 ## 16. 决策记录
 
@@ -403,6 +424,7 @@ trace_id；不记录图像内容与 API key。
 | D-9 | 建议态**不另立实体**，直接用 SDD 04 的 `Annotation`（`status=suggested, source=agent`）；坐标契约恒为图像像素，世界坐标变换留前端（Q2/Q3/Q4 收敛） | 建议态单独一套实体与端点；runtime 做世界坐标变换 | SDD 04 §2 早已留好这条缝；同一实体两套状态词表只会带来同步成本。runtime 碰视口坐标就得知道视口，那是前端的知识。`on_commit` 在建议态不派发、确认时补派，是这条决策的直接推论 | 2026-08-22 |
 | D-10 | 分割后端契约以**实测**为准，与其 OpenAPI schema 冲突处按实测实现并在代码注释里记明 | 按 schema 实现，出错再查 | 实测发现两处不符（`prompt` 必传但未声明、`size` 实为 `[w,h]`）。按 schema 写会得到纵向糊成长条的几何，且要到联调才暴露。回归测试用真实响应做 fixture 锁住这两点 | 2026-08-22 |
 | D-11 | 不新增 SSE 事件类型，产出走**工具结果 `details`**；`suggest` 逐次批准用会话内卡片（Q5 收敛） | 新增 `annotation.*` 事件族；弹窗批准 | SDD 03 D-21 已验证 `details` 这条范式：卡片随会话历史天然持久化，不必另建回放通道。弹窗打断阅片节奏，且与既有会话交互不同构 | 2026-08-22 |
+| D-12 | `propose_annotation` 成功后由 `tool_execution_end` 事件直接 upsert 当前 Viewer，快照保留建议 details | 成功后再请求 `/annotations`；轮询；只在切图时恢复 | details 来自 Backend 成功响应，已含 ID/几何/seq；直接写回延迟最低且无额外请求。活动对象守卫防止切图串入，`upsertAnnotation` 保证重复事件幂等，Backend 仍是刷新后的事实源 | 2026-08-26 |
 
 ## 17. 待确认问题
 
