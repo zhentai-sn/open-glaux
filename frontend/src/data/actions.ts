@@ -25,6 +25,13 @@ function clearOverlays(): void {
 /** 载入当前模态的数据集列表（Explorer）；若无选中图则选第一张。 */
 export async function loadImages(): Promise<void> {
   const { modality } = useSession.getState();
+  if (modality === "natural_image") {
+    const imgs = await api.naturalImages();
+    useSession.getState().setNaturalImages(imgs);
+    const { activeImage } = useSession.getState();
+    if (!activeImage && imgs.length) selectNaturalImage(imgs[0].id);
+    return;
+  }
   if (modality === "ct_abdomen") {
     // P6：CT 模态走 volumes（不同端点 + activeVolume 而非 activeImage）
     const vols = await api.volumes();
@@ -47,6 +54,11 @@ export async function loadImages(): Promise<void> {
   if (!activeImage && imgs.length) await selectImage(imgs[0].id);
 }
 
+/** 载入常驻自然图像目录；不自动切离当前医学模态。 */
+export async function loadNaturalImages(): Promise<void> {
+  useSession.getState().setNaturalImages(await api.naturalImages());
+}
+
 /** 切换模态：换列表、清叠加、选首图并跑该模态的检测/分割 + 测量。 */
 export async function switchModality(modality: Modality): Promise<void> {
   const s = useSession.getState();
@@ -67,6 +79,15 @@ export async function switchModality(modality: Modality): Promise<void> {
   // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
   const pick = s.models.find((m) => m.modality === modality && m.active);
   if (pick) useSession.setState({ activeModel: pick.id });
+  if (modality === "natural_image") {
+    let imgs = useSession.getState().naturalImages;
+    if (!imgs.length) {
+      imgs = await api.naturalImages();
+      useSession.getState().setNaturalImages(imgs);
+    }
+    if (imgs.length) selectNaturalImage(imgs[0].id);
+    return;
+  }
   if (modality === "ct_abdomen") {
     // P6：CT 模态独立分支——拉 volumes + 选首 volume
     const vols = await api.volumes();
@@ -117,6 +138,24 @@ export async function selectImage(imageId: string): Promise<void> {
   s.setImageMeta(meta);
   clearOverlays();
   await runCurrentTask(imageId);
+}
+
+/**
+ * 选择自然图像：只准备 2D Viewer 与 Agent 的当前图上下文，不触发任何医学 TaskPlugin。
+ * 与 switchModality 分开，防止把自然照片送进 /task/run。
+ */
+export function selectNaturalImage(imageId: string): void {
+  const s = useSession.getState();
+  const meta = s.naturalImages.find((m) => m.id === imageId) ?? null;
+  if (!meta) return;
+  s.setModality("natural_image");
+  s.setActiveImage(imageId);
+  s.setActiveVolume(null);
+  s.setActiveSlide(null);
+  s.setWsiRoi(null);
+  s.setImageMeta(meta);
+  clearOverlays();
+  s.setTool("cursor");
 }
 
 /** P6：选 CT volume——设元数据（含 voxel_spacing_mm）+ 跑当前模态的 volume 任务。 */

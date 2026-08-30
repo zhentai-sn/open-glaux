@@ -119,6 +119,7 @@ export const en = {
   focus_hero_title: "Describe your research goal",
   focus_hero_sub: "Turn biomedical images of any modality into verifiable, reproducible insight.",
   focus_pick_image: "Select image…",
+  natural_images: "Natural images",
   focus_ctx_open: "Current image context — click to pick one in the Files tab",
   focus_stage: "Image stage",
   focus_stage_empty: "No image selected. Pick one in the Files tab; the stage shows it here.",

@@ -1,7 +1,7 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
 export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
-export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology";
+export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology" | "natural_image";
 
 export interface TaskSpec {
   task: TaskType;

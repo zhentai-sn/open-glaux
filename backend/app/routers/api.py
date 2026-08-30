@@ -19,7 +19,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
-from .. import config, mock
+from .. import config, dataset_natural, mock
 from .. import datasource_registry as dsreg
 from ..schemas import (
     Capability,
@@ -120,6 +120,8 @@ def datasources_remove(source_id: str) -> dict:
 
 @router.get("/images", response_model=list[ImageMeta], tags=["dataset"])
 def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[ImageMeta]:
+    if modality == "natural_image":
+        return [ImageMeta(**dataset_natural.image_meta(i)) for i in dataset_natural.list_ids()]
     if modality == "fetal_hc":
         if not KERNEL_OK:
             raise HTTPException(503, "HC 模态需 science-core（未装配）")
@@ -352,6 +354,13 @@ def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
 
 @router.get("/image/{image_id}", tags=["dataset"])
 def image(image_id: str) -> Response:
+    # 自然图像必须在 mock 回退前按固定前缀截住：未知 natural_* 也应 404，不能被 mock
+    # 合成图吞掉，否则伪造 ID 会看似成功且 Agent 实际分割的是另一张图。
+    if image_id.startswith("natural_"):
+        try:
+            return Response(content=dataset_natural.image_jpeg(image_id), media_type="image/jpeg")
+        except FileNotFoundError as e:
+            raise HTTPException(404, f"图像不存在：{image_id}") from e
     if KERNEL_OK and hc_dataset.is_hc(image_id):  # 合成 HC 图（无需外部数据）
         return Response(content=hc_dataset.image_png(image_id), media_type="image/png")
     if not _has_data():

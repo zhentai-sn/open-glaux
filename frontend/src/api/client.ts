@@ -110,6 +110,9 @@ export const api = {
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
 
+  /** SDD 07：固定自然照片，仅供通用 SAM / 标注走查，不对应 science-core 任务。 */
+  naturalImages: () => get<ImageMeta[]>(`/images?modality=natural_image`),
+
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
   // --- P6：CT 体积数据 ------------------------------------------------------

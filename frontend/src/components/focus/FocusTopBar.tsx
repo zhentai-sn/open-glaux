@@ -18,7 +18,10 @@ function ImageContextChip() {
   const activeSlide = useSession((s) => s.activeSlide);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
 
-  const modalityLabel = tasks.find((tk) => tk.modality === modality)?.label[lang];
+  const modalityLabel =
+    modality === "natural_image"
+      ? t("natural_images")
+      : tasks.find((tk) => tk.modality === modality)?.label[lang];
   // 活动对象按模态互斥（IMT/HC → image，CT → volume，WSI → slide），取其一即可。
   const activeId = activeImage ?? activeVolume ?? activeSlide ?? null;
 

@@ -115,6 +115,7 @@ export const zh: Record<I18nKey, string> = {
   focus_hero_title: "描述你的研究目标",
   focus_hero_sub: "把任意模态的生物医学图像，变成可验证、可复现的洞察。",
   focus_pick_image: "选择图像…",
+  natural_images: "自然图像",
   focus_ctx_open: "当前图像上下文，点击到「文件」标签选图",
   focus_stage: "图像舞台",
   focus_stage_empty: "还没有选中图像。在「文件」标签选一张，舞台就会显示在这里。",

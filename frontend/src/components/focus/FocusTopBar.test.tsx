@@ -69,4 +69,13 @@ describe("FocusTopBar 图像上下文 chip", () => {
     expect(chip).toHaveTextContent("Liver + kidneys");
     expect(chip).toHaveTextContent("ct_012");
   });
+
+  it("自然图像显示中性模态标签，不依赖医学任务注册表", () => {
+    useSession.setState({ modality: "natural_image", activeImage: "natural_cat" });
+    ui();
+    const chip = screen.getByRole("button", { name: /Current image context/ });
+    expect(chip).toHaveTextContent("Natural images");
+    expect(chip).toHaveTextContent("natural_cat");
+    expect(chip).not.toHaveTextContent("Carotid");
+  });
 });

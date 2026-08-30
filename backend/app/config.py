@@ -81,6 +81,9 @@ WSI_SEG_DRIVER = _env_path("GLAUX_WSI_SEG_DRIVER", WSI_SEG_ROOT / "run_headless.
 WSI_SEG_WEIGHTS = _env_path("GLAUX_WSI_SEG_WEIGHTS", WSI_SEG_ROOT / "weights")
 WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_out")
 
+# --- 通用自然图像：SAM API 演示资产（非 science-core 任务、无标定）-------------
+NATURAL_ROOT = _env_path("GLAUX_NATURAL_ROOT", REPO_ROOT / "data/natural")
+
 # --- Atlas · 图谱（SDD 03）：LanceDB 案例表 + 原图/裁剪图目录 ------------------------
 # 独立于数据集根（图谱是跨数据源的人工资产）；下设 db/（LanceDB）与 images/。
 ATLAS_ROOT = _env_path("GLAUX_ATLAS_ROOT", HOME / "glaux_atlas")

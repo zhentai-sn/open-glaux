@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 # --- 规范 -------------------------------------------------------------------
 
 TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney", "nuclei_detection"]
-Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology"]
+Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology", "natural_image"]
 
 
 class TaskSpec(BaseModel):

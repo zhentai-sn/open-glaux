@@ -10,7 +10,7 @@ import { ShortcutSheet } from "./components/ShortcutSheet";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
-import { loadImages } from "./data/actions";
+import { loadImages, loadNaturalImages } from "./data/actions";
 import { useGlobalKeys } from "./keys/globalKeys";
 import { useSession } from "./store/session";
 
@@ -47,6 +47,12 @@ export function App() {
         setDatasources(await api.datasources());
       } catch {
         /* 后端未起时不阻塞外壳 */
+      }
+      // SDD 07：常驻自然图像目录；失败不阻塞医学数据与外壳。
+      try {
+        await loadNaturalImages();
+      } catch {
+        /* 自然图像演示资产缺失时显示空目录 */
       }
       // 载数据集 → 选首图 → 真实分割+测量
       try {

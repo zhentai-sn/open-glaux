@@ -65,6 +65,13 @@ class AnnotationPatch(BaseModel):
 
 def _dims_for(image_id: str) -> tuple[int, int] | None:
     """某对象的像素尺寸 (width, height)：WSI level-0 / CT 单层 / US tiff；不认识 → None。"""
+    if image_id.startswith("natural_"):
+        try:
+            from .. import dataset_natural
+
+            return dataset_natural.image_size(image_id)
+        except FileNotFoundError as exc:
+            raise AnnotationError("INVALID_GEOMETRY", f"自然图像不存在或损坏：{image_id}") from exc
     try:
         from .. import dataset_wsi
 

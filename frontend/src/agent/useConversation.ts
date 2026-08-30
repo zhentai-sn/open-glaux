@@ -13,8 +13,14 @@ import type {
  */
 export function toViewerContext(): ViewerContext {
   const s = useSession.getState();
-  const task = s.tasks.find((t) => t.modality === s.modality)?.task;
   const out: ViewerContext = { modality: s.modality };
+  // SDD 07：自然图像不是 science-core 任务。只给 Agent 当前图，不泄漏上一个医学任务、
+  // 活动模型或标定，否则模型可能错误选择 run_task 而不是 segment_region。
+  if (s.modality === "natural_image") {
+    if (s.activeImage) out.image_id = s.activeImage;
+    return out;
+  }
+  const task = s.tasks.find((t) => t.modality === s.modality)?.task;
   if (task) out.task = task;
   if (s.activeModel) out.method = s.activeModel;
   if (s.modality === "ct_abdomen") {

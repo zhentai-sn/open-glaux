@@ -15,6 +15,10 @@ env/
 /data/*
 !/data/ct/
 !/data/ct/README.md
+# SAM 自然图像演示资产体积小且许可明确，随仓库分发。
+!/data/natural/
+!/data/natural/README.md
+!/data/natural/*.jpg
 # P7：WSI demo slide/reference 走 runbook 生成，仅放行 README（同 /data/ct/ 模式）
 !/data/wsi/
 /data/wsi/*

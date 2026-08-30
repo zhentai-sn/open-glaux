@@ -20,7 +20,7 @@ describe("SideBar 文件树可达性", () => {
       </I18nProvider>,
     );
     // "images" 目录头默认展开，应为可聚焦 button 且 aria-expanded=true
-    const dir = screen.getByRole("button", { name: /images/i });
+    const dir = screen.getByRole("button", { name: /^images$/i });
     expect(dir).toBeInstanceOf(HTMLButtonElement);
     expect(dir).toHaveAttribute("aria-expanded", "true");
     // 点击折叠 → aria-expanded 翻转（证明键盘/点击均可触发同一 button）

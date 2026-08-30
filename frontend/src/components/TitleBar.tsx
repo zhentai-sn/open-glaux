@@ -9,15 +9,18 @@ export function TitleBar() {
   const center = useSession((s) => s.imageMeta?.center);
   // 标题随模态：HC → .png / HC18（真实时读元数据），IMT → .tiff / CUBS-tech。
   const isHC = modality === "fetal_hc";
-  const ext = isHC ? ".png" : ".tiff";
-  const ws = center ?? (isHC ? "HC18" : "CUBS-tech");
+  const isNatural = modality === "natural_image";
+  const ext = isNatural ? ".jpg" : isHC ? ".png" : ".tiff";
+  const ws = center ?? (isNatural ? "Natural images" : isHC ? "HC18" : "CUBS-tech");
   return (
     <div className="titlebar">
       <span className="logo" aria-hidden="true">
         <OwlLogo />
       </span>
       <b style={{ fontSize: 12, color: "var(--bright)", marginRight: 4 }}>Glaux</b>
-      <span style={{ fontSize: 11, color: "var(--faint)" }}>· Agentic IMT · MVP</span>
+      <span style={{ fontSize: 11, color: "var(--faint)" }}>
+        {isNatural ? "· SAM API demo" : "· Agentic IMT · MVP"}
+      </span>
       <span className="ttl">{image ? `${image}${ext} — ${ws}` : ws}</span>
       <ModeSwitch />
     </div>

@@ -13,8 +13,10 @@ export function StatusBar() {
   const model = useSession((s) => s.activeModel);
   const image = useSession((s) => s.activeImage);
   const images = useSession((s) => s.images);
+  const naturalImages = useSession((s) => s.naturalImages);
   const setView = useSession((s) => s.setSidebarView);
-  const idx = image ? images.findIndex((m) => m.id === image) + 1 : 0;
+  const shownImages = modality === "natural_image" ? naturalImages : images;
+  const idx = image ? shownImages.findIndex((m) => m.id === image) + 1 : 0;
   // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
   const tv = tasks.find((tk) => tk.modality === modality);
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
@@ -27,7 +29,7 @@ export function StatusBar() {
         <span aria-hidden="true">⎇</span> main
       </span>
       <span className="item" aria-label={lang === "zh" ? "当前图像" : "current image"}>
-        <span className="mono">{image ?? "—"} · {idx}/{images.length}</span>
+        <span className="mono">{image ?? "—"} · {idx}/{shownImages.length}</span>
       </span>
       <span className="item">
         <Icon icon={TOOL_ICON[tool]} size="sm" />{" "}
@@ -47,9 +49,11 @@ export function StatusBar() {
           "—"
         )}
       </span>
-      <button className="item" onClick={() => setView("market")}>
-        ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>
-      </button>
+      {modality !== "natural_image" && (
+        <button className="item" onClick={() => setView("market")}>
+          ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>
+        </button>
+      )}
       <button className="item" onClick={toggle} title="language">
         {lang === "en" ? "EN" : "中"}
       </button>

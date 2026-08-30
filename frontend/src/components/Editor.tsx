@@ -58,8 +58,8 @@ export function Editor() {
           <>
             <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>
             <div className="hud">
-              <span className="tagpill">{label}</span>
-              <span className="tagpill mono">CF {cf ?? "—"} mm/px</span>
+              {label && <span className="tagpill">{label}</span>}
+              {cf != null && <span className="tagpill mono">CF {cf} mm/px</span>}
               {loading && <span className="tagpill" style={{ color: "var(--agent)" }}><Icon icon={ICONS.spinner} size="sm" className="spin" /></span>}
             </div>
             <ViewerChrome onTool={onTool} />

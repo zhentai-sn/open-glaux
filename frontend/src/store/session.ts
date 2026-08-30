@@ -209,6 +209,7 @@ interface SessionState {
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   datasources: DataSource[]; // 数据源注册表（GET /datasources）——dev-mode 标识 + 导入源管理
   images: ImageMeta[]; // 数据集列表（Explorer）
+  naturalImages: ImageMeta[]; // SDD 07：常驻自然图像演示集合（与医学 images 分开）
   volumes: ImageMeta[]; // P6：CT 体积列表
   slides: ImageMeta[]; // P7：WSI slide 列表
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods 或 voxel_spacing_mm）
@@ -251,6 +252,7 @@ interface SessionState {
   setDatasources: (d: DataSource[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
+  setNaturalImages: (m: ImageMeta[]) => void;
   setVolumes: (m: ImageMeta[]) => void; // P6
   setSlides: (m: ImageMeta[]) => void; // P7
   setImageMeta: (m: ImageMeta | null) => void;
@@ -295,6 +297,7 @@ export const useSession = create<SessionState>((set) => ({
   capabilities: [],
   datasources: [],
   images: [],
+  naturalImages: [],
   volumes: [],
   slides: [],
   imageMeta: null,
@@ -369,6 +372,7 @@ export const useSession = create<SessionState>((set) => ({
       models: s.models.map((m) => ({ ...m, active: m.id === id })),
     })),
   setImages: (m) => set({ images: m }),
+  setNaturalImages: (m) => set({ naturalImages: m }),
   setVolumes: (m) => set({ volumes: m }),
   setSlides: (m) => set({ slides: m }),
   setImageMeta: (m) => set({ imageMeta: m }),

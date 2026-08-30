@@ -6,6 +6,7 @@ import {
   reRunActiveModel,
   removeDataSource,
   selectImage,
+  selectNaturalImage,
   selectSlide,
   selectVolume,
   switchModality,
@@ -106,6 +107,7 @@ function Dir({
 export function ExplorerView() {
   const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
+  const naturalImages = useSession((s) => s.naturalImages);
   const volumes = useSession((s) => s.volumes);
   const slides = useSession((s) => s.slides);
   const activeImage = useSession((s) => s.activeImage);
@@ -116,15 +118,32 @@ export function ExplorerView() {
   const isHC = modality === "fetal_hc";
   const isCT = modality === "ct_abdomen";
   const isWSI = modality === "pathology";
+  const isNatural = modality === "natural_image";
   // 列表 + 选中 + 选择动作按模态派生（CT 走 volumes/activeVolume，WSI 走 slides/activeSlide）。
-  const list = isCT ? volumes : isWSI ? slides : images;
+  const list = isNatural ? naturalImages : isCT ? volumes : isWSI ? slides : images;
   const activeId = isCT ? activeVolume : isWSI ? activeSlide : activeImage;
-  const onSelect = isCT ? selectVolume : isWSI ? selectSlide : selectImage;
+  const onSelect = isNatural
+    ? selectNaturalImage
+    : isCT
+      ? selectVolume
+      : isWSI
+        ? selectSlide
+        : selectImage;
   const shown = list.slice(0, IMG_LIMIT);
   const rest = list.length - shown.length;
   // 工作区/方法名读真实元数据；无数据时按模态回退默认。
-  const ws = center ?? (isHC ? "HC18" : isCT ? "CT" : isWSI ? "Pathology" : "CUBS-tech");
-  const dirName = isCT || isWSI ? "slides" : "images";
+  const ws =
+    center ??
+    (isNatural
+      ? "Natural images"
+      : isHC
+        ? "HC18"
+        : isCT
+          ? "CT"
+          : isWSI
+            ? "Pathology"
+            : "CUBS-tech");
+  const dirName = isNatural ? "natural-images" : isCT || isWSI ? "slides" : "images";
   const methodsDir = isHC ? "ellipse-profiles" : isCT ? "labelmaps" : isWSI ? "detections" : "LIMA-Profiles";
   const goldMethod = isHC ? "GT-ellipse" : "Manual-A1";
   const agentMethod = isHC
@@ -158,18 +177,35 @@ export function ExplorerView() {
             </div>
           )}
         </Dir>
-        <Dir name={methodsDir} depth={0} defaultOpen={methods.length > 0}>
-          {methods.map((mth) => (
-            <div key={mth} className="row" style={{ paddingLeft: 16 }}>
-              <span className="tw" />
-              <span className={"nm" + (mth === goldMethod ? " gold" : "")}>{mth}</span>
-              {mth === goldMethod && <span className="tag">gold</span>}
-              {mth === agentMethod && <span className="tag" style={{ color: "var(--agent)" }}>agent</span>}
-            </div>
-          ))}
-        </Dir>
+        {!isNatural && (
+          <Dir name={methodsDir} depth={0} defaultOpen={methods.length > 0}>
+            {methods.map((mth) => (
+              <div key={mth} className="row" style={{ paddingLeft: 16 }}>
+                <span className="tw" />
+                <span className={"nm" + (mth === goldMethod ? " gold" : "")}>{mth}</span>
+                {mth === goldMethod && <span className="tag">gold</span>}
+                {mth === agentMethod && (
+                  <span className="tag" style={{ color: "var(--agent)" }}>agent</span>
+                )}
+              </div>
+            ))}
+          </Dir>
+        )}
         {isIMT && <Dir name="CF" depth={0} />}
         {isIMT && <Dir name="Folds" depth={0} />}
+        {!isNatural && (
+          <Dir name="natural-images" depth={0} defaultOpen>
+            {naturalImages.map((m) => (
+              <ImageLeaf
+                key={m.id}
+                id={m.id}
+                depth={1}
+                selected={false}
+                onSelect={() => selectNaturalImage(m.id)}
+              />
+            ))}
+          </Dir>
+        )}
       </div>
     </div>
   );
