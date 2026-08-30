@@ -2891,6 +2891,59 @@ body.resizing .focus-rail { transition: none; }
 .focus-side-body > * { flex: 1; min-height: 0; }
 .focus-side-body .focus-stage { animation: none; }
 .focus-side-body .sb-view { overflow-y: auto; }
+/* ---- SDD 08：文件栏空态 / 导入面板 / 最近使用 ---- */
+.exp-skel { flex: 1; }
+.exp-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  overflow-y: auto;
+}
+.exp-empty-title { color: var(--bright); font-weight: 600; }
+.exp-empty-sub { color: var(--faint); font-size: 12px; line-height: 1.5; }
+.exp-head { display: flex; align-items: center; gap: 6px; }
+.exp-head .ws { flex: 1; }
+.exp-add {
+  background: none;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.exp-add:hover { background: var(--hover); color: var(--bright); }
+.imp { display: flex; flex-direction: column; gap: 8px; padding: 8px 4px; }
+.imp-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  text-align: center;
+}
+.imp-drop.over { border-color: var(--agent); background: var(--agent-dim); }
+.imp-drop-glyph { color: var(--faint); }
+.imp-drop-title { color: var(--bright); font-size: 13px; }
+.imp-result { color: var(--fg); font-size: 12px; }
+/* 被拒项逐条列出文件名与原因——只说「部分失败」等于让用户自己猜是哪几个 */
+.imp-rejects { margin: 0; padding-left: 16px; font-size: 12px; color: var(--faint); }
+.imp-rejects li { display: flex; gap: 6px; }
+.imp-rej-name { color: var(--fg); word-break: break-all; }
+.imp-link {
+  background: none;
+  border: none;
+  color: var(--agent);
+  cursor: pointer;
+  text-align: left;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.imp-link:hover { text-decoration: underline; }
+.imp-link:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+
 /* v1.4（SDD 01 D16/D19）：舞台常驻在左，浏览器列贴侧栏最右缘。窄屏降级态不加 data-split，
    此时浏览器列走上面的纵向 flex 占满整栏，与 v1.1 的整栏互斥形态一致。 */
 .focus-side-body[data-split="1"] { flex-direction: row; }

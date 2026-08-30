@@ -10,7 +10,7 @@ import { ShortcutSheet } from "./components/ShortcutSheet";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
-import { loadImages, loadNaturalImages } from "./data/actions";
+import { activeModalities, loadImages, loadNaturalImages, refreshDataSources } from "./data/actions";
 import { useGlobalKeys } from "./keys/globalKeys";
 import { useSession } from "./store/session";
 
@@ -19,7 +19,6 @@ export function App() {
   const uiMode = useSession((s) => s.uiMode);
   const setModels = useSession((s) => s.setModels);
   const setCapabilities = useSession((s) => s.setCapabilities);
-  const setDatasources = useSession((s) => s.setDatasources);
   const setTasks = useSession((s) => s.setTasks);
 
   useEffect(() => {
@@ -42,17 +41,16 @@ export function App() {
       } catch {
         /* 后端未起时不阻塞外壳 */
       }
-      // 数据源注册表（dev-mode 标识 + 导入源管理；市场表征层的数据集卡即由此驱动）
-      try {
-        setDatasources(await api.datasources());
-      } catch {
-        /* 后端未起时不阻塞外壳 */
-      }
-      // SDD 07：常驻自然图像目录；失败不阻塞医学数据与外壳。
+      // 数据源注册表——SDD 08 起它是「有没有数据」的唯一依据，故必须先于任何数据拉取。
+      await refreshDataSources();
+      // 一个 active 源都没有 → 文件栏渲染空态引导，此处不再发任何数据请求（§7 规则 4）。
+      // 失败态同理：failed 不是空，画成空态会让用户以为自己没数据。
+      if (useSession.getState().dsState !== "ready" || !activeModalities().length) return;
+      // SDD 07/08：通用图像目录（内置示例 + 导入源）；失败不阻塞医学数据与外壳。
       try {
         await loadNaturalImages();
       } catch {
-        /* 自然图像演示资产缺失时显示空目录 */
+        /* 通用图像资产缺失时显示空目录 */
       }
       // 载数据集 → 选首图 → 真实分割+测量
       try {

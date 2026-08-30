@@ -10,7 +10,25 @@ describe("SideBar 文件树可达性", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem("glaux.lang", "en");
-    useSession.setState({ modality: "carotid_imt", images: [], volumes: [], slides: [] });
+    // SDD 08：文件树只在有 active 数据源时渲染，故这里先备一个（不然进的是空态卡）
+    useSession.setState({
+      modality: "carotid_imt",
+      images: [],
+      volumes: [],
+      slides: [],
+      dsState: "ready",
+      datasources: [
+        {
+          id: "cubs-tech",
+          name: "CUBS",
+          modality: "carotid_imt",
+          root: "/r",
+          origin: "builtin",
+          calibration: {},
+          status: "active",
+        },
+      ],
+    });
   });
 
   it("目录行渲染为 button 且带 aria-expanded", () => {

@@ -3,8 +3,32 @@
 // source/modelVersion。加任务/模态零改（不再 segmentAndMeasure vs hcDetectAndMeasure 逐模态）。
 // 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
-import type { Modality, TaskType } from "../api/types";
+import type { Modality, TaskType, UploadResult } from "../api/types";
 import { TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
+import { pushRecent, pruneRecent } from "./recent";
+
+/** 记一条最近使用（SDD 08 §9.4）；label 即对象 id——文件栏与最近区展示的是同一个名字。 */
+function noteRecent(modality: Modality, id: string): void {
+  const s = useSession.getState();
+  s.setRecentItems(
+    pushRecent(s.recentItems, { modality, id, label: id, at: new Date().toISOString() }),
+  );
+}
+
+/** 剔除已不存在的最近项（源被删/图被移走）——渲染前调，静默且写回持久化（§7 规则 12）。 */
+export function prunedRecent() {
+  const s = useSession.getState();
+  const known = new Set<string>([
+    ...s.images.map((m) => `carotid_imt:${m.id}`),
+    ...s.images.map((m) => `fetal_hc:${m.id}`),
+    ...s.naturalImages.map((m) => `natural_image:${m.id}`),
+    ...s.volumes.map((m) => `ct_abdomen:${m.id}`),
+    ...s.slides.map((m) => `pathology:${m.id}`),
+  ]);
+  const next = pruneRecent(s.recentItems, (m, id) => known.has(`${m}:${id}`));
+  if (next.length !== s.recentItems.length) s.setRecentItems(next);
+  return next;
+}
 
 /** 当前模态对应的任务类型（注册表真相源）；未就绪则 null。 */
 function currentTask(): TaskType | null {
@@ -133,6 +157,7 @@ export async function runCurrentTask(imageId: string): Promise<boolean> {
 /** 选图：设元数据 + 载真图（画布自取 /image）+ 跑当前模态的检测/分割测量。 */
 export async function selectImage(imageId: string): Promise<void> {
   const s = useSession.getState();
+  noteRecent(s.modality, imageId);
   const meta = s.images.find((m) => m.id === imageId) ?? null;
   s.setActiveImage(imageId);
   s.setImageMeta(meta);
@@ -148,6 +173,7 @@ export function selectNaturalImage(imageId: string): void {
   const s = useSession.getState();
   const meta = s.naturalImages.find((m) => m.id === imageId) ?? null;
   if (!meta) return;
+  noteRecent("natural_image", imageId);
   s.setModality("natural_image");
   s.setActiveImage(imageId);
   s.setActiveVolume(null);
@@ -161,6 +187,7 @@ export function selectNaturalImage(imageId: string): void {
 /** P6：选 CT volume——设元数据（含 voxel_spacing_mm）+ 跑当前模态的 volume 任务。 */
 export async function selectVolume(volumeId: string): Promise<void> {
   const s = useSession.getState();
+  noteRecent("ct_abdomen", volumeId);
   const meta = s.volumes.find((m) => m.id === volumeId) ?? null;
   s.setActiveVolume(volumeId);
   s.setImageMeta(meta);
@@ -171,6 +198,7 @@ export async function selectVolume(volumeId: string): Promise<void> {
 /** P7：选 WSI slide——设元数据（含 mpp/dims）+ 清叠加/ROI。**不自动跑**（核检测要先框 ROI）。 */
 export async function selectSlide(slideId: string): Promise<void> {
   const s = useSession.getState();
+  noteRecent("pathology", slideId);
   const meta = s.slides.find((m) => m.id === slideId) ?? null;
   s.setActiveSlide(slideId);
   s.setImageMeta(meta);
@@ -204,6 +232,53 @@ export async function runWsiTask(
   }
 }
 
+/**
+ * 拉数据源清单并设加载态（SDD 08 §7 规则 1/4、§11）。
+ * 失败置 `failed` 而**不是**空数组——把请求失败画成空态卡，会让用户以为自己没数据而去重新导入。
+ */
+export async function refreshDataSources(): Promise<void> {
+  const s = useSession.getState();
+  try {
+    s.setDatasources(await api.datasources());
+    s.setDsState("ready");
+  } catch {
+    s.setDsState("failed");
+  }
+}
+
+/** 当前有活动数据源的模态集合——模态切换器的可见性与「要不要拉数据」都读它。 */
+export function activeModalities(): Modality[] {
+  const seen = new Set<Modality>();
+  for (const d of useSession.getState().datasources) {
+    if (d.status === "active") seen.add(d.modality);
+  }
+  return [...seen];
+}
+
+/** 上传一批本地图像 → 刷新数据源与通用图像列表 → 选中首个新图。返回结果供 UI 列出被拒项。 */
+export async function uploadImages(files: File[]): Promise<UploadResult> {
+  const result = await api.uploadImages(files);
+  await refreshDataSources();
+  const imgs = await api.naturalImages();
+  useSession.getState().setNaturalImages(imgs);
+  const first = result.accepted[0];
+  if (first) selectNaturalImage(first.id);
+  return result;
+}
+
+/** 显式加载示例数据源 → 刷新清单；若此前空态则加载首个可用模态的数据。返回加载到的源数。 */
+export async function loadSamples(): Promise<number> {
+  const added = await api.loadSamples();
+  await refreshDataSources();
+  const mods = activeModalities();
+  if (added.length && mods.length) {
+    const cur = useSession.getState().modality;
+    if (mods.includes(cur)) await loadImages();
+    else await switchModality(mods[0]);
+  }
+  return added.length;
+}
+
 /** 刷新「插件市场」相关注册表（能力 + 数据源 + 模型）——导入/删除数据源后调。 */
 export async function reloadMarket(): Promise<void> {
   const [caps, ds, models] = await Promise.all([
@@ -228,6 +303,12 @@ export async function importDataSource(path: string, modality: Modality): Promis
 export async function removeDataSource(id: string): Promise<void> {
   await api.removeDatasource(id);
   await reloadMarket();
+  useSession.getState().setDsState("ready");
+  // 删到一个 active 源都不剩 → 回空态，不再去拉必然为空的数据列表（§7 规则 4）
+  if (!activeModalities().length) {
+    useSession.getState().setNaturalImages([]);
+    return;
+  }
   await loadImages();
 }
 

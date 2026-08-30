@@ -68,6 +68,29 @@ export interface DataSource {
   status: DataSourceStatus;
 }
 
+// --- 浏览器图像上传（SDD 08 §9.2） ------------------------------------------
+
+/** 被拒原因；与后端 enum 同集合。 */
+export type UploadRejectReason = "unsupported_type" | "too_large" | "corrupt";
+
+export interface UploadAccepted {
+  id: string;
+  /** 客户端原始文件名，仅用于回显——它不参与任何路径与 ID（后端 D-7）。 */
+  filename: string;
+  bytes: number;
+}
+
+export interface UploadRejected {
+  filename: string;
+  reason: UploadRejectReason;
+}
+
+export interface UploadResult {
+  source: DataSource;
+  accepted: UploadAccepted[];
+  rejected: UploadRejected[];
+}
+
 // --- 胎儿头围（HC，闭合轮廓模态） ------------------------------------------
 
 // --- VLM 连接（前端 store 用；探测结果类型见 agent/runtime/types.ts）-----------------------

@@ -2,8 +2,9 @@ import { useState, type ReactNode } from "react";
 
 import type { CapabilityLayer, Modality } from "../api/types";
 import {
-  importDataSource,
+  prunedRecent,
   reRunActiveModel,
+  refreshDataSources,
   removeDataSource,
   selectImage,
   selectNaturalImage,
@@ -11,6 +12,7 @@ import {
   selectVolume,
   switchModality,
 } from "../data/actions";
+import { ImportPanel } from "./ImportPanel";
 import { useI18n, type I18nKey } from "../i18n";
 import { useSession } from "../store/session";
 import { AtlasView } from "./atlas/AtlasView";
@@ -20,26 +22,95 @@ import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
 
-// 模态切换——从任务注册表（GET /tasks）派生，不再硬编码模态数组/标签。
-// 一模态多任务时按模态去重（取该模态首个任务的标签）。加模态 = 后端注册一行，前端零改。
+// 模态切换（SDD 08 D-1）——**可见性来自数据源，标签来自任务注册表**。
+// 任务注册表是静态能力清单，与「用户有没有数据」无关；此前二者被合并，直接后果是选中通用图像时
+// 四个 tab 一个都不高亮（通用图像没有 TaskPlugin）。现在只列有 active 数据源的模态。
 function ModalitySwitch() {
-  const { lang } = useI18n();
+  const { lang, t } = useI18n();
   const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
-  const seen = new Set<string>();
-  const opts = tasks.filter((tk) => (seen.has(tk.modality) ? false : (seen.add(tk.modality), true)));
+  const datasources = useSession((s) => s.datasources);
+
+  const seen = new Set<Modality>();
+  const opts: Modality[] = [];
+  for (const d of datasources) {
+    if (d.status !== "active" || seen.has(d.modality)) continue;
+    seen.add(d.modality);
+    opts.push(d.modality);
+  }
   if (opts.length < 2) return null; // 单模态无需切换器
+
+  // 标签仍取自任务注册表；通用图像没有任务，用中性 i18n 常量（SDD 08 D-3）。
+  const label = (m: Modality) =>
+    m === "natural_image" ? t("mod_general_images") : tasks.find((tk) => tk.modality === m)?.label[lang] ?? m;
+
   return (
     <div className="modsw">
-      {opts.map((tk) => (
+      {opts.map((m) => (
         <button
-          key={tk.modality}
-          className={"modseg" + (modality === tk.modality ? " on" : "")}
-          onClick={() => void switchModality(tk.modality)}
+          key={m}
+          className={"modseg" + (modality === m ? " on" : "")}
+          onClick={() => void switchModality(m)}
         >
-          {tk.label[lang]}
+          {label(m)}
         </button>
       ))}
+    </div>
+  );
+}
+
+// 最近使用（SDD 08 §5.4/§9.4）——只读本地记录，点击按其模态走对应选择动作。
+function RecentList() {
+  const { t } = useI18n();
+  useSession((s) => s.recentItems); // 订阅变更
+  const items = prunedRecent();
+  if (!items.length) return null;
+  const open = (modality: Modality, id: string) => {
+    if (modality === "natural_image") return selectNaturalImage(id);
+    if (modality === "ct_abdomen") return void selectVolume(id);
+    if (modality === "pathology") return void selectSlide(id);
+    return void selectImage(id);
+  };
+  return (
+    <>
+      <div className="sec">{t("exp_recent")}</div>
+      {items.map((it) => (
+        <button
+          key={`${it.modality}:${it.id}`}
+          type="button"
+          className="row"
+          style={{ paddingLeft: 16 }}
+          onClick={() => open(it.modality, it.id)}
+        >
+          <span className="tw" />
+          <Icon icon={ICONS.file} size="sm" className="ico fico" />
+          <span className="nm">{it.label}</span>
+        </button>
+      ))}
+    </>
+  );
+}
+
+// 文件栏空态（SDD 08 §5.4/§11）——新用户第一屏是「把你的数据放进来」，不是四个演示数据集。
+function ExplorerEmpty() {
+  const { t } = useI18n();
+  return (
+    <div className="exp-empty">
+      <div className="exp-empty-title">{t("exp_empty_title")}</div>
+      <div className="exp-empty-sub">{t("exp_empty_sub")}</div>
+      <ImportPanel compact />
+    </div>
+  );
+}
+
+function ExplorerFailed() {
+  const { t } = useI18n();
+  return (
+    <div className="exp-empty">
+      <div className="exp-empty-title">{t("exp_ds_failed")}</div>
+      <button type="button" className="dsbtn" onClick={() => void refreshDataSources()}>
+        {t("exp_retry")}
+      </button>
     </div>
   );
 }
@@ -105,6 +176,19 @@ function Dir({
 }
 
 export function ExplorerView() {
+  const dsState = useSession((s) => s.dsState);
+  const datasources = useSession((s) => s.datasources);
+  const hasActive = datasources.some((d) => d.status === "active");
+  // 三态先于一切数据渲染（§11）：loading 显骨架不显文案（避免闪烁），failed 与「空」严格区分。
+  if (dsState === "loading") return <div className="sb-view exp-skel" aria-busy="true" />;
+  if (dsState === "failed") return <ExplorerFailed />;
+  if (!hasActive) return <ExplorerEmpty />;
+  return <ExplorerTree />;
+}
+
+function ExplorerTree() {
+  const { t } = useI18n();
+  const [importOpen, setImportOpen] = useState(false);
   const modality = useSession((s) => s.modality);
   const images = useSession((s) => s.images);
   const naturalImages = useSession((s) => s.naturalImages);
@@ -158,7 +242,20 @@ export function ExplorerView() {
   return (
     <div className="sb-view">
       <ModalitySwitch />
-      <div className="ws">{ws}</div>
+      <div className="exp-head">
+        <span className="ws">{ws}</span>
+        <button
+          type="button"
+          className="exp-add"
+          title={t("exp_import")}
+          aria-label={t("exp_import")}
+          onClick={() => setImportOpen((o) => !o)}
+        >
+          <Icon icon={ICONS.plus} size="sm" />
+        </button>
+      </div>
+      {importOpen && <ImportPanel compact />}
+      <RecentList />
       <div>
         <Dir name={dirName} depth={0} defaultOpen>
           {shown.map((m) => (
@@ -193,19 +290,8 @@ export function ExplorerView() {
         )}
         {isIMT && <Dir name="CF" depth={0} />}
         {isIMT && <Dir name="Folds" depth={0} />}
-        {!isNatural && (
-          <Dir name="natural-images" depth={0} defaultOpen>
-            {naturalImages.map((m) => (
-              <ImageLeaf
-                key={m.id}
-                id={m.id}
-                depth={1}
-                selected={false}
-                onSelect={() => selectNaturalImage(m.id)}
-              />
-            ))}
-          </Dir>
-        )}
+        {/* SDD 08 §7 规则 13：通用图像不再作为常驻目录挂在每个医学模态下——它现在是
+            模态切换器里的一个候选（有数据源时才出现），由数据轴而非硬编码决定可见性。 */}
       </div>
     </div>
   );
@@ -218,72 +304,6 @@ const LAYERS: { layer: CapabilityLayer; key: I18nKey }[] = [
   { layer: "verification", key: "lay_verification" },
   { layer: "memory", key: "lay_memory" },
 ];
-
-// 导入数据源表单——POST /datasources（服务端可达的文件夹路径；缺标定后端自动探测）。
-// v0 只放开端到端可用的 WSI/CT；carotid/HC 数据结构复杂，导入后续（见计划 §2）。
-const IMPORTABLE: { modality: Modality; label: string }[] = [
-  { modality: "pathology", label: "pathology · WSI" },
-  { modality: "ct_abdomen", label: "ct_abdomen · CT" },
-];
-
-function ImportDataSourceForm() {
-  const { lang } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [path, setPath] = useState("");
-  const [modality, setModality] = useState<Modality>("pathology");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const submit = async () => {
-    const p = path.trim();
-    if (!p || busy) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const status = await importDataSource(p, modality);
-      setMsg((lang === "zh" ? "已导入 · 状态：" : "Imported · status: ") + status);
-      setPath("");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="dsimp">
-      <button type="button" className="dsimp-hd" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="tw"><Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" /></span>
-        <span>{lang === "zh" ? "＋ 导入数据源" : "＋ Import data source"}</span>
-      </button>
-      {open && (
-        <div className="dsimp-bd">
-          <input
-            className="dsin"
-            placeholder={lang === "zh" ? "服务端文件夹路径" : "server folder path"}
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void submit()}
-          />
-          <select className="dsin" value={modality} onChange={(e) => setModality(e.target.value as Modality)}>
-            {IMPORTABLE.map((m) => (
-              <option key={m.modality} value={m.modality}>{m.label}</option>
-            ))}
-          </select>
-          <button className="dsbtn" disabled={busy || !path.trim()} onClick={() => void submit()}>
-            {busy ? "…" : lang === "zh" ? "导入" : "Import"}
-          </button>
-          {msg && <div className="dsmsg">{msg}</div>}
-          <div className="dshint">
-            {lang === "zh"
-              ? "路径须在 ~/glaux_datasets 下；缺标定自动从文件探测（读不出则需手动补）"
-              : "path must live under ~/glaux_datasets; calibration is auto-detected from files"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // 「模型/数据集/skill/连接器/MCP/知识库」= 一套 Capability 清单（洞见：skill = TaskPlugin）。
 // v0：Model 卡可点激活（驱动运行模型），余为目录卡（状态徽标）；加一种能力 = 后端清单加一条，前端零改。
@@ -312,7 +332,7 @@ function MarketplaceView() {
         return (
           <div key={layer}>
             <div className="sec">{t(key)}</div>
-            {layer === "representation" && <ImportDataSourceForm />}
+            {layer === "representation" && <ImportPanel />}
             {items.map((c) => {
               // 导入源（dataset:imported-*）显 × 可删；builtin/占位卡不可删。
               const dsId = c.kind === "dataset" ? c.id.replace(/^dataset:/, "") : "";

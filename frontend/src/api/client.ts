@@ -15,6 +15,7 @@ import type {
   TaskSpec,
   TaskType,
   TaskView,
+  UploadResult,
 } from "./types";
 
 /** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
@@ -158,6 +159,21 @@ export const api = {
   /** 导入一个文件夹为数据源。缺 calibration 时后端自动探测（读不出 → needs_calibration）。 */
   importDatasource: (path: string, modality: Modality, calibration?: Record<string, unknown>) =>
     post<DataSource>("/datasources", { path, modality, calibration: calibration ?? null }),
+  /** SDD 08：显式加载仓库自带的示例数据源。幂等；无示例时返回空数组而非报错。 */
+  loadSamples: () => post<DataSource[]>("/datasources/samples", {}),
+  /**
+   * SDD 08：浏览器上传一批 JPEG/PNG 为通用图像数据源。
+   * 不手写 Content-Type——multipart 的 boundary 必须由浏览器生成，写死会让后端解析不出分段。
+   */
+  uploadImages: (files: File[], name?: string) => {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    if (name) form.append("name", name);
+    return fetch(`${BASE}/uploads/images`, { method: "POST", body: form }).then(async (r) => {
+      if (!r.ok) throw new ApiError(r.status, await r.text());
+      return r.json() as Promise<UploadResult>;
+    });
+  },
   /** 删除一个导入源（builtin 不可删 → 404）。 */
   removeDatasource: (id: string) =>
     fetch(`${BASE}/datasources/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => {

@@ -14,6 +14,7 @@ import type {
   VlmProvider,
 } from "../api/types";
 import type { Attachment } from "../agent/attachments";
+import { readRecent, writeRecent, type RecentItem } from "../data/recent";
 
 /** 一条 VLM 连接（SDD 2026-07-14-001 §4）——provider + 端点 + 密钥 + 选定模型。 */
 export interface Connection {
@@ -228,6 +229,10 @@ interface SessionState {
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   datasources: DataSource[]; // 数据源注册表（GET /datasources）——dev-mode 标识 + 导入源管理
+  // SDD 08 §11：数据源清单的加载态。failed 必须与「空」区分——把请求失败画成空态卡，
+  // 会让用户以为自己没数据而去重新导入，实际是后端没起。
+  dsState: "loading" | "ready" | "failed";
+  recentItems: RecentItem[]; // SDD 08 §9.4：最近打开过的对象（本地持久化）
   images: ImageMeta[]; // 数据集列表（Explorer）
   naturalImages: ImageMeta[]; // SDD 07：常驻自然图像演示集合（与医学 images 分开）
   volumes: ImageMeta[]; // P6：CT 体积列表
@@ -270,6 +275,8 @@ interface SessionState {
   setModels: (m: ModelInfo[]) => void;
   setCapabilities: (c: Capability[]) => void;
   setDatasources: (d: DataSource[]) => void;
+  setDsState: (s: "loading" | "ready" | "failed") => void;
+  setRecentItems: (r: RecentItem[]) => void;
   activateModel: (id: string) => void;
   setImages: (m: ImageMeta[]) => void;
   setNaturalImages: (m: ImageMeta[]) => void;
@@ -316,6 +323,8 @@ export const useSession = create<SessionState>((set) => ({
   models: [],
   capabilities: [],
   datasources: [],
+  dsState: "loading",
+  recentItems: readRecent(),
   images: [],
   naturalImages: [],
   volumes: [],
@@ -386,6 +395,11 @@ export const useSession = create<SessionState>((set) => ({
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
   setCapabilities: (c) => set({ capabilities: c }),
   setDatasources: (d) => set({ datasources: d }),
+  setDsState: (v) => set({ dsState: v }),
+  setRecentItems: (r) => {
+    writeRecent(r);
+    set({ recentItems: r });
+  },
   activateModel: (id) =>
     set((s) => ({
       activeModel: id,
