@@ -4,8 +4,8 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 边界、契约、状态机与验收标准已冻结，可进入实现规划 |
+| 状态 | `implemented` |
+| 当前阶段 | 代码完成并通过开发侧走查（见 §15 自查）；业务验收待维护者确认后转 `accepted` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-08-30 |
@@ -355,42 +355,58 @@ stateDiagram-v2
 
 后端：
 
-- [ ] `POST /uploads/images` 上传 2 个合法 JPEG 后返回 `accepted` 两条、`rejected` 空，且 `source.status=active`。
-- [ ] 上传 `.tiff` 返回 `rejected[].reason=unsupported_type`；上传改名为 `.jpg` 的文本文件返回 `reason=corrupt`。
-- [ ] 上传单个超过 `GLAUX_UPLOAD_MAX_BYTES` 的文件返回 `reason=too_large`，且不落盘。
-- [ ] 单次上传超过 `GLAUX_UPLOAD_MAX_FILES` 个文件返回 422，且 `uploads/` 下无新增文件。
-- [ ] 客户端文件名为 `../../etc/passwd` 时，落盘路径仍在 `datasets_root()/uploads/` 下，返回 ID 匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$`。
-- [ ] 同一批文件重复上传到同一数据源，`GET /datasources` 条目数不增加，`accepted[].id` 与首次一致。
-- [ ] `GET /images?modality=natural_image` 同时返回内置白名单图（示例已加载时）与上传图，重复请求顺序一致。
-- [ ] `GET /image/{上传ID}` 返回对应字节；删除该数据源后同一 ID 返回 404。
-- [ ] `GLAUX_DEV_MODE` 未设置时 `GET /datasources` 返回不含 `origin=builtin` 的条目。
-- [ ] `GLAUX_DEV_MODE=1` 时 `GET /datasources` 与本改动前的返回值一致。
-- [ ] `POST /datasources/samples` 连调两次，`GET /datasources` 中示例源不重复。
-- [ ] 内置根均无数据时 `POST /datasources/samples` 返回 `200` 与空数组，不抛异常。
+- [x] `POST /uploads/images` 上传 2 个合法 JPEG 后返回 `accepted` 两条、`rejected` 空，且 `source.status=active`。
+- [x] 上传 `.tiff` 返回 `rejected[].reason=unsupported_type`；上传改名为 `.jpg` 的文本文件返回 `reason=corrupt`。
+- [x] 上传单个超过 `GLAUX_UPLOAD_MAX_BYTES` 的文件返回 `reason=too_large`，且不落盘。
+- [x] 单次上传超过 `GLAUX_UPLOAD_MAX_FILES` 个文件返回 422，且 `uploads/` 下无新增文件。
+- [x] 客户端文件名为 `../../etc/passwd` 时，落盘路径仍在 `datasets_root()/uploads/` 下，返回 ID 匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$`。
+- [x] 同一批文件重复上传到同一数据源，`GET /datasources` 条目数不增加，`accepted[].id` 与首次一致。
+- [x] `GET /images?modality=natural_image` 同时返回内置白名单图（示例已加载时）与上传图，重复请求顺序一致。
+- [x] `GET /image/{上传ID}` 返回对应字节；删除该数据源后同一 ID 返回 404。
+- [x] `GLAUX_DEV_MODE` 未设置时 `GET /datasources` 返回不含 `origin=builtin` 的条目。
+- [x] `GLAUX_DEV_MODE=1` 时 `GET /datasources` 与本改动前的返回值一致。
+- [x] `POST /datasources/samples` 连调两次，`GET /datasources` 中示例源不重复。
+- [x] 内置根均无数据时 `POST /datasources/samples` 返回 `200` 与空数组，不抛异常。
 
 前端：
 
-- [ ] `GET /datasources` 返回空数组时，Explorer 渲染空态卡，且测试断言未发起 `/images`、`/volumes`、`/slides`、`/task/run` 任一请求。
-- [ ] `GET /datasources` 失败时渲染错误与重试，不渲染空态文案。
-- [ ] 只有 `natural_image` 有活动源时，模态切换器不渲染（候选 < 2）；选中通用图像时不出现「无 tab 高亮」状态。
-- [ ] 同时存在 `natural_image` 与 `pathology` 活动源时，切换器渲染两个候选，通用图像标签为「通用图像 / General images」。
-- [ ] 任务注册表有但无活动数据源的模态，不出现在切换器中。
-- [ ] 切换器候选无论多少，标签均完整渲染（不截断、不省略号），当前模态有选中态。
+- [x] `GET /datasources` 返回空数组时，Explorer 渲染空态卡，且测试断言未发起 `/images`、`/volumes`、`/slides`、`/task/run` 任一请求。
+- [x] `GET /datasources` 失败时渲染错误与重试，不渲染空态文案。
+- [x] 只有 `natural_image` 有活动源时，模态切换器不渲染（候选 < 2）；选中通用图像时不出现「无 tab 高亮」状态。
+- [x] 同时存在 `natural_image` 与 `pathology` 活动源时，切换器渲染两个候选，通用图像标签为「通用图像 / General images」。
+- [x] 任务注册表有但无活动数据源的模态，不出现在切换器中。
+- [x] 切换器候选无论多少，标签均完整渲染（不截断、不省略号），当前模态有选中态。
 - [ ] 5 个候选时：容器 240px 为纵向单列，拖到 600px 以上变回横向分段且不折行；2 个候选时 240px 即横排。两种排版下容器均无横向滚动（浏览器走查）。
-- [ ] 拖入 2 个 JPEG 后自动切到 `natural_image` 并选中首个新图，文件树出现对应叶子。
-- [ ] 上传部分被拒时，逐条显示被拒文件名与原因，已接受的图正常出现在树中。
-- [ ] 移除最后一个数据源后回到空态卡，无未捕获错误。
-- [ ] 移除导入源的确认文案明示「不会删除磁盘上的文件」。
-- [ ] 打开过的对象出现在「最近使用」，最多 10 条、最近在前；刷新页面后仍在。
-- [ ] `localStorage` 中 `glaux.recent.v1` 被写入非法 JSON 时，Explorer 正常渲染且最近使用为空。
-- [ ] 中英文两种语言下空态、上传结果与错误文案均无缺 key。
+- [x] 拖入 2 个 JPEG 后自动切到 `natural_image` 并选中首个新图，文件树出现对应叶子。
+- [x] 上传部分被拒时，逐条显示被拒文件名与原因，已接受的图正常出现在树中。
+- [x] 移除最后一个数据源后回到空态卡，无未捕获错误。
+- [x] 移除导入源的确认文案明示「不会删除磁盘上的文件」。
+- [x] 打开过的对象出现在「最近使用」，最多 10 条、最近在前；刷新页面后仍在。
+- [x] `localStorage` 中 `glaux.recent.v1` 被写入非法 JSON 时，Explorer 正常渲染且最近使用为空。
+- [x] 中英文两种语言下空态、上传结果与错误文案均无缺 key。
 
 跨组件：
 
-- [ ] 上传图作为当前对象时，Agent Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含医学 `task` / `method` / `cubs_cf` / `roi_box`。
-- [ ] Agent Runtime 经 `/image/{上传ID}` 可取到与浏览器一致的字节。
-- [ ] 上传图上的越界 bbox/polygon 仍被 `/annotations` 以 422 拒绝。
-- [ ] `run-backend.sh` 启动的开发后端行为与本改动前一致（示例数据默认可见）。
+- [x] 上传图作为当前对象时，Agent Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含医学 `task` / `method` / `cubs_cf` / `roi_box`。
+- [x] Agent Runtime 经 `/image/{上传ID}` 可取到与浏览器一致的字节。
+- [x] 上传图上的越界 bbox/polygon 仍被 `/annotations` 以 422 拒绝。
+- [x] `run-backend.sh` 启动的开发后端行为与本改动前一致（示例数据默认可见）。
+
+开发侧验证（2026-08-31）：
+
+| 分类 | 结果 |
+| --- | --- |
+| 已完成 | Backend `214 passed`（3 项既有失败与本 SDD 无关，见下）；Frontend `187 passed`；Agent Runtime `171 passed` 回归无变化；ruff / eslint / tsc 全绿。浏览器走查覆盖：产品模式空态首屏、经文件选择器真实上传两图（自动选中首图上舞台、浏览器列不被关闭）、连续切图、分隔条两端夹持（240/480，舞台 479px ≥ 360）、加载示例数据后 5 模态出现、移除源确认文案、刷新后 `browserView`/`browserW`/最近使用保持；跨组件经 HTTP 验证上传图取图 200、越界 bbox 422、未知 `nat-*` 404 |
+| 未完成 | 无（§15 范围内） |
+| 无法验证 | ① 切换器排版的**自动**重排：预览工具的视口模拟既不触发 `window.resize` 也不触发 `ResizeObserver`（已用新装监听器实测两者均 0 次回调），手动派发 `resize` 后降级/恢复与分档均正确，真实浏览器不存在此限制；② `segment_region` 端到端：SAM 外发开关与 token 均已就绪，但会话需要已配置的 VLM 模型连接，本次未配 |
+
+走查中发现并修复的缺陷（各补一条回归用例）：
+
+1. `_dims_for` 只认 `natural_` 前缀，上传图的 `nat-` ID 落进「未知对象 → 跳过范围校验」的
+   best-effort 分支，越界 bbox 被静默接受（201 而非 422）——违反 SDD 07 §7.11。
+2. `prunedRecent` 把「列表为空」当成「对象不存在」，启动期列表尚未加载完就把有效的最近记录
+   永久剔除并写回 `localStorage`。
+3. 移除数据源的确认文案（D-6 要求明示不删磁盘文件）i18n 键已定义但未接线。
 
 ## 16. 决策记录
 

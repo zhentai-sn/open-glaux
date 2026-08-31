@@ -21,7 +21,7 @@
 
 - 不新增 science-core `TaskPlugin`、自然图像测量任务或带单位结果。
 - 不改变 `segment_region` 的供应商、mask 解码、错误映射或外发门控；这些由 [SDD 02](../02-agent-image-annotation/README.md) 负责。
-- 不实现任意图片上传、目录导入、在线搜索或生产级自然图像数据管理。
+- 不实现在线搜索或生产级自然图像数据管理。**任意图片上传与目录导入自 2026-08-31 起由 [SDD 08](../08-data-import-first-explorer/README.md) 负责**（原为本 SDD 的非目标）。
 - 不改变 [SDD 04](../04-unified-annotation-toolbox/README.md) 的建议态标注实体和人工确认流。
 - 不把自然照片伪装成任何医学模态，也不自动调用 `/task/run`。
 
@@ -114,7 +114,7 @@ sequenceDiagram
 2. 自然图像列表与 ID 来自后端固定白名单，前端不得拼本地路径。
 3. 选择自然图像必须清空 `activeVolume`、`activeSlide`、ROI、医学 metrics/primitives 和旧标注视图状态。
 4. 选择自然图像不得调用 `/task/run`；SAM 只在用户通过会话触发 `segment_region` 时调用。
-5. 文件栏在任意医学模态下都展示 `natural-images/`；选择医学模态按钮可离开自然图像。
+5. 通用图像作为模态切换器的一个候选出现（有活动数据源时）。**原「文件栏在任意医学模态下都常驻展示 `natural-images/`」已由 [SDD 08](../08-data-import-first-explorer/README.md) §7 规则 13 取代**：示例照片随示例数据显式加载,不再硬编码常驻。
 6. `natural_image` 没有 `TaskView` 时，Viewer 使用既有 `raster_2d` 兜底。
 7. Agent Viewer Context 不得泄漏残留医学 `task`、`method` 或标定。
 8. 图片必须逐张有可再分发许可；来源不清晰的候选不得提交。
