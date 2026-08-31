@@ -167,3 +167,29 @@ def test_unknown_nat_id_404_not_mock():
     """未知 nat-* 必须 404，不能被 mock 合成图吞掉（否则伪造 ID 看似成功）。"""
     r = client.get("/image/nat-deadbeef-cafebabe")
     assert r.status_code == 404
+
+
+def _annotate(image_id: str, x1: int, y1: int):
+    return client.post(
+        "/annotations",
+        json={
+            "image_id": image_id,
+            "kind": "bbox",
+            "status": "suggested",
+            "author": "agent",
+            "primitive": {"kind": "bbox", "x0": 0, "y0": 0, "x1": x1, "y1": y1},
+        },
+    )
+
+
+def test_uploaded_image_annotation_bounds_enforced():
+    """上传图必须走真实尺寸校验，不能掉进「未知对象 → 跳过校验」的 best-effort 分支。
+
+    回归守卫：`_dims_for` 曾只认 `natural_` 前缀，于是 `nat-` 开头的上传图越界 bbox 被静默接受
+    （SDD 07 §7.11 明令禁止的降级）。走查时实测 201 才发现。
+    """
+    up = _post([("files", ("a.jpg", _jpeg((8, 8)), "image/jpeg"))], name="越界校验")
+    image_id = up.json()["accepted"][0]["id"]
+
+    assert _annotate(image_id, 99999, 99999).status_code == 422
+    assert _annotate(image_id, 4, 4).status_code in (200, 201)

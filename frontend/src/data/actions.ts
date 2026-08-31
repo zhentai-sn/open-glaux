@@ -18,14 +18,20 @@ function noteRecent(modality: Modality, id: string): void {
 /** 剔除已不存在的最近项（源被删/图被移走）——渲染前调，静默且写回持久化（§7 规则 12）。 */
 export function prunedRecent() {
   const s = useSession.getState();
-  const known = new Set<string>([
-    ...s.images.map((m) => `carotid_imt:${m.id}`),
-    ...s.images.map((m) => `fetal_hc:${m.id}`),
-    ...s.naturalImages.map((m) => `natural_image:${m.id}`),
-    ...s.volumes.map((m) => `ct_abdomen:${m.id}`),
-    ...s.slides.map((m) => `pathology:${m.id}`),
-  ]);
-  const next = pruneRecent(s.recentItems, (m, id) => known.has(`${m}:${id}`));
+  // 按模态分别持有该模态当前已加载的列表。**空列表 = 尚未加载，不是「不存在」**——
+  // 二者混同会让启动期（列表还没拉回来）把有效记录当失效项永久删掉，走查时就是这么丢的。
+  const lists: Partial<Record<Modality, string[]>> = {
+    carotid_imt: s.images.map((m) => m.id),
+    fetal_hc: s.images.map((m) => m.id),
+    natural_image: s.naturalImages.map((m) => m.id),
+    ct_abdomen: s.volumes.map((m) => m.id),
+    pathology: s.slides.map((m) => m.id),
+  };
+  const next = pruneRecent(s.recentItems, (m, id) => {
+    const list = lists[m];
+    if (!list || !list.length) return true; // 该模态还没加载出来 → 保留，等下一次渲染再判
+    return list.includes(id);
+  });
   if (next.length !== s.recentItems.length) s.setRecentItems(next);
   return next;
 }

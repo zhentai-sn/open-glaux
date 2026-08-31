@@ -390,9 +390,12 @@ function MarketplaceView() {
                     {removable && (
                       <button
                         className="dsrm"
-                        title={lang === "zh" ? "移除导入源" : "Remove imported source"}
+                        title={t("ds_remove_keeps_files")}
                         onClick={(e) => {
                           e.stopPropagation();
+                          // SDD 08 D-6：只注销、不删磁盘文件——确认文案必须把这点说清楚，
+                          // 否则用户会以为点了就把自己的原图删了（或反过来，以为清干净了）。
+                          if (!window.confirm(`${c.name}\n\n${t("ds_remove_keeps_files")}`)) return;
                           void removeDataSource(dsId);
                         }}
                       >

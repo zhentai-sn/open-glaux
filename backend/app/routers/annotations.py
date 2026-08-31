@@ -65,13 +65,16 @@ class AnnotationPatch(BaseModel):
 
 def _dims_for(image_id: str) -> tuple[int, int] | None:
     """某对象的像素尺寸 (width, height)：WSI level-0 / CT 单层 / US tiff；不认识 → None。"""
-    if image_id.startswith("natural_"):
+    # 通用图像两类前缀：natural_*（SDD 07 内置白名单）与 nat-*（SDD 08 导入源）。
+    # 两者都必须走真实尺寸校验——漏掉 nat- 会让上传图掉进下面的 best-effort 分支（dims=None →
+    # 跳过范围校验），于是越界 bbox 被静默接受，正是 SDD 07 §7.11 禁止的降级。
+    if image_id.startswith(("natural_", "nat-")):
         try:
             from .. import dataset_natural
 
             return dataset_natural.image_size(image_id)
         except FileNotFoundError as exc:
-            raise AnnotationError("INVALID_GEOMETRY", f"自然图像不存在或损坏：{image_id}") from exc
+            raise AnnotationError("INVALID_GEOMETRY", f"通用图像不存在或损坏：{image_id}") from exc
     try:
         from .. import dataset_wsi
 

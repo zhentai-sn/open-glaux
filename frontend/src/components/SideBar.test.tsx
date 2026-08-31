@@ -175,6 +175,22 @@ describe("最近使用（SDD 08 §9.4）", () => {
     expect(useSession.getState().recentItems.map((i) => i.id)).toEqual(["nat-1"]);
   });
 
+  it("对应列表尚未加载时保留记录，不当作失效项删掉", () => {
+    // 回归守卫：启动期 naturalImages 还没拉回来，若把「空列表」当「不存在」，
+    // 有效的最近记录会被永久剔除并写回 localStorage。走查时就是这么丢的。
+    useSession.setState({
+      datasources: [ds("a", "carotid_imt")],
+      images: [img("t1", "carotid_imt")],
+      naturalImages: [], // 尚未加载
+      recentItems: [
+        { modality: "natural_image", id: "nat-1", label: "nat-1", at: "2026-08-31T00:00:00Z" },
+      ],
+    });
+    ui();
+    expect(screen.getByText("nat-1")).toBeTruthy();
+    expect(useSession.getState().recentItems).toHaveLength(1);
+  });
+
   it("localStorage 里是非法 JSON 时正常渲染且最近使用为空", () => {
     localStorage.setItem(RECENT_KEY, "{not json");
     useSession.setState({
