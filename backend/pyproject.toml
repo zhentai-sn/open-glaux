@@ -2,7 +2,9 @@
 name = "glaux-backend"
 version = "0.2.0"
 description = "Glaux IDE 前端的 FastAPI 外壳——编排/IO/进程隔离的薄 HTTP 层，不含 TF"
-requires-python = ">=3.10"
+# D12(2026-08-27 技术债审计):实际只在 3.12 上验证过,声明支持 3.10 是没有依据的承诺。
+# 与 Makefile 的 `uv venv --python 3.12` 对齐。
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",

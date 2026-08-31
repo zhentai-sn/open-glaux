@@ -1,7 +1,7 @@
 ---
 title: "review: 全仓技术债审计（v0.1.0 基线）"
 type: review
-status: open
+status: in-progress  # 第 0 期(D1/D3/D4/D12)已闭环,见第七节
 created: 2026-08-27
 scope: 全仓 backend / agent-runtime / frontend / science-core（38,241 行 / 281 文件），基线 `e7582c6`(v0.1.0)
 ---
@@ -289,3 +289,25 @@ D1 值得单独记一笔：它不是能力问题，是**没有安全网时纪律
 架构层的 D6/D7 影响最大但明确**不建议现在动**：在五个模态、单数据源的现实下，现在造抽象层是投机。二者都已给出低成本的止血动作，把真正的重构留给需求真正逼上门的那一天。
 
 > 状态说明：本文件 `status: open` 表示 12 条均未处理。第 0 期完成后应回改本节并把已闭环条目标注为 done。
+
+## 七、偿还进度
+
+### 第 0 期 —— 已完成（2026-08-31）
+
+| ID | 状态 | 落点 |
+| --- | --- | --- |
+| D1 | ✅ done | `conftest.py` 先导入 `app.config` 完成 `sys.path` 装配（`139d85a`）。**独立复现**：修 `make test-backend` 时自行诊断出同一根因，当时并不知道本文件已列为第一条——这本身佐证了 D2：审计写完归档了，没有任何机制会把它推到执行面前 |
+| D3 | ✅ done | Makefile 新增 `test-science-core` 并挂进 `test` 依赖链；`make test` 首次覆盖四个模块 |
+| D4 | ✅ done | 删除 `tech_0450/0451.tiff` 与对应 CF，删除 `install-natural.sh`；backend 由 `3 failed / 214 passed` 转为 `217 passed` |
+| D12 | ✅ done | 重建 backend venv（只剩 `python3.12`），`requires-python` 由 `>=3.10` 收紧到 `>=3.12` |
+
+第 0 期完成后 `make test` 实测：backend 217 · frontend 187 · agent-runtime 171 · science-core 169 · version 5，**全绿零失败**。
+
+两条值得记下的执行细节：
+
+1. **`install-natural.sh` 自带的回滚命令是危险的**：`rm $D/images/tech_045*.tiff $D/CF/tech_045*_CF.txt` 的通配会连真实的 `tech_045.tiff`（2018 年、灰度 800×600 的真实超声）一起删。实际清理按精确文件名执行，删后 `images/` 由 502 回到 500，真实数据完好。
+2. **D4 的红灯曾被长期误读为环境问题**。审计归档后的第一轮特性开发里，那 3 条失败被反复记作「caroSegDeep 现算环境不可用」并写进了两份 SDD 的验收自查——包括用 `git stash` 跑基线"证明"与本次改动无关（结论对，归因错）。长期红灯会把人训练成忽略红灯，这正是 D4 优先级不低的真实原因。
+
+### 尚未处理
+
+D2（CI · 36）、D5（缓存失效 · 24）、D9、D10、D8、D6、D11、D7。其中 **D2 是下一步**——第 0 期是修一次，D2 才是让这四条不可能重犯。
