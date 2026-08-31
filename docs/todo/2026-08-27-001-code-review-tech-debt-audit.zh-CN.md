@@ -1,7 +1,7 @@
 ---
 title: "review: 全仓技术债审计（v0.1.0 基线）"
 type: review
-status: in-progress  # 第 0 期(D1/D3/D4/D12)已闭环,见第七节
+status: in-progress  # 第 0 期(D1/D3/D4/D12) + D5 已闭环,见第七节
 created: 2026-08-27
 scope: 全仓 backend / agent-runtime / frontend / science-core（38,241 行 / 281 文件），基线 `e7582c6`(v0.1.0)
 ---
@@ -86,6 +86,8 @@ E   ModuleNotFoundError: No module named 'glaux_core'
 这是 D1 能活 9 天并随 v0.1.0 发布出去的**直接原因**，也是 D3、D4 得以长期潜伏的原因。
 
 **建议**：一个 workflow 即可——四个 job 并行跑 `make test-backend` / `test-frontend` / `test-agent-runtime` / `test-science-core`，外加 `make lint`，设为 PR 门禁。依赖真实数据集的用例本就 skip（19 条），CI 上无需数据。
+
+> 补充（2026-08-31）：托管平台确认为 **GitHub**，落点是 `.github/workflows/`。维护者本轮决定**后置**此条，不与第 0 期同批做。`test-science-core` 已随 D3 就位，CI 建起来时四个 test 目标可直接用。
 
 ### P0 · D3 `make test` 漏掉 science-core 的 169 个用例（测试债 · 35）
 
@@ -308,6 +310,24 @@ D1 值得单独记一笔：它不是能力问题，是**没有安全网时纪律
 1. **`install-natural.sh` 自带的回滚命令是危险的**：`rm $D/images/tech_045*.tiff $D/CF/tech_045*_CF.txt` 的通配会连真实的 `tech_045.tiff`（2018 年、灰度 800×600 的真实超声）一起删。实际清理按精确文件名执行，删后 `images/` 由 502 回到 500，真实数据完好。
 2. **D4 的红灯曾被长期误读为环境问题**。审计归档后的第一轮特性开发里，那 3 条失败被反复记作「caroSegDeep 现算环境不可用」并写进了两份 SDD 的验收自查——包括用 `git stash` 跑基线"证明"与本次改动无关（结论对，归因错）。长期红灯会把人训练成忽略红灯，这正是 D4 优先级不低的真实原因。
 
+### 第 2 期 —— D5 已提前偿还（2026-08-31）
+
+| ID | 状态 | 落点 |
+| --- | --- | --- |
+| D5 | ✅ done | 新增 `backend/app/caches.py` 统一失效入口；`register_folder` / `remove` / `register_builtin_samples` 三处变更后调用。放独立模块是为了保住注册表「纯 stdlib + config」的定位（`caches` 会碰 `dataset`/`dataset_wsi` 等重依赖），注册表以函数内延迟导入调用 |
+
+原计划挂在第 2 期「下次动数据源相关代码时顺手做」。SDD 08 把运行期增删源的入口从 2 个变成 4 个
+（新增 `POST /uploads/images` 与 `POST /datasources/samples`），触发点已实打实踩满，故提前做掉。
+
+失效范围不止 `dataset.list_ids`：`hc_real._ds`、`dataset_ct._load_nifti`、`dataset_wsi._open` /
+`_deepzoom` 一并登记——最后两个持有 OpenSlide 句柄，源被删后还攥着已消失的文件。
+
+`tests/test_cache_invalidation.py` 5 条。**已反向验证**：临时停用失效调用后 3 条转红，还原后全绿，
+确认测试不是空转。首条用例专门先证明「缓存确实会挡住磁盘变化」，否则后面几条等于什么都没验。
+
 ### 尚未处理
 
-D2（CI · 36）、D5（缓存失效 · 24）、D9、D10、D8、D6、D11、D7。其中 **D2 是下一步**——第 0 期是修一次，D2 才是让这四条不可能重犯。
+D2（CI · 36，维护者本轮决定后置）、D9（覆盖率与 lint 规则集 · 20）、D10（部分完成：四个 `run-*.sh` /
+`health.sh` 已随 `d14190d` 入库，尚未移进 `scripts/dev/`，绝对路径仍写死）、D8、D6、D11、D7。
+
+D2 仍是剩余项里分数最高的一条——第 0 期是修一次，D2 才是让 D1/D3/D4 不可能重犯。

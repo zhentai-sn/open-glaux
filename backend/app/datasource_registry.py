@@ -240,6 +240,18 @@ def resolve_root(modality: str) -> Path | None:
 # --- 导入 -------------------------------------------------------------------
 
 
+def _invalidate_dataset_caches() -> None:
+    """源清单变了 → 数据加载层的 lru_cache 必须失效（技术债 D5）。
+
+    延迟导入：``caches`` 会碰到 ``dataset``/``dataset_wsi`` 等重依赖模块，而本注册表刻意保持
+    「纯 stdlib + config」以便在主进程 import 和独立测试。写成一个函数而不是在三处各写一遍，
+    是因为第四个变更入口迟早会加进来，那时漏掉一处就又是一条静默的陈旧缓存。
+    """
+    from . import caches
+
+    caches.clear_dataset_caches()
+
+
 class ImportError_(ValueError):
     """导入被拒（路径越界 / 不存在 / 模态非法）——上层映射 422。"""
 
@@ -307,6 +319,7 @@ def register_folder(
     )
     _SOURCES[src.id] = src
     _save_persisted()
+    _invalidate_dataset_caches()
     return src
 
 
@@ -324,6 +337,7 @@ def register_builtin_samples() -> list[DataSource]:
         return []
     _SAMPLES_ON.update(live)
     _save_persisted()
+    _invalidate_dataset_caches()
     return [live[sid] for sid in sorted(live)]
 
 
@@ -334,4 +348,5 @@ def remove(source_id: str) -> bool:
         return False
     del _SOURCES[source_id]
     _save_persisted()
+    _invalidate_dataset_caches()
     return True
