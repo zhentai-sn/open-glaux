@@ -1,7 +1,7 @@
 {
   "name": "glaux-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Glaux IDE 前端——VS Code 式 Agentic 颈动脉 IMT 标注器 (React + Vite + TS)",
   "scripts": {

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glaux-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Glaux 首个楔子：CUBS 颈动脉 IMT 分割→测量→验证科学内核"
 readme = "README.md"
 requires-python = ">=3.11"

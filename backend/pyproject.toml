@@ -1,6 +1,6 @@
 [project]
 name = "glaux-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Glaux IDE 前端的 FastAPI 外壳——编排/IO/进程隔离的薄 HTTP 层，不含 TF"
 requires-python = ">=3.10"
 dependencies = [
