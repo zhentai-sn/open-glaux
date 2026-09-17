@@ -23,6 +23,17 @@
 | `glaux_dbg{,2,3}.sh` | 临时调试(逐次覆写,内容不定) |
 | `eval_carosegdeep.py` | caroSegDeep 100 图 eval(IMT 精度基线) |
 
+## 本地联调脚本
+
+仍在使用，同样写死了 WSL 路径（`~/code/pre-tech/open-glaux`）。
+
+| 脚本 | 用途 |
+|---|---|
+| `run-backend.sh` | 以开发者模式启动 backend，放宽演示区间上限 |
+| `restart-backend.sh` | 只重启 backend 并做健康检查 |
+| `run-agent-runtime.sh` | 启动 agent-runtime，从 `~/.bashrc` 读取分割 API token 并打开外发 |
+| `health.sh` | 检查 backend、agent-runtime、frontend 是否在线 |
+
 ## 清理背景
 
 这批脚本本该落在会话 scratchpad / `/tmp`(跑完即弃),当时图 heredoc 落地方便写到了

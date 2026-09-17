@@ -1,6 +1,6 @@
 **
-!Dockerfile
 !docker/
+!docker/Dockerfile
 !docker/nginx.conf
 !frontend/
 !frontend/package.json

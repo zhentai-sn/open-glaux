@@ -242,7 +242,7 @@ sequenceDiagram
 | `frontend/src/store/session.ts` | `recentItems` 状态与 setter | 修改 |
 | `frontend/src/api/client.ts` 与 `types.ts` | 上传与示例加载调用、`UploadResult` 类型 | 修改 |
 | `frontend/src/i18n/zh.ts` 与 `en.ts` | 空态、上传、示例、通用图像标签文案 | 修改 |
-| `run-backend.sh` 等开发脚本 | 显式置 `GLAUX_DEV_MODE=1`，保持开发体验不变 | 修改 |
+| `scripts/dev/run-backend.sh` 等开发脚本 | 显式置 `GLAUX_DEV_MODE=1`，保持开发体验不变 | 修改 |
 
 ## 9. 数据或字段要求
 
@@ -390,7 +390,7 @@ stateDiagram-v2
 - [x] 上传图作为当前对象时，Agent Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含医学 `task` / `method` / `cubs_cf` / `roi_box`。
 - [x] Agent Runtime 经 `/image/{上传ID}` 可取到与浏览器一致的字节。
 - [x] 上传图上的越界 bbox/polygon 仍被 `/annotations` 以 422 拒绝。
-- [x] `run-backend.sh` 启动的开发后端行为与本改动前一致（示例数据默认可见）。
+- [x] `scripts/dev/run-backend.sh` 启动的开发后端行为与本改动前一致（示例数据默认可见）。
 
 开发侧验证（2026-08-31）：
 

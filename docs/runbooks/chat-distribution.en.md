@@ -40,7 +40,7 @@ Build and run from the source repository:
 
 ```bash
 docker compose -f compose.yaml -f docker/compose.build.yaml build
-bash start.sh
+docker compose up -d --wait
 ```
 
 Create an offline bundle (the only step that needs Python):

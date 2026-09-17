@@ -3,7 +3,7 @@
 问题：`dataset.list_ids()` 等挂着 `lru_cache`，而运行期可以增删数据源
 （`POST /datasources`、`POST /datasources/samples`、`POST /uploads/images`、
 `DELETE /datasources/{id}`）。两件事凑在一起 = **进程活着时磁盘上的变化对 `/images` 不可见**，
-只能靠重启绕过——`restart-backend.sh` 的注释一直把这条债写在脸上。
+只能靠重启绕过——`scripts/dev/restart-backend.sh` 的注释一直把这条债写在脸上。
 
 放在独立模块而不是 `datasource_registry` 里，是为了保住注册表「纯 stdlib + config、无 science-core
 依赖」的定位：这里的模块（`dataset` 等）会 import `glaux_core`，注册表不能在模块级碰它们。

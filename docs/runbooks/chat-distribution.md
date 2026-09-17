@@ -40,7 +40,7 @@
 
 ```bash
 docker compose -f compose.yaml -f docker/compose.build.yaml build
-bash start.sh
+docker compose up -d --wait
 ```
 
 生成离线运行包（只有这一步需要 Python）：
