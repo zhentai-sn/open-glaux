@@ -23,6 +23,10 @@ docs/
 > 历史文档（带日期的 designs / plans / todo）保留当时形态，不因后续重构改写；当前真相以
 > `architecture.zh-CN.md`、`runbooks/`、SDD 与最新 design 为准，被取代的 design 在 frontmatter 标 `superseded`。
 
+## 当前发行工作
+
+- [基本对话 Docker 发行包设计与计划](plans/2026-09-06-chat-distribution-design.md)
+
 ## 核心文档
 
 - **[仓库骨架总览 · Architecture](architecture.zh-CN.md)** —— 根目录每个文件/目录的职责、三进程运行时全景、技术栈速查。**第一次接触仓库时先读这份。** 活文档，随结构演进更新。

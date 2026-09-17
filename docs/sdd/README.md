@@ -40,6 +40,7 @@ stateDiagram-v2
 | 06 | [统一图标系统](feats/06-icon-system/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
 | 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-08-26 |
 | 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-08-31 |
+| 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
 
 ## 维护约定
 
