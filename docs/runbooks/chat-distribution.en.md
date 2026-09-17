@@ -59,6 +59,6 @@ python3 scripts/release/package.py --images dist/images.tar --output dist/glaux-
 
 ## Local development
 
-- `npm run dev` in `frontend/` and `agent-runtime/` defaults to the chat edition.
-- For the retained experimental features, set `VITE_GLAUX_EDITION=full` for the frontend and `GLAUX_EDITION=full` for the Agent, and start the Python backend.
+- `npm run dev` in `frontend/` and `agent-runtime/` defaults to the full edition with the stage and Atlas; it needs the Python backend running too.
+- To debug the chat edition locally, set `VITE_GLAUX_EDITION=chat` for the frontend and `GLAUX_EDITION=chat` for the Agent; no Python backend is needed.
 - Existing tests still cover the full edition; chat boundary tests cover the release restriction.

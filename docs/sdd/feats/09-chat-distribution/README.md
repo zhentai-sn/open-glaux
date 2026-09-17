@@ -28,7 +28,7 @@
 ## 8. 涉及对象
 App、会话视图、session store、快捷键、HarnessRegistry、运行时启动配置、Docker 配置及启动脚本。
 ## 9. 数据或字段要求
-VITE_GLAUX_EDITION / GLAUX_EDITION 为 chat（默认）或 full（开发）；无效值拒绝。
+VITE_GLAUX_EDITION / GLAUX_EDITION 为 full（默认，含舞台与图谱）或 chat（Docker 发行包显式设置）；无效值拒绝。
 GLAUX_AGENT_HOST 默认为 127.0.0.1，容器显式设 0.0.0.0。
 Agent SQLite 存在具名卷；连接配置仍按现有协议存浏览器 localStorage，端口/浏览器变化不会迁移此配置。
 ## 10. 幂等规则

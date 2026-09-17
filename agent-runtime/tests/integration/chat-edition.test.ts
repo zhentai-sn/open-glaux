@@ -6,8 +6,9 @@ import { createRuntimeFixture, TEST_CONNECTION } from "../helpers/runtime-fixtur
 
 afterEach(() => vi.unstubAllEnvs());
 describe("chat release boundary", () => {
-  it("defaults to chat and rejects unknown editions", () => {
-    expect(chatEdition({})).toBe(true);
+  it("defaults to full and rejects unknown editions", () => {
+    expect(chatEdition({})).toBe(false);
+    expect(chatEdition({ GLAUX_EDITION: "chat" })).toBe(true);
     expect(chatEdition({ GLAUX_EDITION: "full" })).toBe(false);
     expect(() => chatEdition({ GLAUX_EDITION: "typo" })).toThrow();
   });

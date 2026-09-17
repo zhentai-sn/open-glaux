@@ -1,5 +1,5 @@
 export function chatEdition(env: NodeJS.ProcessEnv = process.env): boolean {
-  const edition = env.GLAUX_EDITION ?? "chat";
+  const edition = env.GLAUX_EDITION ?? "full";
   if (edition !== "chat" && edition !== "full") throw new Error("Invalid GLAUX_EDITION");
   return edition === "chat";
 }

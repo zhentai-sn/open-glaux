@@ -59,6 +59,6 @@ python3 scripts/release/package.py --images dist/images.tar --output dist/glaux-
 
 ## 本地开发
 
-- `frontend/` 和 `agent-runtime/` 的 `npm run dev` 默认进入对话版。
-- 维护保留的实验功能：前端设 `VITE_GLAUX_EDITION=full`，Agent 设 `GLAUX_EDITION=full`，并启动 Python 后端。
+- `frontend/` 和 `agent-runtime/` 的 `npm run dev` 默认进入完整版，包含舞台与图谱；完整版需要同时启动 Python 后端。
+- 本地调试对话版：前端设 `VITE_GLAUX_EDITION=chat`，Agent 设 `GLAUX_EDITION=chat`，不需要 Python 后端。
 - 既有测试继续覆盖完整模式，另有对话版边界测试。

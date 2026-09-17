@@ -1,9 +1,11 @@
 import { ModeSwitch } from "./focus/ModeSwitch";
 import { OwlLogo } from "./OwlLogo";
+import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
 
-// MVP：去掉无行为的顶层菜单与假窗口控件，只留产品标识 + 真实标题（当前图）。
+// 只留产品标识、宗旨与真实标题（当前图），不放无行为的顶层菜单与假窗口控件。
 export function TitleBar() {
+  const { t } = useI18n();
   const image = useSession((s) => s.activeImage);
   const modality = useSession((s) => s.modality);
   const center = useSession((s) => s.imageMeta?.center);
@@ -19,7 +21,7 @@ export function TitleBar() {
       </span>
       <b style={{ fontSize: 12, color: "var(--bright)", marginRight: 4 }}>Glaux</b>
       <span style={{ fontSize: 11, color: "var(--faint)" }}>
-        {isNatural ? "· SAM API demo" : "· Agentic IMT · MVP"}
+        · {t("focus_tagline")}
       </span>
       <span className="ttl">{image ? `${image}${ext} — ${ws}` : ws}</span>
       <ModeSwitch />
