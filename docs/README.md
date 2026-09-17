@@ -12,20 +12,69 @@ docs/
 ├── sdd/               # 规范驱动开发：Feature 边界、契约、状态机与验收
 ├── brainstorms/       # 脑暴 / 需求文档（按任务，right-sized）
 ├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
-├── designs/           # 架构 / UI 设计文档（按日期；status 走 draft → reviewed → implemented / superseded）
+├── designs/           # 架构 / UI 设计文档（带日期为记录，不带日期为活文档）
 ├── plans/             # 实现计划（按日期；承接 SDD/设计的 HOW）
 ├── runbooks/          # 操作手册（活文档：随代码同步修订）
-├── todo/              # 代码评审待办清单（按日期）
+├── todo/              # 代码评审与审计待办（按日期）
 └── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
     └── charter.zh-CN.md  # 纲领：Glaux 的身份与一切决策的组织原则（先读这份）；路线图从纲领派生，故与路线图同属一族
 ```
 
-> 历史文档（带日期的 designs / plans / todo）保留当时形态，不因后续重构改写；当前真相以
-> `architecture.zh-CN.md`、`runbooks/`、SDD 与最新 design 为准，被取代的 design 在 frontmatter 标 `superseded`。
+## 文档类型：活文档与记录
+
+所有文档分两类，以 frontmatter 的 `kind` 为准；未写 `kind` 时按下表的默认值处理。
+
+- **活文档（`kind: living`）**：描述现状，是当前事实的唯一来源。
+  - 只写最新结论，不写变更记录、修订历史；变化看 git log。
+  - 与相关代码在同一提交里更新。
+- **记录（`kind: record`）**：某个时间点的调研、决策或执行过程，用于追溯。
+  - 进行中（如 `draft`、`active`、`open`）可以更新正文，例如勾选进度。
+  - 进入终态后不改正文，只改 frontmatter 的 `status`、`superseded_by`。
+  - 结论过时时，新结论写进活文档或新记录；旧记录 `status` 改为 `superseded`，并填 `superseded_by`。
+
+### frontmatter
+
+`docs/` 下的 Markdown 文档在开头写：
+
+```yaml
+---
+kind: record                      # living | record
+status: done                      # 取值见下表
+superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 superseded 时填写
+---
+```
+
+- 文档自身的 `kind`、`status` 以 frontmatter 为准；正文和索引表可以汇总列出，不一致时以 frontmatter 为准。
+- 其他字段（如 `type`、`title`、`date`）可以保留。
+- 用途、依据等说明按需写在 frontmatter 之后。
+- 不写 frontmatter 的文件：
+  - `docs/README.md` 和 `docs/*/README.md` 这类目录索引，按活文档处理。Feature SDD（`docs/sdd/feats/*/README.md`）不属于索引，要写。
+  - `docs/` 之外的文件：`README*.md` 按活文档处理，`CHANGELOG.md` 按记录处理。
+  - HTML、图片等非 Markdown 文件：`landing/` 按活文档处理，SDD 目录里的交互设计稿按记录处理。
+
+### 各类文档的默认 kind 与 status
+
+| 文档 | 位置 | kind | status |
+| --- | --- | --- | --- |
+| 纲领、仓库骨架总览、需求清单 | `roadmaps/charter.zh-CN.md`、`architecture.zh-CN.md`、`requirements.zh-CN.md` | living | `living` |
+| SDD | `sdd/` | living | `draft` / `ready` / `implemented` / `accepted` |
+| 操作手册 | `runbooks/` | living | `living` |
+| 长期设计规范（不带日期） | `designs/` | living | `living` |
+| 门户首页 | `landing/` | living | — |
+| 调研 | `researches/` | record | `draft` / `review` / `done` / `superseded` |
+| 脑暴 | `brainstorms/` | record | `idea` / `brainstorming` / `review` / `promoted` / `shelved` / `superseded` |
+| 设计 | `designs/`（带日期）、`plans/*-design.md` | record | `draft` / `reviewed` / `implemented` / `superseded` |
+| 实现计划 | `plans/` | record | `active` / `done` / `abandoned` / `superseded` |
+| 代码评审与审计待办 | `todo/` | record | `open` / `closed` / `superseded` |
+| 版本路线图 | `roadmaps/`（带日期） | record | `current` / `superseded` |
+
+- SDD 与脑暴的状态定义见 [sdd/README.md](sdd/README.md)、[brainstorms/README.md](brainstorms/README.md)。
+- 版本路线图的 `current` 只表示最新一版路线图，不代表实现现状。
 
 ## 当前发行工作
 
-- [基本对话 Docker 发行包设计与计划](plans/2026-09-06-chat-distribution-design.md)
+- [SDD 09 基本对话 Docker 发行包](sdd/feats/09-chat-distribution/README.md)
+- [安装、运行与分发手册](runbooks/chat-distribution.md)
 
 ## 核心文档
 
@@ -121,4 +170,4 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 - 文件名一律小写，词间用连字符 `-`（kebab-case）；主题用英文 slug，便于跨系统与命令行处理。
 - 文档正文可用中文；语言后缀标识正文语言，双语则并列两文件（`.zh-CN.md` / `.en.md`）。
 - 一经共享 / 引用的文件**不要改名**（会断链）；要修订内容就改内容，要换版本就新建。
-- 每篇文档建议在开头写清：用途、日期、有效期 / 半衰期提醒。
+- `kind`、`status` 写在 frontmatter，见「文档类型：活文档与记录」。

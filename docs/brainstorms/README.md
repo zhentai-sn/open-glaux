@@ -16,6 +16,8 @@ stateDiagram-v2
     promoted --> [*]
     review --> shelved: 暂不推进
     shelved --> review: 重新拾起
+    promoted --> superseded: 结论被取代
+    shelved --> superseded: 结论被取代
 ```
 
 | 状态 | 含义 |
@@ -25,6 +27,7 @@ stateDiagram-v2
 | `review` | 文档已完整，需要评审讨论后决定是否推进 |
 | `promoted` | 已进入下一阶段（调研 / SDD / 计划），本文档冻结 |
 | `shelved` | 暂不推进，保留供未来参考 |
+| `superseded` | 结论已被取代，见 frontmatter 的 `superseded_by` |
 
 ## 需求跟踪表
 
