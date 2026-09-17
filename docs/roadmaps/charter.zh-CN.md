@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # Glaux 纲领 · Charter
 
 ## 一、名字与宗旨

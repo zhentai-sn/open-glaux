@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # 自定义模型 ID 组合框设计
 
 ## 背景

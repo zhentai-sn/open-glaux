@@ -1,7 +1,8 @@
 ---
+kind: record
+status: implemented
 title: "SDD · 双模式外壳 —— Focus(对话优先)/ Workbench(工作台)"
 type: design
-status: reviewed
 created: 2026-08-13
 scope: frontend 外壳层(App/Shell/TitleBar + 新增 FocusShell);零后端改动
 ---

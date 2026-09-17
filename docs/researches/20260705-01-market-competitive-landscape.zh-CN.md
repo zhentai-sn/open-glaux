@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/roadmaps/charter.zh-CN.md
+---
+
 # Glaux 竞争格局与定位分析
 
 > **用途**：产品战略 / Roadmap 决策的内部参考。

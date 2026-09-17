@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # P7 WSI 病理楔子 runbook — StarDist 细胞核检测 + 计数/密度
 
 > 落地计划：[docs/plans/2026-07-10-001-feat-p7-wsi-nuclei-wedge-plan.md](../plans/2026-07-10-001-feat-p7-wsi-nuclei-wedge-plan.md)

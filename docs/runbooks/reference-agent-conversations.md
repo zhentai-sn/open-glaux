@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # 参考 Agent 会话运行手册
 
 > 适用范围：Glaux 第一阶段内置参考 Agent（Pi AgentHarness + 本地会话管理）。

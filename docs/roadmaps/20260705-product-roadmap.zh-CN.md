@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/roadmaps/charter.zh-CN.md
+---
+
 # Glaux 产品路线图
 
 > **版本**：2026-07-05 · **范围**：product · **状态**：当前（current）

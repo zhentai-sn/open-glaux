@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 键盘可达性与全局快捷键（Keyboard Accessibility & Global Shortcuts）
 
 ## 0. 文档状态

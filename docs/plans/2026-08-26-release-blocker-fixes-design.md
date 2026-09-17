@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # v0.1.0 发布阻断修复设计
 
 ## 背景

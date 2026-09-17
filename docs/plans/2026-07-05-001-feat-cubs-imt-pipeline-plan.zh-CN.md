@@ -1,7 +1,9 @@
 ---
+kind: record
+status: superseded
+superseded_by: docs/architecture.zh-CN.md
 title: "feat: CUBS 颈动脉 IMT 首个楔子——分割→测量→验证端到端管线"
 type: feat
-status: active
 depth: deep
 created: 2026-07-05
 origin: docs/brainstorms/20260705-01-cubs-imt-first-task.zh-CN.md

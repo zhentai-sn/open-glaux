@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 数据导入优先的文件栏
 
 ## 0. 文档状态

@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # Agent 连接配置 runbook —— 自定义端点 / 连接测试 / 模型列表（含本地部署）
 
 > 落地：[SDD（已 superseded）](../designs/2026-07-14-001-agent-connection-config.zh-CN.md) ·

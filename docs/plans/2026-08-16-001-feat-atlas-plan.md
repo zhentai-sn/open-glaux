@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 实现计划 · Atlas 图谱（人工策展的图文案例库）
 
 > **用途**：把[《Atlas · 图谱》SDD](../sdd/feats/03-atlas/README.md)（`ready`）拆成可逐项执行、验证和提交的实现任务。

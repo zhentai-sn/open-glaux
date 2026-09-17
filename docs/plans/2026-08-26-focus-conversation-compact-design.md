@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # Focus 对话区专业紧凑型设计
 
 ## 背景

@@ -1,9 +1,10 @@
 ---
+kind: record
+status: superseded
+superseded_by: docs/runbooks/agent-connection.md
 title: "SDD · 智能体连接配置 —— 类 ChatBox 的自定义端点 / 连接测试 / 模型列表"
 type: design
-status: superseded
 created: 2026-07-14
-superseded_by: 2026-08-16-001-retire-orchestration.zh-CN.md
 scope: frontend AgentPanel/IntentConfig + backend intent/连接探测（分支 TBD）
 ---
 

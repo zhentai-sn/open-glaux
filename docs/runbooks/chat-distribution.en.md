@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # Chat preview: install, run and distribute
 
 > Spec: [SDD 09](../sdd/feats/09-chat-distribution/README.md) (Chinese) · 中文：[chat-distribution.md](chat-distribution.md)

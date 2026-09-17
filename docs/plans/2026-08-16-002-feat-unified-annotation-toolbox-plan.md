@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 实现计划 · 统一图像标注工具箱（bbox / polygon / brush）
 
 > **用途**：把[《统一图像标注工具箱》SDD 04](../sdd/feats/04-unified-annotation-toolbox/README.md)（`ready`）拆成可逐项执行、验证和提交的实现任务。

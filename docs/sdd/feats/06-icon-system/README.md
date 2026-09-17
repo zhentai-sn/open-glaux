@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 统一图标系统（Unified Icon System）
 
 ## 0. 文档状态

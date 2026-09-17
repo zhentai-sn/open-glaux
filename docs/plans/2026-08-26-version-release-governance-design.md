@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # Glaux 多组件版本与发布治理设计
 
 ## 背景

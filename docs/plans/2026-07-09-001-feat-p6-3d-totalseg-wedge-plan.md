@@ -1,7 +1,8 @@
 ---
+kind: record
+status: done
 title: "P6 · 3D CT 楔子落地计划 — TotalSegmentator 肝+双肾"
 type: feat
-status: active
 date: 2026-07-09
 origin: docs/designs/2026-07-09-001-p6-3d-totalseg-wedge.zh-CN.md
 ---

@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 双模式外壳 —— Focus(对话优先)/ Workbench(工作台)
 
 ## 0. 状态

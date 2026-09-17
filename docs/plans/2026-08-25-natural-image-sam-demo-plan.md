@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 自然图像 SAM 演示集合实施计划
 
 约束来源：[Feature SDD 07](../sdd/feats/07-natural-image-sam-demo/README.md)（`ready`）。

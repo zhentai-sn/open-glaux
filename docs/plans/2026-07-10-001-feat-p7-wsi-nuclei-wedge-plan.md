@@ -1,7 +1,8 @@
 ---
+kind: record
+status: done
 title: "P7 · WSI 病理楔子落地计划 — 细胞核检测+计数（OpenSeadragon + OpenSlide）"
 type: feat
-status: active
 date: 2026-07-10
 origin: docs/designs/2026-07-07-glaux-multimodal-architecture.zh-CN.md（§9 P7 病理 WSI）
 ---

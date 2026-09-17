@@ -1,7 +1,8 @@
 ---
+kind: record
+status: open
 title: "review: 全仓技术债审计（v0.1.0 基线）"
 type: review
-status: in-progress  # 第 0 期(D1/D3/D4/D12) + D5 已闭环,见第七节
 created: 2026-08-27
 scope: 全仓 backend / agent-runtime / frontend / science-core（38,241 行 / 281 文件），基线 `e7582c6`(v0.1.0)
 ---

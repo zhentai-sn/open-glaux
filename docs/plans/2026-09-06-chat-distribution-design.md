@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # 基本对话发行包设计与实施计划
 
 用户已确认范围；契约见 [SDD 09](../sdd/feats/09-chat-distribution/README.md)。

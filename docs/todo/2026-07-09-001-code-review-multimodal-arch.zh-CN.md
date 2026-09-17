@@ -1,7 +1,8 @@
 ---
+kind: record
+status: open
 title: "review: feat/multimodal-arch 全分支代码评审——待办清单"
 type: review
-status: open
 created: 2026-07-09
 scope: feat/multimodal-arch (vs main)
 ---

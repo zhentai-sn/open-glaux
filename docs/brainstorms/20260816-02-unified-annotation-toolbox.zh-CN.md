@@ -1,3 +1,8 @@
+---
+kind: record
+status: promoted
+---
+
 # 统一图像标注工具箱（bbox / polygon / brush）
 
 > **用途**：脑暴 / 需求文档——消灭图像编辑区的工具碎片化，建立跨模态统一的通用标注能力。

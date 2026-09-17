@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/architecture.zh-CN.md
+---
+
 # Glaux 多模态多任务架构 · 抽象设计
 
 > **用途**：把 Glaux 从「单一 IMT 任务写死」演进为「多模态多任务可插拔」的架构设计——

@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # 建议态标注实时同步修复设计
 
 ## 背景

@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/roadmaps/charter.zh-CN.md
+---
+
 # Glaux 需求清单（初步 · v0）
 
 > **用途**：阶段二交付物——从愿景/纲领落到"要建什么"的第一版需求。活文档，随阶段推进更新。

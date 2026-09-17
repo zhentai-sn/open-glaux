@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # 对话预览版：安装、运行与分发
 
 > 规范：[SDD 09](../sdd/feats/09-chat-distribution/README.md) · English: [chat-distribution.en.md](chat-distribution.en.md)

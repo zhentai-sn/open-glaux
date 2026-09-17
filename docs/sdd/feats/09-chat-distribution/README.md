@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 09 · 基本对话 Docker 发行包
 
 ## 0. 文档状态

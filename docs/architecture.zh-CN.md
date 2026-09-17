@@ -1,7 +1,8 @@
 ---
+kind: living
+status: living
 title: Glaux 仓库骨架总览
 type: architecture
-status: living
 created: 2026-08-16
 updated: 2026-08-16（orchestration/ 退役完成后）
 scope: 全仓库——根目录各文件/目录职责、运行时拓扑、技术栈速查

@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 数据导入优先的文件栏实施计划
 
 约束来源：[Feature SDD 08](../sdd/feats/08-data-import-first-explorer/README.md)（`ready`）。

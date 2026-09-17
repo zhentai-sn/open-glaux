@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 多组件版本与发布治理
 
 ## 0. 文档状态

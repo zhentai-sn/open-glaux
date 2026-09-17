@@ -1,3 +1,8 @@
+---
+kind: record
+status: implemented
+---
+
 # 自然图像 SAM 演示集合设计
 
 ## 背景

@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # DataSource 注册表 runbook —— 文件夹导入 + 开发者/产品模式
 
 > 落地计划：[docs/plans/2026-07-13-001-feat-datasource-registry-plan.md](../plans/2026-07-13-001-feat-datasource-registry-plan.md)

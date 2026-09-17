@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 自然图像 SAM 演示集合
 
 ## 0. 文档状态

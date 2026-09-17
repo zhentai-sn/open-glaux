@@ -1,7 +1,8 @@
 ---
+kind: record
+status: open
 title: "review: 前端品质提升阶段（P0–P2 + 图标系统）代码评审与阶段总结"
 type: review
-status: open
 created: 2026-08-19
 scope: frontend 品质提升阶段（提交 6722007..93549fd，46 文件 / +1615 −172）
 ---

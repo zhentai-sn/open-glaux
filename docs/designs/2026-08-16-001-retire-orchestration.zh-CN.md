@@ -1,7 +1,8 @@
 ---
+kind: record
+status: implemented
 title: "设计 · 退役 orchestration/ —— 注册表归 science-core、模型连接归 agent-runtime、意图层交还 agent"
 type: design
-status: implemented
 created: 2026-08-16
 updated: 2026-08-16
 scope: orchestration/ 全部；backend intent/vlm 端点与 anthropic 依赖；agent-runtime 新增连接探测；frontend 连接配置与双聊天路径合并

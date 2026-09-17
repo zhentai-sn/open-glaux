@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 文件栏改造总计划（实施顺序）
 
 统辖两份 `ready` 规范与其详细计划：

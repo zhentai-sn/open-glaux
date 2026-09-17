@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # Atlas · 图谱导入 runbook —— PDF / 网页 / 数据集三种导入、外发协议、环境变量
 
 > 规范：[docs/sdd/feats/03-atlas/README.md](../sdd/feats/03-atlas/README.md) ·

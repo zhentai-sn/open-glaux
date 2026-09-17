@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # Focus 右侧栏舞台常驻 + 浏览器分栏实施计划
 
 约束来源：[Feature SDD 01](../sdd/feats/01-dual-mode-shell/README.md) v1.4（§7 第 2/7 条、§8、§9、§13、§15 v1.4、D16–D18）。

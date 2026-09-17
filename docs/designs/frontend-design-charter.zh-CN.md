@@ -1,7 +1,8 @@
 ---
+kind: living
+status: living
 title: "Glaux 前端视觉交互设计纲领"
 type: charter
-status: living
 created: 2026-08-13
 scope: frontend 全部视觉与交互决策的上位原则;不含具体契约(契约在各 Feature SDD)
 ---

@@ -1,3 +1,8 @@
+---
+kind: record
+status: promoted
+---
+
 # 第一个任务 · CUBS 颈动脉 IMT（需求文档 v1）
 
 > **用途**：Glaux 第一个任务（首个楔子）的 right-sized 需求文档——从"选定 CUBS"落到"要建什么行为"，供后续 ce-plan（HOW）承接。

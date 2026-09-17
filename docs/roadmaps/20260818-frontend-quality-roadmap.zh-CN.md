@@ -1,7 +1,8 @@
 ---
+kind: record
+status: current
 title: "Glaux 前端品质提升路线图（纲领落地）"
 type: roadmap
-status: ready
 created: 2026-08-18
 scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位；不改业务逻辑与领域契约
 ---

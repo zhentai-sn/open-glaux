@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # Atlas · 图谱（人工策展的图文案例库）
 
 ## 0. 状态

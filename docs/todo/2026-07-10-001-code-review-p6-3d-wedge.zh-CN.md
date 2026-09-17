@@ -1,7 +1,8 @@
 ---
+kind: record
+status: open
 title: "review: P6 3D CT 楔子（u1–u6）代码评审——待办清单"
 type: review
-status: open
 created: 2026-07-10
 scope: P6 3D TotalSegmentator 楔子（commit fb36f79..333568b）
 ---

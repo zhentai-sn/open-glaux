@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 实现计划 · 内置参考 Agent 与本地会话管理
 
 > **用途**：把[《内置参考智能体与本地会话管理》SDD](../sdd/feats/00-reference-agent-conversations/README.md)

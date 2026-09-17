@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/roadmaps/charter.zh-CN.md
+---
+
 # DeepSeek Harness 插件生态集成可行性调研
 
 > **用途**：评估 Glaux 以插件/工具身份接入 DeepSeek Harness (dsh) 生态的可行性，给出集成路径与推荐方案。

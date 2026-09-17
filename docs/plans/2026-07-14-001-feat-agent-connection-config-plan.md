@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/runbooks/agent-connection.md
+---
+
 # 计划：智能体连接配置 —— 自定义端点 / 连接测试 / 模型列表（含本地部署 + 视觉标注）
 
 > 落地 [SDD · 智能体连接配置](../designs/2026-07-14-001-agent-connection-config.zh-CN.md)。

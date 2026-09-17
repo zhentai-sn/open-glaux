@@ -1,3 +1,8 @@
+---
+kind: living
+status: living
+---
+
 # P6 3D CT 楔子 runbook — TotalSegmentator 肝+双肾
 
 > **状态**：v0 手动 e2e 流程（不入 CI）。**用途**：工程师在干净环境按本 runbook 跑通

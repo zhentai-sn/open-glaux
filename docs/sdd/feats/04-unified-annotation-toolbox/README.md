@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 统一图像标注工具箱（Unified Annotation Toolbox）
 
 ## 0. 文档状态

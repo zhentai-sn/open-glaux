@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # v0.1.0 发布阻断修复实施计划
 
 约束来源：[v0.1.0 发布阻断修复设计](./2026-08-26-release-blocker-fixes-design.md)与[版本发布治理 SDD](../sdd/01-version-release-governance.md)。

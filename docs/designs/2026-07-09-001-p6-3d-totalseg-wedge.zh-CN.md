@@ -1,7 +1,8 @@
 ---
+kind: record
+status: implemented
 title: "P6 · 3D CT 楔子 — TotalSegmentator 肝+双肾接入设计"
 type: design
-status: approved
 created: 2026-07-09
 scope: P6 / feat/p6-3d-totalseg (TBD)
 ---

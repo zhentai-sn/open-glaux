@@ -8,7 +8,7 @@
 docs/
 ├── README.md              # 本文件：文档区导航与命名规约
 ├── architecture.zh-CN.md  # 仓库骨架总览：根目录各文件/目录、运行时全景、技术栈速查（活文档）
-├── requirements.zh-CN.md  # 需求清单 v0（记录，已被纲领取代）
+├── requirements.zh-CN.md  # 需求清单（初步 v0，活文档）
 ├── sdd/               # 规范驱动开发：Feature 边界、契约、状态机与验收
 ├── brainstorms/       # 脑暴 / 需求文档（按任务，right-sized）
 ├── researches/        # 调研报告（产品 / 市场 / 技术 / 科研）
@@ -56,7 +56,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 | 文档 | 位置 | kind | status |
 | --- | --- | --- | --- |
-| 纲领、仓库骨架总览 | `roadmaps/charter.zh-CN.md`、`architecture.zh-CN.md` | living | `living` |
+| 纲领、仓库骨架总览、需求清单 | `roadmaps/charter.zh-CN.md`、`architecture.zh-CN.md`、`requirements.zh-CN.md` | living | `living` |
 | SDD | `sdd/` | living | `draft` / `ready` / `implemented` / `accepted` |
 | 操作手册 | `runbooks/` | living | `living` |
 | 长期设计规范（不带日期） | `designs/` | living | `living` |
@@ -80,7 +80,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 - **[仓库骨架总览 · Architecture](architecture.zh-CN.md)** —— 根目录每个文件/目录的职责、三进程运行时全景、技术栈速查。**第一次接触仓库时先读这份。** 活文档，随结构演进更新。
 - **[纲领 · Charter](roadmaps/charter.zh-CN.md)** —— Glaux 是什么、发展目标、决策过滤器、边界。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新——与 roadmaps/ 下按版本日期存档的其余文件不同，但同属路线图一族（路线图由纲领派生）。
-- **[需求清单 · Requirements](requirements.zh-CN.md)** —— 2026-07-05 的初步需求（v0），已被纲领取代，仅供追溯。
+- **[需求清单 · Requirements](requirements.zh-CN.md)** —— 初步需求（v0）：首个用户、场景、按环境四层的功能需求、成功标准与开放问题。活文档，随阶段 2 推进更新。
 - **[SDD 索引](sdd/README.md)** —— 实现前冻结 Feature 范围、契约、状态机、错误处理与验收标准；仅 `ready` SDD 可进入实现规划。
 
 ## 一、调研 researches/

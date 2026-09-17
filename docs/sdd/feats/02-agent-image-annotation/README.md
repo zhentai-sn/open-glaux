@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 智能体图像标注能力（Agent-Assisted Annotation）
 
 ## 0. 状态

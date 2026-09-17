@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 多组件版本与发布治理实施计划
 
 约束来源：[多组件版本与发布治理 SDD](../sdd/01-version-release-governance.md)（`ready`）。

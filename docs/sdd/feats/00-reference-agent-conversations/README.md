@@ -1,3 +1,8 @@
+---
+kind: living
+status: implemented
+---
+
 # 内置参考智能体与本地会话管理
 
 ## 0. 状态

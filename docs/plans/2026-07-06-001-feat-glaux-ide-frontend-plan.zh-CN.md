@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/sdd/feats/01-dual-mode-shell/README.md
+---
+
 # 实现计划 · Glaux IDE 前端（FastAPI + React）
 
 > **用途**：把[前端设计稿与交互需求清单](../designs/2026-07-06-glaux-ide-frontend.zh-CN.md)（R1–R14）

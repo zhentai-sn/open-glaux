@@ -1,3 +1,8 @@
+---
+kind: record
+status: done
+---
+
 # 实现计划 · 双模式外壳(Focus / Workbench)
 
 > **用途**:把[《双模式外壳》SDD](../sdd/feats/01-dual-mode-shell/README.md)(`ready`)拆成可逐项执行、验证和提交的实现任务。

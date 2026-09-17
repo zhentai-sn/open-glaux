@@ -1,3 +1,9 @@
+---
+kind: record
+status: superseded
+superseded_by: docs/sdd/feats/01-dual-mode-shell/README.md
+---
+
 # Glaux IDE · 前端设计稿与交互需求清单
 
 > **用途**：把 Agentic IMT 标注器的前端（VS Code 式 IDE）定成可实现的 handoff 规范——
