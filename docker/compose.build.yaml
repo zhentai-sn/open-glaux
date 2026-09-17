@@ -1,0 +1,10 @@
+# Maintainers only: paths are relative to the first Compose file (repository root).
+services:
+  agent:
+    build:
+      context: .
+      target: agent
+  web:
+    build:
+      context: .
+      target: web

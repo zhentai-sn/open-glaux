@@ -1,0 +1,32 @@
+name: glaux
+services:
+  agent:
+    image: ${GLAUX_IMAGE_PREFIX:-ghcr.io/zhentai-sn/open-glaux}-agent:${GLAUX_VERSION:-0.2.0-chat.1}
+    init: true
+    environment:
+      GLAUX_EDITION: chat
+      GLAUX_AGENT_HOST: 0.0.0.0
+      GLAUX_AGENT_DATA_DIR: /data
+    volumes:
+      - conversations:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8010/agent-api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    stop_grace_period: 30s
+  web:
+    image: ${GLAUX_IMAGE_PREFIX:-ghcr.io/zhentai-sn/open-glaux}-web:${GLAUX_VERSION:-0.2.0-chat.1}
+    ports:
+      - "127.0.0.1:${GLAUX_PORT:-5173}:8080"
+    depends_on:
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ && wget -q -O /dev/null http://127.0.0.1:8080/agent-api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+volumes:
+  conversations:
