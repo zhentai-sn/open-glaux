@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../edition";
 import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 import {
@@ -332,7 +333,7 @@ export function createAgentSessionsStore(
         if (!type) return;
         if (type === "tool_execution_end") {
           // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge
-          applyToolExecutionEvent(event);
+          if (!CHAT_EDITION) applyToolExecutionEvent(event);
           return;
         }
         if (type === "message_update") {

@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../../edition";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -237,7 +238,7 @@ export function AgentConversation() {
             : "Anthropic"}
           <span> · {connection.model || "—"}</span>
         </button>
-        <label>
+        {!CHAT_EDITION && <label>
           <span>{t("agent_permission")}</span>
           <select
             value={view?.permission_mode ?? "controlled"}
@@ -257,7 +258,7 @@ export function AgentConversation() {
               </option>
             ))}
           </select>
-        </label>
+        </label>}
         <ContextRing
           tokens={context?.tokens ?? null}
           windowSize={contextWindow}
@@ -284,7 +285,7 @@ export function AgentConversation() {
           <div className="agent-empty">
             <Icon icon={ICONS.skill} size="lg" />
             <b>{t("agent_empty")}</b>
-            <p>{t("agent_empty_hint")}</p>
+            <p>{t(CHAT_EDITION ? "chat_empty_hint" : "agent_empty_hint")}</p>
           </div>
         )}
         {loading && !view && (
@@ -294,7 +295,7 @@ export function AgentConversation() {
           const toolDetails = messageToolResultDetails(message);
           // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
           const atlasRef = parseAtlasReferenced(toolDetails);
-          if (atlasRef) {
+          if (!CHAT_EDITION && atlasRef) {
             return (
               <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
                 <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
@@ -306,7 +307,7 @@ export function AgentConversation() {
           }
           // 建议标注卡片：propose_annotation 的工具结果（SDD 02 §6），确认/驳回由人来点
           const proposed = parseAnnotationProposed(toolDetails);
-          if (proposed?.annotation_id) {
+          if (!CHAT_EDITION && proposed?.annotation_id) {
             return (
               <div className="turn assistant tool" key={`sugg-${index}-${proposed.annotation_id}`}>
                 <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
@@ -406,7 +407,7 @@ export function AgentConversation() {
         <div className="agent-readonly">{t("agent_archived_readonly")}</div>
       )}
       {!connection.model && (
-        <div className="agent-readonly">{t("agent_model_required")}</div>
+        <div className="agent-readonly">{t("agent_model_required")} <button type="button" onClick={() => setConfigOpen(true)}>{t("cfg_title")}</button></div>
       )}
       <ConversationComposer
         running={Boolean(running)}

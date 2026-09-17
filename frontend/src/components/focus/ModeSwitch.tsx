@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../../edition";
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
@@ -9,6 +10,7 @@ export function ModeSwitch() {
   const { t } = useI18n();
   const uiMode = useSession((s) => s.uiMode);
   const setUiMode = useSession((s) => s.setUiMode);
+  if (CHAT_EDITION) return null;
   const toWorkbench = uiMode === "focus";
   return (
     <button

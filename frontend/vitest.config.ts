@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    env: { VITE_GLAUX_EDITION: "full" },
     setupFiles: ["./src/test/setup.ts"],
     exclude: ["dist/**", "node_modules/**"],
     restoreMocks: true,

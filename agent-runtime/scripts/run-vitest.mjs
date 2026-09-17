@@ -14,6 +14,7 @@ const child = spawn(
   {
     env: {
       ...process.env,
+      GLAUX_EDITION: process.env.GLAUX_EDITION ?? "full",
       TEMP: tempDir,
       TMP: tempDir,
       TMPDIR: tempDir,

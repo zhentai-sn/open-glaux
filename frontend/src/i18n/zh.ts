@@ -2,6 +2,8 @@ import type { I18nKey } from "./en";
 
 // 中文字典。键集与 en 完全一致（类型 Record<I18nKey,string> 强制对齐，缺键即编译错）。
 export const zh: Record<I18nKey, string> = {
+  chat_tagline: "对话预览版",
+  chat_empty_hint: "配置模型连接，开始你的第一次对话。",
   av_explorer: "资源管理器",
   av_run: "运行与测量",
   ext_active: "启用中",

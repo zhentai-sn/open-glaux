@@ -1,3 +1,4 @@
+import { chatEdition } from "./edition.js";
 import { loadRuntimeConfig } from "./config.js";
 import { CommandService } from "./pi/command-service.js";
 import { createConnectionProbe } from "./pi/connection-probe.js";
@@ -26,7 +27,7 @@ const server = buildServer({
   },
   routes: { sessions, commands, registry, broker },
   probe: createConnectionProbe(),
-  atlas: { runtimeFactory: createModelRuntime },
+  ...(!chatEdition() ? { atlas: { runtimeFactory: createModelRuntime } } : {}),
 });
 
 const shutdown = async () => {

@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../edition";
 import { create } from "zustand";
 
 import type {
@@ -128,6 +129,7 @@ function loadWidth(v: unknown, range: { min: number; max: number }): number | nu
 
 /** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
 function loadUiMode(): UiMode {
+  if (CHAT_EDITION) return "focus";
   try {
     const raw = localStorage.getItem(UIMODE_KEY);
     if (raw === "focus" || raw === "workbench") return raw;
@@ -345,14 +347,14 @@ export const useSession = create<SessionState>((set) => ({
   shortcutSheetOpen: false,
   imagePreview: null,
 
-  setUiMode: (m) =>
+  setUiMode: (requested) =>
     set(() => {
       try {
-        localStorage.setItem(UIMODE_KEY, m);
+        localStorage.setItem(UIMODE_KEY, CHAT_EDITION ? "focus" : requested);
       } catch {
         /* 持久化失败不阻塞切换 */
       }
-      return { uiMode: m };
+      return { uiMode: CHAT_EDITION ? "focus" : requested };
     }),
   setFocusLayout: (patch) =>
     set((s) => {

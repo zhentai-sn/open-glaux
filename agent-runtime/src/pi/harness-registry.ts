@@ -1,3 +1,4 @@
+import { chatEdition, CHAT_SYSTEM_PROMPT } from "../edition.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -80,7 +81,7 @@ export const defaultToolFactory: HarnessToolFactory = ({
   connection,
   runtime,
 }) => {
-  if (permissionMode === "observe") return [];
+  if (chatEdition() || permissionMode === "observe") return [];
   const tools = [createRunTaskTool({ ...(viewer ? { viewer } : {}) }) as HarnessTool];
   if (connection?.vision) {
     // 只负责"看见"：不吃 runtime，也不外发——像素只走会话自己那条模型连接。
@@ -225,12 +226,12 @@ export class HarnessRegistry {
 
     const session = await this.sessions.openSession(sessionId);
     const runtime = this.runtimeFactory(connection);
-    const tools = this.toolFactory({ ...options, connection, runtime });
+    const tools = chatEdition() ? [] : this.toolFactory({ ...options, connection, runtime });
     const harness = new AgentHarness({
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: systemPromptFor(
+      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(
         options.viewer,
         tools.some((tool) => tool.name === CONSULT_ATLAS_TOOL_NAME),
         tools.some((tool) => tool.name === SEGMENT_REGION_TOOL_NAME),

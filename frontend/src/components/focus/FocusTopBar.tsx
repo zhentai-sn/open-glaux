@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../../edition";
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
@@ -59,9 +60,9 @@ export function FocusTopBar({
         <OwlLogo />
       </span>
       <b className="focus-brand">Glaux</b>
-      <span className="focus-tagline">· {t("focus_tagline")}</span>
+      <span className="focus-tagline">· {t(CHAT_EDITION ? "chat_tagline" : "focus_tagline")}</span>
       <span className="focus-topbar-grow" />
-      <ImageContextChip />
+      {!CHAT_EDITION && <ImageContextChip />}
       <span className="focus-cfg-anchor">
         <button
           className="focus-iconbtn"

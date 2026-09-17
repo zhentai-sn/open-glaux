@@ -23,7 +23,7 @@ export function ShortcutSheet() {
       >
         <div className="sheet-hd">{t("sc_title")}</div>
         <div className="sheet-groups">
-          {GROUPS.map((g) => (
+          {GROUPS.filter((g) => SHORTCUT_ROWS.some((r) => r.group === g)).map((g) => (
             <div key={g} className="sheet-group">
               <div className="sheet-group-title">{t(SHORTCUT_GROUP_LABEL[g])}</div>
               {SHORTCUT_ROWS.filter((r) => r.group === g).map((r) => (

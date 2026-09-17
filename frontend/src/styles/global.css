@@ -3035,3 +3035,16 @@ body.resizing .focus-rail { transition: none; }
 .atlas-coll-name.unfiled { color: var(--mid); }
 .atlas-coll-edit { display: flex; gap: 6px; align-items: center; }
 .atlas-coll-edit .dsin { flex: 1; }
+
+/* Chat distribution: one conversation surface, no image workspace. */
+.chat-main { flex: 1; min-width: 0; min-height: 0; display: flex; justify-content: center; }
+.chat-main > .agent-conversation { width: 100%; max-width: 960px; border: 0; }
+.chat-shell .focus-rail { --focus-rail-w: 240px; }
+.chat-shell .agent-empty { padding: 40px 20px; }
+.chat-shell .agent-readonly button { color: var(--agent); cursor: pointer; }
+@media (max-width: 640px) {
+  .chat-shell .focus-rail.open { position: absolute; inset: var(--titlebar-h) auto 0 0; z-index: 20; max-width: calc(100vw - 40px); }
+  .chat-shell .focus-tagline { display: none; }
+}
+
+.chat-shell .agent-toolbar > .agent-iconbtn { display: none; }

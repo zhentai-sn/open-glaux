@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../edition";
 import { useAgentSessions } from "../store/agentSessions";
 import { useSession, type Connection } from "../store/session";
 import type {
@@ -95,7 +96,7 @@ export function useConversation() {
         content,
         images,
         toConnectionInput(connection, images.length > 0),
-        toViewerContext(),
+        CHAT_EDITION ? undefined : toViewerContext(),
       ),
     // 重新生成会连原图一起重发（runtime 侧 regenerateLatest），所以视觉能力必须一并带上。
     regenerate: () => regenerate(toConnectionInput(connection, true)),

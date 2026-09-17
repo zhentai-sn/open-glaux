@@ -1,3 +1,4 @@
+import { CHAT_EDITION } from "../edition";
 import { useEffect } from "react";
 
 import type { I18nKey } from "../i18n";
@@ -23,7 +24,7 @@ export interface ShortcutRow {
   keys: string;
   label: I18nKey;
 }
-export const SHORTCUT_ROWS: ShortcutRow[] = [
+const ALL_SHORTCUT_ROWS: ShortcutRow[] = [
   { group: "tool", keys: "V", label: "tl_cursor" },
   { group: "tool", keys: "R", label: "tl_bbox" },
   { group: "tool", keys: "P", label: "tl_polygon" },
@@ -35,6 +36,9 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
   { group: "shell", keys: `${MOD} ${SHIFT} M`, label: "sc_mode" },
   { group: "help", keys: "?", label: "sc_sheet" },
 ];
+export const SHORTCUT_ROWS = CHAT_EDITION
+  ? ALL_SHORTCUT_ROWS.filter((row) => row.label === "sc_left" || row.label === "sc_sheet")
+  : ALL_SHORTCUT_ROWS;
 export const SHORTCUT_GROUP_LABEL: Record<ShortcutGroup, I18nKey> = {
   tool: "sc_group_tool",
   shell: "sc_group_shell",
@@ -70,7 +74,7 @@ export function useGlobalKeys() {
         } else if (st.shortcutSheetOpen) {
           st.setShortcutSheet(false);
           e.preventDefault();
-        } else if (!isEditable(el) && inViewerContext(el)) {
+        } else if (!CHAT_EDITION && !isEditable(el) && inViewerContext(el)) {
           st.setTool("reset");
           e.preventDefault();
         }
@@ -92,7 +96,7 @@ export function useGlobalKeys() {
       // 外壳组合键（Ctrl/Cmd，非 Alt）
       if (mod && !e.altKey) {
         const k = e.key.toLowerCase();
-        if (e.shiftKey && k === "m") {
+        if (!CHAT_EDITION && e.shiftKey && k === "m") {
           st.setUiMode(st.uiMode === "focus" ? "workbench" : "focus");
           e.preventDefault();
           return;
@@ -105,7 +109,7 @@ export function useGlobalKeys() {
           }
           return;
         }
-        if (!e.shiftKey && k === "\\") {
+        if (!CHAT_EDITION && !e.shiftKey && k === "\\") {
           if (st.uiMode === "focus") st.setFocusLayout({ rightOpen: !st.focusLayout.rightOpen });
           else st.togglePanel();
           e.preventDefault();
@@ -115,7 +119,7 @@ export function useGlobalKeys() {
       }
 
       // 工具单键（无修饰，需查看器上下文 R3）
-      if (!mod && !e.altKey && inViewerContext(el)) {
+      if (!CHAT_EDITION && !mod && !e.altKey && inViewerContext(el)) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
         if (tool) {
           st.setTool(tool);

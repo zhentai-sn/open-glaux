@@ -1,5 +1,7 @@
 // 英文字典。键名冻结（= mockup data-i18n 键，见设计稿 §4）；未被引用的键随功能退役一并删除。
 export const en = {
+  chat_tagline: "Chat preview",
+  chat_empty_hint: "Configure a model connection to start your first conversation.",
   // activity bar
   av_explorer: "Explorer",
   av_run: "Run & Measure",
