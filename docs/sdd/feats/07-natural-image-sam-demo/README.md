@@ -32,7 +32,7 @@ status: implemented
 
 ## 3. 当前阶段目标
 
-- 文件栏常驻展示 `natural-images/` 和 4 张真实照片。
+- 加载示例数据（或 `GLAUX_DEV_MODE=1`）后，文件栏展示 4 张真实照片。
 - 选择照片后由现有 2D 查看器加载，Agent Runtime 可经 `/image/{id}` 取得同一字节。
 - Viewer Context 明确标记 `modality=natural_image`，且不携带医学任务、模型或标定。
 - 使用现有 SAM 配置完成至少两张照片的端到端手工走查。
@@ -83,7 +83,7 @@ status: implemented
 
 ### 5.3 前端与 Agent 输出
 
-- 文件栏目录 `natural-images/` 与 4 个叶子项。
+- 示例数据加载后，文件栏出现这 4 张照片的叶子项。
 - 选择后 2D 查看器显示照片，活动对象为对应 `image_id`。
 - 标题、HUD、状态栏与 Focus 顶栏不得显示医学任务、`CF` 或医学活动模型；自然图像标签显示为“自然图像 / Natural images”。
 - Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含 `task`、`method`、`cubs_cf`、`roi_box`。
@@ -136,7 +136,7 @@ sequenceDiagram
 | Backend `/images` | 发现固定自然照片 |
 | Backend `/image/{id}` | 按白名单安全返回照片，并向统一标注层提供像素尺寸 |
 | Frontend Session Store | 保存 `naturalImages` 与当前自然图像状态 |
-| Frontend Explorer | 常驻渲染自然图像目录与选择动作 |
+| Frontend Explorer | 示例数据加载后渲染自然图像叶子与选择动作 |
 | Frontend Viewer Context | 向 Agent Runtime 发无医学任务的当前图上下文 |
 | `segment_region` | 沿用现有 SAM 取图和分割链路，不改契约 |
 
@@ -184,7 +184,7 @@ stateDiagram-v2
 
 - 进入 `NaturalImage`：设置 `modality=natural_image`、`activeImage`，清空 3D/WSI 与医学结果状态。
 - 离开 `NaturalImage`：复用现有 `switchModality` 加载目标医学模态首个对象。
-- 图片列表为空时保留 `natural-images/` 空目录，不自动选择或报全局错误。
+- 未加载示例数据时文件栏不出现自然图像项；列表为空时不自动选择，也不报全局错误。
 
 ## 12. 审计或事件规则
 
@@ -217,7 +217,7 @@ stateDiagram-v2
 - [x] 4 个 `/image/{id}` 均返回非空 JPEG；未知 ID 与 `../` 类伪造 ID 不读取文件并返回 404。
 - [x] 自然图像上的越界 bbox/polygon 被 `/annotations` 以 422 拒绝，合法像素坐标可创建建议态标注。
 - [x] 缺失、损坏或未知自然图像不进入列表，且不能作为 `/annotations` 的目标。
-- [x] 文件栏在任意医学模态下显示 `natural-images/` 和 4 个叶子。
+- [x] 加载示例数据（或 `GLAUX_DEV_MODE=1`）后文件栏显示这 4 张照片；未加载时不显示。
 - [x] 选择任一自然照片后挂载 2D Viewer，显示正确照片且 `modality=natural_image`。
 - [x] 选择自然照片不调用 `/task/run`，并清空此前医学 metrics/primitives/3D/WSI 状态。
 - [x] 自然图像 Viewer Context 精确为当前 `image_id` + `natural_image`，不含医学 `task`、`method`、`cubs_cf`、`roi_box`。

@@ -6,10 +6,10 @@
 ``/images`` / ``capabilities()``）改查这里，不再 glob config 固定根。
 
 两种模式（用户要求保留开发者模式）：
-- **开发者模式**（``GLAUX_DEV_MODE=1``，缺省）：内置源 = config 的 4 个 env 根的**实时视图**
+- **开发者模式**（``GLAUX_DEV_MODE=1``；开发脚本显式设置）：内置源 = config 的 4 个 env 根的**实时视图**
   （:func:`_builtin_live`）——行为 == 现状；且因是实时读 ``config.X_ROOT``（非快照），
   测试对 config 根的 monkeypatch 立即反映。
-- **产品模式**（``GLAUX_DEV_MODE=0``）：无内置源；
+- **产品模式**（``GLAUX_DEV_MODE=0``，缺省）：无内置源；
   用户经 :func:`register_folder` 导入文件夹后才有源。
 
 导入源持久化到 ``sources.json``；内置源不落盘（每次实时从 config 读，避免落盘旧值盖回）。
