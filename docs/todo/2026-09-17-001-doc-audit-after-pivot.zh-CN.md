@@ -350,3 +350,17 @@ status: open
 | `models/hc_seg/README.md` | HC 隔离分割模型的来源、部署、推理管线和验证结果。对照 backend/app/config.py，GLAUX_HC_SEG_* 默认路径、fetal_hc 模态和 hc_harness.py 都还在，内容准确，也没有定位类说法。 |
 | `data/natural/README.md` | 自然图像 SAM 演示资产的来源、许可和提示词清单（SDD 07 要求保留），与纲领「自然图像与视频」领域一致，内容准确。 |
 
+## 执行进度（2026-09-22）
+
+已完成：
+
+- 文档治理规则与 frontmatter：`docs/README.md`「活文档与记录」、`AGENTS.md`、65 份文档补齐 `kind`/`status`。
+- P1 入口文档：`docs/architecture.zh-CN.md` 重写、`docs/landing/index.html` 按纲领重写、backend / science-core / scripts/dev 三份 README、前端设计纲领。
+- P3 全部 10 份：六份 runbook（含 p7 的 orchestration PYTHONPATH）、`science-core/eval`、`data/ct`、`data/wsi`、技术债审计 D10 进度。
+- P2 已做 10 份：SDD 00 / 01 / 03 / 05、版本治理 SDD、脑暴索引与 agent-browser-capability、退役设计、前端质量路线图、docs/README 调研条目。
+
+未完成：
+
+- SDD 02 / 04 / 07 / 08 与 `docs/sdd/README.md`：等 SDD 10（对象收敛）落地后一并改，避免与并行会话冲突。
+- 需维护者拍板：`docs/plans/2026-08-26-release-blocker-fixes-plan.md` 是否删除；SDD 01 版本治理与退役设计是否升为 `accepted`；落地页未被引用的插画是否删除。
+- 非文档项：agent-runtime 系统提示词仍写 biomedical；`science-core/pyproject.toml` 的 description 仍是「首个楔子 CUBS IMT」。

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "glaux-core"
 version = "0.2.0"
-description = "Glaux 首个楔子：CUBS 颈动脉 IMT 分割→测量→验证科学内核"
+description = "Glaux 科学内核：任务注册表与各模态的读取、标定、分割/检测、测量、验证"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
