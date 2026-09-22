@@ -1,14 +1,30 @@
-# scripts/dev — 开发期一次性脚本（归档）
+# scripts/dev — 本地开发脚本
 
-> ⚠️ **这些不是构建/CI/运行时依赖**。是 P4–P7 迭代过程中,在本机 `~` 下随手写的
-> 调试 / e2e 冒烟 / 环境安装 / 数据抓取脚本,含**机器相关的 WSL 绝对路径**
-> (`~/glaux_models/...`、`.venv-*/bin/python` 等),换机器基本跑不动。
-> 入库仅作**历史留痕**,方便回溯当时怎么验的。可复现的规范步骤看
-> [`docs/runbooks/`](../../docs/runbooks/),不看这里。
+目录里有两类脚本：**本地联调脚本**（`run-backend.sh` 等四个）仍在使用，起本机三进程；
+其余 `glaux_*.sh` 与 `eval_carosegdeep.py` 是 P4–P7 迭代期的一次性脚本，入库只作历史留痕。
 
-原先散落在 `~`,2026-07-13 归拢入库(见 [清理说明](#清理背景))。
+## 本地联调脚本
 
-## 脚本清单
+写死了 WSL 路径（`~/code/pre-tech/open-glaux`），换机器需要改。
+
+| 脚本 | 用途 |
+|---|---|
+| `run-backend.sh` | 启动 backend；缺省 `GLAUX_DEV_MODE=1` 打开内置示例源，并放宽演示区间上限 |
+| `restart-backend.sh` | 只重启 backend 并做健康检查 |
+| `run-agent-runtime.sh` | 启动 agent-runtime，从 `~/.bashrc` 读取分割 API token 并打开外发 |
+| `health.sh` | 检查 backend、agent-runtime、frontend 是否在线 |
+
+三进程一起起用 `make -j3 dev`，见[仓库骨架总览](../../docs/architecture.zh-CN.md)。
+
+## 归档：一次性脚本
+
+> ⚠️ **以下脚本不是构建/CI/运行时依赖**。是 P4–P7 迭代过程中，在本机 `~` 下随手写的
+> 调试 / e2e 冒烟 / 环境安装 / 数据抓取脚本，含**机器相关的 WSL 绝对路径**
+> (`~/glaux_models/...`、`.venv-*/bin/python` 等)，换机器基本跑不动。
+> 入库仅作**历史留痕**，方便回溯当时怎么验的。可复现的规范步骤看
+> [`docs/runbooks/`](../../docs/runbooks/)，不看这里。
+
+原先散落在 `~`，2026-07-13 归拢入库（见 [清理说明](#清理背景)）。
 
 | 脚本 | 用途（当时） |
 |---|---|
@@ -22,17 +38,6 @@
 | `glaux_masktest.sh` | labelmap/掩膜叠色调试 |
 | `glaux_dbg{,2,3}.sh` | 临时调试(逐次覆写,内容不定) |
 | `eval_carosegdeep.py` | caroSegDeep 100 图 eval(IMT 精度基线) |
-
-## 本地联调脚本
-
-仍在使用，同样写死了 WSL 路径（`~/code/pre-tech/open-glaux`）。
-
-| 脚本 | 用途 |
-|---|---|
-| `run-backend.sh` | 以开发者模式启动 backend，放宽演示区间上限 |
-| `restart-backend.sh` | 只重启 backend 并做健康检查 |
-| `run-agent-runtime.sh` | 启动 agent-runtime，从 `~/.bashrc` 读取分割 API token 并打开外发 |
-| `health.sh` | 检查 backend、agent-runtime、frontend 是否在线 |
 
 ## 清理背景
 
