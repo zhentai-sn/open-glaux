@@ -3,22 +3,20 @@ kind: living
 status: living
 title: Glaux 仓库骨架总览
 type: architecture
-created: 2026-08-16
-updated: 2026-08-16（orchestration/ 退役完成后）
-scope: 全仓库——根目录各文件/目录职责、运行时拓扑、技术栈速查
+scope: 全仓库——根目录各文件/目录职责、运行时与部署形态、技术栈速查
 ---
 
 # Glaux 仓库骨架总览
 
-> **用途**：第一次接触仓库时的导航地图——根目录每个文件/目录是什么、三进程怎么跑、技术栈怎么分布。
-> **日期**：2026-08-16 · **状态**：living（活文档，随仓库结构演进更新）
-> **半衰期提醒**：目录树和技术栈版本号会随开发推进过时；文档正文若与代码冲突，以代码为准。
+> 第一次接触仓库时的导航地图：每个目录是什么、进程怎么跑、技术栈怎么分布。与代码冲突时以代码为准。
 
 ---
 
-## 运行时全景
+## 运行时与部署形态
 
-Glaux 本地开发由三个进程组成，`make -j3 dev` 一键拉起：
+### 本地开发（完整版）
+
+三个进程，`make -j3 dev` 一次拉起：
 
 ```mermaid
 graph LR
@@ -26,19 +24,19 @@ graph LR
         FE["frontend<br/>Vite :5173<br/>React + TS"]
     end
 
-    subgraph "Node.js · 唯一与模型说话的进程"
-        AR["agent-runtime<br/>Fastify :8010<br/>连接探测 · 会话 · 工具 · SSE"]
+    subgraph "Node.js · 唯一与模型通信的进程"
+        AR["agent-runtime<br/>Fastify :8010<br/>会话 · 工具 · SSE · 连接探测"]
     end
 
     subgraph "Python · 无 LLM SDK"
-        BE["backend<br/>FastAPI :8000<br/>REST 薄壳 · /atlas 图谱"]
+        BE["backend<br/>FastAPI :8000<br/>数据源 · 任务 · 标注 · 上传 · 图谱"]
         SC["science-core<br/>glaux_core（含 tasks.REGISTRY）"]
         MD["models/*<br/>隔离 venv/子进程"]
         AT[("~/glaux_atlas<br/>LanceDB + 图像")]
     end
 
     FE -- "/agent-api/*（对话 · 连接配置 · atlas/describe）" --> AR
-    FE -- "/api/*（查看器数据 · /atlas 导入/检索）" --> BE
+    FE -- "/api/*（查看器数据 · 标注 · 上传 · 图谱）" --> BE
     AR -- "run_task 工具 → POST /task/run" --> BE
     AR -- "AtlasClient → GET /atlas/exemplars/search" --> BE
     BE -- "lancedb" --> AT
@@ -46,12 +44,33 @@ graph LR
     BE -- "subprocess" --> MD
 ```
 
-前端 Vite 反向代理把 `/api` 转发到 backend :8000、`/agent-api` 转发到 agent-runtime :8010。
-三条不变量（[退役设计](designs/2026-08-16-001-retire-orchestration.zh-CN.md)）：
-**只有 agent-runtime 与模型说话**（backend / science-core 不含 LLM SDK、不持密钥）；
-**`glaux_core.tasks.REGISTRY` 是能力清单单一事实源**；**前端只有一条对话路径**（经 agent-runtime 会话）。
-重模型（caroSegDeep / TotalSegmentator / HC-CSM / StarDist-HE）一律在隔离子进程中运行，
-主 FastAPI 进程不 import TensorFlow/PyTorch。
+Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀；`/agent-api` 转发到 agent-runtime :8010，不改路径。
+
+### Docker 发行包（对话预览版）
+
+`compose.yaml` 两个服务，规范见 [SDD 09](sdd/feats/09-chat-distribution/README.md)，使用见 [安装、运行与分发手册](runbooks/chat-distribution.md)：
+
+| 服务 | 镜像 stage | 说明 |
+| --- | --- | --- |
+| `agent` | `docker/Dockerfile` 的 `agent` | Node 运行时，`GLAUX_EDITION=chat`、`GLAUX_AGENT_HOST=0.0.0.0`，会话存具名卷 `conversations:/data`，不对宿主暴露端口 |
+| `web` | 同文件的 `web` | nginx 提供静态前端，`/agent-api/` 反代到 agent，`/api/` 一律 404；宿主只映射 `127.0.0.1:${GLAUX_PORT:-5173}` |
+
+发行包不含 Python 后端、science-core 与专用模型。
+
+### 发行模式开关
+
+`VITE_GLAUX_EDITION`（前端）和 `GLAUX_EDITION`（agent-runtime）取 `full` 或 `chat`，**缺省 full**，无效值直接抛错。
+
+- `full`：Focus / Workbench 双模式、舞台、图谱、领域工具全开。
+- `chat`：只保留对话界面；不注册任何领域工具，改用对话提示词，不请求 Python 后端。Docker 镜像与 `compose.yaml` 显式设置。
+
+### 三条不变量
+
+- **只有 agent-runtime 与模型通信**：backend / science-core 不含 LLM SDK、不持密钥。
+- **`glaux_core.tasks.REGISTRY` 是能力清单单一事实源**：backend 端点、前端渲染、智能体工具都只读它。
+- **前端只有一条对话路径**：经 agent-runtime 会话。
+
+重模型（caroSegDeep、TotalSegmentator、HC-CSM、StarDist-HE）一律在隔离子进程中运行，主 FastAPI 进程不 import TensorFlow/PyTorch。
 
 ---
 
@@ -59,129 +78,154 @@ graph LR
 
 ```
 open-glaux/
-├── README.md / README.zh-CN.md  # 项目介绍（英/中）：定位、架构图、开发快速上手、路线图指引
-├── Makefile                     # 开发编排：install · dev · test · lint
-├── .gitignore                   # 忽略模型权重、医学影像、node_modules、.glaux/ 等
-├── .gitattributes               # 跨 WSL/Windows 强制 LF；标记二进制类型
+├── README.md / README.zh-CN.md  # 项目介绍（英/中）：定位、领域、当前版本、快速开始
+├── AGENTS.md / CLAUDE.md        # 编码智能体入口：先读顺序与文档规则（CLAUDE.md 只引入 AGENTS.md）
+├── Makefile                     # 开发编排：install · dev · test · lint · version
+├── VERSION / CHANGELOG.md       # 产品版本与发布记录（SDD 01 版本治理）
+├── LICENSE                      # Apache-2.0
+├── compose.yaml                 # 对话预览版部署（agent + web 两个服务）
+├── .dockerignore                # 镜像构建上下文白名单
+├── .gitignore / .gitattributes  # 忽略权重与医学影像；跨 WSL/Windows 强制 LF
 │
-├── frontend/                    # React + Vite IDE 前端（VS Code 风格影像标注工作台；components/atlas 图谱页面）
-├── backend/                     # FastAPI 薄壳（REST 端点桥接到 science-core / 隔离模型；无 LLM SDK；app/atlas 图谱存储/导入/CLI）
-├── agent-runtime/               # 本地参考智能体运行时（Pi Agent Core · Fastify · SSE · 连接探测 · run_task 工具 · pi/vision 图像入模型 · atlas 检索先验）
+├── frontend/                    # React + Vite 前端：Focus（对话）/ Workbench（工作台）双模式，按 edition 裁剪
+├── agent-runtime/               # 参考智能体运行时（Pi Agent Core · Fastify · SSE · 工具 · 连接探测）
+├── backend/                     # FastAPI 薄壳：数据源、任务、标注、上传、图谱；无 LLM SDK
+├── science-core/                # 无头科学内核：读取、标定、分割、检测、测量、验证、产物、记忆 + 任务注册表
 │
-├── science-core/                # 无头科学内核（环境四层：表征 / 动作 / 验证 / 记忆）+ 任务注册表
-├── models/                     # 隔离模型运行时资产（独立 venv，不被主进程 import）
+├── docker/                      # 发行镜像构建：Dockerfile（四个 stage）、compose.build.yaml、nginx.conf
+├── scripts/
+│   ├── dev/                     #   本地联调脚本（run-backend、restart-backend、run-agent-runtime、health）+ 归档的一次性脚本
+│   ├── release/                 #   发行打包 package.py 与 launcher/（start·stop 的 sh/cmd/command）
+│   ├── version_matrix.py        #   版本矩阵检查（SDD 01）
+│   └── test_version_matrix.py   #   上述检查的用例（make test-version）
+│
+├── models/                      # 隔离模型运行时资产（独立 venv，不被主进程 import）
 │   └── hc_seg/                  #   胎儿头围分割 CSM（HuggingFace, Apache-2.0）
 │
-├── data/                        # 数据集存储（二进制 gitignore，仅跟踪 README）
-│   ├── ct/                      #   CT NIfTI（P6 TotalSegmentator 楔子）
-│   └── wsi/                     #   全幅病理切片（P7 StarDist-HE 楔子）
+├── data/                        # 数据集存储（二进制 gitignore，仅跟踪 README 与自然图像示例）
+│   ├── ct/                      #   CT NIfTI（TotalSegmentator）
+│   ├── natural/                 #   自然图像示例 4 张（SDD 07，入库）
+│   └── wsi/                     #   全幅病理切片（StarDist-HE）
 │
-├── docs/                        # 文档区（详见 docs/README.md 命名规约）
-│   ├── architecture.zh-CN.md    #   本文件：仓库骨架总览（活文档）
-│   ├── requirements.zh-CN.md    #   需求清单（v0，活文档）
-│   ├── roadmaps/                #   路线图（按日期存档）+ charter.zh-CN.md（纲领，活文档）
-│   ├── researches/              #   产品 / 市场 / 技术 / 科研调研报告
-│   ├── brainstorms/             #   单任务/特性的需求文档
-│   ├── designs/                 #   架构与 UI 设计文档
-│   ├── plans/                   #   实现计划
-│   ├── sdd/                     #   规范驱动开发：Feature 边界、契约、状态机、验收
+├── docs/                        # 文档区（类型、状态与命名规约见 docs/README.md）
+│   ├── architecture.zh-CN.md    #   本文件
+│   ├── roadmaps/charter.zh-CN.md #  纲领：定位、领域、边界、环境四要素
+│   ├── sdd/                     #   规范驱动开发：Feature 契约、验收、决策
 │   ├── runbooks/                #   操作手册
-│   └── todo/                    #   代码评审记录
+│   ├── landing/                 #   产品门户首页
+│   ├── researches/ brainstorms/ designs/ plans/ todo/  # 记录类文档
+│   └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
 │
-├── scripts/                     # 归档开发脚本（P4–P7 一次性脚本，仅历史参考）
-├── assets/                      # 静态视觉素材（architecture.svg）
-│
-├── .glaux/                      # 本地智能体会话数据（SQLite，不入库）
-├── .claude/                     # Claude Code 配置（launch.json，不入库）
-└── .qoder/                      # Qoder 工具数据（不入库）
+└── assets/                      # 架构图 SVG（中/英各一份）
 ```
+
+`.glaux/`（本地会话 SQLite）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
 
 ---
 
 ## 各组件详述
 
-### `frontend/` — React + Vite IDE 前端
+### `frontend/` — React + Vite 前端
 
-VS Code 风格的生物医学影像标注工作台。
+图像与视频分析的前端：与智能体对话、查看图像、核对每一步结果。
 
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | React 18, TypeScript 5, Vite 5, Zustand（状态）, Vitest + Testing Library |
-| 影像库 | Cornerstone.js 3（DICOM/体积）, OpenSeadragon（WSI 深度缩放）, nifti-reader-js |
-| 布局 | dockview-react（VS Code 面板拖拽）, Focus / Workbench 双模式 |
-| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`agent/AtlasRefCard` 渲染"参考图谱 N 条" |
-| 图谱（Atlas） | `components/atlas/`：列表 / 详情 / 导入向导（PDF · 网页 · 手动上传，ROI 框选，外发协议勾选）；Workbench 侧栏视图 + Focus 右侧拓展区（`focusLayout.rightView`）；描述生成走 runtime `/atlas/describe`，凭据不经 backend（SDD feats/03） |
+| 图像库 | Cornerstone.js 3（体积/标注）, OpenSeadragon（WSI 深度缩放）, nifti-reader-js |
+| 布局 | dockview-react（面板拖拽）；`App.tsx` 按 `edition.ts` 在 `ChatShell`（chat）与 `ResearchApp`（full）之间二选一 |
+| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条" |
+| 图谱（Atlas） | `components/atlas/`：列表 / 详情 / 导入向导（PDF · 网页 · 手动上传，ROI 框选，外发协议勾选）；描述生成走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
 | 国际化 | 中/英双语（`src/i18n/`） |
-| 安全 | 自定义 Vite 插件注入 CSP 头 |
+| 安全 | 自定义 Vite 插件向 index.html 注入 CSP meta（开发放行 HMR 所需 inline，生产收紧 script-src 'self'） |
+
+### `agent-runtime/` — 参考智能体运行时
+
+基于 `@earendil-works/pi-agent-core` 的 Fastify 服务，是唯一与模型通信的进程。
+
+| 关键点 | 说明 |
+| --- | --- |
+| 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
+| 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；`connection/test\|models`；`atlas/describe` |
+| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`atlas/`、`annotation/`、`security/`、`storage/` |
+| 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
+| 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
+
+工具（`pi/tools/`，chat 模式或 `observe` 权限下一律不挂载）：
+
+| 工具 | 作用 | 额外挂载条件 |
+| --- | --- | --- |
+| `run_task` | 调 backend `/task/run` 执行注册表任务，结果写回查看器 | 无；SDD 02 三件工具落地后待退役的过渡工具 |
+| `view_current_image` | 把查看器当前图的像素交给模型 | 连接支持视觉 |
+| `consult_atlas` | 只读检索图谱案例，返回图块与摘要 | 连接支持视觉 |
+| `locate_roi` | 按描述定位矩形区域，可带图谱先验 | 连接支持视觉 |
+| `segment_region` | 调外部分割后端取 mask，runtime 侧转像素多边形 | `GLAUX_ANNOT_ALLOW_EGRESS` 且 `GLAUX_SEG_API_TOKEN` 非空 |
+| `propose_annotation` | 写建议态标注（`status=suggested`），等人工确认 | 无 |
 
 ### `backend/` — FastAPI 薄壳
 
-将 REST 端点（`/tasks`, `/task/run`, `/task/measure`, `/images`, `/volume/*`, `/wsi/*` 等）桥接到
-science-core / 隔离模型。既是前端查看器的数据面，也是 agent-runtime 工具（`run_task`）的执行面。
+把 REST 端点桥接到 science-core 与隔离模型：既是前端查看器的数据面，也是 `run_task` 的执行面。
 
 | 关键点 | 说明 |
 | --- | --- |
-| 技术栈 | Python ≥ 3.10, FastAPI, Pydantic, uv, hatchling；**不含任何 LLM SDK** |
-| 数据源 | CUBS 超声、HC18 胎儿超声、CT NIfTI、WSI 病理（可插拔注册表） |
+| 技术栈 | Python ≥ 3.12, FastAPI, Pydantic, uv；**不含任何 LLM SDK** |
+| 路由 | 六组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
+| 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图），缺省 0 为产品模式（只有导入源） |
 | 分割 | 全部走隔离子进程（`segment_proc.py` / `segment_ts.py` / `segment_wsi.py`） |
-| 图谱（Atlas） | `app/atlas/`：LanceDB 案例表（JSON 列 + ngram FTS）与 sha256 寻址图像目录（`GLAUX_ATLAS_ROOT`，默认 `~/glaux_atlas`）；PyMuPDF / httpx+bs4 抽图；`routers/atlas.py` 暴露 `/atlas/*`；`python -m app.atlas.cli import-dataset` 批量导入 COCO/YOLO/LabelMe；`net_guard.py` 出站守卫与 runtime 同规则 |
+| 图谱（Atlas） | `app/atlas/`：LanceDB 案例表（JSON 列 + ngram FTS）与 sha256 寻址图像目录（`GLAUX_ATLAS_ROOT`，默认 `~/glaux_atlas`）；PyMuPDF / httpx+bs4 抽图；`python -m app.atlas.cli import-dataset` 批量导入 COCO/YOLO/LabelMe |
 | 测试 | pytest + httpx |
-
-### `agent-runtime/` — 本地参考智能体运行时
-
-基于 `@earendil-works/pi-agent-core` 的 Fastify 服务，托管参考智能体。
-
-| 关键点 | 说明 |
-| --- | --- |
-| 技术栈 | Node.js ≥ 22.19, TypeScript, Fastify 5, Vitest |
-| 核心能力 | Pi 模型运行时、会话管理（SQLite）、SSE 推送 |
-| 连接探测 | `/agent-api/v1/connection/test\|models`——测试连通 / 列模型 / 视觉能力标注（`pi/connection-probe.ts`） |
-| 工具 | `run_task`（`pi/tools/run-task.ts`）：调 backend `/task/run` 执行当前任务，结果经 `tool_execution_end` 事件写回前端查看器；`observe` 权限模式下不挂工具 |
-| 图像入模型 | `pi/vision.ts`：`describeImage` / `chooseAmongImages`（pi-ai `ImageContent`）；`POST /agent-api/v1/atlas/describe` 供前端/CLI 生成图谱描述；`atlas/client.ts` + `atlas/select.ts` 为 02 `locate_roi` 提供"翻图谱"步（检索 ≤10 → VLM 挑 1–3 张），`egressFor` 只对回环 base_url 放开 local-only 案例 |
-| 安全 | 凭据/密钥脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`） |
 
 ### `science-core/` — 无头科学内核
 
-环境四层（表征 / 动作 / 验证 / 记忆）的纯计算引擎，不含 HTTP——被 backend 调用。
+纯计算实现，不含 HTTP，被 backend import。
 
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | Python ≥ 3.11, numpy, Pillow, pandas；可选 scipy, tensorflow |
 | 包名 | `glaux_core`（setuptools，Apache-2.0） |
-| 任务注册表 | `glaux_core/tasks.py`：`TaskType` / `TaskSpec` / `REGISTRY`——"环境能做什么"的单一事实源，backend 端点、前端渲染、agent 工具都只读它 |
+| 任务注册表 | `glaux_core/tasks.py`：`TaskType` / `TaskPlugin` / `REGISTRY`——"环境能做什么"的单一事实源 |
 | 评测 | `eval/` 通用框架 + HC Bland-Altman/MAE/Dice 专项 |
-| 无头脚本 | `runners/` 下的 TotalSegmentator 和 WSI 无头运行器 |
+| 无头脚本 | `runners/` 下的 TotalSegmentator 与 WSI 无头运行器 |
 
-science-core 内部数据流：
+内部数据流：
 
 ```mermaid
 graph LR
     IO["io/<br/>数据读取"] --> CAL["calibration/<br/>物理标定"]
     CAL --> SEG["segmentation/<br/>可插拔分割"]
-    SEG --> MEA["measurement/<br/>PDM · HC · CT · nuclei"]
+    SEG --> DET["detection/<br/>细胞核后处理"]
+    DET --> MEA["measurement/<br/>PDM · HC · CT · nuclei"]
     MEA --> VER["verification/<br/>一致性 · Dice · 不确定性"]
     VER --> ART["artifacts/<br/>结构化产物"]
-    ART --> MEM["memory/<br/>溯源"]
+    ART --> MEM["memory/<br/>轨迹与人工校正"]
 ```
 
 ### `models/` — 隔离模型运行时
 
-重 ML 模型的源码和部署说明，运行在独立 venv/子进程中，不被主进程 import。
+重模型的源码与部署说明，运行在独立 venv/子进程中。
 
 | 子目录 | 内容 |
 | --- | --- |
-| `hc_seg/` | 胎儿头围分割（CSM, HuggingFace, Apache-2.0），含无头推理 + 验证脚本（MAE 1.13mm, Dice 0.982） |
+| `hc_seg/` | 胎儿头围分割（CSM, HuggingFace, Apache-2.0），含无头推理与验证脚本（MAE 1.13 mm, Dice 0.982） |
 
-### `data/` — 数据集存储（不入库）
+### `data/` — 数据集存储
 
-二进制文件 gitignore，仅跟踪 README。
+医学影像二进制 gitignore，仅跟踪 README；自然图像示例入库。
 
 | 子目录 | 内容 |
 | --- | --- |
-| `ct/` | CT NIfTI 体积（P6 TotalSegmentator 楔子演示数据） |
-| `wsi/` | 全幅病理切片（P7 StarDist-HE 楔子数据） |
+| `ct/` | CT NIfTI 体积（TotalSegmentator 演示数据） |
+| `natural/` | 自然图像示例 4 张 JPEG（SDD 07，逐张记录来源与许可） |
+| `wsi/` | 全幅病理切片（StarDist-HE 数据） |
 
-### `scripts/` — 归档开发脚本
+### `scripts/` — 开发与发行脚本
 
-P4–P7 迭代期间的一次性脚本（含机器绑定路径），仅保留做历史参考。
-可复现步骤已迁至 `docs/runbooks/`。
+| 位置 | 内容 |
+| --- | --- |
+| `dev/` | 本地联调脚本（起后端、重启后端、起运行时、健康检查），以及归档的一次性脚本；写死 WSL 路径 |
+| `release/` | `package.py` 生成无源码启动包；`launcher/` 下 start/stop 的 sh、cmd、command 各一份，随包分发 |
+| `version_matrix.py` | 校验根 `VERSION` 与四个组件版本一致（`make version-check`） |
+
+### 版本治理
+
+根 `VERSION` 与 frontend、agent-runtime、backend、science-core 四个组件版本各自声明，当前均为 0.2.0；五份 CHANGELOG 记录变化。规则见 [SDD 01](sdd/01-version-release-governance.md)，机器校验是 `scripts/version_matrix.py`。
