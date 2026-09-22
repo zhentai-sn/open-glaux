@@ -159,11 +159,18 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 
 | Feature | 状态 | 主题 |
 | --- | --- | --- |
-| [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `implemented` | 内置参考智能体与本地会话管理 |
-| [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `accepted` | 双模式外壳 Focus / Workbench |
-| [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `draft` | 智能体图像标注能力 |
-| [03-atlas](sdd/feats/03-atlas/README.md) | `implemented`（v1.1 图册 + 右侧栏） | Atlas · 图谱（人工策展的图文案例库） |
-| [04-unified-annotation-toolbox](sdd/feats/04-unified-annotation-toolbox/README.md) | `ready` | 统一图像标注工具箱（bbox/polygon/brush） |
+| [00-reference-agent-conversations](sdd/feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件） | 内置参考智能体与本地会话管理 |
+| [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1 `accepted`） | 双模式外壳 Focus / Workbench |
+| [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `implemented` | 智能体图像标注能力 |
+| [03-atlas](sdd/feats/03-atlas/README.md) | `implemented`（v1.2 会话内 `consult_atlas`） | Atlas · 图谱（人工策展的图文案例库） |
+| [04-unified-annotation-toolbox](sdd/feats/04-unified-annotation-toolbox/README.md) | `implemented`（浏览器走查验收待补） | 统一图像标注工具箱（bbox/polygon/brush） |
+| [05-keyboard-shortcuts-a11y](sdd/feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | 键盘可达性与全局快捷键 |
+| [06-icon-system](sdd/feats/06-icon-system/README.md) | `implemented` | 统一图标系统 |
+| [07-natural-image-sam-demo](sdd/feats/07-natural-image-sam-demo/README.md) | `implemented`（建议态 UI 待验收） | 自然图像 SAM 演示集合 |
+| [08-data-import-first-explorer](sdd/feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | 数据导入优先的文件栏 |
+| [09-chat-distribution](sdd/feats/09-chat-distribution/README.md) | `implemented` | 基本对话 Docker 发行包 |
+
+状态以 [SDD 索引](sdd/README.md) 为准，本表只作导航。
 
 ## 通用约定
 
