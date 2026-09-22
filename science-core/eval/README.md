@@ -1,4 +1,6 @@
-# eval · 评测 harness（阶段 4 证明）
+# eval · 评测工具（IMT / HC）
+
+IMT 评测在 `harness.py`，胎儿头围（HC）评测在 `hc_harness.py`。
 
 复现 CUBS 一致性口径，作为科学内核的可发表证明。度量在合成 GT 上自证正确
 （完美预测→bias≈0、Dice≈1、Hausdorff≈0；已知偏移→bias≈偏移），并在真实
@@ -35,10 +37,10 @@ CUBS 技术集上产出与已发布数对表的报告。
 对齐相对「原生支撑 + 非对称」旧口径的差异在支撑失配处最大（GT-FAMUS vs A1
 \|bias\| 139.5→128.2）。
 
-> **数据不入库**：CUBS 走下载（见根 `README` 与 `.gitignore`）。复现脚本按上述
+> **数据不入库**：CUBS 走下载（见 [science-core/README.md](../README.md) 与 `.gitignore`）。复现脚本按上述
 > 口径调用 `cubs.read_dataset` → `agreement`，指向本地技术集解压目录即可。
 
-## 分割动作层真模型验证（caroSegDeep，2026-07-06）
+## 分割模型真模型验证（caroSegDeep，2026-07-06）
 
 上表比的是数据集**自带**的分割输出；本节把**真模型**接上——完整走通
 `真实图像 → caroSegDeep 推理 → LI/MA → 对齐口径测量 → vs A1`。
@@ -61,7 +63,7 @@ caroSegDeep vs A1 金标准（共同支撑 + 对称 PDM，µm）：
 | 95% LoA | [−157, +176] | 观察者内 160±140 |
 
 signed bias 近零、sd 84.7 ≈ 已发布 89、|bias| 66.6 同量级且优于已发布 ~106，
-亦优于数据集自带 CREATIS 输出 vs A1 的 104.7——分割动作层由真模型真数据证成。
+亦优于数据集自带 CREATIS 输出 vs A1 的 104.7——分割步骤已用真模型和真实数据验证。
 
 > **口径边界**：单 fold、全宽 ROI + FW 自动初始化；已发布 ~106 的 reference 定义
 > （哪个分析者 / fold / 全集 2176）不完全等同，故为「同量级且更优」，非精确复刻同一数。

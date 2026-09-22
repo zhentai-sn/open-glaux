@@ -1,4 +1,4 @@
-# CT 体积数据（P6 楔子）
+# CT 体积 demo 数据（ct_abdomen）
 
 存放 TotalSegmentator v2 公开 demo CT 案例的 NIfTI 文件，供 `ct_abdomen` 模态使用。
 
@@ -14,12 +14,12 @@ TotalSegmentator v2.4.0 公开 demo 案例在 GitHub release / Zenodo 资产中�
 `docs/runbooks/p6-3d-totalseg-wedge.md`（U6 落地）。本目录**不**入 git（`.gitignore` 已含
 体积数据通配符）。
 
-## v0 楔子数据
+## demo 数据
 
-P6 第一刀只需要 1 例 demo：
+本目录当前只需 1 例 demo：
 
-- `ct_001.nii.gz` —— 1 例腹部 CT（CT-RATE / TotalSegmentator 公开 demo 任一）
-- 配套 reproducibility reference 由 `docs/runbooks/p6-3d-totalseg-wedge.md` 说明
+- `ct_001.nii.gz` —— 1 例腹部 CT（TotalSegmentator 公开 demo，3mm 各向同性，122×101×112）
+- `ct_001_ref.nii.gz` —— TotalSegmentator 首跑输出的 reproducibility reference（**非真 GT**），生成步骤见同一 runbook 第 6 步
 
 ## 权限与协议
 
