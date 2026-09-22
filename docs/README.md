@@ -169,6 +169,7 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 | [07-natural-image-sam-demo](sdd/feats/07-natural-image-sam-demo/README.md) | `implemented`（建议态 UI 待验收） | 自然图像 SAM 演示集合 |
 | [08-data-import-first-explorer](sdd/feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | 数据导入优先的文件栏 |
 | [09-chat-distribution](sdd/feats/09-chat-distribution/README.md) | `implemented` | 基本对话 Docker 发行包 |
+| [10-object-convergence](sdd/feats/10-object-convergence/README.md) | `draft` | 视觉对象与数据源收敛 |
 
 状态以 [SDD 索引](sdd/README.md) 为准，本表只作导航。
 
