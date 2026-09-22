@@ -45,7 +45,7 @@ status: implemented
 - 教科书 PDF 的通用文档问答（那是文档 RAG，不是图谱）。
 - 修改 02 的三个工具契约；本 SDD 只向 `locate_roi` 提供可选先验输入。
 - 扫描版 PDF 的 OCR / 版面分析（决策 D-8）；像素掩膜（labelmap / NIfTI / RLE）导入（决策 D-15）。
-- 改变 Glaux 主线楔子（science-core 的颈动脉超声分割不受影响）；本 SDD 的 TEM 场景只是图谱
+- 改变 science-core 既有任务（如颈动脉超声分割）；本 SDD 的 TEM 场景只是图谱
   的首个内容场景。
 
 ## 3. 当前目标
@@ -197,8 +197,8 @@ sequenceDiagram
 
 ### 7.4 外发规则
 
-- 案例图作为 few-shot 发往托管 VLM 属于数据外发，沿用 02 §7.4 的 `GLAUX_ANNOT_ALLOW_EGRESS` 门控。
-- 在此之上按案例 `egress` 字段分级：仅 `shareable` 允许外发；`local-only` 案例只在本地 VLM/本地推理时可用，否则检索结果中直接排除并在会话中提示"N 条本地案例因外发限制未使用"。
+- 案例图作为 few-shot 发往用户自配的模型连接，不受 `GLAUX_ANNOT_ALLOW_EGRESS` 约束（该开关只约束第三方分割服务，见 02 §7.4）。
+- 在此之上按案例 `egress` 字段分级：仅 `shareable` 可随第三方服务外发；`local-only` 案例是否随行由 `egressFor(connection)` 判定——只有 `base_url` 解析为回环的本机模型才带上，否则从检索结果中排除并在会话中提示"N 条本地案例因外发限制未使用"。
 - 缺省值与是否允许用户对教科书/网页来源改为 `shareable`：允许，须勾选确认（D-16）。
 
 ### 7.5 标签规则
@@ -238,7 +238,7 @@ sequenceDiagram
 | 对象 | 位置 | 说明 |
 | --- | --- | --- |
 | Atlas 页面（Workbench） | `frontend/src/components/atlas/`（新增）；`store/session.ts` 的 `View` 增加 `"atlas"`；ActivityBar 新增入口 | 左侧侧栏视图：列表 / 详情 / 导入向导 |
-| Atlas 页面（Focus） | `frontend/src/components/focus/` 右侧拓展视图（参考 Codex 桌面端右侧面板的设计） | 同一组件在 Focus 模式下挂到右侧拓展区 |
+| Atlas 页面（Focus） | `frontend/src/components/focus/`：右侧栏的浏览器列（与常驻舞台并排，与「文件」互斥） | 同一组件在 Focus 模式下挂到浏览器列 |
 | ROI 框选 | `frontend/src/components/atlas/RoiPicker.tsx`：轻量 canvas/DOM 矩形叠加（候选插图为静态 PNG，不上 cornerstone 栈；D-18） | 导入预览中框选，一图多框，坐标换算回图像像素 |
 | 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 `GLAUX_ATLAS_ROOT/db/` + 图像 `GLAUX_ATLAS_ROOT/images/` | 原图与标记分存 |
 | PDF 解析 | backend 依赖 PyMuPDF（`pymupdf`），主进程可用（IO 库，非重模型） | 抽嵌入图 + 同页邻近文本 |
@@ -282,7 +282,7 @@ sequenceDiagram
 
 引用记录（表 `exemplar_refs`）：`exemplar_id`、`trace_id`、`referenced_at`；由 runtime 经 `POST /atlas/exemplars/referenced` 写入，硬删除前查询是否存在（§7.7）。
 
-前端状态：`FocusLayout.rightView` 增加 `"atlas"` 取值——v1.1 起该字段由 [01-dual-mode-shell v1.1](../01-dual-mode-shell/README.md) §9 定义为 Focus 右侧栏的当前标签（`"stage" | "files" | "atlas"`），图谱是三个标签之一（D-19 v2）。
+前端状态：`FocusLayout.browserView = "atlas"`（[01-dual-mode-shell v1.4](../01-dual-mode-shell/README.md) §9；v1.1–v1.3 为 `rightView:"atlas"`）。「在图谱中打开」设置 `{rightOpen:true, browserView:"atlas"}`。
 
 ## 10. 幂等规则
 
@@ -335,7 +335,7 @@ stateDiagram-v2
 
 - 被 [02-agent-image-annotation](../02-agent-image-annotation/README.md) 的 `locate_roi` 调用（可选先验）；02 不依赖 03 即可 `ready`。
 - 依赖 [00-reference-agent-conversations](../00-reference-agent-conversations/README.md) 的会话与 SSE 通道（会话卡片、事件）。
-- 依赖 [01-dual-mode-shell](../01-dual-mode-shell/README.md) 的外壳：Atlas 为 Workbench 模式下的侧栏视图。
+- 依赖 [01-dual-mode-shell](../01-dual-mode-shell/README.md) 的外壳：Workbench 下为左侧侧栏视图；Focus 下为右侧栏的浏览器列（v1.4 `browserView`）。
 - 依赖 agent-runtime 现有 VLM 连接与出站守卫（导入期描述生成、few-shot 外发）。
 - 阶段二与 02 的 D-3 修订（SAM2 自部署）联动。
 
@@ -351,7 +351,7 @@ stateDiagram-v2
 - [x] 图谱中有 ≥ 4 条匹配候选时，`consult_atlas` 先出现一次 VLM 挑选调用（返回 1–3 个 exemplar_id），选中案例作为图像块进入工具结果；会话中出现"参考图谱 N 条"卡片，可点开对应案例。——`consult-atlas-tool.test.ts`（目标图取自查看器、挑选结果、图像块、卡片 payload）+ `AgentConversation.test.tsx`（历史里渲染卡片）；`locate_roi` 落地后改由它承载定位步（D-21）
 - [x] 图谱无匹配时行为与无 Atlas 时一致，无额外 VLM 调用与错误——`consult-atlas-tool.test.ts` 0 命中路径：无图像块、不记引用、如实告知模型"无匹配案例"。
 - [x] 非视觉连接下 `consult_atlas` 不出现在工具集（D-22）——`consult-atlas-tool.test.ts` 门控用例。
-- [ ] 外发开关关闭时，任何案例都不发往外部 VLM，卡片提示被排除数量。
+- [ ] 模型连接指向非回环端点时，`local-only` 案例不随行，卡片提示被排除数量（`egressFor` 判定，见 §7.4）。
 - [x] 下架案例后，它不再出现在检索与默认列表，引用它的历史会话卡片仍可打开；恢复后重新可检索。
 - [x] 对被会话引用过的案例执行硬删除被拒绝；从未引用过的可硬删除。
 - [x] VLM 描述生成失败时案例仍入库，页面显示"待补描述"并可重试；成功时 `description` 含 §7.6 全部固定字段且 `extra` 为对象。

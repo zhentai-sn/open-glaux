@@ -10,10 +10,10 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | implemented |
-| 当前阶段 | 版本事实源、日志、运行时读取与检查入口已实现并通过开发侧验证；待首次正式发布验收 |
+| 当前阶段 | 版本事实源、日志、运行时读取与检查入口已实现；已完成 v0.1.0（2026-08-26）与 0.2.0（2026-08-31）两次发布 |
 | 关联主 SDD | [Glaux SDD 索引](README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-26 |
+| 最后更新 | 2026-09-22 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -34,7 +34,7 @@ status: implemented
 ## 3. 当前阶段目标
 
 - 建立“整体产品版本 + 四组件独立版本”的双层版本模型。
-- 将五个范围的当前版本都确定为 `0.1.0`。
+- 首个基线版本定为 `0.1.0`（现行版本以根 `VERSION` 与 CHANGELOG 为准）。
 - 每个范围只有一个可编辑版本事实源，删除同组件运行时的重复硬编码。
 - 建立整体与组件级 CHANGELOG、标签命名和发布门槛。
 - 提供一个无第三方依赖的版本检查入口，验证并输出当前版本矩阵。
@@ -168,6 +168,7 @@ stateDiagram-v2
 
 - 所有 [Feature SDD](README.md#feature-sdd) 在发布时受本规范约束，但本规范不改变其功能契约。
 - [SDD 03](feats/03-atlas/README.md) 的 `statement_version` 与本规范的软件版本相互独立。
+- [SDD 09](feats/09-chat-distribution/README.md) 的发行镜像版本号遵循本规范 §7 R3 的预发布后缀规则。
 - 设计依据见 [多组件版本与发布治理设计](../plans/2026-08-26-version-release-governance-design.md)。
 
 ## 15. 验收标准

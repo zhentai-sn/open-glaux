@@ -32,7 +32,7 @@ Provider smoke 与 Dock 拖动/刷新属于业务验收前的人工检查，因�
 
 本阶段明确不包含：
 
-- Glaux 领域工具调用，包括 `/task/*`、影像分割、测量、验证与任务编排。
+- Glaux 领域工具调用，包括 `/task/*`、影像分割、测量与验证（已由 [SDD 02](../02-agent-image-annotation/README.md)、[SDD 03](../03-atlas/README.md) 承接）。
 - Agent 的自动规划、执行、验证和迭代闭环。
 - MCP、Codex、外部 Agent 进程接入及多 Agent 协作。
 - 批量运行、后台队列、定时任务和数据外发。
@@ -143,14 +143,14 @@ flowchart LR
     META["Glaux Session Meta<br/>标题、归档、权限"]
     LLM["Anthropic / OpenAI-compatible<br/>Ollama / LM Studio"]
     API["Python FastAPI"]
-    CORE["science-core / orchestration"]
+    CORE["science-core<br/>glaux_core.tasks.REGISTRY"]
 
     UI -->|"REST：会话与命令<br/>SSE：Pi 事件映射"| ADAPTER
     ADAPTER --> HARNESS
     ADAPTER --> META
     HARNESS --> STORE
     HARNESS --> LLM
-    HARNESS -.->|"后续阶段：领域工具"| API
+    HARNESS -.->|"领域工具：run_task → /task/run（SDD 02）"| API
     API --> CORE
 ```
 
@@ -161,7 +161,7 @@ flowchart LR
 - Glaux Transport Adapter 只负责浏览器传输、会话产品元数据、连接凭据注入和错误映射。
 - Glaux 不复制 Pi 的 Message、Run、ContextSummary 或 RuntimeEvent 数据模型。
 - 官方 `@earendil-works/pi-server` 当前是实验性 coding-agent/RPC 服务，不作为 Glaux 产品协议依赖。
-- Python FastAPI、`science-core` 和现有任务编排保持不变，也不在本阶段调用链中。
+- 第一阶段 Python FastAPI 与 `science-core` 不在调用链中；领域工具的接入见 [SDD 02](../02-agent-image-annotation/README.md)（`run_task`、`locate_roi` 等）。
 
 ### 6.2 对话流程
 
@@ -262,7 +262,7 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 1. 顶栏：当前会话标题、会话列表、新建会话、更多菜单。
 2. 配置栏：Provider/Model、权限模式、上下文占用。
 3. 消息区：用户与 assistant 消息、流式状态、停止/重试/重新生成入口。
-4. 输入区：多行文本、发送/停止；附件入口第一阶段禁用并标注未开放。
+4. 输入区：多行文本、图像附件（粘贴/选择/拖放，见 §4.3 与 D-021）、发送/停止。
 5. 会话抽屉：在右侧面板内部覆盖展开，支持搜索、切换、重命名、归档、恢复和删除。
 
 不得新增分支按钮、历史消息编辑入口或替代回答版本选择器。
@@ -285,7 +285,7 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 12. Adapter 在 `prompt`/`regenerate` 前、Harness 为 `idle` 时调用 Pi `shouldCompact`；命中后先完成 `AgentHarness.compact()` 再生成。触发阈值、cut point、摘要和 retained tail 全部使用锁定版本的 Pi 默认设置。
 13. Glaux 不维护独立摘要表、不自行删除消息，也不规定与 Pi 默认值不同的 70%/50% 阈值。
 14. Pi compaction 失败时不得静默丢弃 session entry；无法继续生成时映射为 `context_overflow`。
-15. 权限模式按 `observe < suggest < controlled < autonomous` 排序。第一阶段不执行工具，但必须在 Glaux 元数据中持久化并展示。
+15. 权限模式按 `observe < suggest < controlled < autonomous` 排序。必须在 Glaux 元数据中持久化并展示；工具门控语义由 [SDD 02](../02-agent-image-annotation/README.md) §7.3 定义（`observe` 返回空工具集）。
 16. Pi 依赖使用 `@earendil-works/pi-agent-core`、`@earendil-works/pi-ai` 与 `@earendil-works/pi-storage-sqlite-node`，并由 lockfile 锁定精确解析版本。
 17. 禁止使用已废弃的 `@mariozechner/pi-agent-core`，禁止将实验性 `@earendil-works/pi-server` 作为稳定产品依赖。
 18. Pi Storage 的 migration 和 materialized view 由官方包管理；Glaux 不复制、修改或查询其内部 schema。

@@ -12,7 +12,7 @@ supersedes: 2026-07-14-001-agent-connection-config.zh-CN.md（后端探测端点
 # 设计 · 退役 `orchestration/`
 
 > **用途**：按奥卡姆剃刀清理仓库骨架——`orchestration/` 是 agent-runtime 出现之前建的"意图→任务"层，如今与参考智能体职责重叠。本文给出目标形态、把它拆成三块各归其位的方案、以及三阶段落地顺序。
-> **日期**：2026-08-16 · **状态**：implemented（P1–P3 已落地，待验收） · **依据**：[纲领](../roadmaps/charter.zh-CN.md)（agent 是引擎、Glaux 是环境）· [仓库骨架总览](../architecture.zh-CN.md) · [SDD 00 参考智能体](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 智能体标注](../sdd/feats/02-agent-image-annotation/README.md) · 现状代码 `orchestration/glaux_orchestrator/*`、`backend/app/kernel.py`、`frontend/src/agent/useAgent.ts`
+> **日期**：2026-08-16 · **状态**：implemented（P1–P3 已落地，待验收） · **依据**：[纲领 §五](../roadmaps/charter.zh-CN.md)（智能体 = harness + 模型，Glaux 是 harness）· [仓库骨架总览](../architecture.zh-CN.md) · [SDD 00 参考智能体](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 智能体标注](../sdd/feats/02-agent-image-annotation/README.md) · 现状代码 `orchestration/glaux_orchestrator/*`、`backend/app/kernel.py`、`frontend/src/agent/useAgent.ts`
 > **半衰期提醒**：本文引用的文件路径与行号对应 2026-08-16 的 `main`；P3 的触发条件绑定 SDD 02 的第一个工具落地，若 SDD 02 方向变化需复核 §5。
 
 ---
@@ -29,7 +29,7 @@ supersedes: 2026-07-14-001-agent-connection-config.zh-CN.md（后端探测端点
 | **C. 模型连接探测** `vlm_providers.py`（ping / list_models / 视觉判定） | orchestration + backend `/intent/vlm/*` | **agent-runtime** `/agent-api/v1/connection/*` | agent-runtime 已用 pi-ai 构造同一套 provider；SDD 02 §8 已声明 VLM 调用与出站守卫都在 agent-runtime |
 | **A. 意图解析** `intent.py`、`IntentResult/Scope`、`run.py` | orchestration + backend `/interpret` | **删除**，由 agent 的推理 + 工具调用取代 | 这是 agent 的本职；且现状它只是"闸门"不是路由（见 §1） |
 
-**目标不变量**（本设计新增，进入纲领级约束）：
+**目标不变量**（本设计确立，现记录于[仓库骨架总览](../architecture.zh-CN.md)）：
 
 - **只有 agent-runtime 与模型说话。** backend / science-core 不含任何 LLM SDK、不持有模型密钥、不发起对模型端点的请求。
 - **能力清单单一事实源。** `glaux_core.tasks.REGISTRY` 是"环境能做什么"的唯一登记处；backend 端点、前端渲染、agent 工具都只读它。

@@ -34,8 +34,8 @@ stateDiagram-v2
 | 文件 | 日期 | 主题 | 状态 | 去向 |
 | --- | --- | --- | --- | --- |
 | [20260705-01-cubs-imt-first-task.zh-CN.md](20260705-01-cubs-imt-first-task.zh-CN.md) | 2026-07-05 | CUBS 颈动脉 IMT 分割→测量 | `promoted` | → [计划](../plans/2026-07-05-001-feat-cubs-imt-pipeline-plan.zh-CN.md)，已实现 |
-| [20260816-01-agent-browser-capability.zh-CN.md](20260816-01-agent-browser-capability.zh-CN.md) | 2026-08-16 | 智能体浏览器操作能力（范围拆分） | `review` | 分支A(自身页面/标注) → [SDD 02](../sdd/feats/02-agent-image-annotation/README.md) `draft`；分支B(外部网页) 待评审 |
-| [20260816-02-unified-annotation-toolbox.zh-CN.md](20260816-02-unified-annotation-toolbox.zh-CN.md) | 2026-08-16 | 统一图像标注工具箱（bbox/polygon/brush + 后端持久化） | `promoted` | → [SDD 04](../sdd/feats/04-unified-annotation-toolbox/README.md) `ready` |
+| [20260816-01-agent-browser-capability.zh-CN.md](20260816-01-agent-browser-capability.zh-CN.md) | 2026-08-16 | 智能体浏览器操作能力（范围拆分） | `review` | 分支A(自身页面/标注) → [SDD 02](../sdd/feats/02-agent-image-annotation/README.md) `implemented`；分支B(外部网页) 待评审 |
+| [20260816-02-unified-annotation-toolbox.zh-CN.md](20260816-02-unified-annotation-toolbox.zh-CN.md) | 2026-08-16 | 统一图像标注工具箱（bbox/polygon/brush + 后端持久化） | `promoted` | → [SDD 04](../sdd/feats/04-unified-annotation-toolbox/README.md) `implemented` |
 
 ### 调研阶段需求（尚未进入脑暴，但已有调研文档）
 
@@ -43,8 +43,8 @@ stateDiagram-v2
 
 | 调研 | 日期 | 主题 | 状态 | 去向 |
 | --- | --- | --- | --- | --- |
-| [20260816-01-tech-annotation-exemplar-store](../researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | 图像标注案例库技术选型 | 已拍板 | → [SDD 03 Atlas](../sdd/feats/03-atlas/README.md) `ready` |
-| [20260816-02-tech-deepseek-harness-integration](../researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | DeepSeek Harness 插件生态集成 | **待评审** | — |
+| [20260816-01-tech-annotation-exemplar-store](../researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | 图像标注案例库技术选型 | 已拍板 | → [SDD 03 Atlas](../sdd/feats/03-atlas/README.md) `implemented` |
+| [20260816-02-tech-deepseek-harness-integration](../researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | DeepSeek Harness 插件生态集成 | `superseded` | 前提被纲领 v2 §五推翻（Glaux 是 harness），不推进 |
 
 ## 命名规约
 
