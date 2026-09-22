@@ -10,7 +10,7 @@ status: draft
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `draft` |
-| 当前阶段 | W0 立起契约冻结稿；§17 的 Q1～Q5 全部关闭后转 `ready`，转 `ready` 后方可进入 W1 |
+| 当前阶段 | W0 立起契约冻结稿；§17 的 Q1～Q4 全部关闭后转 `ready`，转 `ready` 后方可进入 W1 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | `docs/todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md`（`kind: record`，W0 产出；承载 grep 基线、零改清单、手工回归签字表） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -924,7 +924,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - **[01-dual-mode-shell](../01-dual-mode-shell/README.md)**（`implemented`，**本 SDD 为上游**）：其 §8 的 Focus 模式示例卡文案改为领域中立措辞、以「对象」替代「图像」，`EXAMPLES` 仍是静态 i18n 键（动态生成属推迟项）。外壳结构、`uiMode`、栏宽与布局壳不在本 SDD 范围。注意 SDD 01 的「Focus 模式」是外壳形态，与本 SDD 的 `Focus` 类型同名不同物。
 - **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（`implemented`，**本 SDD 为上游，且需其反向修订**）：`ViewerContext` 收敛为五字段、新增观测通道（`fetchObservation` 经 `GET /objects/{id}/frame` 取图并回 `ReferenceFrame`）、`run_task` 工具透传 `calibration` / `region`、`propose_annotation` 携 `index`、身份措辞改「visual analysis harness」、新增 `ToolProvider` 与 `SegmenterPort` 注册面。其 D-9 与 §17 Q3 的「不需要视口元数据」立场随本 SDD 撤回；D-8「尺寸从 PNG/JPEG 字节头读」由 `X-Glaux-Frame` 的 `width`／`height` 取代；其 §12 details 表中 `glaux.annotation_proposed` 的 `z` 改为 `index`。
 - **[03-atlas](../03-atlas/README.md)**（`implemented`，**无调用关系，仅名字空间约束**）：`AtlasDescription.modality` 语义为成像方法，与本 SDD 的 `ObjectMeta.modality`（数据集路由键）、`ObjectKind`（几何族）三者不互换；runtime 侧用 `collection` 承接数据集键以避撞名。图谱的卡片载体与选择器逻辑不在本 SDD 范围。
-- **[04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)**（`implemented`，**互为上下游**）：本 SDD **依赖**其 §7.4 修订稿（`MaskSink` 两实现 + `POST /objects/{id}/edits`）先行到 `ready`，该修订稿是 W2 端点改造的前置（D-6，另见 §17 的 Q1）。本 SDD 又是其**上游**：`Annotation.index` 语义定稿为 `volume`=z / `video`=t / `slide`=level，`_KINDS` 与存储迁移按 §9.5，`capabilities` 放宽为开放集并与 `CHROME_SEGMENTS` 对应，`Tool` 放宽为 `string`，任务专属工具经 `registerTaskTool` 注册且路径仍在 `frontend/src/viewer/`。其 §7.1 的「工具栏显示 = 引擎能力 ∩ 任务推荐」由 `ALWAYS = {cursor, reset}` 与 `TaskView.capabilities` 的并集取代，引擎级能力声明（`raster_2d`／`volume_3d`／`wsi` 三键）随 `capabilities` 开放集一并作废；其 §2 的「点标注为非目标」不变，本 SDD 只扩 `_KINDS` 的存储取值域。其「labelmap 是任务结果非标注」立场不变，`AnnotationIn.image_id` 字段名不改（D-8）；`GET /volume/{id}/labelmap` 作为任务结果字节面有意保留（见 §5.3）。
+- **[04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)**（`implemented`，**互为上下游**）：画笔写契约（`MaskSink` 两实现 + `POST /objects/{id}/edits`）由**本 SDD 承载**，其 §7.4「CT brush 例外」在 W2 提交里同步改写为该契约的引用，与下列其余各项同待遇，不作为本 SDD 转 `ready` 的前置（D-6）。本 SDD 对其为**上游**：`Annotation.index` 语义定稿为 `volume`=z / `video`=t / `slide`=level，`_KINDS` 与存储迁移按 §9.5，`capabilities` 放宽为开放集并与 `CHROME_SEGMENTS` 对应，`Tool` 放宽为 `string`，任务专属工具经 `registerTaskTool` 注册且路径仍在 `frontend/src/viewer/`。其 §7.1 的「工具栏显示 = 引擎能力 ∩ 任务推荐」由 `ALWAYS = {cursor, reset}` 与 `TaskView.capabilities` 的并集取代，引擎级能力声明（`raster_2d`／`volume_3d`／`wsi` 三键）随 `capabilities` 开放集一并作废；其 §2 的「点标注为非目标」不变，本 SDD 只扩 `_KINDS` 的存储取值域。其「labelmap 是任务结果非标注」立场不变，`AnnotationIn.image_id` 字段名不改（D-8）；`GET /volume/{id}/labelmap` 作为任务结果字节面有意保留（见 §5.3）。
 - **[05-keyboard-shortcuts-a11y](../05-keyboard-shortcuts-a11y/README.md)**（`implemented`，**本 SDD 为上游**）：`TOOL_KEYS` 随 `Tool` 放宽为 `string`，`wall` 等任务专属键位由任务声明而非核心写死，`SHORTCUT_ROWS` 按当前 `TaskView.tools` 生成；其 §7 键位表需同提交更新。可达性规则本身不变。
 - **[06-icon-system](../06-icon-system/README.md)**（`implemented`，**本 SDD 为上游，影响面最小**）：`TOOL_ICON` 改为 `Partial` 映射以容纳开放集工具名；未登记图标的工具走既有兜底。`KIND_ICON` / `TAB_ICON` 与图标单一真相源的约定不变。
 - **[07-natural-image-sam-demo](../07-natural-image-sam-demo/README.md)**（`implemented`，**本 SDD 为上游**）：`natural_image` 由「特例模态」改述为「无 `TaskView` 的模态」，走 §13 的显式 no-task 契约与通用空态，能力位默认集见 §9.4；`SegmentationClient` 改为 `SegmenterPort` 的首个实现。逐条对照：其 §1 冻结的 Viewer Context 契约改指向本 SDD §9.1 的五字段 `ViewerContext`；§5.3／§9.3 的 `naturalImages`／`activeImage` 随 §9.1 的 `objects` + `focus` 作废；§7 规则 3「选择自然图像必须清空 `activeVolume`／`activeSlide`／ROI」由 §11.1 的「切对象即重置」取代；§7 规则 6 的 `raster_2d` 兜底由 D-11 的「`ENGINES` 缺键渲染空态」取代。
@@ -1060,7 +1060,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 | D-3 | 三概念显式分界：`kind` 为几何族，`modality` 为数据集路由键，`AtlasDescription.modality` 为成像方法（runtime 用 `collection` 承接后者避撞名） | 只在 runtime 侧用 `collection` 避撞名 | `objects` 按 modality 索引与 `ENGINES` 按 kind 索引两个索引键并存，不写清就会重演「拿 modality 当 kind 用」 | 2026-09-18 |
 | D-4 | `Focus{object_id, kind, index, region}` 为三端同名的当前观测焦点；`Index` 是唯一索引类型 | active 加 cursor 加 region 三字段；索引语义靠 kind 隐式约定 | 前端 selector 返回物与 runtime `ViewerContext` 本是同一物，三端统一省一层映射；volume 用 `z`、video 用 `t` 不再隐式 | 2026-09-18 |
 | D-5 | 表征与观测走 `/objects/{id}/…` 端点族；列表端点保留 `GET /images?modality=`；旧端点退 alias 一版 | `/image/{id}` 叠参数升格为观测端点；`/objects` 全家含列表 | `/image` 承载 volume/slide/video 全部表征语义过载，且与纲领「对象」措辞相反；列表端点是 SDD 08 冻结面，返回的本就是 `ObjectMeta` | 2026-09-18 |
-| D-6 | 画笔提交落 `MaskSink` 两实现，端点换名不换语义；SDD 04 §7.4 修订稿先 ready 再动代码 | 统一到 `/annotations`；保留原路径 | 两条语义路径的立场不变，只把端点从 `/volume` 泛化为 `POST /objects/{id}/edits` 以便视频传播式编辑复用；`task`/`method` 从 `TaskView` 取而非常量 | 2026-09-18 |
+| D-6 | 画笔提交落 `MaskSink` 两实现，端点从 `POST /volume/{id}/mask-edit` 泛化为 `POST /objects/{id}/edits`；写契约由本 SDD 承载，SDD 04 §7.4 在 W2 提交里同步改写 | 统一到 `/annotations`；保留原路径；SDD 04 §7.4 修订稿先 `ready` 再动代码（审计 DEC-6 原处置） | 两条语义路径的立场不变（labelmap 是任务结果非标注），改动只是端点泛化加宿主注入，不触及语义，因此不构成对 SDD 04 冻结契约的实质推翻；`task`/`method` 从 `TaskView` 取而非常量。撤销「先行 ready」的前置，是因为它与 §14 中 SDD 04 其余十二项自相矛盾——同为本 SDD 上游驱动的修订，其余均按仓库规则「改了契约在同提交更新活文档」处理，唯独此项单列为前置，代价是让一份 `implemented` 的 SDD 退回 `draft` 再走一轮评审 | 2026-09-23 |
 | D-7 | `resolve_object` 以注册表索引为主、`is_mine` 仅兜底；既有 id 原样保留；新源 id 一律服务端派生 | 纯遍历前缀正则；全部 id 规范化 | 线性扫描加各 Source 维护前缀只是把四套判别约定分散到各 Source；改既有 id 会牵连标注库、`glaux.recent`、atlas 引用 | 2026-09-18 |
 | D-8 | `TaskSpec` / `AnnotationIn` 保留字段名 `image_id`（语义为对象 id）；`ObjectMeta` 为正名、`ImageMeta` 作别名一版；`center` 改为 `meta.center` 可选 | `image_id` 改名 `object_id` | `AnnotationIn.image_id` 是 SDD 04 冻结的写契约且是落盘字段，改名是纯噪声；`center` 必填对视频与自然图像不成立 | 2026-09-18 |
 | D-9 | `Region` 的 `box` 统一为 `(x0,y0,x1,y1)`；`parseViewer` 过渡映射按此语义，`object`/`focus` 优先、旧字段仅在缺失时映射并 warn；契约测试前置 | 按旧注释的宽高语义映射 | 实际生产者与后端全链一致为 `(x0,y0,x1,y1)`，旧注释是错的；不选定语义则错位以新名字延续 | 2026-09-18 |
@@ -1081,16 +1081,15 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 ## 17. 待确认问题
 
-本 SDD 状态为 `draft`。转 `ready` 需关闭 Q1～Q5 全部问题（依据 [SDD 索引](../../README.md)：`ready` 要求范围、输入输出、状态机、错误处理与验收完整，开放问题为零）。
+本 SDD 状态为 `draft`。转 `ready` 需关闭 Q1～Q4 全部问题（依据 [SDD 索引](../../README.md)：`ready` 要求范围、输入输出、状态机、错误处理与验收完整，开放问题为零）。
 
-- [ ] **Q1 SDD 04 §7.4 修订稿未 ready**：`MaskSink` 两实现与 `POST /objects/{id}/edits` 的写契约须先在 SDD 04 评审至 `ready`，本 SDD §5 才能引用（D-6）。
-- [ ] **Q2 引擎合并可行性未决**：CS3D mock `RenderingEngine` smoke 测试（渲染一帧、画一条 polyline、提交一次画笔）能否写出，决定 D-21 的降级是否触发。结论进执行记录 record，§3 据此确定引擎收敛的交付边界。
-- [ ] **Q3 模态标签 i18n 归属待裁定**：`label_key` → `label` → `modality` 原文的回退顺序已写入 §9.3，须经 W0 裁定确认后方可视为冻结。
-- [ ] **Q4 字面量基线未产出**：`check-modality-literals.sh` 的三端命中基线未测，D-14「先清零再放宽」的前置条件当前不可判，§15.1 J 组的门禁数值无法定稿。
-- [ ] **Q5 `Focus` 一词在前端 store 内撞名**：`frontend/src/store/session.ts` 已有 `uiMode: "focus" | "workbench"`（SDD 01 的 Focus 模式）、`focusLayout` 与 `setFocusLayout`，另有 `frontend/src/components/focus/` 整个目录。本 SDD 要向**同一个 store** 加 `focus: Focus | null` 与 `setFocus`——`setFocus` 与 `setFocusLayout` 只差一个词，前者是「现在观测哪个对象的哪一帧哪个区域」，后者是「右侧栏开不开」。备选是把观测焦点改名 `Viewpoint`（三端同步改名，`Observation` 不可用，已被 `agent-runtime` 的取图结果占用）。W3 动手前必须裁定；在此之前只是全文替换一个词，成本为零，动手后则是三端七个类型的改名。§14 中 SDD 01 一条已记录「同名不同物」的事实，但不构成裁定。
+- [ ] **Q1 引擎合并可行性未决**：CS3D mock `RenderingEngine` smoke 测试（渲染一帧、画一条 polyline、提交一次画笔）能否写出，决定 D-21 的降级是否触发。结论进执行记录 record，§3 据此确定引擎收敛的交付边界。
+- [ ] **Q2 模态标签 i18n 归属待裁定**：`label_key` → `label` → `modality` 原文的回退顺序已写入 §9.3，须经 W0 裁定确认后方可视为冻结。
+- [ ] **Q3 字面量基线未产出**：`check-modality-literals.sh` 的三端命中基线未测，D-14「先清零再放宽」的前置条件当前不可判，§15.1 J 组的门禁数值无法定稿。
+- [ ] **Q4 `Focus` 一词在前端 store 内撞名**：`frontend/src/store/session.ts` 已有 `uiMode: "focus" | "workbench"`（SDD 01 的 Focus 模式）、`focusLayout` 与 `setFocusLayout`，另有 `frontend/src/components/focus/` 整个目录。本 SDD 要向**同一个 store** 加 `focus: Focus | null` 与 `setFocus`——`setFocus` 与 `setFocusLayout` 只差一个词，前者是「现在观测哪个对象的哪一帧哪个区域」，后者是「右侧栏开不开」。备选是把观测焦点改名 `Viewpoint`（三端同步改名，`Observation` 不可用，已被 `agent-runtime` 的取图结果占用）。W3 动手前必须裁定；在此之前只是全文替换一个词，成本为零，动手后则是三端七个类型的改名。§14 中 SDD 01 一条已记录「同名不同物」的事实，但不构成裁定。
 
 **视频理解的观测形状不在本 SDD 内，且不构成开放问题**：2026-09-22 确定视频特性的形态是「给模型做理解视频的 harness」，工程约束尽量薄、不预先写死工具集，因此本 SDD 只冻结衬底（对象、焦点、索引、观测的参照系与取图口），不冻结模型怎么用它。以下四项一并落入 SDD 11，其中前三项已由本 SDD 备好底座、第四项待触发：一是时间以秒寻址而非帧号（`Index.t` 当前是帧索引，`Calibration{kind:"time_base"}` 已带 `fps`，缺的是观测返回把时间戳写进 `ReferenceFrame` 的兄弟结构、工具签名以秒计）；二是长视频的分层导航（一小时 25fps 即九万帧，抽帧必须先粗后细，由模型指定区间放大，而非核心预设抽样策略）；三是音画按时间区间同步交付（D-23 已把音轨声明与取流入口备好，缺的是「一个时间区间 → 帧集合加音频片段，共享同一 time base」的观测形状）；四是模型时序发现的记录原语（Track/Event），其触发条件由审计 §8.6 的「出现跟踪任务需求」改写为「第一次需要验证模型的时序判断」——纯观测能让模型说出结论，但纲领四要素中的验证器与回合轨迹需要结论可落库。
 
-审计 §8.6 的推迟项**不构成开放问题**：每项都有明确触发条件，在触发前本 SDD 的范围、契约与验收均可判定。具体为——视频自动跟踪（Track/Event 原语、`track_objects` 行、`SegmenterPort.track`）待出现真实跟踪任务需求；`POST /task/verify` 与通用验证器待验证器独立排期；`frontend/src/plugins/imt/` 目录搬迁待真正分包；运行期插件加载待出现仓库外作者；示例卡动态化待插件化立项；两引擎真正合并由 Q2 决定；CS3D 实时播放待连续播放需求；对象 id 规范化待实际 id 冲突；标注库 `z` 列改名待多轴索引需求；非模态插件设计另立 SDD；视频文件夹级导入待超上限数据集；Tool 集合扩展待第二个需要专属交互工具的任务。触发发生时按 §16 体例新增 `D-23` 起的决策行并同步修订相应小节。
+审计 §8.6 的推迟项**不构成开放问题**：每项都有明确触发条件，在触发前本 SDD 的范围、契约与验收均可判定。具体为——视频自动跟踪（Track/Event 原语、`track_objects` 行、`SegmenterPort.track`）待出现真实跟踪任务需求；`POST /task/verify` 与通用验证器待验证器独立排期；`frontend/src/plugins/imt/` 目录搬迁待真正分包；运行期插件加载待出现仓库外作者；示例卡动态化待插件化立项；两引擎真正合并由 Q1 决定；CS3D 实时播放待连续播放需求；对象 id 规范化待实际 id 冲突；标注库 `z` 列改名待多轴索引需求；非模态插件设计另立 SDD；视频文件夹级导入待超上限数据集；Tool 集合扩展待第二个需要专属交互工具的任务。触发发生时按 §16 体例新增 `D-23` 起的决策行并同步修订相应小节。
 
 以下两项已降为参数标定，不作为开放问题：无 `TaskView` 模态的能力位默认集（§9.4）与 `/objects/{id}/frame` 的 `size`／`roi` 上限（§5.2），二者均为本 SDD 冻结取值，W6 实测若需调整按 `D-23` 起的决策行修订。另有一项随任务结果面演进：`GET /volume/{id}/labelmap?task=&method=` 是否最终并入 `TaskOutput.ref` 的新形状而改名，超出本 SDD 范围，待任务结果面单独立项时裁定，本 SDD 不断言其删除时点。
