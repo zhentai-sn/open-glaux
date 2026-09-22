@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Glaux — 生物医学影像洞察智能体环境</title>
-  <meta name="description" content="用自然语言描述研究目标，把任意模态的生物医学图像变成可验证、可复现的洞察。">
+  <title>Glaux — 将视觉转化为洞见</title>
+  <meta name="description" content="Glaux 是图像与视频分析的 harness：模型由你自带，环境提供观测空间、动作空间、验证器与回合轨迹，让结论可溯源、可复现。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -206,123 +206,6 @@
     }
     .btn-secondary:hover { border-color: var(--text-tertiary); background: var(--bg-secondary); }
 
-    /* ===== DEMO PREVIEW ===== */
-    .demo-section {
-      padding: 0 32px 80px;
-      display: flex; justify-content: center;
-    }
-    .demo-frame {
-      max-width: 1100px; width: 100%;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      background: var(--bg-secondary);
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
-    }
-    .demo-titlebar {
-      display: flex; align-items: center; gap: 8px;
-      padding: 12px 16px;
-      background: var(--bg-tertiary);
-      border-bottom: 1px solid var(--border);
-    }
-    .demo-dot {
-      width: 12px; height: 12px; border-radius: 50%;
-    }
-    .demo-dot.red { background: #EF4444; }
-    .demo-dot.yellow { background: #F59E0B; }
-    .demo-dot.green { background: #10B981; }
-    .demo-content {
-      display: grid;
-      grid-template-columns: 260px 1fr 240px;
-      height: 480px;
-    }
-    .demo-sidebar {
-      border-right: 1px solid var(--border);
-      padding: 16px;
-      background: white;
-    }
-    .demo-sidebar-title {
-      font-size: 12px; font-weight: 600; color: var(--text-tertiary);
-      text-transform: uppercase; letter-spacing: 0.05em;
-      margin-bottom: 12px;
-    }
-    .demo-task-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; border-radius: var(--radius-sm);
-      margin-bottom: 4px; cursor: default;
-      font-size: 13px; color: var(--text-secondary);
-      transition: background 0.15s;
-    }
-    .demo-task-item:hover { background: var(--bg-secondary); }
-    .demo-task-item.active { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 500; }
-    .demo-task-icon {
-      width: 28px; height: 28px; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
-    }
-    .demo-main {
-      padding: 24px;
-      background: white;
-      overflow-y: auto;
-    }
-    .demo-chat-msg {
-      display: flex; gap: 12px; margin-bottom: 20px;
-    }
-    .demo-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: 600; color: white;
-    }
-    .demo-avatar.user { background: var(--accent); }
-    .demo-avatar.agent { background: var(--emerald); }
-    .demo-chat-bubble {
-      background: var(--bg-secondary);
-      border-radius: var(--radius-md);
-      padding: 12px 16px;
-      font-size: 14px; line-height: 1.6;
-      color: var(--text-primary);
-      max-width: 480px;
-    }
-    .demo-chat-bubble.agent-bubble { background: var(--bg-tertiary); }
-    .demo-tool-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 10px; border-radius: var(--radius-pill);
-      background: var(--violet-light); color: var(--violet);
-      font-size: 11px; font-weight: 600;
-      margin-top: 8px;
-    }
-    .demo-right {
-      border-left: 1px solid var(--border);
-      padding: 16px;
-      background: white;
-    }
-    .demo-result-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 14px;
-      margin-bottom: 12px;
-    }
-    .demo-result-label {
-      font-size: 11px; font-weight: 600; color: var(--text-tertiary);
-      text-transform: uppercase; margin-bottom: 6px;
-    }
-    .demo-result-value {
-      font-size: 20px; font-weight: 700; color: var(--text-primary);
-    }
-    .demo-result-sub {
-      font-size: 12px; color: var(--text-secondary); margin-top: 4px;
-    }
-    .demo-progress {
-      height: 4px; border-radius: 2px; background: var(--bg-tertiary);
-      margin-top: 8px; overflow: hidden;
-    }
-    .demo-progress-bar {
-      height: 100%; border-radius: 2px;
-      background: var(--emerald);
-      width: 92%;
-    }
-
     /* ===== SECTION COMMON ===== */
     .section {
       padding: 80px 32px;
@@ -374,15 +257,6 @@
       box-shadow: 0 8px 30px rgba(59,130,246,0.08);
       transform: translateY(-2px);
     }
-    .value-art {
-      width: 100%; height: 180px; object-fit: cover;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-      background: white;
-      margin-bottom: 20px;
-      transition: transform 0.3s ease;
-    }
-    .value-card:hover .value-art { transform: scale(1.02); }
     .value-card h3 {
       font-size: 18px; font-weight: 700; margin-bottom: 8px;
     }
@@ -459,6 +333,7 @@
       border: 1px solid var(--border);
       background: white;
       text-align: center;
+      display: flex; flex-direction: column; justify-content: center;
       transition: border-color 0.25s ease, transform 0.25s ease;
     }
     .modality-card:hover {
@@ -586,8 +461,6 @@
 
     /* ===== RESPONSIVE ===== */
     @media (max-width: 900px) {
-      .demo-content { grid-template-columns: 1fr; height: auto; }
-      .demo-sidebar, .demo-right { display: none; }
       .arch-diagram { grid-template-columns: 1fr; gap: 36px; }
       .boundary-table { grid-template-columns: 1fr; gap: 40px; }
       .footer-inner { grid-template-columns: 1fr; gap: 32px; }
@@ -621,11 +494,11 @@
     Glaux
   </a>
   <div class="nav-links">
-    <a href="#features">核心能力</a>
+    <a href="#features">环境四要素</a>
     <a href="#architecture">架构</a>
-    <a href="#modalities">支持模态</a>
+    <a href="#modalities">领域与模态</a>
   </div>
-  <a href="https://github.com/pre-tech/open-glaux" class="nav-cta">GitHub</a>
+  <a href="https://github.com/zhentai-sn/open-glaux" class="nav-cta">GitHub</a>
 </nav>
 
 <!-- HERO -->
@@ -633,25 +506,25 @@
   <canvas class="hero-canvas" id="hero-particles" aria-hidden="true"></canvas>
   <div class="hero-badge">
     <span class="dot"></span>
-    Pre-alpha · 开源 · Apache-2.0
+    对话预览版 · 开源 · Apache-2.0
   </div>
   <div class="slogan-viewport" role="heading" aria-level="1" aria-live="off">
-    <span class="slogan-item is-active">在黑暗中也看得清</span>
-    <span class="slogan-item" aria-hidden="true">雅典娜的小鸮，智慧之鸟</span>
-    <span class="slogan-item" aria-hidden="true">开源 · 可扩展 · 为科研而生</span>
+    <span class="slogan-item is-active">将视觉转化为洞见</span>
+    <span class="slogan-item" aria-hidden="true">图像与视频，多种模态、多种格式</span>
+    <span class="slogan-item" aria-hidden="true">结论可溯源、可复现</span>
   </div>
   <h1>
-    用自然语言，把任意模态的生物医学影像<br>
-    变成<span class="gradient-text">可验证的洞察</span>
+    为模型提供图像与视频分析的运行环境，<br>
+    让结论<span class="gradient-text">可溯源、可复现</span>
   </h1>
   <p class="hero-subtitle">
-    Glaux 是生物医学影像洞察的 Agent 原生环境——智能体在这里规划、执行、验证，
-    把显微镜、超声、CT 等任意模态的图像，变成可核对、可复现的科学结果。
+    智能体 = harness + 模型。模型负责推理，由你自带；Glaux 是 harness，
+    决定模型看到什么、能做什么、怎样算对、跨回合积累什么。
   </p>
   <div class="hero-actions">
-    <a href="https://github.com/pre-tech/open-glaux" class="btn-primary">
+    <a href="https://github.com/zhentai-sn/open-glaux" class="btn-primary">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-      开始使用
+      在 GitHub 上查看
     </a>
     <a href="#architecture" class="btn-secondary">
       了解架构 →
@@ -659,92 +532,32 @@
   </div>
 </section>
 
-<!-- DEMO PREVIEW -->
-<section class="demo-section">
-  <div class="demo-frame">
-    <div class="demo-titlebar">
-      <span class="demo-dot red"></span>
-      <span class="demo-dot yellow"></span>
-      <span class="demo-dot green"></span>
-    </div>
-    <div class="demo-content">
-      <div class="demo-sidebar">
-        <div class="demo-sidebar-title">研究任务</div>
-        <div class="demo-task-item active">颈动脉内膜厚度测量</div>
-        <div class="demo-task-item">细胞核检测与计数</div>
-        <div class="demo-task-item">CT 肺部体积分割</div>
-        <div class="demo-task-item">胎儿头围分割测量</div>
-      </div>
-      <div class="demo-main">
-        <div class="demo-chat-msg">
-          <div class="demo-avatar user">U</div>
-          <div class="demo-chat-bubble">
-            量一下这批超声图里颈动脉内膜的厚度，需要带物理单位校准。
-          </div>
-        </div>
-        <div class="demo-chat-msg">
-          <div class="demo-avatar agent">G</div>
-          <div class="demo-chat-bubble agent-bubble">
-            好的，我正在执行：<br>
-            1. 读取超声图像序列（已校准像素-物理单位映射）<br>
-            2. 分割颈动脉内膜结构<br>
-            3. 测量内膜厚度（mm），并计算统计量<br>
-            4. 交叉验证结果一致性
-            <div class="demo-tool-badge">run_task · segmentation</div>
-            <div class="demo-tool-badge" style="background:#D1FAE5;color:#059669;">verification passed</div>
-          </div>
-        </div>
-      </div>
-      <div class="demo-right">
-        <div class="demo-result-card">
-          <div class="demo-result-label">平均内膜厚度</div>
-          <div class="demo-result-value">0.82 mm</div>
-          <div class="demo-result-sub">SD: 0.14 mm · n=128</div>
-        </div>
-        <div class="demo-result-card">
-          <div class="demo-result-label">Dice 一致性</div>
-          <div class="demo-result-value">0.94</div>
-          <div class="demo-progress"><div class="demo-progress-bar"></div></div>
-        </div>
-        <div class="demo-result-card">
-          <div class="demo-result-label">Provenance</div>
-          <div class="demo-result-sub">4 步操作已记录<br>可复现 · 可审计</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- VALUES / FOUR LAYERS -->
+<!-- VALUES / FOUR ELEMENTS -->
 <section class="section section-alt" id="features">
   <div class="section-header">
-    <div class="section-label">环境四层</div>
+    <div class="section-label">环境四要素</div>
     <h2 class="section-title">模型越强，环境越值钱</h2>
     <p class="section-desc">
-      Glaux 的核心价值不在某个智能体，而在智能体赖以工作的环境——
-      眼、手、裁判、经验，四层能力让模型真正发挥价值。
+      模型负责推理，并且在持续商品化。带单位的测量、说得清出处的结论、
+      能原样重跑的过程不会随模型变强自动出现，它们来自环境。
     </p>
   </div>
   <div class="values-grid">
     <div class="value-card">
-      <img class="value-art" src="assets/eye.png" alt="猫头鹰凝视显微镜的线稿插画" width="280" height="180" loading="lazy">
-      <h3>表征层 · 眼</h3>
-      <p>把显微镜、超声、CT、病理切片等任意模态解码成统一的可计算表征——智能体看到的不是像素，而是结构化的科学对象。</p>
+      <h3>观测空间</h3>
+      <p>读取多种模态、多种格式的图像与视频，带上物理语义：像素间距、通道、帧时间。决定给模型看哪一部分：切块、抽帧、裁剪、叠加。对话预览版只支持图片附件。</p>
     </div>
     <div class="value-card">
-      <img class="value-art" src="assets/hand.png" alt="手持圆规测量超声轮廓的线稿插画" width="280" height="180" loading="lazy">
-      <h3>动作层 · 手</h3>
-      <p>分割、测量、重建作为一等操作，每个结果都带物理单位、尺度校准和模态护栏——不是返回一个 mask，而是给出可信的数值。</p>
+      <h3>动作空间</h3>
+      <p>分割、测量、跟踪、重建等工具，集成专用模型，带单位、尺度与护栏。当前对话预览版未开放。</p>
     </div>
     <div class="value-card">
-      <img class="value-art" src="assets/judge.png" alt="天平与猫头鹰裁判的线稿插画" width="280" height="180" loading="lazy">
-      <h3>验证层 · 裁判</h3>
-      <p>多方法一致性检查、校准过的不确定信号、完整 provenance——每个结论都可追溯、可重跑、经得起同行评审。</p>
+      <h3>验证器</h3>
+      <p>结论可溯源到帧与区域、可原样重跑、多种方法相互印证、人工复核；有标准答案时计算指标。当前对话预览版未开放。</p>
     </div>
     <div class="value-card">
-      <img class="value-art" src="assets/memory.png" alt="猫头鹰图书馆管理员的线稿插画" width="280" height="180" loading="lazy">
-      <h3>记忆层 · 飞轮</h3>
-      <p>已验证轨迹 + 人工校正 + 领域先验 + Atlas 图谱——环境会积累经验，越用越聪明，这是复利型护城河。</p>
+      <h3>回合与轨迹</h3>
+      <p>一次分析是一个回合。经过验证的轨迹与人工校正沉淀为案例库，供后续任务检索、评测与改进。当前对话预览版未开放。</p>
     </div>
   </div>
 </section>
@@ -753,43 +566,43 @@
 <section class="section" id="architecture">
   <div class="section-header">
     <div class="section-label">架构</div>
-    <h2 class="section-title">三进程协作，职责清晰</h2>
+    <h2 class="section-title">进程划分</h2>
     <p class="section-desc">
-      本地运行由三个进程组成，make -j3 dev 一键拉起。
-      重模型在隔离子进程中运行，主进程不加载 PyTorch。
+      本地开发默认完整版，由前端、智能体运行时、Python 后端三个进程组成，make -j3 dev 拉起。
+      对外发行的 Docker 对话预览版只含静态前端与智能体运行时。
     </p>
   </div>
   <div class="arch-container">
     <div class="arch-diagram">
       <div class="arch-box">
         <span class="arch-num">01</span>
-        <h4>前端 · IDE 工作台</h4>
-        <p>VS Code 风格的影像标注工作台：与智能体对话、查看图像、核对每一步结果。</p>
+        <h4>前端工作台</h4>
+        <p>与智能体对话、查看图像、核对每一步结果。完整版提供舞台与图谱，对话预览版只提供对话界面。</p>
         <div class="arch-stack" translate="no">React 18 · TypeScript · Vite · Cornerstone3D · OpenSeadragon</div>
       </div>
       <div class="arch-box">
         <span class="arch-num">02</span>
         <h4>智能体运行时</h4>
-        <p>唯一与模型对话的进程——规划、执行、检查、修正，通过工具对环境动手，密钥只在这里。</p>
+        <p>唯一与模型通信的进程：规划、执行、检查、修正，通过工具调用环境能力，模型密钥只保存在这里。</p>
         <div class="arch-stack" translate="no">Node.js · Fastify · Pi Agent Core · SSE</div>
       </div>
       <div class="arch-box">
         <span class="arch-num">03</span>
         <h4>后端 + 科学内核</h4>
-        <p>真正处理图像的部分：读取、分割、测量、重建，每个结果都带核验与操作记录。</p>
+        <p>图像与视频处理：读取、解码、分割、测量，结果带操作记录。只在本地完整版中运行。</p>
         <div class="arch-stack" translate="no">Python · FastAPI · glaux_core · numpy</div>
       </div>
     </div>
     <div class="arch-flow">
-      <span class="arch-flow-step">图像输入</span>
+      <span class="arch-flow-step">图像与视频输入</span>
       <span class="arch-flow-arrow" aria-hidden="true">—›</span>
-      <span class="arch-flow-step">表征解码</span>
+      <span class="arch-flow-step">观测空间</span>
       <span class="arch-flow-arrow" aria-hidden="true">—›</span>
-      <span class="arch-flow-step">分割 · 测量</span>
+      <span class="arch-flow-step">动作空间</span>
       <span class="arch-flow-arrow" aria-hidden="true">—›</span>
-      <span class="arch-flow-step">验证 · 校准</span>
+      <span class="arch-flow-step">验证器</span>
       <span class="arch-flow-arrow" aria-hidden="true">—›</span>
-      <span class="arch-flow-step">结构化洞察</span>
+      <span class="arch-flow-step">可计算表征</span>
     </div>
   </div>
 </section>
@@ -797,32 +610,33 @@
 <!-- MODALITIES -->
 <section class="section section-alt" id="modalities">
   <div class="section-header">
-    <div class="section-label">模态无关</div>
-    <h2 class="section-title">一种环境，所有成像方式</h2>
+    <div class="section-label">领域</div>
+    <h2 class="section-title">图像与视频，多种模态、多种格式</h2>
     <p class="section-desc">
-      只要是生物医学图像，处理思路一致。新的成像方式或算法按同一接口接入。
+      格式决定怎么读文件，模态决定怎么解码、用什么单位与尺度、什么算对。
+      视频中的帧、时间、轨迹与事件同样是分析对象。新模态按同一接口接入。
+      以下是项目覆盖的领域，当前对话预览版只支持常见图片格式。
     </p>
   </div>
   <div class="modality-grid">
     <div class="modality-card">
-      <img class="modality-img" src="assets/wsi.png" alt="显微镜与病理切片的线稿插画" width="128" height="128" loading="lazy">
-      <h4>病理切片 WSI</h4>
-      <p>全幅切片 · 细胞核检测</p>
+      <h4>自然图像与视频</h4>
+      <p>可见光拍摄 · PNG / JPEG / WebP · MP4</p>
     </div>
     <div class="modality-card">
-      <img class="modality-img" src="assets/ultrasound.png" alt="超声探头与胎儿轮廓的线稿插画" width="128" height="128" loading="lazy">
-      <h4>超声图像</h4>
-      <p>颈动脉 · 胎儿 · 心脏</p>
+      <img class="modality-img" src="assets/wsi.png" alt="显微镜与病理切片" width="128" height="128" loading="lazy">
+      <h4>显微与病理</h4>
+      <p>明场与荧光显微 · 病理全切片 · TIFF / SVS / NDPI</p>
     </div>
     <div class="modality-card">
-      <img class="modality-img" src="assets/ct.png" alt="悬浮 CT 切片堆叠的线稿插画" width="128" height="128" loading="lazy">
-      <h4>CT 体积</h4>
-      <p>TotalSegmentator · 3D 重建</p>
+      <img class="modality-img" src="assets/ultrasound.png" alt="超声探头与图像轮廓" width="128" height="128" loading="lazy">
+      <h4>医学影像</h4>
+      <p>超声、X 线、CT、MRI · DICOM / NIfTI</p>
     </div>
     <div class="modality-card">
-      <img class="modality-img" src="assets/fluoro.png" alt="培养皿与发光细胞的线稿插画" width="128" height="128" loading="lazy">
-      <h4>荧光显微</h4>
-      <p>Cellpose · 形态分析</p>
+      <img class="modality-img" src="assets/ct.png" alt="CT 切片堆叠" width="128" height="128" loading="lazy">
+      <h4>三维与时间序列</h4>
+      <p>CT 体数据 · 超声动态 · 显微延时</p>
     </div>
   </div>
 </section>
@@ -830,10 +644,11 @@
 <!-- BOUNDARY -->
 <section class="section">
   <div class="section-header">
-    <div class="section-label">能力边界</div>
-    <h2 class="section-title">科研洞察，而非临床决策</h2>
+    <div class="section-label">边界</div>
+    <h2 class="section-title">到可计算的表征为止</h2>
     <p class="section-desc">
-      Glaux 负责从图像到理解再到可用的结果。边界是刻意划的。
+      Glaux 负责从图像与视频到理解，再到可计算的表征。拿表征做决策与规划，由你在 Glaux 之上自建。
+      生物医学方向只做研究，不做受监管的临床诊断。
     </p>
   </div>
   <div class="boundary-container">
@@ -841,21 +656,20 @@
       <div class="boundary-col in-scope">
         <h4>范围之内</h4>
         <ul>
-          <li>自然语言驱动的图像分割与测量</li>
-          <li>形态与数量的定量分析</li>
-          <li>三维重建等更丰富的表达</li>
+          <li>读取多种模态、多种格式的图像与视频</li>
+          <li>带物理语义的观测与取样</li>
+          <li>分割、测量、跟踪、重建等动作（建设中）</li>
+          <li>结论的溯源与复现</li>
           <li>脱敏数据的回顾性研究</li>
-          <li>Atlas 图谱参考与经验积累</li>
         </ul>
       </div>
       <div class="boundary-col out-scope">
         <h4>刻意排除</h4>
         <ul>
-          <li>临床诊断产品（FDA / NMPA 监管）</li>
+          <li>受监管的临床诊断</li>
           <li>手术中的实时决策支持</li>
-          <li>手术规划 / 模拟作为核心承诺</li>
-          <li>未伦理审查的临床数据</li>
-          <li>辅助决策（远期目标，非当前）</li>
+          <li>未经伦理审查的临床数据</li>
+          <li>基于表征的决策与规划（由用户自建）</li>
         </ul>
       </div>
     </div>
@@ -864,14 +678,14 @@
 
 <!-- CTA -->
 <section class="cta-section">
-  <h2>开始你的第一个洞察</h2>
-  <p>装好就能用——仓库自带参考智能体，也可以换上你自己的模型。</p>
+  <h2>开始使用</h2>
+  <p>当前提供 Docker 对话预览版，自带参考智能体，也可以接入你自己的模型。完整版从源码本地运行。</p>
   <div class="hero-actions">
-    <a href="https://github.com/pre-tech/open-glaux" class="btn-primary">
+    <a href="https://github.com/zhentai-sn/open-glaux" class="btn-primary">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
       在 GitHub 上查看
     </a>
-    <a href="https://github.com/pre-tech/open-glaux/blob/main/README.zh-CN.md" class="btn-secondary">
+    <a href="https://github.com/zhentai-sn/open-glaux/blob/main/README.zh-CN.md" class="btn-secondary">
       阅读文档 →
     </a>
   </div>
@@ -896,25 +710,25 @@
           </svg>
         </span>Glaux
       </h3>
-      <p>生物医学影像洞察的 Agent 原生环境。模型越强，环境越值钱。</p>
+      <p>图像与视频分析的 harness。将视觉转化为洞见。</p>
     </div>
     <div class="footer-col">
       <h4>项目</h4>
-      <a href="https://github.com/pre-tech/open-glaux">GitHub</a>
-      <a href="https://github.com/pre-tech/open-glaux/blob/main/README.zh-CN.md">文档</a>
-      <a href="https://github.com/pre-tech/open-glaux/blob/main/docs/roadmaps/20260705-product-roadmap.zh-CN.md">路线图</a>
-      <a href="https://github.com/pre-tech/open-glaux/blob/main/docs/architecture.zh-CN.md">架构</a>
+      <a href="https://github.com/zhentai-sn/open-glaux">GitHub</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/blob/main/README.zh-CN.md">文档</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/blob/main/docs/roadmaps/charter.zh-CN.md">纲领</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/blob/main/docs/architecture.zh-CN.md">架构</a>
     </div>
     <div class="footer-col">
       <h4>资源</h4>
-      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs">设计文档</a>
-      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs/researches">调研报告</a>
-      <a href="https://github.com/pre-tech/open-glaux/tree/main/docs/runbooks">操作手册</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/tree/main/docs">文档区</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/tree/main/docs/researches">调研报告</a>
+      <a href="https://github.com/zhentai-sn/open-glaux/tree/main/docs/runbooks">操作手册</a>
     </div>
   </div>
   <div class="footer-bottom">
     <span>© 2026 Glaux · Apache-2.0 License</span>
-    <a href="https://github.com/pre-tech/open-glaux">pre-tech/open-glaux</a>
+    <a href="https://github.com/zhentai-sn/open-glaux">zhentai-sn/open-glaux</a>
   </div>
 </footer>
 
