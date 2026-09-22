@@ -8,9 +8,6 @@ status: living
 > 落地：[SDD（已 superseded）](../designs/2026-07-14-001-agent-connection-config.zh-CN.md) ·
 > [计划](../plans/2026-07-14-001-feat-agent-connection-config-plan.md) ·
 > **2026-08-16 起后端实现在 agent-runtime**（[退役设计](../designs/2026-08-16-001-retire-orchestration.zh-CN.md) P2）
->
-> 更新记录：2026-08-16 —— 探测端点与 SSRF 守卫迁至 agent-runtime；"意图后端 rule/VLM 二选一"随意图层退役，
-> 连接配置现在只服务参考智能体本身。
 
 ## 一句话
 
@@ -59,7 +56,7 @@ ollama serve                 # 默认 http://localhost:11434
 1. provider = **OpenAI 兼容** → 点 **快填 · Ollama**（自动填 `http://localhost:11434/v1`）；密钥留空。
 2. **测试连接** → `已连接 · 200 · N 模型`。
 3. **拉取模型** → 视觉判定额外查 Ollama `/api/show` 的 `capabilities`：含 `vision` → 👁。选一个模型。
-4. 在对话里下指令（如「测这张颈动脉远壁 IMT」）→ 智能体调 `run_task` 工具跑当前任务，结果回到查看器。
+4. 在对话里下指令（如「测这张颈动脉远壁 IMT」）→ 智能体调用已挂载的领域工具（`run_task`、`locate_roi` 等）跑当前任务，结果回到查看器。工具只在完整版且权限模式不是 `observe` 时挂载。
 
 > **LM Studio** 同理：快填 · LM Studio（`http://localhost:1234/v1`），起本地服务并加载模型即可。
 
@@ -78,7 +75,6 @@ ollama serve                 # 默认 http://localhost:11434
 ## 已验证
 
 - 2026-08-16（迁移后）：agent-runtime `net-guard.test.ts`(13) + `connection-api.test.ts`(14) 全绿——守卫回环/私网/fake-ip/白名单/混合解析/DNS 失败，探测三条视觉判定路径（anthropic 目录 / Ollama capabilities / 名称启发式），端点 400/守卫短路/密钥不入错误体；前端 `tsc`/`eslint`/vitest 绿。
-- 2026-07-14（迁移前，历史）：Python 版 `test_vlm_providers`(17) + `test_net_guard`(7) + `test_vlm_probe_api`(5) 全绿；旧 `glaux.vlmKey/vlmModel` → `glaux.connection` 自动迁移。
 - UI 闭环（2026-08-16 真机）：OpenAI 兼容 → deepseek-v4-flash 拉模型/选模型/对话，`run_task` 工具调用成功回写查看器。
 
 ## 待真机 e2e（端到端验收项）

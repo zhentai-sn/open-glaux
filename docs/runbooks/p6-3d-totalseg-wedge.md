@@ -121,8 +121,8 @@ VITE v5.4.21  ready in 250 ms
 
 打开 <http://localhost:5173/>：
 
-1. **切模态** → 右侧 ActivityBar 找 "肝+双肾"（**插件市场** 或 **侧栏** 任一处会暴露新模态），
-   切到 `ct_abdomen`。
+1. **切模态** → 侧栏模态切换器选 `ct_abdomen`
+   （模态按 `/datasources` 显示：缺省产品模式看不到内置 CT 源，需 `GLAUX_DEV_MODE=1` 或先「加载示例数据」）。
 2. **选体积** → 资源管理器 / 切片列表面板选 `ct_001`。
 3. **首跑** → ActivityBar 的 **Run & Measure** 点 "Run"（或在对话里让智能体测，走 `run_task` 工具）；
    首次会触发 `POST /task/run`（`task=totalseg_liver_kidney`；旧 `/volume/{id}/segment` 已于 2026-08-16 删除）：
@@ -134,7 +134,7 @@ VITE v5.4.21  ready in 250 ms
    - 肝体积 ~1300-1700 cm³
    - 双肾各 ~150-200 cm³
    - 滚轮切 z 轴（不是 zoom）
-5. **画笔编辑（v0 简化）** → 通过 ActivityBar / 工具栏切到 brush 工具，在肝上擦一小块：
+5. **画笔编辑** → 工具栏切到 brush 工具，在肝上擦一小块：
    - 后端 `POST /volume/ct_001/mask-edit` 接受
    - 度量重算 → 肝体积下降
    - 状态条实时更新
@@ -151,43 +151,22 @@ VITE v5.4.21  ready in 250 ms
    print(dice_per_class(pred, ref, [c.class_id for c in LIVER_KIDNEY_CLASSES]))
    EOF
    ```
-   历史期望响应（原端点形状，数字会有小差异）：
-   ```json
-   {
-     "per_class": {
-       "liver": {"dice": 0.95, ...},
-       "lk": {"dice": 0.92, ...},
-       "rk": {"dice": 0.93, ...}
-     },
-     "mean_dice": 0.93,
-     "note": "reproducibility check vs ship reference（非真 GT）"
-   }
+   输出是 `{class_id: dice}`（1=肝、2=左肾、3=右肾），例如：
+   ```
+   {1: 0.98, 2: 0.96, 3: 0.96}
    ```
    - **Dice ≥ 0.90** = 复现好，pipeline 健康
    - **Dice < 0.85** = 检查 measure / 标定 / 缓存逻辑；不**代表临床正确性**（reference 是
      ship 的官方 demo 预测，非真 GT）
-7. **回滚验证** → ActivityBar 切到 **Reset to model**（U3/U4 留位；v0 行为可走
-   `reRunActiveModel()` 重新跑 /segment）。
+7. **回滚验证** → 查看器工具栏 **Reset to model（重置为模型输出）**，内部走 `reRunActiveModel()` 重跑 `POST /task/run`，丢弃画笔编辑。
 
 ## 9. 已知问题
 
-- **首跑 5-10 min**：CPU 跑 nnU-Net 慢；GPU 需改 `_run_live` 去掉 `CUDA_VISIBLE_DEVICES=-1`。
+- **首跑慢 / 要 GPU**：子进程 env 最小化（`MPLBACKEND` / `CUDA_VISIBLE_DEVICES=-1` / `PATH`），
+  v0 CPU-only，首跑 ~3-10 min（nnU-Net），之后命中缓存 < 1s；要用 GPU 改 `segment_ts._run_live`
+  的 env，去掉 `CUDA_VISIBLE_DEVICES=-1`。
 - **Dice < 0.85**：通常因为 reference 是 ship demo 预测，**不是**我们 pipeline bug；
   也可能是我们 voxel_spacing 解析差异（检查 `dataset_ct.vox_spacing_mm`）。
-- **画笔没显示**（v0 简化）：U3 的图例画在 overlay canvas 上，**不**叠到 CT 像素；
-  U4 留接口，CS3D SegmentIndex 体素叠色 v0 不稳定——后续 U4.x 落实。
 - **镜像体积错误**：检查 `data/ct/ct_001.nii.gz` 的 `pixdim[1:4]`，是否包含负值
   （nibabel 会自动取 abs → 误通过）。
-- **CUDA**：v0 CPU-only；要 GPU 跑改 `segment_ts._run_live` 的 env 删 `CUDA_VISIBLE_DEVICES=-1`。
 
-## 10. 后续路径（P6.x/x 展望）
-
-- P6.x：扩到 ~10 主器官（脾/胰/胃/胆囊/主动脉/腔静脉/膀胱/肾上腺/前列腺/子宫）
-- P6.xx：扩到 117 全量
-- P6.x+：MPR（三平面联动）/ 3D 体积渲染 / 撤销栈
-- P7：病理 WSI（OpenSeadragon，沿 Viewer 接缝 ENGINES["wsi"]）
-
-## 变更记录
-
-- **2026-07-09**：v1。P6 楔子首个 3D 楔子 runbook——沿用 P6 设计/计划的端到端流程
-  文档化（不入 CI，手动 checkpoint）。

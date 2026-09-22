@@ -5,7 +5,7 @@ status: living
 
 # 参考 Agent 会话运行手册
 
-> 适用范围：Glaux 第一阶段内置参考 Agent（Pi AgentHarness + 本地会话管理）。
+> 适用范围：Glaux 内置参考 Agent（Pi AgentHarness + 本地会话管理），完整版与对话预览版通用；发行包的安装与分发见 [chat-distribution.md](chat-distribution.md)。
 > Runtime 只监听 `127.0.0.1`，浏览器通过 Vite 的同源 `/agent-api/v1` 代理访问。
 
 ## 1. 环境与安装
@@ -46,6 +46,9 @@ curl http://127.0.0.1:8010/agent-api/v1/health
 正常响应包含 `status: "ok"`、`pi: "ok"` 与 `storage: "ok"`。只调试对话时可以仅启动
 `make agent-runtime frontend`；影像工作区能力仍需要 FastAPI。
 
+也可以用 [`scripts/dev/`](../../scripts/dev/) 下的脚本单独起进程：`run-backend.sh`、`run-agent-runtime.sh`，
+`health.sh` 一次探活三个端口。
+
 ## 3. 本地数据与配置
 
 默认数据目录为仓库根的 `.glaux/agent/`：
@@ -67,10 +70,15 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 
 - Anthropic：填写模型和 API Key；Base URL 使用 Provider 默认值。
 - OpenAI-compatible：填写 Base URL、模型和 API Key；Ollama 与 LM Studio 可使用快填。
-- 自定义 OpenAI-compatible 模型还必须填写 Context Window 和 Max Output Tokens；
-  `context_window >= 1024`，`max_tokens >= 1` 且 `max_tokens < context_window`。
+- 自定义 OpenAI-compatible 模型的 Context Window 与 Max Output Tokens 在拉取模型时自动带入，上游未自报时落默认 `128000 / 8192`，仍可手改；校验规则不变：`context_window >= 1024`，`max_tokens >= 1` 且 `max_tokens < context_window`（详见 [agent-connection.md](agent-connection.md)）。
 
-第一阶段权限模式只持久化与展示，不执行领域工具。默认是“受控自治”。
+权限模式决定领域工具的可用性，缺省 `controlled`：
+
+- `observe`：不挂任何工具，只能文字描述。
+- `suggest` / `controlled` / `autonomous`：挂领域工具；逐次批准门控（`beforeToolCall`）尚未落地，`propose_annotation` 的产出恒为建议态，须人工确认。
+- 对话预览版（chat）不挂领域工具，与 `observe` 同效。
+
+完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉）、`segment_region`（要求 `GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`。挂载条件见 `agent-runtime/src/pi/harness-registry.ts`。
 
 ## 5. 会话管理
 

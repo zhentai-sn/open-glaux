@@ -76,8 +76,8 @@ export GLAUX_WSI_SEG_CACHE=~/glaux_models/wsi_seg_out   # 质心 json 缓存
 ## 5. 启动后端（`~10 s`）
 
 ```bash
-cd ~/code/pre-tech/open-glaux/backend
-.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd ~/code/pre-tech/open-glaux
+make backend          # 已显式 GLAUX_DEV_MODE=1；也可用 bash scripts/dev/run-backend.sh
 # 冒烟：
 curl -s localhost:8000/slides            # [{"id":"slide_001","modality":"pathology","mpp_um":[0.499,0.499],"dims":[2220,2967]...}]
 curl -s localhost:8000/tasks | grep -o nuclei_detection
@@ -88,7 +88,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "localhost:8000/wsi/slide_001/tile/8/0/
 
 ```bash
 cd ~/code/pre-tech/open-glaux/backend
-PYTHONPATH=../science-core:../orchestration:. .venv/bin/python - <<'PY'
+PYTHONPATH=../science-core:. .venv/bin/python - <<'PY'
 from app import segment_wsi
 roi = (1200, 1200, 1712, 1712)          # tissue-dense 512×512 ROI（canonical）
 path, mv = segment_wsi.segment("slide_001", roi, "stardist_he", timeout=600)
@@ -106,15 +106,14 @@ curl -s "localhost:8000/wsi/slide_001/verify" | python3 -m json.tool
 ## 7. 启动前端（`~15 s`）
 
 ```bash
-source ~/.nvm/nvm.sh
-cd ~/code/pre-tech/open-glaux/frontend
-npm install          # 首次：含 openseadragon
-npm run dev          # Vite dev（proxy /api → :8000）
+cd ~/code/pre-tech/open-glaux
+make install         # 首次：含 openseadragon
+make frontend        # 三进程一起起用 make -j3 dev
 ```
 
 ## 8. 浏览器端到端流程（`~2 min`）
 
-1. 打开 dev 地址 → 侧栏模态切换器点 **「细胞核检测 (病理 WSI)」**。
+1. 打开 dev 地址 → 侧栏模态切换器点 **「细胞核检测 (病理 WSI)」**（模态按 `/datasources` 显示：需 `GLAUX_DEV_MODE=1`，或先「加载示例数据」/ 导入 WSI 文件夹）。
 2. 中部 OpenSeadragon 加载 `slide_001`——深缩放浏览 H&E 组织（滚轮缩放、拖拽平移）。
 3. 工具栏点 **「▭ 框选 ROI」** → 在组织区拖一个框 → 松开即触发检测。
 4. **预期**：核质心以绿点叠在核上（随缩放/平移实时跟随）；信息栏出 `NN 核/mm² · ROI x.xxx mm²`。
@@ -143,15 +142,3 @@ npm run dev          # Vite dev（proxy /api → :8000）
 - **多层 vs 单层 slide**：`CMU-1-Small-Region.svs`（demo，单分辨率层，2220×2967）放大超原生即糊；
   完整 `CMU-1.svs`（3 层：46000×32914 / 4× / 16×，1.5 gigapixel，20× 物镜）才有深缩放层层变清晰。
   data/wsi 是 gitignore + env 可指向，丢任意 `.svs` 进去即被 `/slides` 列出。
-
-## 10. 后续路径（P7.x 展望）
-
-- 核 **边界**轮廓 overlay（instance 多边形，非仅质心）+ point-correction 编辑回流（沿用 P6 `editSeqRef` 守卫）。
-- 整片分块推理 + 核密度热力图（whole-slide count map）。
-- HoVerNet-PanNuke（5 类：肿瘤/炎症/结缔/坏死/上皮）→ per-class 计数 + 肿瘤核占比（`measure_nuclei` 已支持多类，无需改）。
-- 组织区域分割任务（第二个 WSI 任务族，复用同 OSD 查看器栈）。
-
-## 变更记录
-
-- v1（2026-07-10）：P7 楔子 U1–U6 落地。StarDist-HE + OpenSlide 动态 DeepZoom + OpenSeadragon。
-  真机 e2e：canonical ROI 51 核 / 781 个/mm² / verify F1 1.0。

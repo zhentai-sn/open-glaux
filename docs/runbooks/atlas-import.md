@@ -12,7 +12,7 @@ status: living
 
 图谱（Atlas）= 一本人工策展的、带插画的教科书：把教科书插图 / 网页图片 / 标注数据集样本导入为
 "图 + ROI + 标签 + 图注 + VLM 结构化描述"的案例，agent 定位前先"翻图谱"做 few-shot。
-写入口只有导入；agent 对图谱无写权限。
+写入口只有导入；agent 通过 `consult_atlas` 工具或 `locate_roi` 的内部检索读取图谱，对图谱无写权限。
 
 ## 进程与端口
 
@@ -20,7 +20,7 @@ status: living
 | --- | --- | --- |
 | backend :8000 | LanceDB 存储、图像目录、PDF/网页抽图、REST | `/atlas/*` |
 | agent-runtime :8010 | VLM 描述生成、检索先验（挑选步） | `POST /agent-api/v1/atlas/describe` |
-| frontend :5173 | Atlas 页面（Workbench 活动栏「图谱」/ Focus 右侧栏「图谱」标签）、导入向导 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
+| frontend :5173 | Atlas 页面（Workbench 活动栏「图谱」/ Focus 右侧栏「图谱」标签）、导入向导；只在完整版，对话预览版不含图谱 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
 
 凭据边界：VLM 凭据只从前端 / CLI 发往 agent-runtime，**不经 backend**；backend 只保存描述结果。
 
@@ -85,7 +85,7 @@ npx tsx scripts/atlas-eval.ts --manifest ../eval/tem-edd.json --out ../eval/tem-
 ```
 
 manifest：`{"query": "…", "tags": ["TEM","EDD"], "items": [{"image": "img/001.png", "gt": [x0,y0,x1,y1]}, …]}`。
-输出每张图"无图谱 / 有图谱"两种方式的 IoU 与均值 / 中位数。本期不设通过阈值；02 `locate_roi` 落地后复跑。
+输出每张图"无图谱 / 有图谱"两种方式的 IoU 与均值 / 中位数。本期不设通过阈值；`locate_roi` 已实现（`agent-runtime/src/pi/tools/locate-roi.ts`），可直接复跑对比。
 注意：pi-ai 对 openai-compatible 需要一个 API key 值，本地服务可填占位符。
 
 ## 常见问题
