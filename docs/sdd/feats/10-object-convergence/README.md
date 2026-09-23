@@ -438,7 +438,7 @@ flowchart LR
 | `frontend/src/components/Viewer.tsx` | 查看器树中唯一读 store 处（`frontend/src/viewer/` 下不得读 store）；按 `ObjectKind` 查 `ENGINES`，`axisFor` 从 `axes` 派生；缺键渲染「查看器引擎尚未接入」 | 重构 |
 | `frontend/src/viewer/contract.ts` | `ViewerProps`/`FrameSource`/`FrameAxis`/`MaskSink`/`Painter`/`ENGINES`/`PAINTERS`/`CHROME_SEGMENTS`/`axisFor`/`registerTaskTool`/`registerFrameLoader` | 新建 |
 | `frontend/src/viewer/FrameStackViewer.tsx` | `image`/`volume`/`video` 三个 `ObjectKind` 的唯一引擎 | 新建 |
-| `frontend/src/viewer/PyramidViewer.tsx` | `slide` 引擎；私有 UI 与内联中文迁出，ROI 写 `focus.region` | 新建 |
+| `frontend/src/viewer/PyramidViewer.tsx` | `slide` 引擎；OpenSeadragon 原生 SVG 叠加层绘制 / 编辑 bbox 与 polygon（不依赖 Annotorious）；私有 UI 与内联中文迁出，ROI 写 `focus.region` | 新建 |
 | `frontend/src/viewer/overlay/painters.ts` | 按原语 kind 的绘制函数表，算法自 `CornerstoneViewer.tsx:142-244` 迁入不重写 | 新建 |
 | `frontend/src/viewer/maskPng.ts` | `maskToPng` 单份实现 | 新建 |
 | `frontend/src/components/CornerstoneViewer.tsx` | 内容迁入 `FrameStackViewer` + `painters` + `maskPng` | 合并 |

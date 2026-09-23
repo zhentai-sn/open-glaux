@@ -111,6 +111,7 @@ export const api = {
   // 智能体经 run_task 工具调 /task/run；连接测试见 agentRuntimeApi.testConnection / listModels。
 
   /** SDD 10：某模态的对象列表（数据轴入口 GET /images?modality= 不变，元素为 ObjectMeta）。 */
+  resourceUrl: (path: string) => `${BASE}${path}`,
   objects: (modality: Modality) =>
     get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
   /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */

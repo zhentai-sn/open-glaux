@@ -1,5 +1,5 @@
 // annotationBridge（SDD 04 §6.1）——标注读写的**唯一**桥：
-// CS3D/Annotorious 事件 → Annotation 契约 → /annotations → store。
+// CS3D / OpenSeadragon 原生叠加层事件 → Annotation 契约 → /annotations → store。
 // 收敛三个查看器曾各自复制的 editSeqRef 序号守卫 + 失败回滚 + Notice 提示范式；
 // 查看器一律经本模块写标注，不得自带回流逻辑（SDD 04 §15「范式仅一份」验收）。
 import { ApiError, api } from "../api/client";

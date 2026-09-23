@@ -108,6 +108,9 @@ export const en = {
   chrome_preset_lung: "Lung",
   chrome_preset_bone: "Bone",
   wsi_roi_too_small: "ROI too small — drag a bigger box (≥24 px)",
+  wsi_verify: "Verify",
+  wsi_verifying: "Verifying…",
+  wsi_verify_unavailable: "Verification is unavailable (reference or isolated runtime missing).",
   // viewer notices — 插值 {w} {why}
   measure_rejected: "Correction on {w} was rejected by the kernel ({why}). Reverted to the previous geometry; nothing was saved.",
   measure_failed: "Correction on {w} failed to reach the kernel ({why}). Reverted to the previous geometry; nothing was saved.",

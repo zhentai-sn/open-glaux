@@ -14,10 +14,8 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@annotorious/openseadragon": "^3.8.9",
     "@cornerstonejs/core": "^3.33.5",
     "@cornerstonejs/tools": "^3.33.5",
-    "@pixi/unsafe-eval": "^7.4.3",
     "dockview-react": "^7.0.2",
     "lucide-react": "^1.32.0",
     "nifti-reader-js": "^0.8.0",

@@ -43,7 +43,7 @@ status: implemented
 
 | 输入 | 必填 | 说明 |
 | --- | --- | --- |
-| 用户画布交互 | 是 | CS3D 工具事件（raster_2d / volume_3d）或 Annotorious 事件（wsi）产出的几何 |
+| 用户画布交互 | 是 | CS3D 工具事件（image / volume）或 OpenSeadragon 原生叠加层事件（slide）产出的几何 |
 | 当前对象上下文 | 是 | `image_id`（经 `resolve_object` 可解析的对象 id）+ 可选 `index`（第三轴索引，`volume`=z / `video`=t / `slide`=level；`z` 为一版 API 别名） |
 | 注册表 | 是 | `GET /tasks` 下发的引擎能力位与 `on_commit` 钩子声明 |
 | `base_seq` | 更新/删除必填 | 乐观并发序号，取最近一次成功响应的 `seq` |
@@ -88,7 +88,7 @@ sequenceDiagram
 flowchart LR
     subgraph FE[前端]
         TG[CS3D ToolGroup] -->|raster_2d / volume_3d| CB[annotationBridge]
-        AN[Annotorious OSD] -->|wsi, W3C 映射| CB
+        AN[OpenSeadragon 原生叠加层] -->|slide, Annotation 几何| CB
         CB --> ST[(session store)]
         ST --> Chrome[ViewerChrome 统一工具栏]
     end
@@ -314,7 +314,7 @@ stateDiagram-v2
 | --- | --- | --- | --- | --- |
 | D-8 | polygon 工具用 CS3D `PlanarFreehandROITool` | `SplineROITool`、自绘 | 同时支持逐点与自由手绘、顶点可编辑，覆盖面最大；Spline 留作后续精度选项（可并存） | 2026-08-16 |
 | D-9 | 2D brush 产物落 `/annotations`（kind=mask，PNG 传输）；宿主实现见 D-15（实施期从 CS3D segmentation 退化为自持缓冲） | 自持 mask 缓冲 | PNG 传输格式与 CT mask-edit 一致；宿主选型随 spike3 结果收敛 | 2026-08-16 |
-| D-10 | Annotorious W3C 格式 → Annotation 契约的映射在**前端**完成 | 后端映射 | 后端只认一份 Annotation 契约，免维护双格式；W3C 是纯前端库的私有传输细节 | 2026-08-16 |
+| D-10 | ~~Annotorious W3C 格式在前端映射~~ **已被 D-18 替代** | 后端映射 | 后端只认一份 Annotation 契约 | 2026-08-16 |
 | D-11 | `ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`，环境变量 `GLAUX_ANNOTATIONS_ROOT` 覆盖 | 放数据集根下 | 对齐 `GLAUX_ATLAS_ROOT` 惯例（不污染数据集） | 2026-08-16 |
 | D-12 | IMT 高斯形变手柄实现为 CS3D 自定义 BaseTool | 保留手写 overlay 交互 | 复用成熟框架而非平行实现 | 2026-08-16 |
 | D-13 | CT brush 不走 `/annotations`，仍走 `mask-edit` | 统一到 annotations | labelmap 是任务结果而非标注；成熟闭环不重写 | 2026-08-16 |
@@ -322,6 +322,7 @@ stateDiagram-v2
 | D-15 | 2D/CT brush 宿主退化为 overlay 自持 mask 缓冲（提交分别走 `/annotations` kind=mask / `mask-edit`）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；退化方案行为等价且不阻塞本期交付 | 2026-08-17 |
 | D-16 | ~~IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存~~ **已被 D-17 推翻** | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
 | D-17 | 壁线形变独立成 `wall` 工具（IMT 专属能力位），`polygon` 归还给自由多边形；两者各占一个工具位 | 维持 D-16 的单入口复用 | D-16 的前提「主键交互只能激活一个工具」不成立——工具位本就互斥切换，多一个按钮不冲突。实际代价是：IMT 上「多边形标注」画不出多边形，且 caroSegDeep 未产出壁线时（`editableWalls()` 为空）连形变都没有，按下鼠标直接 return，用户看到的是**完全静默**的按钮。通用工具的语义必须跨模态一致 | 2026-08-30 |
+| D-18 | WSI 的 bbox / polygon 改由 OpenSeadragon 原生 SVG 叠加层绘制与编辑，直接使用 Annotation 几何与现有写桥；删除 Annotorious 与 W3C 映射 | 继续使用 Annotorious | Annotorious 内嵌 pixi 在现有 CSP 下初始化失败；WSI 只需要 bbox 与 polygon，原生叠加层可保留 level-0 坐标与后端权威写契约 | 2026-09-23 |
 
 ## 17. 待确认问题
 

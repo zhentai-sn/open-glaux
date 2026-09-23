@@ -1,7 +1,7 @@
 // OpenSeadragon 接线（P7）——病理 WSI 深缩放查看器。独立于 CS3D（3.33.5 无 WSI 能力）。
 //
 // 关键差异 vs CS3D：OSD 自处理金字塔瓦片调度 + 深缩放；我们用**自定义 tileSource**
-// （getTileUrl → 后端 /wsi/{id}/tile/{level}/{col}/{row}），绕开 DZI 的 `_files` 派生约定，
+// （getTileUrl → ObjectMeta.resources.tiles），绕开 DZI 的 `_files` 派生约定，
 // 走干净 REST。坐标：level-0 px（质心/ROI 真相）↔ OSD viewport（归一化）经 imageToViewerElement。
 import OpenSeadragon from "openseadragon";
 
@@ -11,9 +11,9 @@ import { api } from "../api/client";
 export const WSI_TILE_SIZE = 256;
 export const WSI_TILE_OVERLAP = 1;
 
-/** 由 slide id + level-0 尺寸构造 OSD 自定义 tileSource（DeepZoom level == OSD level）。 */
+/** 由后端资源模板 + level-0 尺寸构造 OSD tileSource。 */
 export function makeWsiTileSource(
-  slideId: string,
+  tileTemplate: string,
   width: number,
   height: number,
 ): OpenSeadragon.TileSourceOptions {
@@ -24,7 +24,9 @@ export function makeWsiTileSource(
     tileOverlap: WSI_TILE_OVERLAP,
     minLevel: 0,
     // maxLevel 缺省由 OSD 从 width/height/tileSize 推（= DeepZoom level_count-1，二者算法一致）。
-    getTileUrl: (level: number, x: number, y: number) => api.wsiTileUrl(slideId, level, x, y),
+    getTileUrl: (level: number, x: number, y: number) => api.resourceUrl(
+      tileTemplate.replace("{level}", String(level)).replace("{col}", String(x)).replace("{row}", String(y)),
+    ),
   } as unknown as OpenSeadragon.TileSourceOptions;
 }
 
