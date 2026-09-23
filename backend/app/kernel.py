@@ -106,7 +106,7 @@ def _polyline(role: str, pts) -> Polyline:
 def _detect_for_spec(spec: TaskSpec) -> tuple[Detection, CalibrationResult]:
     """按任务几何族在**数据入口边界**取数 → 统一 Detection + 标定。
 
-    这是后端唯一保留的 adapter_kind 分派：表征层数据源天然不同（CUBS tiff+CF+子进程缓存
+    这是后端唯一保留的 adapter_kind 分派：观测空间的数据源天然不同（CUBS tiff+CF+子进程缓存
     vs HC18/合成椭圆检测），**非任务逻辑分派**。无 CUBS 数据时 wall_pair 回退 mock 合成边界。
     缺标定 → ValueError（映射 422 硬拒绝，不出假值）。
     """
@@ -385,7 +385,7 @@ def models() -> list[ModelInfo]:
 def capabilities() -> list[dict]:
     """能力注册表（「插件市场」的单一真相源，§5）。
 
-    用「环境四层」本体把 skill/model/dataset/…收成一套清单。
+    按环境四要素（纲领 §六）把 skill/model/dataset/…收成一套清单。
 
     真实优先：Skill = TaskPlugin（REGISTRY）、Model/ReferenceMethod = models() 按 backend 分类、
     Dataset/CalibrationSource = 真实可用性；Connector/MCP/KnowledgeBase 出有类型占位卡
@@ -394,7 +394,7 @@ def capabilities() -> list[dict]:
     caps: list[dict] = []
     modality_task = {p.modality: p.task.value for p in _REGISTRY.values()}
 
-    # 动作层 · Skill（= TaskPlugin：打包好的任务配方本身就是一种能力）
+    # 动作空间 · Skill（= TaskPlugin：打包好的任务配方本身就是一种能力）
     for p in _REGISTRY.values():
         caps.append(
             {
@@ -411,7 +411,7 @@ def capabilities() -> list[dict]:
             }
         )
 
-    # 动作层 · Model / 验证层 · ReferenceMethod（models() 按 backend 分类）
+    # 动作空间 · Model / 验证器 · ReferenceMethod（models() 按 backend 分类）
     for m in models():
         is_ref = "reference" in m.backend
         caps.append(
@@ -429,7 +429,7 @@ def capabilities() -> list[dict]:
             }
         )
 
-    # 表征层 · Dataset（注册表驱动——加一个数据源 = 多一张卡，不改本函数）
+    # 观测空间 · Dataset（注册表驱动——加一个数据源 = 多一张卡，不改本函数）
     _DS_META = {
         "cubs-tech": ("CREATIS", "CC BY", "颈动脉超声 · LI/MA 专家标注 · CF 标定"),
         "hc18": ("Grand Challenge", "CC BY-NC-SA", "999 张真实胎儿颅脑超声 + 椭圆真值"),
@@ -462,7 +462,7 @@ def capabilities() -> list[dict]:
             }
         )
 
-    # 验证层 · CalibrationSource（真实：CUBS CF）
+    # 验证器 · CalibrationSource（真实：CUBS CF）
     caps.append(
         {
             "id": "cal:cubs-cf",
@@ -478,7 +478,7 @@ def capabilities() -> list[dict]:
         }
     )
 
-    # 占位卡（planned · 有类型不接线）——表征 / 动作 / 记忆层
+    # 占位卡（planned · 有类型不接线）——观测空间 / 动作空间 / 回合与轨迹
     caps += [
         {
             "id": "connector:dicom-pacs",
@@ -520,12 +520,12 @@ def capabilities() -> list[dict]:
             "id": "store:corrections",
             "kind": "correction_store",
             "layer": "memory",
-            "name": "Correction flywheel",
+            "name": "Correction store",
             "provider": "glaux",
             "license": "internal",
             "status": "planned",
             "isolation": "local",
-            "desc": "人工修正回流记忆层（占位）",
+            "desc": "人工修正沉淀为案例（占位）",
             "tasks": [],
         },
     ]

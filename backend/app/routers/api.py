@@ -79,7 +79,7 @@ def _has_data() -> bool:
 # 经 run_task 工具调 /task/run；连接探测在 /agent-api/v1/connection/*。
 
 
-# --- 数据源注册表（表征层 · 文件夹导入） ------------------------------------
+# --- 数据源注册表（观测空间 · 文件夹导入） ------------------------------------
 
 
 @router.get("/datasources", response_model=list[DataSourceInfo], tags=["dataset"])
@@ -432,7 +432,7 @@ def models() -> list[ModelInfo]:
 
 @router.get("/capabilities", response_model=list[Capability], tags=["capabilities"])
 def capabilities() -> list[Capability]:
-    """能力注册表——「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。"""
+    """能力注册表——「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按环境四要素分组）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "能力注册表需 science-core（未装配）")
     return [Capability(**c) for c in kernel.capabilities()]

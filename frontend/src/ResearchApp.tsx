@@ -35,7 +35,7 @@ export function ResearchApp() {
       } catch {
         /* 后端未起时不阻塞外壳 */
       }
-      // 能力注册表（「插件市场」——按四层浏览模型/数据集/skill/连接器/MCP/知识库）
+      // 能力注册表（「插件市场」——按环境四要素浏览模型/数据集/skill/连接器/MCP/知识库）
       try {
         setCapabilities(await api.capabilities());
       } catch {

@@ -131,10 +131,10 @@ class ModelInfo(BaseModel):
 
 
 class Capability(BaseModel):
-    """一条能力清单——把模型/数据集/连接器/skill/MCP/知识库用「环境四层」本体收成一套。
+    """一条能力清单——把模型/数据集/连接器/skill/MCP/知识库按环境四要素（纲领 §六）收成一套。
 
-    layer：representation(表征·数据进来) / action(动作·给项目能力) /
-           verification(验证·裁判) / memory(记忆·飞轮)。
+    layer（取值沿用旧名）：representation = 观测空间 / action = 动作空间 /
+           verification = 验证器 / memory = 回合与轨迹。
     v0 只 Model + Dataset + Skill 真接线，Connector/MCP/KnowledgeBase 等先出有类型占位卡。
     """
 

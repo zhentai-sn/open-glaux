@@ -150,10 +150,10 @@ export const api = {
 
   models: () => get<ModelInfo[]>("/models"),
 
-  /** 能力注册表：「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按四层分组）。 */
+  /** 能力注册表：「插件市场」的单一真相源（模型/数据集/skill/连接器/MCP/知识库，按环境四要素分组）。 */
   capabilities: () => get<Capability[]>("/capabilities"),
 
-  // --- 数据源注册表（表征层 · 文件夹导入） ---------------------------------
+  // --- 数据源注册表（观测空间 · 文件夹导入） ---------------------------------
   /** 已注册数据源清单（builtin / imported）——dev-mode 标识 + 导入源删除。 */
   datasources: () => get<DataSource[]>("/datasources"),
   /** 导入一个文件夹为数据源。缺 calibration 时后端自动探测（读不出 → needs_calibration）。 */

@@ -73,7 +73,7 @@ def test_carosegdeep_without_backend_raises_loud_not_silent(tmp_path):
 
 
 def test_stub_segmentation_feeds_pdm_end_to_end():
-    # 动作层 → 测量层贯通：桩出 8px 厚，CF=0.06 → 0.48mm
+    # 分割 → 测量贯通：桩出 8px 厚，CF=0.06 → 0.48mm
     adapter = ConstantThicknessAdapter(thickness_px=8.0)
     res = adapter.segment(SegmentationRequest(image=_img()))
     r = imt(res.li, res.ma, cf=0.06)

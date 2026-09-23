@@ -36,7 +36,7 @@ export interface ModelInfo {
   modality: Modality;
 }
 
-// 能力清单（「插件市场」·§5）——把模型/数据集/skill/连接器/MCP/知识库用「环境四层」收成一套。
+// 能力清单（「插件市场」·§5）——把模型/数据集/skill/连接器/MCP/知识库按环境四要素收成一套（layer 取值沿用 representation/action/verification/memory）。
 export type CapabilityLayer = "representation" | "action" | "verification" | "memory";
 export type CapabilityStatus = "active" | "installed" | "planned";
 

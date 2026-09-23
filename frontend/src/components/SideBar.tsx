@@ -297,7 +297,7 @@ function ExplorerTree() {
   );
 }
 
-// ---- 插件市场（能力注册表浏览器，§5）——按「环境四层」分组的卡片墙 ----
+// ---- 插件市场（能力注册表浏览器，§5）——按环境四要素分组的卡片墙 ----
 const LAYERS: { layer: CapabilityLayer; key: I18nKey }[] = [
   { layer: "representation", key: "lay_representation" },
   { layer: "action", key: "lay_action" },

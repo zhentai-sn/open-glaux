@@ -63,7 +63,7 @@ export const TOOL_ICON: Record<Tool, LucideIcon> = {
   reset: RotateCcw,
 };
 
-// 能力类型（插件市场四层）
+// 能力类型（插件市场四要素）
 export const KIND_ICON: Record<string, LucideIcon> = {
   skill: Sparkles,
   model: CircuitBoard,
