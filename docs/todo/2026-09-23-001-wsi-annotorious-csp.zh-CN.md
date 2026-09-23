@@ -41,4 +41,4 @@ created: 2026-09-23
 
 ## 6. W4 进展
 
-`PyramidViewer` 已删除 Annotorious / pixi 依赖，用 OpenSeadragon 原生标注层承接 bbox / polygon；无头组件测试、前端构建和全量门禁通过。真实浏览器的瓦片、框选与控制台走查仍待维护者签字；签字前本单保持 open，§5 的降级修复路径不再适用于当前代码。
+`PyramidViewer` 已删除 Annotorious / pixi 依赖，用 OpenSeadragon 原生标注层承接 bbox / polygon；无头组件测试、前端构建和全量门禁通过。独立无头 Chromium 153 实际打开 `slide_001`，瓦片可见，未捕获 `unsafe-eval` 异常。桌面浏览器的瓦片、框选与控制台走查仍待维护者签字；签字前本单保持 open，§5 的降级修复路径不再适用于当前代码。

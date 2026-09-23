@@ -402,6 +402,8 @@ W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已�
 
 W4 代码与自动化门禁完成：`make test` 的 version 5、runtime 205、frontend 235、backend 333、science-core 214 项全绿；`make lint` 全绿；前端 production build 通过。受限沙箱内 `anyio.to_thread.run_sync` 最小复现也会挂起，后端 `TestClient` 因此停在首个请求；在沙箱外运行同一 `make test` 全绿，属执行环境限制，不是产品失败。以上均为本地验证，未推送。
 
+走查辅助证据：开发模式后端在 8001（8000 由另一项目占用）、Vite 在 5173；`ct_001`、`slide_001`、`tech_401` 均可列出。独立无头 Chromium 153 打开 `slide_001`，瓦片可见，未捕获 `unsafe-eval` 异常；切到 `ct_001` 后底图与 labelmap 叠色可见。`GET /objects/ct_001/frame?z=5&size=512` 的 PNG 与同一 NIfTI 切片按轴序算出的 101×122 灰度数组逐像素相等，水平、垂直翻转数组均不相等。这些是自动化辅助证据，不能代替维护者桌面浏览器对 F-18、F-16 的签字。
+
 W4 真实浏览器走查待维护者签字。自动化 smoke 只验接线，不替代下列像素、指针与交互检查：
 
 | 组 | 手工项 | 状态 |
