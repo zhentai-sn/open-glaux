@@ -37,12 +37,17 @@ def test_detect_ct_reads_voxel():
     assert "voxel_mm" in cal and len(cal["voxel_mm"]) == 3 and all(v > 0 for v in cal["voxel_mm"])
 
 
-def test_detect_unknown_modality_empty(tmp_path):
-    assert det.detect(tmp_path, "carotid_imt") == {}  # 复杂标定，暂不探测
+@pytest.mark.parametrize("modality", reg.MODALITIES)
+def test_detect_empty_folder_never_guesses(tmp_path, modality):
+    """探测对每个注册模态都是全函数：空目录不抛异常、不编造标定（→ needs_calibration）。"""
+    assert det.detect(tmp_path, modality) == {}
 
 
-def test_detect_empty_folder_no_slides(tmp_path):
-    assert det.detect(tmp_path, "pathology") == {}
+def test_detect_carotid_not_autodetected(tmp_path):
+    """颈动脉标定是每图 CF.txt，结构复杂，暂不自动探测——即便目录里有文件也返回空。"""
+    (tmp_path / "images").mkdir()
+    (tmp_path / "images" / "tech_401.tiff").write_bytes(b"II*\x00")
+    assert det.detect(tmp_path, "carotid_imt") == {}
 
 
 # --- 端到端：导入自带 mpp 的 WSI 文件夹 → 无需手填标定即 active ---------------

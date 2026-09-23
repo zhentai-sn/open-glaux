@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from app import caches, config, dataset
@@ -87,6 +89,14 @@ def test_load_samples_invalidates(monkeypatch):
 
 
 def test_clear_is_safe_when_optional_modules_missing(monkeypatch):
-    """缺 openslide / science-core 的环境里，清缓存不该抛异常（否则一次导入就 500）。"""
-    monkeypatch.setattr(caches, "_CACHED", (("does_not_exist", "nope"), ("dataset", "list_ids")))
-    caches.clear_dataset_caches()  # 不抛即通过
+    """缺 openslide / nibabel 的环境里，清缓存不该抛异常（否则一次导入就 500）。
+
+    模拟的是「可选依赖的模块导入不进来」这一环境事实，不碰 caches 的内部登记表——
+    失效入口改由 SOURCES 驱动后本用例仍然成立。
+    """
+    assert dataset.list_ids() == []  # 先把空清单缓存住
+    _add_image("tech_401")
+    for name in ("app.dataset_wsi", "app.dataset_ct"):
+        monkeypatch.setitem(sys.modules, name, None)  # None → 再次 import 抛 ImportError
+    caches.clear_dataset_caches()  # 不抛
+    assert dataset.list_ids() == ["tech_401"]  # 且其余模块的缓存照常失效

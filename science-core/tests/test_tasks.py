@@ -60,8 +60,10 @@ def test_registry_covers_all_task_types():
     assert set(REGISTRY) == set(TaskType)
     for task, plugin in REGISTRY.items():
         assert plugin.task is task
-        assert plugin.adapter_kind in {"wall_pair", "contour", "volume", "wsi"}
-        assert plugin.viewer in {"raster_2d", "volume_3d", "wsi"}
+        # 只绑「非空」语义，不枚举取值：W2 后 adapter_kind 升级为「∈ DETECTORS 键集合」
+        # （SDD 10 规则 13）；viewer 不再被前端读取（SDD 10 D-11）。
+        assert isinstance(plugin.adapter_kind, str) and plugin.adapter_kind
+        assert isinstance(plugin.viewer, str) and plugin.viewer
         assert callable(plugin.measure)
 
 

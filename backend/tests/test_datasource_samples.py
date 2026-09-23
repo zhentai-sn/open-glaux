@@ -51,6 +51,20 @@ def test_load_samples_opens_only_roots_with_data(monkeypatch):
     assert [s["id"] for s in client.get("/datasources").json()] == ["wsi-demo"]
 
 
+def test_load_samples_opens_every_builtin_with_data(monkeypatch):
+    """所有内置根都有数据 → 打开的恰是全部内置源：模态已注册、每模态至多一个、全部 active。
+
+    按注册表迭代而不写死个数，新增模态的演示源自动纳入。
+    """
+    monkeypatch.setattr(config, "root_has_data", lambda m, root: True)
+    opened = client.post("/datasources/samples").json()
+    modalities = [s["modality"] for s in opened]
+    assert opened and all(s["origin"] == "builtin" and s["status"] == "active" for s in opened)
+    assert set(modalities) <= set(reg.MODALITIES)
+    assert len(modalities) == len(set(modalities))
+    assert {s["id"] for s in client.get("/datasources").json()} == {s["id"] for s in opened}
+
+
 def test_load_samples_is_idempotent(monkeypatch):
     monkeypatch.setattr(
         config, "root_has_data", lambda m, root: m in ("pathology", "natural_image")

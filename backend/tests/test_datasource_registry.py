@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from typing import get_args
+
 import pytest
 
-from app import config
+from app import config, schemas
 from app import datasource_registry as reg
+
+# 写本文件时已存在的五个模态。只用作「不得丢失」的下界（⊆），不作全集——
+# 新模态（如 video）注册进 MODALITIES 不应让本文件任何用例变红。
+KNOWN_MODALITIES = {"carotid_imt", "fetal_hc", "ct_abdomen", "pathology", "natural_image"}
 
 
 @pytest.fixture(autouse=True)
@@ -32,15 +38,36 @@ def test_seed_builtin_roots_match_config():
     assert by_id["ct-demo"].root == config.CT_ROOT
     assert by_id["wsi-demo"].root == config.WSI_ROOT
     assert by_id["natural-demo"].root == config.NATURAL_ROOT  # SDD 08 D-4
-    # 每个模态各恰一个内置源
-    assert {s.modality for s in by_id.values() if s.origin == "builtin"} == set(reg.MODALITIES)
 
 
-def test_dev_mode_on_seeds_one_builtin_per_modality():
-    """开发者模式下每个模态一个内置源——SDD 08 D-4 起含 natural_image，故为 5 而非 4。"""
+def test_modalities_contract():
+    """MODALITIES 是去重的非空字符串元组，既有五个模态一个不少。"""
+    assert isinstance(reg.MODALITIES, tuple)
+    assert all(isinstance(m, str) and m for m in reg.MODALITIES)
+    assert len(set(reg.MODALITIES)) == len(reg.MODALITIES)
+    assert KNOWN_MODALITIES <= set(reg.MODALITIES)
+
+
+def test_modalities_agree_with_api_schema():
+    """注册表与 API 的 Modality 必须同集合，否则一边收、一边拒（422 与 ImportError_ 不一致）。
+
+    SDD 10 规则 10 把 Modality 放宽为 str 之后 get_args 为空，届时集合只由注册表决定。
+    """
+    literal = set(get_args(schemas.Modality))
+    if literal:
+        assert literal == set(reg.MODALITIES)
+
+
+def test_dev_mode_on_seeds_at_most_one_builtin_per_modality():
+    """开发者模式：内置源的模态都已注册、每个模态至多一个，既有五个模态各有一个。
+
+    「至多」而非「恰好」：SDD 10 的 builtin_sample() 可返回 None，新模态可以没有演示源。
+    """
     reg.init()
-    builtins = [s for s in reg.list_all() if s.origin == "builtin"]
-    assert len(builtins) == len(reg.MODALITIES) == 5
+    builtin_modalities = [s.modality for s in reg.list_all() if s.origin == "builtin"]
+    assert len(builtin_modalities) == len(set(builtin_modalities))
+    assert set(builtin_modalities) <= set(reg.MODALITIES)
+    assert KNOWN_MODALITIES <= set(builtin_modalities)
 
 
 def test_product_mode_no_builtins(monkeypatch):
@@ -94,6 +121,28 @@ def _make_folder(tmp_path, name="myslides", with_file=True):
     if with_file:
         (d / "slide_001.svs").write_bytes(b"stub")
     return d
+
+
+@pytest.mark.parametrize("modality", reg.MODALITIES)
+def test_every_modality_importable(tmp_path, modality):
+    """导入契约对每个注册模态都成立：显式标定 → active，按模态可查，落盘回读不变形。"""
+    reg.init()
+    d = _make_folder(tmp_path)
+    src = reg.register_folder(d, modality, calibration={"hint": "explicit"})
+    assert (src.modality, src.status, src.origin) == (modality, "active", "imported")
+    assert src.id in {s.id for s in reg.sources_for(modality)}
+    assert all(s.modality == modality for s in reg.sources_for(modality))
+
+    reg.init()  # 模拟重启
+    reloaded = {s.id: s for s in reg.list_all()}[src.id]
+    assert reloaded.modality == modality and reloaded.calibration == {"hint": "explicit"}
+
+
+@pytest.mark.parametrize("modality", reg.MODALITIES)
+def test_every_modality_empty_folder_is_empty(tmp_path, modality):
+    reg.init()
+    d = _make_folder(tmp_path, with_file=False)
+    assert reg.register_folder(d, modality, calibration={"hint": "explicit"}).status == "empty"
 
 
 def test_register_folder_with_calibration_active(tmp_path, monkeypatch):

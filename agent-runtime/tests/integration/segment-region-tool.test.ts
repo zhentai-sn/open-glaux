@@ -18,7 +18,8 @@ import {
   SEGMENT_REGION_TOOL_NAME,
   type SegmentRegionDetails,
 } from "../../src/pi/tools/segment-region.js";
-import type { ConnectionInput } from "../../src/contracts.js";
+import type { ConnectionInput, ViewerContext } from "../../src/contracts.js";
+import { observedObjectId, targetObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 const fixture = readFileSync(
   fileURLToPath(new URL("../fixtures/sam3-segmentation-eye.json", import.meta.url)),
@@ -29,7 +30,7 @@ const fixture = readFileSync(
 function fakeFetch(segmentBody: string = fixture): typeof fetch {
   return vi.fn(async (url: unknown) => {
     const href = String(url);
-    if (href.includes("/image/")) {
+    if (observedObjectId(href) !== undefined) {
       return new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         headers: { "content-type": "image/png" },
@@ -42,7 +43,7 @@ function fakeFetch(segmentBody: string = fixture): typeof fetch {
   }) as unknown as typeof fetch;
 }
 
-function toolWith(segmentBody?: string, viewer: Record<string, unknown> = { image_id: "eye_001" }) {
+function toolWith(segmentBody?: string, viewer: ViewerContext = viewerOn("eye_001")) {
   const doFetch = fakeFetch(segmentBody);
   const client = new SegmentationClient(
     { fetch: doFetch, retries: 0 },
@@ -84,7 +85,7 @@ describe("segment_region 工具", () => {
     const details = result.details as SegmentRegionDetails;
 
     expect(details.kind).toBe("glaux.segment_region");
-    expect(details.payload.image_id).toBe("eye_001");
+    expect(targetObjectId(details.payload)).toBe("eye_001");
     expect(details.payload.target).toBe("eye");
     expect(details.payload.regions).toHaveLength(2);
 

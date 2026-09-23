@@ -24,6 +24,7 @@ import {
 } from "../../src/pi/tools/locate-roi.js";
 import type { VisionRuntime } from "../../src/pi/vision.js";
 import type { ConnectionInput } from "../../src/contracts.js";
+import { observedObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 const WIDTH = 800;
 const HEIGHT = 600;
@@ -75,7 +76,7 @@ function fakeBackend(opts: { exemplars?: AtlasExemplar[]; image?: Uint8Array | n
     }
     if (u.pathname.endsWith("/crop")) return new Response(Buffer.from("crop"));
     if (u.pathname === "/atlas/exemplars/referenced") return new Response("{}");
-    if (u.pathname.startsWith("/image/")) {
+    if (observedObjectId(url) !== undefined) {
       if (opts.image === null) return new Response("nf", { status: 404 });
       return new Response(Buffer.from(opts.image ?? pngBytes()), {
         headers: { "content-type": "image/png" },
@@ -108,7 +109,7 @@ function toolFor(fetchImpl: typeof fetch, rt: VisionRuntime, imageId: string | n
     runtime: rt,
     connection: HOSTED,
     fetch: fetchImpl,
-    viewer: imageId ? { image_id: imageId } : {},
+    viewer: imageId ? viewerOn(imageId) : {},
   });
 }
 
@@ -271,7 +272,7 @@ describe("locate_roi", () => {
     const backend = {
       fetch: (async (input: string | URL | Request) => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        if (new URL(url).pathname.startsWith("/image/")) {
+        if (observedObjectId(url) !== undefined) {
           return new Response(Buffer.from(pngBytes()), { headers: { "content-type": "image/png" } });
         }
         return new Response("boom", { status: 500 }); // 图谱全挂

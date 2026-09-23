@@ -15,6 +15,7 @@ import {
   type ImageViewedDetails,
 } from "../../src/pi/tools/view-image.js";
 import type { ConnectionInput } from "../../src/contracts.js";
+import { observedObjectId, targetObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 const WIDTH = 1024;
 const HEIGHT = 973;
@@ -35,7 +36,7 @@ function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string } =
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     calls.push(url);
-    if (!new URL(url).pathname.startsWith("/image/")) return new Response("nf", { status: 404 });
+    if (observedObjectId(url) === undefined) return new Response("nf", { status: 404 });
     if (opts.image === null) return new Response("nf", { status: 404 });
     return new Response(Buffer.from(opts.image ?? pngBytes()), {
       headers: { "content-type": opts.contentType ?? "image/png" },
@@ -59,7 +60,7 @@ describe("view_current_image", () => {
     const backend = fakeBackend();
     const tool = createViewCurrentImageTool({
       fetch: backend.fetch,
-      viewer: { image_id: "tech_0450", modality: "carotid_imt", task: "far_wall_cca_imt" },
+      viewer: viewerOn("tech_0450", { collection: "carotid_imt", task: "far_wall_cca_imt" }),
     });
 
     const result = await tool.execute("call_1", {}, undefined, undefined, undefined);
@@ -70,11 +71,12 @@ describe("view_current_image", () => {
     expect(images[0]?.data).toBe(Buffer.from(pngBytes()).toString("base64"));
     expect(textOf(result)).toContain("tech_0450");
     expect(textOf(result)).toContain(`${WIDTH}×${HEIGHT}`);
-    expect(backend.calls[0]).toMatch(/\/image\/tech_0450$/u);
+    // 取的是查看器当前对象的观测图，且只取一次
+    expect(backend.calls.map(observedObjectId)).toEqual(["tech_0450"]);
 
     const details = result.details as ImageViewedDetails;
+    expect(targetObjectId(details.payload)).toBe("tech_0450");
     expect(details.payload).toMatchObject({
-      image_id: "tech_0450",
       width: WIDTH,
       height: HEIGHT,
       mime_type: "image/png",
@@ -84,10 +86,11 @@ describe("view_current_image", () => {
   it("把 viewer 里的模态/任务讲成目录标签，并要求以画面为准", async () => {
     const tool = createViewCurrentImageTool({
       fetch: fakeBackend().fetch,
-      viewer: { image_id: "tech_0450", modality: "carotid_imt" },
+      viewer: viewerOn("tech_0450", { collection: "carotid_imt" }),
     });
     const text = textOf(await tool.execute("call_1", {}, undefined, undefined, undefined));
-    expect(text).toContain("modality=carotid_imt");
+    // 数据集标签被复述给模型，但措辞是目录标签而非观察（字段名随 W5 可能改为 collection）
+    expect(text).toContain("carotid_imt");
     expect(text).toContain("catalogue label");
     expect(text).toMatch(/not an observation/u);
   });
@@ -100,13 +103,13 @@ describe("view_current_image", () => {
     expect(imagesOf(result)).toHaveLength(0);
     expect(textOf(result)).toMatch(/No image is open/u);
     expect(backend.calls).toEqual([]);
-    expect((result.details as ImageViewedDetails).payload.image_id).toBe("");
+    expect(targetObjectId((result.details as ImageViewedDetails).payload)).toBe("");
   });
 
   it("后端取不到图就报错，不静默返回空", async () => {
     const tool = createViewCurrentImageTool({
       fetch: fakeBackend({ image: null }).fetch,
-      viewer: { image_id: "missing" },
+      viewer: viewerOn("missing"),
     });
     await expect(tool.execute("call_1", {}, undefined, undefined, undefined)).rejects.toThrow(
       /HTTP 404/u,
@@ -116,7 +119,7 @@ describe("view_current_image", () => {
   it("超过上限的图不往模型送，但如实说明并指向 locate_roi", async () => {
     const tool = createViewCurrentImageTool({
       fetch: fakeBackend({ image: pngBytes(WIDTH, HEIGHT, 4096) }).fetch,
-      viewer: { image_id: "huge" },
+      viewer: viewerOn("huge"),
       maxBytes: 1024,
     });
     const result = await tool.execute("call_1", {}, undefined, undefined, undefined);
@@ -129,7 +132,7 @@ describe("view_current_image", () => {
   it("尺寸解析不出来照样把图发出去（看图不需要知道像素数）", async () => {
     const tool = createViewCurrentImageTool({
       fetch: fakeBackend({ image: new Uint8Array([1, 2, 3, 4]), contentType: "image/webp" }).fetch,
-      viewer: { image_id: "odd" },
+      viewer: viewerOn("odd"),
     });
     const result = await tool.execute("call_1", {}, undefined, undefined, undefined);
 

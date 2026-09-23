@@ -18,6 +18,7 @@ import {
 import { RUN_TASK_TOOL_NAME } from "../../src/pi/tools/run-task.js";
 import type { VisionRuntime } from "../../src/pi/vision.js";
 import { TEST_CONNECTION, createRuntimeFixture, waitFor } from "../helpers/runtime-fixture.js";
+import { observedObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 // SDD 03 D-21：`consult_atlas` 是图谱接入会话的宿主。覆盖——有图走 VLM 挑选并带上目标图、
 // 无图退化为纯检索、0 命中如实说明、案例图进模型且 details 走 glaux.atlas_referenced、
@@ -72,7 +73,7 @@ function fakeBackend(
     if (u.pathname === "/atlas/exemplars/referenced") {
       return new Response("{}", { status: options.referencedStatus ?? 200 });
     }
-    if (u.pathname.startsWith("/image/")) {
+    if (observedObjectId(url) !== undefined) {
       if (options.imageStatus && options.imageStatus !== 200) {
         return new Response("nf", { status: options.imageStatus });
       }
@@ -99,18 +100,23 @@ function visionRuntime(answers: string[]): { rt: VisionRuntime; contexts: Contex
 
 const HOSTED = { provider: "openai-compatible", base_url: "https://api.example.com/v1" };
 
-function toolFor(
-  fetchImpl: typeof fetch,
-  rt: VisionRuntime,
-  viewer?: { image_id?: string },
-) {
+/** `objectId` 缺省表示查看器没开图（不下发 viewer）。 */
+function toolFor(fetchImpl: typeof fetch, rt: VisionRuntime, objectId?: string) {
   return createConsultAtlasTool({
     runtime: rt,
     connection: HOSTED,
     fetch: fetchImpl,
     backendBaseUrl: "http://backend.test",
-    ...(viewer ? { viewer } : {}),
+    ...(objectId ? { viewer: viewerOn(objectId) } : {}),
   });
+}
+
+/** 发往 backend.test 的观测取图所针对的对象 id。 */
+function observedIds(calls: { url: string }[]): string[] {
+  return calls
+    .filter((c) => c.url.startsWith("http://backend.test/"))
+    .map((c) => observedObjectId(c.url))
+    .filter((id): id is string => id !== undefined);
 }
 
 describe("consult_atlas tool (unit)", () => {
@@ -118,12 +124,12 @@ describe("consult_atlas tool (unit)", () => {
     const all = [ex("a"), ex("b"), ex("c"), ex("d"), ex("e")];
     const { fetch, calls } = fakeBackend(all);
     const { rt, contexts } = visionRuntime([JSON.stringify({ selected: ["c", "a"] })]);
-    const tool = toolFor(fetch, rt, { image_id: "tech_402" });
+    const tool = toolFor(fetch, rt, "tech_402");
 
     const result = await tool.execute("call-1", { q: "EDD", k: 2 }, undefined, undefined, undefined);
 
-    // 目标图取自查看器当前图，并作为第一张图进入挑选调用
-    expect(calls.some((c) => c.url === "http://backend.test/image/tech_402")).toBe(true);
+    // 目标图取自查看器当前对象，并作为第一张图进入挑选调用
+    expect(observedIds(calls)).toContain("tech_402");
     const selectContent = contexts[0]?.messages[0]?.content as { type: string; data?: string }[];
     expect(selectContent[1]).toMatchObject({
       type: "image",
@@ -166,7 +172,7 @@ describe("consult_atlas tool (unit)", () => {
     const result = await tool.execute("c", { q: "EDD" }, undefined, undefined, undefined);
 
     expect(contexts).toHaveLength(0); // 没有对照图就不该发挑选调用
-    expect(calls.some((c) => c.url.startsWith("http://backend.test/image/"))).toBe(false);
+    expect(observedIds(calls)).toEqual([]); // 没开图就不取任何观测图
     expect(result.details.payload.selected_ids).toEqual(["a", "b", "c"]);
     const text = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
     expect(text).toContain("no image is open in the viewer");
@@ -175,7 +181,7 @@ describe("consult_atlas tool (unit)", () => {
   it("falls back to text-only search when the viewer image cannot be fetched", async () => {
     const { fetch } = fakeBackend([ex("a"), ex("b"), ex("c"), ex("d")], { imageStatus: 404 });
     const { rt, contexts } = visionRuntime([]);
-    const tool = toolFor(fetch, rt, { image_id: "missing_image" });
+    const tool = toolFor(fetch, rt, "missing_image");
 
     const result = await tool.execute("c", {}, undefined, undefined, undefined);
 
@@ -186,7 +192,7 @@ describe("consult_atlas tool (unit)", () => {
   it("no match: says so plainly, sends no image, records no reference", async () => {
     const { fetch, calls } = fakeBackend([]);
     const { rt } = visionRuntime([]);
-    const tool = toolFor(fetch, rt, { image_id: "tech_402" });
+    const tool = toolFor(fetch, rt, "tech_402");
 
     const result = await tool.execute("c", { q: "nothing" }, undefined, undefined, undefined);
 
@@ -200,7 +206,7 @@ describe("consult_atlas tool (unit)", () => {
     const all = [ex("a"), ex("local-1", "local-only"), ex("local-2", "local-only")];
     const { fetch } = fakeBackend(all);
     const { rt } = visionRuntime([]);
-    const tool = toolFor(fetch, rt, { image_id: "tech_402" });
+    const tool = toolFor(fetch, rt, "tech_402");
 
     const result = await tool.execute("c", {}, undefined, undefined, undefined);
 
@@ -213,7 +219,7 @@ describe("consult_atlas tool (unit)", () => {
   it("a failing mark_referenced does not sink the consultation", async () => {
     const { fetch } = fakeBackend([ex("a")], { referencedStatus: 503 });
     const { rt } = visionRuntime([]);
-    const tool = toolFor(fetch, rt, { image_id: "tech_402" });
+    const tool = toolFor(fetch, rt, "tech_402");
 
     const result = await tool.execute("c", {}, undefined, undefined, undefined);
 
@@ -288,7 +294,7 @@ describe("consult_atlas through the harness (integration)", () => {
         type: "prompt",
         content: "what does EDD look like?",
         connection: { ...TEST_CONNECTION, vision: true },
-        viewer: { image_id: "tech_402" },
+        viewer: viewerOn("tech_402"),
       });
       await fixture.registry.waitForIdle(sessionId);
       const isToolEnd = (e: TransportEvent) =>

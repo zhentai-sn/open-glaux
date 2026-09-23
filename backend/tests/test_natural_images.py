@@ -22,11 +22,10 @@ def test_natural_images_have_stable_metadata():
         "natural_car",
         "natural_dog",
     ]
+    # 语义：都属本模态、无标定、无方法。不断言 `center`（SDD 10 D-8 起降为可选的 meta.center），
+    # `cf` 用 .get：它是 W7 前的过渡字段，删除后缺席与 None 同义。
     assert all(
-        row["center"] == "Natural images"
-        and row["cf"] is None
-        and row["methods"] == []
-        and row["modality"] == "natural_image"
+        row["modality"] == "natural_image" and row.get("cf") is None and row["methods"] == []
         for row in rows
     )
 

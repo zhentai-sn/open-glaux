@@ -14,6 +14,9 @@ import {
   createRuntimeFixture,
   waitFor,
 } from "../helpers/runtime-fixture.js";
+import { boxRegion, targetObjectId, taskSpecOf, viewerOn } from "../helpers/viewer-fixture.js";
+
+const MM_PER_PX = { kind: "mm_per_px", value: 0.06 } as const;
 
 type FetchLike = typeof globalThis.fetch;
 
@@ -50,20 +53,26 @@ describe("run_task tool (unit)", () => {
     const tool = createRunTaskTool({
       fetch,
       backendBaseUrl: "http://backend.test",
-      viewer: { image_id: "tech_401", task: "far_wall_cca_imt", method: "caroSegDeep", cubs_cf: 0.06 },
+      viewer: viewerOn("tech_401", {
+        task: "far_wall_cca_imt",
+        method: "caroSegDeep",
+        calibration: MM_PER_PX,
+      }),
     });
     const result = await tool.execute("call-1", {}, undefined, undefined, undefined);
 
-    expect(calls).toEqual([
-      {
-        url: "http://backend.test/task/run",
-        body: { task: "far_wall_cca_imt", image_id: "tech_401", method: "caroSegDeep", cubs_cf: 0.06 },
-      },
-    ]);
-    expect(result.details).toEqual({
+    // 任务作用于查看器当前对象，并带上它的任务、方法与平面标定
+    expect(calls.map((c) => c.url)).toEqual(["http://backend.test/task/run"]);
+    expect(taskSpecOf(calls[0]?.body)).toEqual({
+      task: "far_wall_cca_imt",
+      object_id: "tech_401",
+      method: "caroSegDeep",
+      calibration: MM_PER_PX,
+    });
+    expect(targetObjectId(result.details)).toBe("tech_401");
+    expect(result.details).toMatchObject({
       kind: TASK_OUTPUT_DETAILS_KIND,
       task: "far_wall_cca_imt",
-      image_id: "tech_401",
       output: TASK_OUTPUT,
     });
     const text = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
@@ -71,19 +80,19 @@ describe("run_task tool (unit)", () => {
     expect(text).toContain("caroSegDeep@1");
   });
 
-  it("lets explicit params override the viewer and forwards roi_box", async () => {
+  it("lets explicit params override the viewer and forwards the box region as corners", async () => {
     const { fetch, calls } = fetchRecorder(ok);
     const tool = createRunTaskTool({
       fetch,
       backendBaseUrl: "http://backend.test",
-      viewer: { image_id: "slide_001", task: "nuclei_detection", roi_box: [10, 20, 300, 400] },
+      viewer: viewerOn("slide_001", { task: "nuclei_detection", region: boxRegion(10, 20, 300, 400) }),
     });
     await tool.execute("c", { image_id: "slide_002", method: "stardist_he" }, undefined, undefined, undefined);
-    expect(calls[0]?.body).toEqual({
+    expect(taskSpecOf(calls[0]?.body)).toEqual({
       task: "nuclei_detection",
-      image_id: "slide_002",
+      object_id: "slide_002",
       method: "stardist_he",
-      roi_box: [10, 20, 300, 400],
+      region: boxRegion(10, 20, 300, 400),
     });
   });
 
@@ -108,7 +117,7 @@ describe("run_task tool (unit)", () => {
     const tool = createRunTaskTool({
       fetch,
       backendBaseUrl: "http://backend.test",
-      viewer: { image_id: "tech_401", task: "far_wall_cca_imt" },
+      viewer: viewerOn("tech_401", { task: "far_wall_cca_imt" }),
     });
     await expect(tool.execute("c", {}, undefined, undefined, undefined)).rejects.toThrow(
       /标定不可用/u,
@@ -162,7 +171,7 @@ describe("run_task through the harness (integration)", () => {
         type: "prompt",
         content: "measure the IMT",
         connection: TEST_CONNECTION,
-        viewer: { image_id: "tech_401", task: "far_wall_cca_imt", cubs_cf: 0.06 },
+        viewer: viewerOn("tech_401", { task: "far_wall_cca_imt", calibration: MM_PER_PX }),
       });
       await fixture.registry.waitForIdle(sessionId);
       const isToolEnd = (e: TransportEvent) =>
@@ -171,7 +180,11 @@ describe("run_task through the harness (integration)", () => {
       await waitFor(() => events.some(isToolEnd));
 
       expect(calls).toHaveLength(1);
-      expect(calls[0]?.body).toEqual({ task: "far_wall_cca_imt", image_id: "tech_401", cubs_cf: 0.06 });
+      expect(taskSpecOf(calls[0]?.body)).toEqual({
+        task: "far_wall_cca_imt",
+        object_id: "tech_401",
+        calibration: MM_PER_PX,
+      });
 
       const toolEnd = events.find(isToolEnd) as Extract<TransportEvent, { event: "pi.event" }>;
       const payload = toolEnd.data.event as {
@@ -181,9 +194,9 @@ describe("run_task through the harness (integration)", () => {
       };
       expect(payload.toolName).toBe(RUN_TASK_TOOL_NAME);
       expect(payload.isError).toBe(false);
+      expect(targetObjectId(payload.result.details)).toBe("tech_401");
       expect(payload.result.details).toMatchObject({
         kind: TASK_OUTPUT_DETAILS_KIND,
-        image_id: "tech_401",
         output: { metrics: { IMT_mean: { value: 0.6234 } } },
       });
 
@@ -215,7 +228,7 @@ describe("run_task through the harness (integration)", () => {
         type: "prompt",
         content: "measure",
         connection: TEST_CONNECTION,
-        viewer: { image_id: "tech_401", task: "far_wall_cca_imt" },
+        viewer: viewerOn("tech_401", { task: "far_wall_cca_imt" }),
       });
       await fixture.registry.waitForIdle(sessionId);
       expect(calls).toEqual([]);

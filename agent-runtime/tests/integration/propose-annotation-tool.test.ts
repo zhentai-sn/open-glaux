@@ -14,6 +14,7 @@ import {
   type AnnotationProposedDetails,
 } from "../../src/pi/tools/propose-annotation.js";
 import type { ConnectionInput } from "../../src/contracts.js";
+import { targetObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 interface Captured {
   url: string;
@@ -50,7 +51,7 @@ describe("propose_annotation", () => {
   it("落库恒为 suggested + agent——agent 不能自己确认标注", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
 
@@ -62,6 +63,8 @@ describe("propose_annotation", () => {
       undefined,
     );
     expect(captured).toHaveLength(1);
+    // 建议落在查看器当前对象上
+    expect(targetObjectId(captured[0]!.body)).toBe("img_1");
     expect(captured[0]!.body.status).toBe("suggested");
     expect(captured[0]!.body.source).toBe("agent");
     expect(captured[0]!.body.primitive).toEqual({ kind: "bbox", x0: 10, y0: 20, x1: 60, y1: 80 });
@@ -69,7 +72,7 @@ describe("propose_annotation", () => {
 
   it("结果文字明确它在等人工确认，且要求不要重复提出", async () => {
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend([]),
     });
     const text = textOf(
@@ -88,7 +91,7 @@ describe("propose_annotation", () => {
   it("多边形原样落库为 closed polyline", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
     const polygon: Array<[number, number]> = [
@@ -111,7 +114,7 @@ describe("propose_annotation", () => {
   it("bbox 顺序颠倒时归一化为左上/右下", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
     await tool.execute(
@@ -127,7 +130,7 @@ describe("propose_annotation", () => {
   it("同时给 bbox 和 polygon 时拒绝，不写库", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
     const result = await tool.execute(
@@ -145,7 +148,7 @@ describe("propose_annotation", () => {
   it("两个几何都不给时拒绝，不写库", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
     const result = await tool.execute("c6", { label: "x" }, undefined, undefined, undefined);
@@ -156,7 +159,7 @@ describe("propose_annotation", () => {
   it("退化 bbox（零宽/零高）拒绝，不写库", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "img_1" },
+      viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
     const result = await tool.execute(
@@ -188,7 +191,7 @@ describe("propose_annotation", () => {
     const doFetch = vi.fn(
       async () => new Response("INVALID_GEOMETRY: bbox 越出图像范围", { status: 422 }),
     ) as unknown as typeof fetch;
-    const tool = createProposeAnnotationTool({ viewer: { image_id: "img_1" }, fetch: doFetch });
+    const tool = createProposeAnnotationTool({ viewer: viewerOn("img_1"), fetch: doFetch });
     await expect(
       tool.execute(
         "c9",
@@ -203,7 +206,7 @@ describe("propose_annotation", () => {
   it("z 透传给体数据切片", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: { image_id: "vol_1" },
+      viewer: viewerOn("vol_1"),
       fetch: fakeBackend(captured),
     });
     await tool.execute(

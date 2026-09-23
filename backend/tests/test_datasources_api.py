@@ -40,10 +40,15 @@ def test_lists_builtins_in_dev_mode():
     assert {"cubs-tech", "hc18", "ct-demo", "wsi-demo"} <= ids
 
 
-def test_source_has_required_fields():
-    s = client.get("/datasources").json()[0]
-    assert set(s) >= {"id", "name", "modality", "root", "origin", "calibration", "status"}
-    assert s["origin"] in ("builtin", "imported", "connector")
+def test_every_source_has_required_fields():
+    """逐条校验（不只看首条）：字段齐备、模态已注册、id 不重复。"""
+    sources = client.get("/datasources").json()
+    assert sources
+    for s in sources:
+        assert set(s) >= {"id", "name", "modality", "root", "origin", "calibration", "status"}
+        assert s["origin"] in ("builtin", "imported", "connector")
+        assert s["modality"] in reg.MODALITIES
+    assert len({s["id"] for s in sources}) == len(sources)
 
 
 # --- POST /datasources 导入 -------------------------------------------------
@@ -106,10 +111,12 @@ def test_import_appears_then_removable(tmp_path, monkeypatch):
 # --- capabilities 数据集卡动态化 --------------------------------------------
 
 
-def test_capabilities_has_builtin_dataset_cards():
+def test_capabilities_dataset_cards_mirror_datasources():
+    """数据集卡与 /datasources 一一对应——卡片由注册表派生，不是另一份手写清单。"""
     cards = [c for c in client.get("/capabilities").json() if c["kind"] == "dataset"]
-    ids = {c["id"] for c in cards}
-    assert "dataset:wsi-demo" in ids and "dataset:cubs-tech" in ids
+    sources = client.get("/datasources").json()
+    assert {c["id"] for c in cards} == {f"dataset:{s['id']}" for s in sources}
+    assert all(c["layer"] == "representation" for c in cards)
 
 
 def test_imported_source_shows_as_capability_card(tmp_path, monkeypatch):
