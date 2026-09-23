@@ -164,9 +164,9 @@ sequenceDiagram
 
 工具注册在 agent-runtime 的 harness 创建处——
 [`harness-registry.ts`](../../../../agent-runtime/src/pi/harness-registry.ts) 已有 `toolFactory`
-（2026-08-16 随退役 orchestration P3 引入，`observe` 模式返回空工具集），当前挂着过渡工具
+（2026-08-16 随退役 orchestration P3 引入，`observe` 模式返回空工具集），当前挂着
 [`run_task`](../../../../agent-runtime/src/pi/tools/run-task.ts)（封装 backend `/task/run`）。本 SDD 的三个
-标注工具在同一处登记，`run_task` 由 `segment_region` 等取代后删除。使用 pi-agent-core 原生 `AgentHarnessTool` 契约。
+标注工具在同一处登记；`run_task` 保留，是命中任务注册表能力时的调用路径（§7.2 第 1 条）。使用 pi-agent-core 原生 `AgentHarnessTool` 契约。
 前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool_execution_end`）和
 "⚙ 调用 <tool>"状态行渲染。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
 Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍为当前活动
@@ -421,7 +421,7 @@ trace_id；不记录图像内容与 API key。
 | D-1 | 标注经结构化工具直写前端状态，不用浏览器自动化 | Playwright 模拟点击；computer-use 截图+坐标 | 影像画布是 Canvas，DOM 选择器无效；VLM 坐标精度（像素~几十像素误差）不满足医学标注；Label Studio/CVAT 同为此模式 | 2026-08-13 |
 | D-2 | 精度层双路：science-core 优先，分割后端兜底 | 仅 science-core；仅 SAM | science-core 覆盖有限但带校准溯源；分割后端补通用场景。**注**：其"SAM 能兜住医学场景"的隐含假设已被 D-6 推翻，双路结构不变但分派依据改为"谁认识这个结构" | 2026-08-13（D-6 修正 2026-08-22） |
 | D-3 | SAM 走国内托管 API，不自部署 GPU | 自部署 MedSAM/SAM2 | 团队约束"优先 API"；免 GPU 运维；供应商见 D-5 | 2026-08-13 |
-| D-4 | 全部标注为建议态 + 强制人工确认 | autonomous 免确认 | 医学场景精度责任划分；pre-alpha 边界"研究洞察非临床" | 2026-08-13 |
+| D-4 | 全部标注为建议态 + 强制人工确认 | autonomous 免确认 | 医学场景精度责任划分；纲领 §三：生物医学方向只做研究、不做临床诊断 | 2026-08-13 |
 | D-5 | 分割后端选 **Gitee AI（模力方舟）`sam3`** serverless（Q1 收敛） | 阿里云 ModelScope / 视觉智能开放平台、百度智能云、腾讯云 TI；自部署 SAM3 | 唯一实测可用的 SAM3 文本 prompt 分割托管 API：2.0–2.5s、契约清晰、按量计费、零运维。自部署 SAM3 需 10–12GB 显存，本机是 Intel Arc 核显跑不了 CUDA，另一台 4060 Ti 16G 尚未接通 | 2026-08-22 |
 | D-6 | 领域结构定位归 `locate_roi`（视觉 grounding + 图谱先验），`segment_region` 只管通用场景 | 全部走 SAM 分割（D-2 的隐含假设） | 裸 SAM3 医学模态**实测 0 命中**（超声 9 组中英 prompt / CT / WSI 全空，同接口对自然图像置信度 0.94）——开放词表建立在自然图像概念上。这也让图谱先验从"锦上添花"变成刚需 | 2026-08-22 |
 | D-7 | 外发开关用环境变量 `GLAUX_ANNOT_ALLOW_EGRESS`，缺省关闭（Q6 收敛） | 连接配置 UI 里的开关 | pre-alpha 阶段外发是运维决策不是用户偏好；环境变量不会被误点开，也便于在部署层统一管控。UI 开关待安全评审后再议 | 2026-08-22 |

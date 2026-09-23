@@ -24,11 +24,11 @@ status: implemented
 
 | 相邻能力 | 归属 |
 | --- | --- |
-| agent 自然语言 → 建议态标注的产出流（`locate_roi` / `segment_region` / `propose_annotation`、SAM API、权限门控） | [SDD 02 · 智能体图像标注](../02-agent-image-annotation/README.md)（`draft`）；其 accept 后的正式标注即本 SDD 的 `confirmed` 实体 |
+| agent 自然语言 → 建议态标注的产出流（`locate_roi` / `segment_region` / `propose_annotation`、SAM API、权限门控） | [SDD 02 · 智能体图像标注](../02-agent-image-annotation/README.md)（`implemented`）；其建议态（`suggested`）经人工确认转为 `confirmed` 后，即本 SDD 的正式标注实体 |
 | 任务模型结果的生成与测量（`/task/run`、`/task/measure`、Detection 管线） | 任务注册表现有契约，本 SDD 零改动 |
 | CT labelmap 编辑端点本身（`POST /volume/{id}/mask-edit` + base_seq） | 既有闭环保留，本 SDD 只换前端交互层 |
 | 点标注（point）手动编辑、WSI brush、3D 跨切片传播、标注导出（COCO/LabelMe）、多人协作审阅 | 非目标（脑暴 §10） |
-| 标注与 Atlas / 记忆层的联动 | 远期；本期仅以 `source` / `status` 字段留接缝 |
+| 标注与 Atlas 的联动（已验证标注沉淀为案例） | 远期；本期仅以 `source` / `status` 字段留接缝 |
 
 ## 3. 当前阶段目标
 
@@ -252,9 +252,10 @@ stateDiagram-v2
 
 ## 14. 与其他 SDD 的调用关系
 
-- **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（draft，被依赖）：其 §11 "accepted 后归影像标注既有逻辑"由本 SDD 承接——`propose_annotation` 落库走本 SDD `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status。本 SDD 先行实现，SDD 02 推进 `ready` 时应核对本契约并删除其 §17-Q3/Q4 重叠项。
-- **[01-dual-mode-shell](../01-dual-mode-shell/README.md)**（accepted）：ViewerChrome 落入 Workbench 编辑区既有布局，不改外壳结构。
-- **[03-atlas](../03-atlas/README.md)**（ready）：无直接调用；远期"已验证标注沉淀案例"另立需求。
+- **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（被依赖）：其 §11 "accepted 后归影像标注既有逻辑"由本 SDD 承接——`propose_annotation` 落库走本 SDD `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status。本 SDD 先行实现，SDD 02 推进 `ready` 时应核对本契约并删除其 §17-Q3/Q4 重叠项。
+- **[01-dual-mode-shell](../01-dual-mode-shell/README.md)**：ViewerChrome 落入 Workbench 编辑区既有布局，不改外壳结构。
+- **[03-atlas](../03-atlas/README.md)**：无直接调用；远期"已验证标注沉淀案例"另立需求。
+- 各 SDD 的当前状态见 [SDD 索引](../../README.md)。
 - 依赖任务注册表（`GET /tasks`）现有下发通道扩展字段（能力位 / on_commit），不构成新 SDD。
 
 ## 15. 验收标准
@@ -282,7 +283,7 @@ stateDiagram-v2
 | D-9 | 2D brush 产物落 `/annotations`（kind=mask，PNG 传输）；宿主实现见 D-15（实施期从 CS3D segmentation 退化为自持缓冲） | 自持 mask 缓冲 | PNG 传输格式与 CT mask-edit 一致；宿主选型随 spike3 结果收敛 | 2026-08-16 |
 | D-10 | Annotorious W3C 格式 → Annotation 契约的映射在**前端**完成 | 后端映射 | 后端只认一份 Annotation 契约，免维护双格式；W3C 是纯前端库的私有传输细节 | 2026-08-16 |
 | D-11 | `ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`，环境变量 `GLAUX_ANNOTATIONS_ROOT` 覆盖 | 放数据集根下 | 对齐 `GLAUX_ATLAS_ROOT` 惯例（不污染数据集） | 2026-08-16 |
-| D-12 | IMT 高斯形变手柄实现为 CS3D 自定义 BaseTool | 保留手写 overlay 交互 | 落实纲领「复用优先」：扩展成熟框架而非平行实现 | 2026-08-16 |
+| D-12 | IMT 高斯形变手柄实现为 CS3D 自定义 BaseTool | 保留手写 overlay 交互 | 复用成熟框架而非平行实现 | 2026-08-16 |
 | D-13 | CT brush 不走 `/annotations`，仍走 `mask-edit` | 统一到 annotations | labelmap 是任务结果而非标注；成熟闭环不重写 | 2026-08-16 |
 | D-14 | IMT 壁线编辑仍走既有 `/task` 编辑端点（交互换通用折线编辑），不走 `/annotations` | 统一到 annotations | 壁线编辑必须同步重算测量（`/task/measure` 权威口径）；数据归属 Detection 而非自由标注 | 2026-08-16 |
 | D-15 | 2D/CT brush 宿主退化为 overlay 自持 mask 缓冲（提交分别走 `/annotations` kind=mask / `mask-edit`）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；退化方案行为等价且不阻塞本期交付 | 2026-08-17 |
