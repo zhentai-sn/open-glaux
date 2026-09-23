@@ -3,6 +3,8 @@ import { displayName, mmPerPx } from "../../data/objectInfo";
 import { useI18n } from "../../i18n";
 import { activeObject, useSession, type Tool } from "../../store/session";
 import { useTaskTools } from "../../viewer/useTaskTools";
+import { CHROME_SEGMENTS } from "../../viewer/chromeSegments";
+import type { ClassSpec, Primitive } from "../../api/types";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
@@ -26,7 +28,13 @@ export function StagePanel() {
 
   const image = obj ? displayName(obj) : null;
   const tv = useSession((s) => currentTaskView(s));
-  const { tools } = useTaskTools();
+  const { tools, capabilities } = useTaskTools();
+  const options = useSession((s) => s.toolOptions);
+  const setOptions = useSession((s) => s.setToolOptions);
+  const primitives = useSession((s) => s.primitives);
+  const volume = primitives.find((p): p is Extract<Primitive, { kind: "volume_mask" }> => p.kind === "volume_mask");
+  const classes: ClassSpec[] = volume?.classes ?? [];
+  const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
 
   // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {
@@ -71,6 +79,9 @@ export function StagePanel() {
           </button>
         ))}
         {hintKey && <span className="focus-stage-hint">{t(hintKey)}</span>}
+        {segments.length > 0 && <div className="focus-stage-options">
+          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} />)}
+        </div>}
         <span className="focus-stage-grow" />
         {loading && <span className="focus-stage-busy"><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
       </div>

@@ -397,5 +397,6 @@ W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已�
 | 帧源与画笔写入 | `FrameSource` 从 `resources.frame/raw` 装配 2D / CT 栈；2D 与 CT 画笔分别经 `annotationMaskSink` / `editMaskSink`，CT 已切 `/objects/{id}/edits`；CT 层号只读写 `Focus.index.z`，挂载前已有 labelmap 的 F-3 竞争已加回归 | 帧源、两种 sink、409 冲突与 7 个查看器 smoke 测试通过；前端 lint 通过 |
 | 绘制与工具 | 2D 原语绘制按 `PAINTERS` 分派；壁线通过 `registerTaskTool` 注册，对象与帧由查看器写入 ToolGroup 配置（P-11）；任务工具的 `key` 经 `/tasks` 下发，快捷键和速查面板共用 `useTaskTools()` 的过滤结果 | 相关前端测试 32/32、science-core 任务测试 15/15、前端 lint 通过 |
 | 对象像素映射 | 2D 帧缩小时，从对象 `axes[x/y]` 与实际帧宽高建双向映射；标注桥、壁线、原语叠加、坐标显示与画笔提交使用对象坐标 | 缩放往返定向测试、前端 lint 通过；真实大图走查待补 |
+| 选项段装配 | `CHROME_SEGMENTS` 按能力位和当前工具装配画笔、VOI，Workbench 与 Focus 共用；移除 Chrome 内的两段硬编码条件 | VOI 能力位显隐定向测试、前端 lint 通过 |
 
 待完成：`FrameStackViewer` 合并与全量门禁。W4 尚未准出。

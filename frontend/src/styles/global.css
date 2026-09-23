@@ -2419,6 +2419,12 @@ body.resizing .focus-rail { transition: none; }
   padding: 0 8px;
   border-bottom: 1px solid var(--line);
 }
+.focus-stage-options {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+}
 .focus-tool {
   display: flex;
   align-items: center;

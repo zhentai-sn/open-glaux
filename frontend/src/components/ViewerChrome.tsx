@@ -1,144 +1,45 @@
-// ViewerChrome（SDD 04 §7.1 / §6.3）——三查看器统一外壳：工具按钮 + 工具选项条 + CT 窗位预设。
-// 全部真相源：注册表（tv.tools / tv.capabilities）+ store.tool/toolOptions；
-// 无内联样式（.chrome-* 样式族），无硬编码文案（i18n），查看器内不再挂私有浮动条。
+// Workbench 查看器工具栏；工具与选项段均由当前对象能力位装配。
 import { useMemo } from "react";
 
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
+import { CHROME_SEGMENTS } from "../viewer/chromeSegments";
 import { useTaskTools } from "../viewer/useTaskTools";
 import type { ClassSpec, Primitive } from "../api/types";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
 import { TOOL_HINT } from "./toolHint";
 
-// CT 标准窗宽窗位预设（HU）——医学常识常数；标签走 i18n（chrome_preset_*）。
-const CT_PRESETS = [
-  { key: "abd", i18n: "chrome_preset_abd", ww: 400, wl: 40 },
-  { key: "med", i18n: "chrome_preset_med", ww: 350, wl: 40 },
-  { key: "lung", i18n: "chrome_preset_lung", ww: 1500, wl: -600 },
-  { key: "bone", i18n: "chrome_preset_bone", ww: 1800, wl: 400 },
-] as const;
-
 type VolMaskPrim = Extract<Primitive, { kind: "volume_mask" }>;
 
 export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   const { t, lang } = useI18n();
   const tool = useSession((s) => s.tool);
-  const toolOptions = useSession((s) => s.toolOptions);
-  const setToolOptions = useSession((s) => s.setToolOptions);
+  const options = useSession((s) => s.toolOptions);
+  const setOptions = useSession((s) => s.setToolOptions);
   const primitives = useSession((s) => s.primitives);
-
   const { capabilities, tools } = useTaskTools();
-
-  // brush 的 class 列表：来自当前 volume_mask 产物（CT 分割类）；无则隐藏选择器
   const classes = useMemo<ClassSpec[]>(() => {
-    const vol = primitives.find((p): p is VolMaskPrim => p.kind === "volume_mask");
-    return vol?.classes ?? [];
+    const volume = primitives.find((p): p is VolMaskPrim => p.kind === "volume_mask");
+    return volume?.classes ?? [];
   }, [primitives]);
-
-  const { brush, voi } = toolOptions;
-  // 窗宽窗位段按能力位出现（SDD 10 §9.4：voi 由任务行声明），不按模态判断。
-  const hasVoi = capabilities.includes("voi");
+  const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
   const hintKey = TOOL_HINT[tool] ?? null;
 
   return (
     <>
       <div className="etools" role="toolbar">
-        {tools.map((tl) => (
-          <button key={tl.id} className="etool" aria-pressed={tool === tl.id} onClick={() => onTool(tl.id as Tool)}>
-            <Icon icon={TOOL_ICON[tl.id as Tool] ?? FALLBACK_ICON} size="sm" />
-            <span className="tip">{tl.label[lang]}</span>
+        {tools.map((entry) => (
+          <button key={entry.id} className="etool" aria-pressed={tool === entry.id} onClick={() => onTool(entry.id)}>
+            <Icon icon={TOOL_ICON[entry.id] ?? FALLBACK_ICON} size="sm" />
+            <span className="tip">{entry.label[lang]}</span>
           </button>
         ))}
       </div>
-
-      {/* 选项条（顶部居中）：绘制提示 / brush 参数 / CT 窗位——按工具与能力位分段出现 */}
-      {(hintKey || tool === "brush" || hasVoi) && (
+      {(hintKey || segments.length > 0) && (
         <div className="chrome-options">
           {hintKey && <span className="chrome-hint">{t(hintKey)}</span>}
-
-          {tool === "brush" && (
-            <div className="chrome-seg">
-              <button
-                className="chrome-btn"
-                aria-pressed={brush.mode === "paint"}
-                onClick={() => setToolOptions({ brush: { mode: "paint" } })}
-              >
-                {t("chrome_brush_paint")}
-              </button>
-              <button
-                className="chrome-btn"
-                aria-pressed={brush.mode === "erase"}
-                onClick={() => setToolOptions({ brush: { mode: "erase" } })}
-              >
-                {t("chrome_brush_erase")}
-              </button>
-              {classes.length > 0 && (
-                <select
-                  className="chrome-select"
-                  value={brush.classId}
-                  onChange={(e) => setToolOptions({ brush: { classId: Number(e.target.value) } })}
-                >
-                  {classes.map((c) => (
-                    <option key={c.class_id} value={c.class_id}>
-                      {c.label[lang]}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <label className="chrome-range">
-                {t("chrome_brush_radius")} {brush.radius}
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={brush.radius}
-                  onChange={(e) => setToolOptions({ brush: { radius: Number(e.target.value) } })}
-                />
-              </label>
-            </div>
-          )}
-
-          {hasVoi && (
-            <div className="chrome-seg">
-              {CT_PRESETS.map((p) => (
-                <button
-                  key={p.key}
-                  className="chrome-btn"
-                  aria-pressed={voi.ww === p.ww && voi.wl === p.wl}
-                  onClick={() => setToolOptions({ voi: { ww: p.ww, wl: p.wl } })}
-                  title={`WW ${p.ww} / WL ${p.wl}`}
-                >
-                  {t(p.i18n)}
-                </button>
-              ))}
-              <span className="chrome-sep" />
-              <label className="chrome-range">
-                WW
-                <input
-                  type="range"
-                  min={1}
-                  max={3000}
-                  step={10}
-                  value={voi.ww}
-                  onChange={(e) => setToolOptions({ voi: { ww: Number(e.target.value) } })}
-                />
-                <span className="mono">{voi.ww}</span>
-              </label>
-              <label className="chrome-range">
-                WL
-                <input
-                  type="range"
-                  min={-1000}
-                  max={1000}
-                  step={10}
-                  value={voi.wl}
-                  onChange={(e) => setToolOptions({ voi: { wl: Number(e.target.value) } })}
-                />
-                <span className="mono">{voi.wl}</span>
-              </label>
-            </div>
-          )}
+          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} />)}
         </div>
       )}
     </>

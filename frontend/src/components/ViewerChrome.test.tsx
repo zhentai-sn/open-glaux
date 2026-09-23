@@ -102,6 +102,14 @@ describe("引擎能力位过滤", () => {
     expect(screen.getByText("Brush")).toBeTruthy();
   });
 
+  it("VOI 选项只由能力位决定", () => {
+    const withVoi = mount("ct_abdomen", ["bbox", "voi"]);
+    expect(screen.getByTitle("WW 400 / WL 40")).toBeTruthy();
+    withVoi.unmount();
+    mount("ct_abdomen", ["bbox"]);
+    expect(screen.queryByTitle("WW 400 / WL 40")).toBeNull();
+  });
+
   it("raster_2d 四能力齐备（IMT 含壁线编辑）", () => {
     mount("carotid_imt", ["bbox", "polygon", "brush", "wall"]);
     expect(screen.getByText("Bounding box")).toBeTruthy();

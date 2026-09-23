@@ -114,6 +114,7 @@ flowchart LR
 ### 7.1 工具集合与声明
 
 - 统一 `Tool` 集合：`cursor / bbox / polygon / brush / reset`，外加任务专属编辑工具 `wall`（IMT 壁线形变，D-17）；`TaskPlugin.tools[]` 可携带 `key` 供 SDD 05 的快捷键与速查面板共用；store 的 `toolOptions`（`brush: {mode, class_id, radius}`、`voi: {ww, wl}`）随 `switchModality` 复位；
+- 工具选项条由 `CHROME_SEGMENTS` 按 `TaskView.capabilities` 装配，`brush` 与 `voi` 段由 Workbench 和 Focus 共用。
 - `TaskPlugin` 新增引擎级能力声明：`raster_2d` 支持 cursor/bbox/polygon/brush（IMT 另有 `wall`）；`volume_3d` 同左 + `{z_scroll, voi}`；`wsi` 支持 cursor/bbox/polygon（brush 无服务端落点，禁用）；
 - **通用工具的语义不因模态而变**：`polygon` 在任何模态都是自由多边形（落 `/annotations`）。任务专属编辑另立工具位，通过能力位限定可见范围——把专属交互塞进通用按钮会让该按钮在那个模态下"画不出东西"，且在前置产物缺失时静默失效；
 - 工具栏显示 = 引擎能力 ∩ 任务推荐；StatusBar 工具展示从注册表取，禁止硬编码表；
