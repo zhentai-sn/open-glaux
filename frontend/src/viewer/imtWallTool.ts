@@ -3,13 +3,14 @@
 // 数据归属仍是 Detection（D-14）：提交走 /task/measure 同步重算，不走 /annotations；
 // 形变几何函数与旧实现同源（viewer/wallGeom），保证 IMT_mean 口径 ≤1e-6 mm 回归。
 import { getRenderingEngine, utilities as csCoreUtils, type Types as CoreTypes } from "@cornerstonejs/core";
-import { BaseTool, type Types as ToolTypes } from "@cornerstonejs/tools";
+import { BaseTool, Enums as ToolEnums, type Types as ToolTypes } from "@cornerstonejs/tools";
 
 import { api, ApiError } from "../api/client";
 import type { Primitive } from "../api/types";
 import { getT } from "../i18n";
 import { taskViewFor } from "../data/actions";
-import { activeObject, useSession } from "../store/session";
+import { useSession } from "../store/session";
+import { registerTaskTool } from "./csTools";
 import { clonePrims, deform, sampleHandles } from "./wallGeom";
 
 type Poly = Extract<Primitive, { kind: "polyline" }>;
@@ -35,18 +36,23 @@ export class ImtWallHandleTool extends BaseTool {
 
   private drag: DragState | null = null;
 
+  private targetObject() {
+    const objectId = (this.configuration as { objectId?: string }).objectId;
+    if (!objectId) return null;
+    return Object.values(useSession.getState().objects).flat().find((object) => object.id === objectId) ?? null;
+  }
+
   /** 当前可编辑壁线（注册表 overlays editable=true 的 polyline）。 */
   private editableWalls(): Poly[] {
     const s = useSession.getState();
-    const tv = taskViewFor(s, activeObject(s));
+    const tv = taskViewFor(s, this.targetObject());
     const editable = new Set((tv?.overlays ?? []).filter((o) => o.editable).map((o) => o.role));
     return s.primitives.filter((p): p is Poly => p.kind === "polyline" && editable.has(p.role));
   }
 
-  /** 当前对象的 CS3D imageId——对象 id 取自唯一焦点（取图路径由 W4 的 FrameSource 接管）。 */
+  /** 当前帧由查看器注入；工具不构造 URL。 */
   private imageId(): string | null {
-    const id = useSession.getState().focus?.object_id;
-    return id ? `web:${api.imageUrl(id)}` : null;
+    return (this.configuration as { imageId?: string }).imageId ?? null;
   }
 
   /** 世界坐标 → canvas px（经 viewport 投影）。 */
@@ -115,7 +121,7 @@ export class ImtWallHandleTool extends BaseTool {
     this.drag = null;
     if (!d) return;
     const st = useSession.getState();
-    const obj = activeObject(st);
+    const obj = this.targetObject();
     const tv = taskViewFor(st, obj);
     const cal = obj?.calibration ?? null;
     const edited = clonePrims(st.primitives);
@@ -143,3 +149,9 @@ export class ImtWallHandleTool extends BaseTool {
     }
   }
 }
+
+registerTaskTool("wall", ImtWallHandleTool, (group) => {
+  group.setToolActive(ImtWallHandleTool.toolName, {
+    bindings: [{ mouseButton: ToolEnums.MouseBindings.Primary }],
+  });
+});

@@ -3,8 +3,10 @@ import { render } from "@testing-library/react";
 import { createElement, useEffect } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useGlobalKeys } from "./globalKeys";
+import { shortcutRowsFor, useGlobalKeys } from "./globalKeys";
 import { useSession } from "../store/session";
+import { objectMeta, taskFields } from "../test/fixtures";
+import type { TaskView } from "../api/types";
 
 // 挂载 hook 的测试宿主；带一个 input 供"输入焦点放行"用例聚焦。
 function Harness() {
@@ -21,9 +23,24 @@ function press(init: KeyboardEventInit): KeyboardEvent {
 describe("useGlobalKeys（SDD feats/05）", () => {
   beforeEach(() => {
     localStorage.clear();
+    const object = objectMeta({ id: "test-image", modality: "carotid_imt" });
+    const task = {
+      task: "far_wall_cca_imt",
+      modality: "carotid_imt",
+      tools: [
+        { id: "cursor", key: "v" }, { id: "bbox", key: "r" }, { id: "polygon", key: "p" },
+        { id: "wall", key: "w" }, { id: "brush", key: "b" }, { id: "reset" },
+      ],
+      capabilities: ["bbox", "polygon", "wall", "brush"],
+      ...taskFields("carotid_imt"),
+    } as TaskView;
     useSession.setState({
       uiMode: "focus",
       tool: "cursor",
+      modality: "carotid_imt",
+      objects: { carotid_imt: [object] },
+      focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
+      tasks: [task],
       shortcutSheetOpen: false,
       focusLayout: { railOpen: false, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null },
     });
@@ -43,6 +60,16 @@ describe("useGlobalKeys（SDD feats/05）", () => {
     expect(useSession.getState().tool).toBe("brush");
     press({ key: "v" });
     expect(useSession.getState().tool).toBe("cursor");
+  });
+
+  it("当前任务没有 wall 能力位时 W 放行且不切工具", () => {
+    const task = useSession.getState().tasks[0];
+    useSession.setState({ tasks: [{ ...task, capabilities: ["bbox", "polygon"] }] });
+    render(createElement(Harness));
+    const event = press({ key: "w" });
+    expect(useSession.getState().tool).toBe("cursor");
+    expect(event.defaultPrevented).toBe(false);
+    expect(shortcutRowsFor(useSession.getState()).find((row) => row.keys === "W")?.disabled).toBe(true);
   });
 
   it("输入框聚焦时同键只输入、不切换工具、不 preventDefault", () => {

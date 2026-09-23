@@ -2,15 +2,12 @@ import { CHAT_EDITION } from "../edition";
 import { useEffect } from "react";
 
 import type { I18nKey } from "../i18n";
-import { useSession, type Tool } from "../store/session";
+import type { Bilingual } from "../api/types";
+import { activeObject, useSession } from "../store/session";
+import { taskToolsFor } from "../viewer/useTaskTools";
 
 // 全局快捷键（SDD feats/05）——单一 window keydown 分发器 + 速查数据源。
 // 铁律：只调 store 已有动作，不新增契约（D-1/D-2）。键位见 SDD §7.1 / §16 D-5~D-7。
-
-// 工具→键位（SDD 04 统一工具集；D-2 预告的迁移在 04 合入时落地：editli/editma 并入 polygon，
-// roi 更名 bbox 并保留 R 的肌肉记忆，新增 P 多边形、B 画笔）。
-// W 壁线编辑：polygon 归还给自由多边形后，IMT 壁线形变自成一个工具位。
-const TOOL_KEYS: Record<string, Tool> = { v: "cursor", r: "bbox", p: "polygon", w: "wall", b: "brush" };
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
@@ -22,23 +19,35 @@ export type ShortcutGroup = "tool" | "shell" | "help";
 export interface ShortcutRow {
   group: ShortcutGroup;
   keys: string;
-  label: I18nKey;
+  label?: I18nKey;
+  text?: Bilingual;
+  disabled?: boolean;
 }
-const ALL_SHORTCUT_ROWS: ShortcutRow[] = [
-  { group: "tool", keys: "V", label: "tl_cursor" },
-  { group: "tool", keys: "R", label: "tl_bbox" },
-  { group: "tool", keys: "P", label: "tl_polygon" },
-  { group: "tool", keys: "W", label: "tl_wall" },
-  { group: "tool", keys: "B", label: "tl_brush" },
-  { group: "tool", keys: "Esc", label: "tl_reset" },
+const SHELL_SHORTCUT_ROWS: ShortcutRow[] = [
   { group: "shell", keys: `${MOD} B`, label: "sc_left" },
   { group: "shell", keys: `${MOD} \\`, label: "sc_right" },
   { group: "shell", keys: `${MOD} ${SHIFT} M`, label: "sc_mode" },
   { group: "help", keys: "?", label: "sc_sheet" },
 ];
 export const SHORTCUT_ROWS = CHAT_EDITION
-  ? ALL_SHORTCUT_ROWS.filter((row) => row.label === "sc_left" || row.label === "sc_sheet")
-  : ALL_SHORTCUT_ROWS;
+  ? SHELL_SHORTCUT_ROWS.filter((row) => row.label === "sc_left" || row.label === "sc_sheet")
+  : SHELL_SHORTCUT_ROWS;
+
+type ToolState = Pick<ReturnType<typeof useSession.getState>, "tasks" | "datasources" | "objects" | "modality" | "focus">;
+
+export function shortcutRowsFor(state: ToolState): ShortcutRow[] {
+  if (CHAT_EDITION) return SHORTCUT_ROWS;
+  const { declaredTools, tools } = taskToolsFor(activeObject(state), state.tasks, state.datasources);
+  const available = new Set(tools.map((tool) => tool.id));
+  const toolRows: ShortcutRow[] = declaredTools.filter((tool) => tool.key).map((tool) => ({
+    group: "tool",
+    keys: tool.key!.toUpperCase(),
+    text: tool.label,
+    disabled: !available.has(tool.id),
+  }));
+  if (declaredTools.some((tool) => tool.id === "reset")) toolRows.push({ group: "tool", keys: "Esc", label: "tl_reset" });
+  return [...toolRows, ...SHORTCUT_ROWS];
+}
 export const SHORTCUT_GROUP_LABEL: Record<ShortcutGroup, I18nKey> = {
   tool: "sc_group_tool",
   shell: "sc_group_shell",
@@ -120,9 +129,11 @@ export function useGlobalKeys() {
 
       // 工具单键（无修饰，需查看器上下文 R3）
       if (!CHAT_EDITION && !mod && !e.altKey && inViewerContext(el)) {
-        const tool = TOOL_KEYS[e.key.toLowerCase()];
+        const tool = taskToolsFor(activeObject(st), st.tasks, st.datasources).tools.find(
+          (candidate) => candidate.key?.toLowerCase() === e.key.toLowerCase(),
+        );
         if (tool) {
-          st.setTool(tool);
+          st.setTool(tool.id);
           e.preventDefault();
         }
       }

@@ -83,8 +83,8 @@ flowchart TD
 
 - **R1 单一监听器**：全局快捷键只有一个 `window` keydown 监听点（顶层 effect），卸载时移除。组件内不得各自监听全局键。
 - **R2 输入优先**：焦点在 `input`/`textarea`/`[contenteditable]` 时，除 `Esc` 外一律放行，绝不 `preventDefault`——不干扰打字与输入法组合。
-- **R3 工具键需上下文**：无修饰单键（V/R/P/W/B）仅当**焦点落在查看器表面 `[data-viewer-surface]` 或页面主体 `body`（点击画布后的常态），且非可编辑元素**，并且当前引擎声明了该键时才生效（现状：分发器只查 `TOOL_KEYS` 与查看器上下文，未按引擎声明过滤，见 §15）；焦点在具体交互控件（侧栏按钮、输入框等）上时放行——避免全局误触，又无需给查看器强加焦点管理。
-- **R4 键位数据化**：工具→键位映射由工具声明携带（随 04 的工具集变化自动跟随），**不在分发器里硬编码具体工具名**（见 §16 D-2）。现状：键位仍由 `globalKeys.ts` 的 `TOOL_KEYS` 常量承载，未迁到工具声明。
+- **R3 工具键需上下文**：无修饰单键（V/R/P/W/B）仅当**焦点落在查看器表面 `[data-viewer-surface]` 或页面主体 `body`（点击画布后的常态），且非可编辑元素**，并且当前 `useTaskTools()` 返回的工具声明含该键时才生效；焦点在具体交互控件（侧栏按钮、输入框等）上时放行。
+- **R4 键位数据化**：工具→键位映射由工具声明携带（随 04 的工具集变化自动跟随），**不在分发器里硬编码具体工具名**（见 §16 D-2）。有任务时 `TaskPlugin.tools[].key` 经 `/tasks` 下发；无任务时通用工具显示声明随前端 `GENERIC_TOOLS` 提供，能力位仍以 `/datasources.default_capabilities` 为准。
 - **R5 避开浏览器保留键**：不绑定 `Cmd/Ctrl+N/T/W/J/Q` 等浏览器强占组合；全局组合键选用可安全 `preventDefault` 的键（见 §17 待定表）。
 - **R6 幂等/可逆**：面板/模式/侧栏类快捷键为切换（toggle）或幂等设值，重复按行为可预期（§10）。
 - **R7 尊重 reduced-motion**：快捷键触发的布局变化过渡沿用既有 token 机制；`prefers-reduced-motion` 下由全局规则降级为瞬时（纲领 M5），本 SDD 不新增动效。
@@ -115,8 +115,8 @@ flowchart TD
 ## 9. 入参、状态和展示字段
 
 - store 新增瞬态：`shortcutSheetOpen: boolean`（速查面板开合；不持久化）。
-- 工具声明扩展（与 SDD 04 对齐）：每个工具可携带 `key?: string`（触发键）与已有 i18n 标签，供分发器与速查面板共同消费。**现状：键位由 `frontend/src/keys/globalKeys.ts` 的 `TOOL_KEYS` / `SHORTCUT_ROWS` 常量承载，尚未迁到工具声明。**
-- 无新增后端字段、无接口变更。
+- 工具声明扩展（与 SDD 04 对齐）：每个工具可携带 `key?: string`（触发键）与已有双语标签，供分发器与速查面板共同消费。
+- `GET /tasks` 的 `tools[]` 元素新增可选 `key`，其余字段与端点不变。
 
 ## 10. 重复执行规则
 
@@ -141,7 +141,7 @@ stateDiagram-v2
 ## 13. 空状态、异常状态和权限处理
 
 - **未水合/后端未起**：快捷键分发器可用（纯前端）；绑定到的 store 动作在无数据时行为与点击一致（如无查看器时工具键放行）。
-- **工具不可用**：当前引擎未声明的工具键放行、不切换（R3/R4），速查面板对不可用项置灰。现状未实现：工具键按 `TOOL_KEYS` 无条件切换，速查面板不置灰。
+- **工具不可用**：当前对象能力位未声明的工具键放行、不切换（R3/R4），速查面板对已声明但不可用的项置灰。
 - **输入法组合期**：`isComposing` 或 `keyCode===229` 时全部放行，不接管（R2 延伸）。
 - **无权限项**：本 SDD 不引入权限；受限动作由其所属 SDD 决定，快捷键只是等价入口。
 - **Workbench 侧栏键盘开合延后**：Workbench 侧栏是 dockview 托管面板，无对应 store 动作；本轮 `Ctrl/Cmd+B` 仅在 Focus 生效（切会话栏），Workbench 下不接管（放行），待后续为 dockview 侧栏引入 store 可见性开关后再补（避免本 SDD 越界新增 01 的布局契约）。
@@ -150,7 +150,7 @@ stateDiagram-v2
 ## 14. 与其他 SDD 的调用关系
 
 - **依赖** [SDD 01 · 双模式外壳](../01-dual-mode-shell/README.md)：调用其 `setUiMode`/`togglePanel`/`setFocusLayout`/`setSidebarView`；不改其契约。
-- **依赖** [SDD 04 · 统一标注工具箱](../04-unified-annotation-toolbox/README.md)：工具集合的真相源。04 已 `implemented`，键位仍由 `frontend/src/keys/globalKeys.ts` 的 `TOOL_KEYS` 常量承载并与 04 的工具集对齐；是否迁到工具声明见 §16 D-2。
+- **依赖** [SDD 04 · 统一标注工具箱](../04-unified-annotation-toolbox/README.md)：工具集合的真相源。任务工具的可选 `key` 由 `/tasks` 下发；无任务工具的键位在 `GENERIC_TOOLS` 声明，分发器不持有工具键表。
 - **协同** [SDD 00 · 参考智能体会话](../00-reference-agent-conversations/README.md)：Composer 的 Enter 发送由 00/组件自持，本 SDD 保证全局键不吞其输入（R2）。
 
 ## 15. 验收标准
@@ -162,8 +162,8 @@ stateDiagram-v2
 - [x] 在 `input`/`textarea` 内按任意全局组合键（Esc 除外）不触发全局动作、不 `preventDefault`。（`globalKeys.test` 输入放行用例）
 - [x] 输入法组合输入期间按键不被全局分发器接管。（`isComposing`/`keyCode===229` 放行，`globalKeys.test` 覆盖）
 - [x] `?` 唤起速查面板，按分组列出当前生效快捷键；再按 `?` 或 `Esc` 关闭。（`ShortcutSheet` + `globalKeys.test`）
-- [x] 速查面板工具项来自单一数据源 `SHORTCUT_ROWS`，与分发逻辑键位同步。
-- [ ] 工具键按当前引擎声明过滤、速查面板对不可用项置灰（未实现）。
+- [x] 速查面板工具项与分发器共用当前工具声明，外壳项由 `SHORTCUT_ROWS` 提供。
+- [x] 工具键按当前对象能力位过滤、速查面板对已声明但不可用项置灰。（`globalKeys.test` 覆盖无能力位按键放行）
 - [x] 全局快捷键监听器在组件卸载时移除；单元测试覆盖 keydown 派发与输入焦点放行两条路径。（`globalKeys.test` 卸载用例）
 - [x] 未绑定浏览器保留组合键（`Cmd/Ctrl+N/T/W/J` 等）；被接管的组合键均正确 `preventDefault`。（键位仅 `B`/`\`/`Shift+M`/`?`）
 
@@ -172,7 +172,7 @@ stateDiagram-v2
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
 | D-1 | 单一 `window` keydown 分发器（顶层 effect），而非各组件散挂监听 | 组件各自 `onKeyDown` | 唯一真相源、易避免冲突与泄漏、便于速查面板统一枚举 | 2026-08-19 |
-| D-2 | 工具→键位数据化，随工具声明携带；键位现由 globalKeys.ts 的 TOOL_KEYS 常量承载，与 04 的工具集对齐，未迁到工具声明 | 分发器内硬编码工具名 | 04 会替换整套工具（`cursor/bbox/polygon/brush`），硬编码会随之作废；数据化令快捷键自动跟随 | 2026-08-19 |
+| D-2 | 工具→键位数据化，随工具声明携带；任务工具由 `/tasks` 下发，无任务工具由 `GENERIC_TOOLS` 声明 | 分发器内硬编码工具名 | 工具键位随当前工具声明变化，分发器与速查面板共用声明 | 2026-08-19 |
 | D-3 | 本迭代做"速查面板（`?`）"，不做命令面板（Cmd+K 全命令检索） | 直接上命令面板 | 克制即高级（G11）；先补最缺的可发现性与可达性，命令面板另立 SDD | 2026-08-19 |
 | D-4 | 工具单键无修饰、需查看器焦点；外壳动作用修饰组合、全局生效 | 全部用修饰组合 / 全部单键 | 单键切工具贴合专业标注软件肌肉记忆（PS/Figma）；外壳动作加修饰避免全局误触 | 2026-08-19 |
 | D-5 | 模式切换 = `Ctrl/Cmd+Shift+M` | `Ctrl/Cmd+.` / `Ctrl/Cmd+Shift+Space` | M=Mode 好记，不与浏览器保留键冲突（维护者拍板） | 2026-08-19 |

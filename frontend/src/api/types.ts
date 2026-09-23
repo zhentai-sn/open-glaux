@@ -274,6 +274,7 @@ export interface TaskToolDef {
   id: string;
   glyph: string;
   label: Bilingual;
+  key?: string;
 }
 
 export interface TaskOverlaySpec {

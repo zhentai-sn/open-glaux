@@ -1552,6 +1552,7 @@ canvas {
   font-size: var(--font-sm);
   color: var(--ink);
 }
+.sheet-row.disabled { opacity: .45; }
 .sheet-keys {
   flex: none;
   padding: 1px var(--space-2);

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { csUtils, type Types } from "../viewer/cornerstone";
 import { activateTool } from "../viewer/csTools";
-import { sampleHandles } from "../viewer/wallGeom";
+import { ImtWallHandleTool } from "../viewer/imtWallTool";
+import { drawPrimitives } from "../viewer/overlay/painters";
 import { annotationMaskSink } from "../viewer/maskSinks";
 import { useBrushBuffer } from "../viewer/hooks/useBrushBuffer";
 import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
@@ -26,10 +27,6 @@ import type { EngineProps } from "./viewerProps";
 // 2D brush 宿主退化方案（T0 spike3）：CS3D segmentation 在 stack 上未打通 → 自持 mask 缓冲，
 // 提交走 /annotations（kind=mask），reload 经 /annotations/{id}/mask 叠色。
 
-type Poly = Extract<Primitive, { kind: "polyline" }>;
-type Ell = Extract<Primitive, { kind: "ellipse" }>;
-type Pts = number[][];
-
 const EMPTY_OVERLAYS: TaskOverlaySpec[] = [];
 const SNAP_MM = [1, 2, 5, 10, 20, 50, 100];
 const RE_ID = "glaux-re";
@@ -41,7 +38,7 @@ function clonePrims(ps: Primitive[]): Primitive[] {
   return ps.map((p) => (p.kind === "polyline" ? { ...p, points: p.points.map((q) => [...q]) } : { ...p }));
 }
 
-export function CornerstoneViewer({ object }: EngineProps) {
+export function CornerstoneViewer({ object, focus }: EngineProps) {
   const imageIdRef = useRef<string | null>(null);
   const { elementRef: elRef, engineRef, viewportRef: vpRef, ready } = useCsStackEngine({
     renderingEngineId: RE_ID,
@@ -74,7 +71,6 @@ export function CornerstoneViewer({ object }: EngineProps) {
     [object, tasks, datasources],
   );
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
-  const ovByRole = useMemo(() => new Map(overlays.map((o) => [o.role, o])), [overlays]);
   const wallEditing = tool === "wall"; // 手柄只在壁线编辑态画（能力位由注册表限定为 IMT）
 
   // 像素坐标 → overlay 画布坐标（CSS px，与 worldToCanvas / pointer 同一空间）
@@ -116,94 +112,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
     };
     projRef.current = proj;
 
-    const prims = work.current;
-    const polys = prims.filter((p): p is Poly => p.kind === "polyline");
-
-    // 壁线对：前两条折线间填充淡带（纯几何，HC 无折线不触发）
-    if (polys.length >= 2 && polys[0].points.length > 1 && polys[1].points.length > 1) {
-      ctx.beginPath();
-      polys[0].points.forEach(([x, y], i) => {
-        const [cx, cy] = proj(x, y);
-        if (i === 0) ctx.moveTo(cx, cy);
-        else ctx.lineTo(cx, cy);
-      });
-      for (let i = polys[1].points.length - 1; i >= 0; i--) {
-        const [cx, cy] = proj(polys[1].points[i][0], polys[1].points[i][1]);
-        ctx.lineTo(cx, cy);
-      }
-      ctx.closePath();
-      ctx.fillStyle = "rgba(79,176,255,.09)";
-      ctx.fill();
-    }
-
-    const strokePoly = (pts: Pts, color: string) => {
-      if (pts.length < 2) return;
-      ctx.beginPath();
-      pts.forEach(([x, y], i) => {
-        const [cx, cy] = proj(x, y);
-        if (i === 0) ctx.moveTo(cx, cy);
-        else ctx.lineTo(cx, cy);
-      });
-      ctx.lineWidth = 1.8;
-      ctx.strokeStyle = color;
-      ctx.lineJoin = "round";
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 5;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    };
-    const drawHandles = (pts: Pts, color: string) => {
-      ctx.fillStyle = color;
-      ctx.strokeStyle = "#111";
-      ctx.lineWidth = 1.5;
-      for (const i of sampleHandles(pts)) {
-        const [cx, cy] = proj(pts[i][0], pts[i][1]);
-        ctx.beginPath();
-        ctx.arc(cx, cy, 5, 0, 7);
-        ctx.fill();
-        ctx.stroke();
-      }
-    };
-
-    for (const p of prims) {
-      if (p.kind === "volume_mask") continue; // VolumeViewer 渲染
-      const color = ovByRole.get(p.role)?.color ?? "#4FB0FF";
-      if (p.kind === "polyline") {
-        strokePoly(p.points, color);
-        // 壁线手柄：IMT polygon 态（统一框架的 ImtWallHandleTool 激活时）
-        if (wallEditing && ovByRole.get(p.role)?.editable) drawHandles(p.points, color);
-      } else if (p.kind === "ellipse") {
-        const e = p as Ell;
-        const N = 96;
-        ctx.beginPath();
-        for (let k = 0; k <= N; k++) {
-          const t = (k / N) * Math.PI * 2;
-          const ex = e.cx + e.a * Math.cos(t) * Math.cos(e.theta) - e.b * Math.sin(t) * Math.sin(e.theta);
-          const ey = e.cy + e.a * Math.cos(t) * Math.sin(e.theta) + e.b * Math.sin(t) * Math.cos(e.theta);
-          const [cx, cy] = proj(ex, ey);
-          if (k === 0) ctx.moveTo(cx, cy);
-          else ctx.lineTo(cx, cy);
-        }
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 6;
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        const drawAxis = (dx: number, dy: number, len: number, c: string) => {
-          const [x0, y0] = proj(e.cx - len * dx, e.cy - len * dy);
-          const [x1, y1] = proj(e.cx + len * dx, e.cy + len * dy);
-          ctx.beginPath();
-          ctx.moveTo(x0, y0);
-          ctx.lineTo(x1, y1);
-          ctx.lineWidth = 1.1;
-          ctx.strokeStyle = c;
-          ctx.stroke();
-        };
-        drawAxis(Math.cos(e.theta), Math.sin(e.theta), e.a, "rgba(255,138,91,.85)");
-        drawAxis(-Math.sin(e.theta), Math.cos(e.theta), e.b, "rgba(79,176,255,.85)");
-      }
-    }
+    drawPrimitives(ctx, work.current, proj, { overlays, index: focus.index, wallEditing });
 
     // 已保存 mask 标注叠色（bbox/polygon 由 CS3D 标注层自渲染，此处只管 mask）
     const bd = brushDims.current;
@@ -268,7 +177,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
       ctx.textAlign = "center";
       ctx.fillText(`${barMm} mm`, sx + scr / 2, sy - 6);
     }
-  }, [cf, wallEditing, ovByRole, sizeOverlay]);
+  }, [cf, wallEditing, overlays, focus.index, sizeOverlay]);
 
   // drawOverlay 每次重渲染都会换标识（依赖 cf/overlays/工具态）——载图与标注回灌副作用
   // 不能把它放进依赖数组：那会让「切图」副作用在无关重渲染时重跑，其开头的
@@ -299,6 +208,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
       const dim = await source.dims();
       if (cancelled) return;
       imageIdRef.current = imageId;
+      ToolGroupManager.getToolGroup(TG_ID)?.setToolConfiguration(ImtWallHandleTool.toolName, { objectId, imageId });
       brushDims.current = { columns: dim.columns, rows: dim.rows };
       for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
         await new Promise((r) => requestAnimationFrame(r));

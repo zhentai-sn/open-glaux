@@ -100,6 +100,7 @@ class ToolDef:
     glyph: str
     label_en: str
     label_zh: str
+    key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -237,11 +238,11 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="raster_2d",
         tools=(
-            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
-            ToolDef("wall", "≈", "Wall edit", "壁线编辑"),
-            ToolDef("brush", "✎", "Brush", "画笔"),
+            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
+            ToolDef("wall", "≈", "Wall edit", "壁线编辑", key="w"),
+            ToolDef("brush", "✎", "Brush", "画笔", key="b"),
             ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
         overlays=(
@@ -274,10 +275,10 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="raster_2d",
         tools=(
-            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
-            ToolDef("brush", "✎", "Brush", "画笔"),
+            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
+            ToolDef("brush", "✎", "Brush", "画笔", key="b"),
             ToolDef("reset", "⟲", "Re-detect", "重新检测"),
         ),
         overlays=(
@@ -312,10 +313,10 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="volume_3d",
         tools=(
-            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
-            ToolDef("brush", "✎", "Brush edit", "画笔编辑"),
+            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
+            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
+            ToolDef("brush", "✎", "Brush edit", "画笔编辑", key="b"),
             ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
         ),
         overlays=(
@@ -350,9 +351,9 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         ),
         viewer="wsi",
         tools=(
-            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放"),
-            ToolDef("bbox", "▭", "Select ROI", "框选 ROI"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注"),
+            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
+            ToolDef("bbox", "▭", "Select ROI", "框选 ROI", key="r"),
+            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
             ToolDef("reset", "⟲", "Re-detect", "重新检测"),
         ),
         overlays=(
@@ -390,7 +391,12 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
             for m in plugin.metrics
         ],
         "tools": [
-            {"id": t.id, "glyph": t.glyph, "label": {"en": t.label_en, "zh": t.label_zh}}
+            {
+                "id": t.id,
+                "glyph": t.glyph,
+                "label": {"en": t.label_en, "zh": t.label_zh},
+                **({"key": t.key} if t.key else {}),
+            }
             for t in plugin.tools
         ],
         "overlays": [

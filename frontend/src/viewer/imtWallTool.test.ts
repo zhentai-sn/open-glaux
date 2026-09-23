@@ -63,7 +63,11 @@ function evtAt(x: number, y: number): ToolTypes.EventTypes.InteractionEventType 
 }
 
 /** BaseTool 的构造签名是 (toolProps, defaultToolProps)——测试里给空对象即可。 */
-const newTool = () => new ImtWallHandleTool({}, {});
+const newTool = () => {
+  const tool = new ImtWallHandleTool({}, {});
+  tool.configuration = { objectId: "tech_401", imageId: "web:frame" };
+  return tool;
+};
 
 beforeEach(() => {
   taskMeasure.mockClear();
@@ -83,6 +87,12 @@ describe("ImtWallHandleTool 的分发器契约", () => {
     expect(typeof tool.mouseDragCallback).toBe("function");
     expect(typeof tool.mouseUpCallback).toBe("function");
     expect((tool as unknown as Record<string, unknown>).mouseDownCallback).toBeUndefined();
+  });
+
+  it("只使用查看器注入的对象与帧，焦点切走不改变壁线目标", () => {
+    const tool = newTool();
+    useSession.setState({ focus: { object_id: "another", kind: "image", index: {}, region: null } });
+    expect(tool.preMouseDownCallback(evtAt(0, 100))).toBe(true);
   });
 });
 

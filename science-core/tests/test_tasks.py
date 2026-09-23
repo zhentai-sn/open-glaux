@@ -67,6 +67,16 @@ def test_registry_covers_all_task_types():
         assert callable(plugin.measure)
 
 
+def test_task_tool_keys_are_declared_on_registry_tools():
+    for plugin in REGISTRY.values():
+        view = plugin_to_view(plugin)
+        keyed = {tool["id"]: tool["key"] for tool in view["tools"] if "key" in tool}
+        assert keyed["cursor"] == "v"
+        assert keyed["bbox"] == "r"
+        assert keyed["polygon"] == "p"
+        assert "key" not in next(tool for tool in view["tools"] if tool["id"] == "reset")
+
+
 def test_task_for_signals_routes():
     assert task_for_signals("测远壁颈动脉 IMT") is TaskType.FAR_WALL_CCA_IMT
     assert task_for_signals("estimate fetal head circumference") is TaskType.FETAL_HC
