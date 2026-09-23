@@ -82,6 +82,16 @@ def resources_for(object_id: str, *, raw: bool = False, tiles: bool = False) -> 
     return out
 
 
+#: 无 TaskPlugin 模态的能力位默认集，按 ``Source.kind`` 定表（SDD 10 §9.4）。只作兜底：
+#: 模态有 TaskPlugin 时整体取 ``TaskPlugin.capabilities``，两者永不合并。
+DEFAULT_CAPABILITIES: dict[str, tuple[str, ...]] = {
+    "image": ("bbox", "polygon"),
+    "volume": ("bbox", "polygon", "z_scroll"),
+    "slide": ("bbox", "polygon"),
+    "video": ("bbox", "polygon", "timeline", "brush"),
+}
+
+
 #: Calibration.kind → 过渡字段名。只做单向回填，不反推。
 _LEGACY_BY_CAL_KIND = {"mm_per_px": "cf", "voxel_mm": "voxel_spacing_mm", "mpp_um": "mpp_um"}
 

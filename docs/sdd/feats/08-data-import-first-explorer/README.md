@@ -92,7 +92,8 @@ status: implemented
     "kind": "image",
     "label": "Natural images",
     "label_key": "modality.natural_image",
-    "importable": [".jpg", ".jpeg", ".png"]
+    "importable": [".jpg", ".jpeg", ".png"],
+    "default_capabilities": ["bbox", "polygon"]
   },
   "accepted": [
     { "id": "nat-3f2a9c11-8b1d0e42", "filename": "IMG_0042.JPG", "bytes": 2483910 }
@@ -109,7 +110,7 @@ status: implemented
 
 ### 5.2 数据源列表
 
-`GET /datasources` 返回 `DataSourceInfo[]`。`GLAUX_DEV_MODE=0` 时返回值不含 `origin=builtin` 的条目，直到用户加载示例。每个元素带 `kind`（几何族）、`label`（服务端兜底文案）、`label_key`（i18n 键）、`importable`（该模态可上传的后缀），四者均由 `SOURCES[modality]` 派生（SDD 10 §9.3）。
+`GET /datasources` 返回 `DataSourceInfo[]`。`GLAUX_DEV_MODE=0` 时返回值不含 `origin=builtin` 的条目，直到用户加载示例。每个元素带 `kind`（几何族）、`label`（服务端兜底文案）、`label_key`（i18n 键）、`importable`（该模态可上传的后缀）与 `default_capabilities`（该模态无任务时的能力位默认集，有任务时为空），均由 `SOURCES[modality]` 派生（SDD 10 §9.3、§9.4）。
 
 `POST /datasources/samples` 返回 `DataSourceInfo[]`（本次注册成功的示例源）。
 

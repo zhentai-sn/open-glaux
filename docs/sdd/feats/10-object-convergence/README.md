@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0、W1 已准出；W2 代码与门禁完成、待维护者审阅（见执行记录 W2 节） |
+| 当前阶段 | 契约冻结；W0～W2 已准出（门禁结果与审阅结论见执行记录），可进入 W3 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -202,7 +202,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | 路径 | 处置 | 说明 |
 | --- | --- | --- |
 | `GET /images?modality=` | 保留 | SDD 08 冻结的数据轴列表入口，返回的本就是 `ObjectMeta`；五分支收为 `SOURCES[m]` 一行，`mock.dataset()` 回退删除 |
-| `GET /datasources`、`POST /datasources/samples` | 保留 | 新增下发 `kind`、`label`、`label_key`、`importable` 四字段 |
+| `GET /datasources`、`POST /datasources/samples` | 保留 | 新增下发 `kind`、`label`、`label_key`、`importable`、`default_capabilities` 五字段 |
 | `GET /tasks`、`POST /task/run`、`POST /task/measure`、`GET /capabilities` | 保留 | 任务轴面，只换内部分派 |
 | `GET /annotations`、`POST /annotations` | 保留 | 增 `index`（`z` 作别名一版）与 `index_from`／`index_to` 过滤 |
 | `POST /uploads/images` | 保留 | 魔数表来源改为 `SOURCES[*].formats` |
@@ -211,7 +211,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | `GET /volumes`、`GET /slides` | alias 一版 | 内部改 `SOURCES[m].list_ids`，W7 删除 |
 | `GET /volume/{id}` | alias 一版 | 内部改 `/objects/{id}/raw`，W7 删除 |
 | `GET /volume/{id}/labelmap?task=&method=` | **有意保留** | 任务结果字节面，不属 `/objects` 表征族；URL 由任务输出的 `ref` 模板下发（`backend/app/kernel.py:157`、`backend/app/routers/api.py:273`），前端不拼路径；不退 alias、不设删除时点 |
-| `POST /volume/{id}/mask-edit` | alias 一版 | 内部改 `/objects/{id}/edits`，W7 删除 |
+| `POST /volume/{id}/mask-edit` | alias 一版 | 内部改 `/objects/{id}/edits`，W7 删除；旧契约的 `base_seq` 可为 `null`（不做乐观并发校验），alias 期间保留此行为，新端点 `base_seq` 必填 |
 | `GET /wsi/{slide_id}/tile/{level}/{col}/{row}` | alias 一版 | 内部改 `/objects/{id}/tiles/{level}/{col}/{row}`，W7 删除 |
 
 alias 期间的硬约束：每条 alias 与其新端点对每个模态返回**同一字节流**（响应头允许新端点多出 `X-Glaux-Frame`）。alias 保留到 W7，前端切到新端点在 W4；W7 删除是独立准出，不随发行周期延后（D-10）。
@@ -311,14 +311,14 @@ sequenceDiagram
     K->>K: ① ref.kind ∈ plugin.object_kinds？
     K->>D: ② det_impl.available()？
     K->>K: ③ spec.region.kind ∈ det_impl.accepted_regions？
-    K->>K: ④ calibration_from_dict(spec.calibration) ?? resolve_calibration_for(obj)
+    K->>K: ④ spec.calibration ?? obj.calibration → 校验（calibration_from_dict），填回 spec
     K->>D: detect(ref, obj, spec)
     D-->>K: (Detection, CalibrationResult)
     K-->>A: TaskOutput 信封（组装不变）
     A->>A: setMetrics / setPrimitives / setSource("agent")
 ```
 
-①～④ 是四个公共前缀，一律在 `run_task` 内完成，`Detector` 实现只负责取数与调用模型；四步的失败映射见 §13。
+①～④ 是四个公共前缀，一律在 `run_task` 内完成，`Detector` 实现只负责取数与调用模型；四步的失败映射见 §13。④ 只决定「用哪份标定」并校验（未知 kind → `HardReject`）；`CalibrationResult` 由 `Detector.detect` 按填回的 `spec.calibration` 构造，其中 `mm_per_px` 保持 `source=cubs`、空 provenance 的形状，使 TaskOutput 与收敛前逐字节一致。
 
 ### 6.4 智能体取观测（`fetchObservation`）
 
@@ -611,7 +611,7 @@ export const TOOL_PROVIDERS: ToolProvider[];
 export interface SegmenterPort { segment(req: SegmentRequest): Promise<SegmentResult> }   // track? 推迟
 ```
 
-`DataSource` 在前端的镜像新增四个字段：`kind`（`ObjectKind`）、`label`（服务端兜底文案）、`label_key`（i18n 键，前端优先）、`importable`（该源可导入的后缀集合，`ImportPanel` 的唯一来源）。`RecentItem` 新增 `kind`，`modality` 由 `Modality` 放宽为 `string`。
+`DataSource` 在前端的镜像新增五个字段：`kind`（`ObjectKind`）、`label`（服务端兜底文案）、`label_key`（i18n 键，前端优先）、`importable`（该源可导入的后缀集合，`ImportPanel` 的唯一来源）、`default_capabilities`（无 `TaskPlugin` 模态的能力位默认集，见 §9.4）。`RecentItem` 新增 `kind`，`modality` 由 `Modality` 放宽为 `string`。
 
 ### 9.2 Python 类型草图
 
@@ -689,7 +689,12 @@ class Detector(Protocol):
     def detect(self, ref: ObjectRef, obj: ObjectMeta, spec: TaskSpec) -> tuple[Detection, CalibrationResult]: ...
     def reference(self, ref: ObjectRef, obj: ObjectMeta) -> Detection | None: ...     # _enrich_gold 归位
     def apply_edit(self, ref: ObjectRef, obj: ObjectMeta, req: EditRequest) -> EditResult | None: ...
-    def verify(self, ref: ObjectRef, obj: ObjectMeta, output: TaskOutput) -> VerifyReport | None: ...
+    def verify(self, ref: ObjectRef, obj: ObjectMeta, output: TaskOutput | None, *, method: str = ...) -> VerifyReport | None: ...
+
+class DetectorBase:
+    """缺省实现。Protocol 之外的两个挂点（不改 Protocol 签名）：
+    enrich(out, ref, obj, spec, cal)——与参考结果的对比度量（原 _enrich_gold；IMT vs A1 与 HC vs GT 口径不同，
+    不做泛化计算）；hydrate(primitives)——/task/measure 收到只带 URL 引用的图元时补回本地路径。"""
 
 DETECTORS: dict[str, Detector] = {}
 ```
@@ -742,14 +747,14 @@ science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None
 | `Primitive.at` | `Index \| None` | 否 | 帧级/层级定位；`None` 表示不绑定索引，与 2D 现状兼容 | 长期 |
 | `Source.formats` | `tuple[tuple[str, bytes, int], ...]` | 是（可为空元组） | 后缀、魔数、offset 三者齐备；`upload_store._MAGIC` 与 `/datasources` 的 `importable` 由此汇总，二者不得各存一份 | 长期 |
 | `Detector.accepted_regions` | `tuple[str, ...]` | 是 | 元素取 `Region.kind` 的四个值 | 长期 |
-| `DataSource.kind` / `label` / `label_key` / `importable` | `ObjectKind` / `str` / `str` / 后缀集合 | `kind` 是，其余否 | 前端取标签的顺序固定为 `label_key`（i18n 键，命中即用）→ `label`（服务端兜底文案）→ `modality` 原文；三者皆缺不允许 | 长期 |
+| `DataSource.kind` / `label` / `label_key` / `importable` / `default_capabilities` | `ObjectKind` / `str` / `str` / 后缀集合 / 能力位列表 | `kind` 是，其余否 | 前端取标签的顺序固定为 `label_key`（i18n 键，命中即用）→ `label`（服务端兜底文案）→ `modality` 原文；三者皆缺不允许 | 长期 |
 | `RecentItem.kind` | `ObjectKind` | 是（v2 起） | v1 记录迁移时由 `modality` 推断，推断不出则丢弃该条 | 长期 |
 
 跨进程镜像关系：`ObjectMeta`、`Focus`、`Region`、`Calibration`、`ReferenceFrame` 五个类型由 backend 定义、frontend 与 agent-runtime **逐字镜像**；`Index`、`TaskSpec`、`EditRequest` 由 backend 定义、frontend 镜像，agent-runtime 只经 `ViewerContext` 与 `fetchObservation` 间接接触；`Observation`、`ToolProvider`、`SegmenterPort` 只在 agent-runtime 内存在，不进后端契约；`ViewerProps`、`FrameSource`、`FrameAxis`、`MaskSink`、`Painter` 只在 frontend 内存在。
 
 ### 9.4 无 TaskView 模态的能力位默认集
 
-`natural_image` 与 `video` 没有 `TaskPlugin`，且不得为其在 `REGISTRY` 造空行（D-18）。这两个模态的 `capabilities` 由 `Source.kind` 的默认集提供，`GET /capabilities` 下发，`trigger` 恒为 `manual`。
+`natural_image` 与 `video` 没有 `TaskPlugin`，且不得为其在 `REGISTRY` 造空行（D-18）。这两个模态的 `capabilities` 由 `Source.kind` 的默认集提供，经 `GET /datasources` 元素的 `default_capabilities` 下发（`GET /capabilities` 是能力市场卡片，不承载按模态的能力位），`trigger` 恒为 `manual`。
 
 默认集按 `Source.kind` 逐值定表，不按 modality 手写：
 
@@ -766,7 +771,7 @@ science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None
 
 - 有 `TaskPlugin` 的模态一律以 `TaskPlugin.capabilities` 为准，默认集不参与合并，避免出现第二份能力清单。
 - 默认集不含 `voi`、`wall`、`verify`：这三位需要任务侧的窗宽窗位、壁线原语或验证器，无任务时无处取值；`brush` 只在 `kind=video` 下给出，落点是 `annotationMaskSink`（标注路径），不涉及任务结果编辑。
-- 默认集是「无 `TaskPlugin` 对象」的兜底，不是任务能力的第二事实源（§7 规则 19 的唯一例外）：判定点在 `GET /capabilities` 的汇总处——该对象有 `TaskPlugin` 即整体取 `TaskPlugin.capabilities`，否则整体取默认集，两者永不合并。
+- 默认集是「无 `TaskPlugin` 对象」的兜底，不是任务能力的第二事实源（§7 规则 19 的唯一例外）：判定点在 `datasource_registry.default_capabilities(modality)`——该模态有 `TaskPlugin` 时 `default_capabilities` 为空、整体以 `GET /tasks` 的 `TaskPlugin.capabilities` 为准，否则整体取默认集，两者永不合并。
 - 默认集的推导函数位于 backend，前端与 agent-runtime 只消费下发结果，不复算。
 
 默认集取值随 W6 视频端到端门禁实测复核；如实测推翻本表，按 §16 体例新增 `D-25` 起的决策行并修订本小节，不因此回退 `status`。

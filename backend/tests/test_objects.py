@@ -323,3 +323,20 @@ def test_edits_reject_bad_requests(tmp_path, monkeypatch):
     img = _first("carotid_imt")
     assert client.post(f"/objects/{img['id']}/edits", json=_edit(0)).status_code == 422
     assert client.post("/objects/no_such/edits", json=_edit(0)).status_code == 404
+
+
+# --- 无 TaskPlugin 模态的能力位默认集（§9.4） ----------------------------------------
+
+
+def test_default_capabilities_only_for_modalities_without_task():
+    task_modalities = {p.modality for p in REGISTRY.values()}
+    for modality in reg.MODALITIES:
+        caps = reg.default_capabilities(modality)
+        if modality in task_modalities:
+            assert caps == []  # 有任务行即以 TaskPlugin.capabilities 为准，不合并
+        else:
+            assert caps and set(caps) <= {"bbox", "polygon", "z_scroll", "timeline", "brush"}
+    assert reg.default_capabilities("natural_image") == ["bbox", "polygon"]
+    assert reg.default_capabilities("video") == ["bbox", "polygon", "timeline", "brush"]
+    for row in client.get("/datasources").json():
+        assert row["default_capabilities"] == reg.default_capabilities(row["modality"])

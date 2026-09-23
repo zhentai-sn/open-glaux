@@ -289,6 +289,8 @@ class DataSourceInfo(BaseModel):
     label: str = ""
     label_key: str = ""
     importable: list[str] = Field(default_factory=list)
+    #: 无 TaskPlugin 模态的能力位默认集（§9.4）；有 TaskPlugin 的模态为空，以 GET /tasks 为准
+    default_capabilities: list[str] = Field(default_factory=list)
 
 
 class UploadAccepted(BaseModel):

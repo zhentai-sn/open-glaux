@@ -48,6 +48,23 @@ def _sources() -> dict[str, Source]:
     return SOURCES
 
 
+def default_capabilities(modality: str) -> list[str]:
+    """无 TaskPlugin 模态的能力位默认集（SDD 10 §9.4）；该模态有 TaskPlugin 时为空。
+
+    判定点只在这里：有任务行即整体以 ``TaskPlugin.capabilities``（经 ``GET /tasks``）为准，
+    否则整体取 ``Source.kind`` 的默认集，两者永不合并。
+    """
+    from .sources.base import DEFAULT_CAPABILITIES
+
+    try:
+        from glaux_core.tasks import REGISTRY
+    except Exception:  # noqa: BLE001 - science-core 不可用时视为无任务行
+        REGISTRY = {}
+    if any(p.modality == modality for p in REGISTRY.values()):
+        return []
+    return list(DEFAULT_CAPABILITIES.get(_sources()[modality].kind, ()))
+
+
 def modalities() -> tuple[str, ...]:
     """已注册模态，顺序即 ``SOURCES`` 的登记顺序。"""
     return tuple(_sources())
@@ -94,6 +111,7 @@ class DataSource:
             "label": src.label,
             "label_key": src.label_key,
             "importable": [ext for ext, _magic, _offset in src.formats],
+            "default_capabilities": default_capabilities(self.modality),
         }
 
     @classmethod

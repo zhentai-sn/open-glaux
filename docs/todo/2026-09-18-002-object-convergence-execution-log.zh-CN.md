@@ -282,3 +282,16 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 | 能力位默认集的下发载体（P-8） | W3 |
 | `/volumes`、`/slides` 的 503 守卫与 `/images` 空列表语义对齐 | W7 删 alias 时一并处理 |
 | `hc_dataset` 真实优先路由函数仍被 `ContourDetector.detect` 的 `is_hc` 前提使用 | W3 之后，随 HC 数据源多源化 |
+
+### 6. W2 审阅结论
+
+2026-09-23 维护者授权按最合理方式处置 §3 四项：
+
+| # | 处置 |
+| --- | --- |
+| P-6 | 接受。`enrich` / `hydrate` 作为 `DetectorBase` 挂点、`verify` 的 `method` 关键字参数写入 SDD 10 §9.2 |
+| P-7 | 接受。SDD 10 §6.3 的④改述为「显式标定优先、缺省取对象标定，校验后填回 spec」，并写明 `mm_per_px` 保持收敛前形状的理由 |
+| P-8 | 不再推迟，本波落地：载体为 `GET /datasources` 元素新增的 `default_capabilities`，由 `datasource_registry.default_capabilities(modality)` 唯一判定（有 TaskPlugin 为空，否则取 `Source.kind` 默认集，永不合并），用例 `test_default_capabilities_only_for_modalities_without_task`。回写 SDD 10 §5.3 / §9.1 / §9.3 / §9.4 与 SDD 08 §5.1 / §5.2。W3 前端据此过滤无任务模态的工具 |
+| P-9 | 接受，不改契约。SDD 10 §5.3 的 mask-edit 行写明 alias 期保留 `base_seq = null` 的旧行为 |
+
+处置后 backend 333 通过，ruff 绿；SDD 10 §0 改为 W0～W2 已准出。

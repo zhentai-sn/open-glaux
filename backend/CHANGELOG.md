@@ -8,7 +8,7 @@
 
 - 数据轴注册表 `SOURCES`（`app/sources/`，SDD 10 W1）：一个模态一个 `Source`，`MODALITIES = tuple(SOURCES)`；`resolve_object` 为对象 id 的唯一解析入口。
 - `ObjectMeta`：`GET /images` 元素新增 `kind`、`source_id`、`display_name`、`axes`、`calibration`、`resources`、`streams`、`meta`；旧字段 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` / `center` 由 `SourceBase` 回填，取值不变。
-- `GET /datasources` 元素新增 `kind`、`label`、`label_key`、`importable`。
+- `GET /datasources` 元素新增 `kind`、`label`、`label_key`、`importable`、`default_capabilities`（无任务模态的能力位默认集，SDD 10 §9.4）。
 - `video` 模态数据轴：mp4 / webm 的上传与文件夹导入、帧率探测、音轨声明（`streams[]` + `resources.audio`，不提供取流）、`GET /image/{vid}` 取第 0 帧。依赖 PyAV，作为可选 extra `video`。
 - 开发者模式下显式注册的合成源 `synthetic-us`、`synthetic-hc`，仅在同模态无其他 active 源时为 active。
 - 动作轴注册表 `DETECTORS`（`app/detectors/`，SDD 10 W2）：四个几何族各一个 `Detector`；`POST /task/run` 的公共前缀（解析对象、`object_kinds` 门控、可用性、选区类型、标定）只在 `kernel.run_task` 出现一次。
