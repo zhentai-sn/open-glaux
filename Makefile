@@ -1,7 +1,7 @@
 # Glaux — 开发编排。前端 Vite(5173) + 后端 FastAPI(8000) + Agent Runtime(8010)。
 # 前端经同源代理访问 /api 与 /agent-api（见 frontend/vite.config.ts）。
 
-.PHONY: dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend test-science-core test-version lint version version-check
+.PHONY: dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend test-science-core test-version lint check-literals version version-check
 
 ## 同时起三个进程（需要 GNU make -j 或三个终端）：
 ##   make -j3 dev
@@ -54,6 +54,10 @@ lint:
 	# 注:science-core 未声明 ruff 依赖也无 [tool.ruff] 配置,接它需先建基线——属 D9(第 1 期),不在 D3 范围。
 	cd frontend && npm run lint
 	cd agent-runtime && npm run lint
+
+# SDD 10 D-14：模态字面量比较计数。W0 只打印基线、不阻断，不挂进 make test；W7 改 --strict 并纳入 test 前置。
+check-literals:
+	bash scripts/ci/check-modality-literals.sh
 
 version:
 	python3 scripts/version_matrix.py

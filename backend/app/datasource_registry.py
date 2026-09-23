@@ -1,4 +1,4 @@
-"""DataSource 注册表——数据表征层的运行时来源（替代 config 写死的固定根）。
+"""DataSource 注册表——观测空间的数据来源（替代 config 写死的固定根）。
 
 见计划 docs/plans/2026-07-13-001-feat-datasource-registry-plan.md。
 
@@ -6,7 +6,8 @@
 ``/images`` / ``capabilities()``）改查这里，不再 glob config 固定根。
 
 两种模式（用户要求保留开发者模式）：
-- **开发者模式**（``GLAUX_DEV_MODE=1``；开发脚本显式设置）：内置源 = config 的 4 个 env 根的**实时视图**
+- **开发者模式**（``GLAUX_DEV_MODE=1``；开发脚本显式设置）：内置源 = config 的 4 个
+  env 根的**实时视图**
   （:func:`_builtin_live`）——行为 == 现状；且因是实时读 ``config.X_ROOT``（非快照），
   测试对 config 根的 monkeypatch 立即反映。
 - **产品模式**（``GLAUX_DEV_MODE=0``，缺省）：无内置源；

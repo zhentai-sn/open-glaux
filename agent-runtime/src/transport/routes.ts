@@ -347,7 +347,7 @@ function parseViewer(value: unknown): ViewerContext | undefined {
       box.length !== 4 ||
       !box.every((n) => typeof n === "number" && Number.isFinite(n))
     ) {
-      throw new RuntimeError("invalid_request", "viewer.roi_box must be [x, y, w, h].", 400);
+      throw new RuntimeError("invalid_request", "viewer.roi_box must be [x0, y0, x1, y1].", 400);
     }
     out.roi_box = box as [number, number, number, number];
   }
