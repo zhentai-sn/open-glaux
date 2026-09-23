@@ -107,16 +107,14 @@ open-glaux/
 │   ├── natural/                 #   自然图像示例 4 张（SDD 07，入库）
 │   └── wsi/                     #   全幅病理切片（StarDist-HE）
 │
-├── docs/                        # 文档区（类型、状态与命名规约见 docs/README.md）
-│   ├── architecture.zh-CN.md    #   本文件
-│   ├── roadmaps/charter.zh-CN.md #  纲领：定位、领域、边界、环境四要素
-│   ├── sdd/                     #   规范驱动开发：Feature 契约、验收、决策
-│   ├── runbooks/                #   操作手册
-│   ├── landing/                 #   产品门户首页
-│   ├── researches/ brainstorms/ designs/ plans/ todo/  # 以记录为主（不带日期的设计是活文档，见 docs/README.md）
-│   └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
-│
-└── assets/                      # 架构图 SVG（中/英各一份）
+└── docs/                        # 文档区（类型、状态与命名规约见 docs/README.md）
+    ├── architecture.zh-CN.md    #   本文件
+    ├── roadmaps/charter.zh-CN.md #  纲领：定位、领域、边界、环境四要素
+    ├── sdd/                     #   规范驱动开发：Feature 契约、验收、决策
+    ├── runbooks/                #   操作手册
+    ├── landing/                 #   产品门户首页
+    ├── researches/ brainstorms/ designs/ plans/ todo/  # 以记录为主（不带日期的设计是活文档，见 docs/README.md）
+    └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
 ```
 
 `.glaux/`（本地会话 SQLite）、`dist/`（`scripts/release/package.py` 输出的发行包 zip）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
