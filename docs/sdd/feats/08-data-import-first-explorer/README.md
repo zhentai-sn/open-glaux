@@ -23,7 +23,7 @@ status: implemented
 
 1. Explorer 的空态与导入入口（打开服务端文件夹 / 浏览器上传 / 加载示例数据 / 最近使用）。
 2. 新的浏览器图像上传接口 `POST /uploads/images` 及其安全边界。
-3. 模态切换器的可见性来源由 `/tasks` 改为 `/datasources`。
+3. 模态切换器的可见性来源由 `/tasks` 改为 `/datasources`；标签来源同为 `/datasources`（SDD 10 D-22）。
 4. `GLAUX_DEV_MODE` 缺省值由 `1` 翻为 `0`，示例数据改为显式加载。
 
 数据轴入口 `GET /images?modality=`、`GET /datasources`、`POST /datasources/samples` 的**路径与查询参数冻结，响应体按 [SDD 10](../10-object-convergence/README.md) 演进**：列表元素是 `ObjectMeta`，数据源元素新增 `kind` / `label` / `label_key` / `importable`。
@@ -52,8 +52,8 @@ status: implemented
 
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
-| 拖拽 / 文件选择器 | 一批本地图像文件 | JPEG 或 PNG；单文件 ≤ 32 MiB；单次 ≤ 20 个文件 |
-| 打开服务端文件夹 | 服务端路径 + 模态 | 路径须在 `GLAUX_DATASETS_ROOT`（缺省 `~/glaux_datasets`）下；模态限 `pathology` / `ct_abdomen` |
+| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `/datasources[].importable` 并集内（当前为 JPEG / PNG / MP4 / WebM）；单文件 ≤ 32 MiB；单次 ≤ 20 个文件 |
+| 打开服务端文件夹 | 服务端路径 + 模态 | 路径须在 `GLAUX_DATASETS_ROOT`（缺省 `~/glaux_datasets`）下；模态候选为 `/tasks` 中 `object_kinds` 含 `volume` 或 `slide` 的任务所属模态（当前为 `pathology` / `ct_abdomen`），前端不硬编码列表 |
 | 加载示例数据 | 无 | 仅注册 `config` 内置根中**确实有数据**的模态 |
 | 最近使用 | 无 | 从浏览器本地记录读取 |
 
@@ -134,18 +134,20 @@ status: implemented
   "streams": [],
   "methods": [],
   "meta": { "center": "上传 · 2026-08-30 14:05" },
-  "center": "上传 · 2026-08-30 14:05",
   "cf": null, "voxel_spacing_mm": null, "mpp_um": null, "dims": null
 }
 ```
 
-`center`、`cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是过渡字段，由服务端从 `meta` / `axes` / `calibration` 回填，删除时点见 SDD 10 §11.3。
+- `methods` 元素为 `{ name, role }`，`role` 取 `gold` | `agent` | `reference`；通用图像恒为空数组。
+- 数据源展示名只在 `meta.center`，不再有顶层 `center`。
+- `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是过渡字段，由服务端从 `axes` / `calibration` 回填，前端类型不声明；删除时点见 SDD 10 §11.3。
 
 ### 5.4 前端输出
 
 - 无活动数据源 → Explorer 渲染空态卡（标题 + 三个入口），不渲染任何目录树。
-- 有活动数据源 → 渲染「最近使用」区（非空时）+ 目录树，Explorer 头部常驻「＋ 导入」按钮。
-- 模态切换器只渲染有活动数据源的模态；`natural_image` 标签为「通用图像 / General images」。
+- 有活动数据源 → 渲染「最近使用」区（非空时）+ 目录树，Explorer 头部常驻「＋ 导入」按钮。目录树为「对象」目录（列出当前模态对象的 `display_name`，为空时取 `id`）与「方法」目录（列出焦点对象的 `methods[]`，按 `role` 标 `gold` / `agent`）；头部工作区名取焦点对象所属数据源的 `name`，无焦点时取模态标签。
+- 模态切换器只渲染有活动数据源的模态；标签按 `/datasources` 元素的 `label_key`（i18n 键 `modality.<m>`）→ `label` → modality 原文取值（SDD 10 D-22），`natural_image` 显示为「通用图像 / General images」。
+- 上传控件的 `accept` 与前端预筛取 `/datasources[].importable` 的并集；尚无数据源时并集为空，前端只校验大小，类型交后端判定。
 
 ### 5.5 模态切换器的窄列排版（决策 D-9）
 
@@ -176,18 +178,18 @@ Explorer 会被放进很窄的容器：Workbench 侧栏缺省 260px，Focus 浏�
 flowchart LR
     subgraph DataAxis["数据轴 · 打开什么"]
         DS["GET /datasources"] --> MOD["模态切换器可见性"]
+        DS --> LABEL["模态显示标签"]
         DS --> TREE["文件树内容"]
     end
     subgraph TaskAxis["任务轴 · 对它做什么"]
-        TK["GET /tasks"] --> LABEL["模态显示标签"]
-        TK --> TOOL["工具栏与度量字段"]
+        TK["GET /tasks"] --> TOOL["工具栏与度量字段"]
     end
     MOD --> VIEW["Explorer"]
     LABEL --> VIEW
     TREE --> VIEW
 ```
 
-改动要点：`/tasks` 不再决定**有没有**这个 tab，只决定这个 tab **叫什么**。
+改动要点：`/tasks` 既不决定**有没有**这个 tab，也不决定这个 tab **叫什么**；二者都属数据源展示属性（SDD 10 D-22）。
 
 ### 6.2 浏览器上传
 
@@ -200,7 +202,7 @@ sequenceDiagram
     participant FS as uploads/
 
     U->>E: 拖拽 3 个 JPEG
-    E->>E: 前端预筛类型与大小
+    E->>E: 按 importable 并集预筛类型，并校验大小
     E->>B: POST /uploads/images (multipart)
     B->>B: 逐个校验扩展名 + 魔数 + 字节上限
     B->>FS: 服务端生成文件名写盘
@@ -208,8 +210,8 @@ sequenceDiagram
     R-->>B: DataSource(status=active)
     B-->>E: source + accepted[] + rejected[]
     E->>B: GET /images?modality=natural_image
-    B-->>E: 合并后的 ImageMeta[]
-    E->>E: 切到 natural_image 并选中首个新图
+    B-->>E: 合并后的 ObjectMeta[]
+    E->>E: loadObjects(natural_image, {open: 首个新图})
 ```
 
 ### 6.3 首次进入（空态）
@@ -247,9 +249,9 @@ sequenceDiagram
 
 ## 7. 核心规则
 
-1. **可见性来自数据源，标签来自任务注册表。** 前端不得再用 `/tasks` 判断某模态是否应出现在切换器里。
+1. **可见性与标签都来自数据源。** 前端不得用 `/tasks` 判断某模态是否应出现在切换器里，也不得从 `/tasks` 取模态标签（SDD 10 D-22）。
 2. 模态切换器只显示至少有一个 `status=active` 数据源的模态；候选少于 2 个时不渲染切换器（沿用现状）。
-3. `natural_image` 在任务注册表中没有 `TaskPlugin`，其切换器标签取前端 i18n 常量，不得为它伪造任务。
+3. `natural_image` 在任务注册表中没有 `TaskPlugin`，不得为它伪造任务；其标签与其他模态同一规则，取 `/datasources` 的 `label_key` → `label` → modality 原文。
 4. 无任何活动数据源时，Explorer 只渲染空态，**不得**调用 `/images` / `/volumes` / `/slides` / `/task/run`。
 5. 上传只接受受理表内的类型，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。受理表由 `SOURCES[*].formats` 汇总（SDD 10 §4.1）：JPEG / PNG → `natural_image`，MP4 / WebM → `video`。
 6. **客户端文件名一律不进入文件系统路径。** 服务端为每个接受的文件生成落盘名与图像 ID；原始文件名只回显在响应与 UI 中。
@@ -273,12 +275,13 @@ sequenceDiagram
 | `backend/app/routers/api.py` | 新增 `POST /datasources/samples`；`/images`、`/image/{id}` 自然图像分支接入导入源 | 修改 |
 | `backend/app/schemas.py` | 新增 `UploadResult` / `UploadAccepted` / `UploadRejected` | 修改 |
 | `backend/app/config.py` | 新增上传上限环境变量 | 修改 |
-| `frontend/src/components/SideBar.tsx` | `ModalitySwitch` 改数据源驱动；Explorer 空态、拖拽区、最近使用、头部「＋ 导入」 | 修改 |
-| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 文件夹路径 / 加载示例） | 新增 |
-| `frontend/src/data/actions.ts` | `uploadImages` / `loadSamples` / `refreshDataSources` / 最近使用读写 | 修改 |
+| `frontend/src/components/SideBar.tsx` | `ModalitySwitch` 的可见性与标签均由数据源驱动；Explorer 空态、拖拽区、最近使用、「对象」/「方法」目录、头部「＋ 导入」 | 修改 |
+| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 文件夹路径 / 加载示例）；`accept` 与预筛取 `importable` 并集，文件夹导入模态取自 `/tasks` 的 `object_kinds` | 新增 |
+| `frontend/src/data/actions.ts` | `uploadImages` / `loadSamples` / `refreshDataSources` / `prunedRecent`；上传后经 `loadObjects(modality, {open})` 打开首个受理对象 | 修改 |
+| `frontend/src/data/recent.ts` | 最近使用的读写、v1 → v2 迁移、置顶与剔除 | 新增 |
 | `frontend/src/store/session.ts` | `recentItems` 状态与 setter | 修改 |
 | `frontend/src/api/client.ts` 与 `types.ts` | 上传与示例加载调用、`UploadResult` 类型 | 修改 |
-| `frontend/src/i18n/zh.ts` 与 `en.ts` | 空态、上传、示例、通用图像标签文案 | 修改 |
+| `frontend/src/i18n/zh.ts` 与 `en.ts` | 空态、上传、示例文案；模态标签键 `modality.<m>` | 修改 |
 | `scripts/dev/run-backend.sh` 等开发脚本 | 显式置 `GLAUX_DEV_MODE=1`，保持开发体验不变 | 修改 |
 
 ## 9. 数据或字段要求
@@ -321,9 +324,13 @@ sequenceDiagram
 | --- | --- | --- |
 | `datasources` | `DataSourceInfo[]` | 已存在；本 SDD 起成为模态可见性的唯一依据 |
 | `recentItems` | `RecentItem[]` | 最多 10 条，最近在前 |
-| `RecentItem` | `{ modality, id, label, at }` | `at` 为 ISO 8601 字符串 |
+| `RecentItem` | `{ modality: string, kind: ObjectKind, id, label, at }` | `label` 取 `display_name`，为空时取 `id`；`at` 为 ISO 8601 字符串 |
 
-`recentItems` 持久化键：`glaux.recent.v1`（`localStorage`）。读取到非法 JSON 或结构不符时按空数组处理，不抛错。
+`recentItems` 持久化键：`glaux.recent.v2`（`localStorage`）。读取规则：
+
+- v2 键存在时只读 v2，结构不符的条目丢弃；非法 JSON 按空数组处理，不抛错。
+- v2 键缺失而 `glaux.recent.v1` 存在时做一次迁移：按冻结的 v1 模态表（`carotid_imt` / `fetal_hc` / `natural_image` → `image`，`ct_abdomen` → `volume`，`pathology` → `slide`）补 `kind`，推断不出的条目丢弃；写入 v2 并删除 v1 键。v1 为非法 JSON 时迁移结果为空，同样删除 v1 键。
+- 点击最近使用项调 `openObject(id, modality)`，对象所属模态未加载时顺带加载。
 
 不新增数据库表、事件 payload 或迁移。
 
@@ -415,17 +422,17 @@ stateDiagram-v2
 - [x] 任务注册表有但无活动数据源的模态，不出现在切换器中。
 - [x] 切换器候选无论多少，标签均完整渲染（不截断、不省略号），当前模态有选中态。
 - [ ] 5 个候选时：容器 240px 为纵向单列，拖到 600px 以上变回横向分段且不折行；2 个候选时 240px 即横排。两种排版下容器均无横向滚动（浏览器走查）。
-- [x] 拖入 2 个 JPEG 后自动切到 `natural_image` 并选中首个新图，文件树出现对应叶子。
+- [x] 拖入 2 个 JPEG 后自动切到 `natural_image` 并以首个新图为焦点，「对象」目录出现对应叶子。
 - [x] 上传部分被拒时，逐条显示被拒文件名与原因，已接受的图正常出现在树中。
 - [x] 移除最后一个数据源后回到空态卡，无未捕获错误。
 - [x] 移除导入源的确认文案明示「不会删除磁盘上的文件」。
 - [x] 打开过的对象出现在「最近使用」，最多 10 条、最近在前；刷新页面后仍在。
-- [x] `localStorage` 中 `glaux.recent.v1` 被写入非法 JSON 时，Explorer 正常渲染且最近使用为空。
+- [x] `localStorage` 中 `glaux.recent.v2`（或待迁移的 `glaux.recent.v1`）被写入非法 JSON 时，Explorer 正常渲染且最近使用为空。
 - [x] 中英文两种语言下空态、上传结果与错误文案均无缺 key。
 
 跨组件：
 
-- [x] 上传图作为当前对象时，Agent Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含医学 `task` / `method` / `cubs_cf` / `roi_box`。
+- [x] 上传图作为当前对象时，Agent Viewer Context 为 `{ collection: "natural_image", object, focus }`（另带过渡字段 `modality`、`image_id`），不含医学 `task` / `method` / `cubs_cf` / `roi_box`。
 - [x] Agent Runtime 经 `/image/{上传ID}` 可取到与浏览器一致的字节。
 - [x] 上传图上的越界 bbox/polygon 仍被 `/annotations` 以 422 拒绝。
 - [x] `scripts/dev/run-backend.sh` 启动的开发后端行为与本改动前一致（示例数据默认可见）。
@@ -450,7 +457,7 @@ stateDiagram-v2
 
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
-| D-1 | 模态切换器可见性改由 `/datasources` 决定，标签仍取自 `/tasks` | 继续由 `/tasks` 全权决定；新增专门的「可见模态」端点 | 任务注册表是静态能力清单，天然与「用户有没有数据」无关。今天二者被强行合并，直接后果是选中自然图像时四个 tab 全不高亮 | 2026-08-30 |
+| D-1 | 模态切换器可见性改由 `/datasources` 决定，标签仍取自 `/tasks`（标签来源已由 SDD 10 D-22 取代：改取 `/datasources`） | 继续由 `/tasks` 全权决定；新增专门的「可见模态」端点 | 任务注册表是静态能力清单，天然与「用户有没有数据」无关。今天二者被强行合并，直接后果是选中自然图像时四个 tab 全不高亮 | 2026-08-30 |
 | D-2 | 浏览器上传不接受客户端指定模态；本 SDD 期内固定归入 `natural_image`，SDD 10 起改由受理表推断（§7 规则 5） | 新增 `user_image` 模态；让用户在上传时选模态 | `natural_image` 已经是「无 TaskPlugin、无标定、走 raster_2d 兜底」的通用图像通道，语义完全吻合；再开一根轴会让前端多一处等价分支 | 2026-08-30 |
 | D-3 | UI 标签由「自然图像」改为「通用图像 / General images」 | 保持「自然图像」 | 用户上传的可能是自己的截图、示意图或非演示照片，「自然图像」是学术用语且会误导；线上契约值 `natural_image` 保持不变以免破坏兼容 | 2026-08-30 |
 | D-4 | `GLAUX_DEV_MODE` 缺省翻为 `0`，示例数据（含 SDD 07 的 4 张照片）改为显式加载 | 保持缺省 `1`；只对医学示例生效、自然照片仍常驻 | 新用户首屏应当是「把你的数据放进来」。若自然照片仍常驻，空态永远不为空，引导入口失去位置。开发脚本显式置 `1` 保证开发体验不回退 | 2026-08-30 |

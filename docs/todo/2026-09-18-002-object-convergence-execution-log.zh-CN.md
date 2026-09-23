@@ -295,3 +295,75 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 | P-9 | 接受，不改契约。SDD 10 §5.3 的 mask-edit 行写明 alias 期保留 `base_seq = null` 的旧行为 |
 
 处置后 backend 333 通过，ruff 绿；SDD 10 §0 改为 W0～W2 已准出。
+
+## W3 · 前端状态与动作收敛
+
+执行日期 2026-09-23，基线 HEAD `db84c51`（W2 审阅项落地后）。状态：代码与自动化门禁完成；手工走查待维护者签字（§3）。三拍分三个提交：`520b5d8`（只加不删）、`0356b61`（改消费点）、本节所在提交（删旧 + 文档）。
+
+### 1. 准出门禁
+
+| 门禁 | 结果 |
+| --- | --- |
+| `make test` / `make lint` | 绿：frontend 36 文件 / 221；agent-runtime 31 / 205；backend 333；science-core 213 |
+| 三拍各自可编译、可测 | 是。第一拍后 frontend 210 全绿、消费方零改；第二拍后 221 全绿；第三拍后 221 全绿，`tsc -b` 与 eslint 均干净 |
+| W0 行为测试不改断言语义 | 是。`objectFocus.test.ts` 16 条只改了取值方式（`currentObjectId()` 改读 `focus.object_id`）与动作名（`loadObjects` / `openObject`）；唯一调整是「activeModel 跟随模态」用例先显式进入颈动脉模态，因为 store 不再写死 `modality="carotid_imt"`、`activeModel="caroSegDeep"` 初值（DEBT-11） |
+| 旧字段 grep | `activeImage|activeVolume|activeSlide|wsiRoi` 在 `frontend/src` 命中 0；`TaskView.viewer` 在 `frontend/src` 产品代码零读点 |
+| 5 个测试文件的旧字段 | 已改完：`FocusSidePanel.test.tsx`、`actions.test.ts`（重写为三个动作的用例）、`FocusTopBar.test.tsx`、`SideBar.test.tsx`、`imtWallTool.test.ts`；另改 `SideBar.a11y.test.tsx`、`toolBridge.test.ts`、`viewerEngines.smoke.test.tsx`（只改挂载方式：引擎改从 props 收 object / focus，断言不变）、`annotationTools.test.ts`、`wsiAnno.test.ts`（删 `niftiTarget` 字符串解析用例） |
+| `recent.ts` v1→v2 迁移单测 | 新增 `recent.test.ts`：空、旧（补 kind、推断不出丢弃、写 v2 删 v1、只迁一次）、脏（v1 非法 JSON、v2 结构不符） |
+| 字面量门禁 | 门禁总数 27 → **0**（frontend 27 → 0，backend 0）；随后 `Modality` / `TaskType` 放宽为 `string`，门禁仍为 0（D-14 顺序满足） |
+| chat 版 | `chatEdition.test.tsx` 与 `chat-edition.test.ts` 在全量中绿；ChatShell 路径未改 |
+| 音轨不被消费 | `rg "resources\.audio|streams\[" frontend/src agent-runtime/src` 零命中 |
+
+### 2. 改动要点
+
+| 面 | 改动 |
+| --- | --- |
+| store | 四槽 + `wsiRoi` + 四份列表 + `imageMeta` 删除，收成 `focus` + `objects`（缺键 = 未加载，空数组 = 已加载为空）；写入口只有 `setFocus` / `setIndex` / `setRegion`；`activeObject()` / `objectsOf()` 派生；`modality` / `activeModel` 初值 `null`；`setModels` 取当前模态的 active 模型，不兜底 |
+| actions | `loadObjects(modality, {open?})` / `openObject(id, modality?)` / `runTask(region?)`；触发 = `TaskView.trigger ?? "manual"`；`runTask` 下发对象 `calibration` 与 `region`，不再发 `cubs_cf` / `roi_box`；结果回来前已切走的对象丢弃结果 |
+| 查看器 | `Viewer.tsx` 按 `ObjectKind` 查表、缺键渲染 i18n「查看器引擎尚未接入」，是查看器树中唯一读当前对象处；三个引擎改从 props 收 `object` / `focus`，渲染逻辑未动；`csAnno` 的 imageId 字符串解析删除，落库目标由焦点给出 |
+| 标签与文案 | 模态标签改由 `/datasources` 的 `label_key` → `label` → `modality` 取（D-22），新增 `modality.*` 六个 i18n 键；示例卡与舞台空态改领域中立措辞 |
+| 文件栏 | 目录改为「对象 / 方法」，方法按 `methods[].role` 标 gold / agent；去掉按模态写死的 `LIMA-Profiles` / `CF` / `Folds` 等目录名与数据集名回退 |
+| 导入面板 | 上传受理后缀取 `/datasources` 的 `importable` 并集；文件夹导入候选取几何族为 volume / slide 的任务的模态 |
+| 智能体 | `toViewerContext` 下发 `{collection, task, method, object, focus}`，另带过渡字段 `image_id` / `modality` / `cubs_cf` / `roi_box`（runtime 在 W5 前只读它们）；`toolBridge` 比对 `focus.object_id` |
+| 后端（P-1） | `ObjectMeta.methods` 改 `[{name, role}]`，顶层 `center` 删除（只留 `meta.center`） |
+| 类型 | 前端 `ObjectMeta` 不再声明 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims`，读取即 `tsc` 失败——§7 规则 8 的「lint 禁读」以类型检查落地（`npm run lint` 含 `tsc -b`） |
+
+### 3. 回归走查
+
+自动化部分：在隔离端口（backend 18000、vite 15173；临时数据源清单与标注根，不触碰 `~/glaux_datasets/sources.json`）起真实前后端，用 Playwright 无头 Chromium 逐个模态切换，记录 `/task/run` 请求与控制台错误并截图（截图在会话 scratchpad，未入库）。
+
+| # | 场景 | 自动化观察 | 维护者签字 |
+| --- | --- | --- | --- |
+| 1 | CUBS 2D | 打开 `tech_401` 即跑 `far_wall_cca_imt`，请求带 `calibration{mm_per_px}`、无旧字段；LI/MA 叠加与 IMT 度量渲染；标题 `tech_401 — CUBS-tech · carotid US`；方法目录 caroSegDeep 标 agent | 待签 |
+| 2 | HC18 | 切换即跑 `fetal_hc`（`000_HC`），`calibration{mm_per_px}` | 待签 |
+| 3 | CT 逐层 | 切换即跑 `totalseg_liver_kidney`，`calibration{voxel_mm}`；查看器挂载无错误。逐层滚动、画笔未自动化 | 待签 |
+| 4 | WSI ROI | 打开 `slide_001` 不自动跑（`on_region`）。查看器挂载时 Annotorious 报 `unsafe-eval` 崩溃（F-18，W2 提交上同样复现，非 W3 回归）；框选 ROI 未能走到 | 待签（需真实浏览器） |
+| 5 | 自然图像不自动跑 | 打开 `natural_cat` 无 `/task/run` 请求 | 待签 |
+| 6 | video 对象 | 导入合成 mp4 后切到「视频」，舞台显示「查看器引擎尚未接入：video」，无未捕获错误 | 待签 |
+
+### 4. 待维护者决定的偏差
+
+| # | 偏差 | 原因 | 建议 |
+| --- | --- | --- | --- |
+| P-10 | `toViewerContext` 在新五字段之外继续下发 `image_id` / `modality` / `cubs_cf` / `roi_box` | runtime `parseViewer` 在 W5 之前只认旧字段，前端单发新字段会让智能体拿不到当前对象；runtime 忽略未知字段，双发安全 | 已回写 SDD 10 §11.3：该过渡物自 W3 起由前端双发，W5 runtime 切换，W7 删除 |
+| P-11 | `imtWallTool` 的对象 id 取自 store 的 `focus`，不是审计所写的「工具配置」 | 工具配置的注入口是 W4 的 `registerTaskTool`；W3 只需去掉 `activeImage` 读点保证可编译 | W4 随 `registerTaskTool` 改为配置注入 |
+| P-12 | `VolumeViewer` 仍持有组件本地 `z`，每次变化经 `setIndex({z})` 写入焦点 | 审计 W3 规定引擎「只换取值来源，不改渲染逻辑」；本地 z 并入 `Focus.index` 属 W4 引擎合并 | W4 删除本地 z（§7 规则 4） |
+| P-13 | ImportPanel 在没有任何数据源时不知道受理表，只按大小预筛、类型交给后端判定 | 空态下 `/datasources` 为空，`importable` 无从取得；不在前端另存白名单 | 如需空态也预筛，可让后端在 `GET /datasources` 之外提供受理表（新端点，需改 SDD 10 D-5），当前不建议 |
+| P-14 | 模态切换器与顶栏 chip 的标签由任务名（如「颈动脉远壁 IMT」）变为模态名（「颈动脉超声」） | D-22：标签属数据源展示属性，无任务的模态无法取任务名 | 接受；如需保留任务名，另议显示位置 |
+| P-15 | 文件栏去掉按数据集写死的目录名（`LIMA-Profiles`、`CF`、`Folds`、`natural-images` 等），统一为「对象 / 方法」 | 这些目录名只对 CUBS 成立，是 DEBT-20 的一部分 | 接受 |
+
+### 5. 执行中发现的问题
+
+| # | 问题 | 位置 | 影响 | 处置 |
+| --- | --- | --- | --- | --- |
+| F-18 | WSI 查看器挂载时 Annotorious（pixi）因 CSP 禁 `unsafe-eval` 抛错，被 ErrorBoundary 接住，查看器区域不可用 | `frontend/vite.config.ts` 的 CSP（`c9b153b` 起）与 `@annotorious/openseadragon` | 无头 Chromium 下在 W2 提交同样复现，非 W3 引入；真实浏览器是否复现待确认 | 待维护者在真实浏览器确认；若复现，可在 WSI 路径引入 `@pixi/unsafe-eval` 或调整 CSP，属独立修复 |
+| F-19 | P-8 下发的 `default_capabilities` 尚未被前端工具过滤消费，无任务模态（通用图像、视频）仍无标注工具按钮 | `ViewerChrome` / `StagePanel` 的工具列表来自 `TaskView.tools` | 与 W3 前行为一致 | W4 抽 `useTaskTools()` 时按 `ALWAYS ∪ capabilities` 接入 |
+| F-20 | 前端 `Modality` 放宽为 `string` 后，后端下发的 `video` 等新模态无需前端改类型即可出现 | `api/types.ts` | 符合 §15.1 J「前端零专属代码」 | 记录 |
+
+### 6. 留给后续波次
+
+| 事项 | 波次 |
+| --- | --- |
+| P-10～P-15 审阅；F-18 真实浏览器确认 | W3 审阅 |
+| `registerTaskTool` 注入壁线工具的对象 id（P-11）、本地 z 并入 `Focus.index`（P-12）、`useTaskTools()` 消费 `default_capabilities`（F-19）、前端改读 `resources` 与 `/objects/*` | W4 |
+| runtime 改读 `object` / `focus` 后前端停发过渡字段（P-10） | W5 / W7 |

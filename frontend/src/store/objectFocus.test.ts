@@ -202,6 +202,7 @@ describe("tool results target the current object", () => {
 
 describe("activeModel does not leak across modalities", () => {
   it("切到有自己模型的模态时，activeModel 换成该模态的模型", async () => {
+    await switchModality("carotid_imt");
     expect(useSession.getState().activeModel).toBe("caroSegDeep");
     await switchModality("fetal_hc");
     expect(useSession.getState().activeModel).toBe("csm");

@@ -70,7 +70,7 @@ status: implemented
 ### 4.2 系统输入
 
 - localStorage 持久化的 `uiMode`(键 `glaux.uiMode.v1`,见 §9)。
-- 现有 zustand store 的全部领域状态(messages/activeImage/metrics/primitives/…)。
+- 现有 zustand store 的全部领域状态(focus/objects/metrics/primitives/…;焦点与对象表的定义见 [SDD 10](../10-object-convergence/README.md))。
 - Workbench 的 dockview 布局持久化(`glaux.layout.v1`),Focus 不读不写它。
 
 ### 4.3 输入约束
@@ -163,7 +163,8 @@ flowchart TD
 | 类别 | 组件 | 契约 |
 | --- | --- | --- |
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
-| 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,读 tasks/active* 派生「模态 · 当前对象 id」;点击 = `setFocusLayout({rightOpen:true, rightView:"files"})`,自身不写 active*)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换 |
+| 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换 |
+| 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则拉起 ⚙ 连接配置 |
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset);角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
@@ -194,7 +195,7 @@ flowchart TD
   - 迁移:旧 `rightView:"stage"` → `browserView:null`;`"files"` → `"files"`;`"atlas"` → `"atlas"`;缺失或非法值 → `null`。`browserW` 非有限数/非正数回 `null`,否则 `clamp` 到 [`BROWSER_MIN`=240, `BROWSER_MAX`=480]。
   - 常量:`BROWSER_W = {min:240, max:480, def:240}`(缺省即最窄,D19);`STAGE_MIN = 360`;`SIDE_SPLIT_MIN = 640`(= 浏览器最小 + 舞台最小 + 分隔条余量,低于此值即窄屏降级)。阈值带 24px 迟滞:分栏 → 降级取 `< 640`,降级 → 分栏取 `≥ 664`,避免拖到临界时反复重排。
   - 分栏判定读**实测**侧栏宽度(与 v1.3 `FocusShell.room()` 同一套实测机制),不读持久化的 `sideW`——`sideW` 为 `null` 时没有像素真相值。
-- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排)。`hasVisual = activeImage || activeVolume || activeSlide` 仍只决定舞台内是显示查看器还是占位引导。
+- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排)。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。
 - 其余展示字段全部复用现有 store,零新增领域字段。
 - 新增 i18n 键(mode 名称、空状态文案、示例卡、舞台工具提示)在实现计划中列全,中英齐备(G9)。
 
@@ -264,8 +265,8 @@ v1.1(Focus 右侧栏):
 v1.2(顶栏只读上下文标签):
 
 - [x] Focus 顶栏不再出现任何 `<select>`;上下文区呈现「模态标签 · 当前对象 id」一枚 chip,无活动对象时呈现「选择图像…」提示态。——`FocusTopBar.test.tsx`「显示模态 · 当前对象」(断言 `querySelectorAll("select")` 为 0)与「无活动对象时呈现提示态」
-- [x] 点击该 chip 展开右侧栏并切到「文件」标签(`rightOpen:true` / `rightView:"files"`);chip 自身不改变 `activeImage`/`activeVolume`/`activeSlide`。——`FocusTopBar.test.tsx`「点击展开右侧栏并切到文件标签」
-- [x] 切换模态或选中图像后 chip 文案随之更新(与 `ExplorerView` 同一 store,不存在第二份派生规则)。——`FocusTopBar.test.tsx`「CT 下读 activeVolume」;`ImageContextPicker` 及其 `isCT ? volumes : ...` 派生已整体删除,顶栏只读 `active*`
+- [x] 点击该 chip 展开右侧栏并切到「文件」标签(`rightOpen:true` / `rightView:"files"`);chip 自身不改变 `focus`。——`FocusTopBar.test.tsx`「点击展开右侧栏并切到「文件」标签，且不改活动对象」
+- [x] 切换模态或选中图像后 chip 文案随之更新(与 `ExplorerView` 同一 store,不存在第二份派生规则)。——`FocusTopBar.test.tsx`「活动对象即唯一焦点：CT 下同样读 focus.object_id」;`ImageContextPicker` 及其 `isCT ? volumes : ...` 派生已整体删除,顶栏只读 `focus`
 - [x] chip 可键盘聚焦并以 Enter/Space 触发(`<button>` 语义),有 `aria-label`;中英文案齐全。——实现为原生 `<button type="button">` + `aria-label={t("focus_ctx_open")}`;新增 i18n 键 `focus_ctx_open` 中英齐全(键类型对齐编译期保证)
 - [x] 舞台占位引导文案不再提及顶栏选图。——`focus_stage_empty` 中英改为只指向「文件」标签
 

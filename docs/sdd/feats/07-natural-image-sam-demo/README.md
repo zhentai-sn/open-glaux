@@ -20,7 +20,7 @@ status: implemented
 为 Glaux 增加一组可随仓库分发的真实自然照片，使用户能从文件栏打开照片，并用
 [`segment_region`](../02-agent-image-annotation/README.md) 走查 Gitee AI `sam3` 的通用目标分割与建议态标注链路。
 
-本 SDD 冻结自然图像资产、数据发现/取图接口、文件栏选择行为和 Viewer Context 契约。
+本 SDD 冻结自然图像资产、数据发现/取图接口、文件栏选择行为和 Viewer Context 契约。对象元数据、焦点状态、查看器引擎分派与无任务契约以 [SDD 10](../10-object-convergence/README.md) 为上游。
 
 ## 2. 本 SDD 不负责什么
 
@@ -34,7 +34,7 @@ status: implemented
 
 - 加载示例数据（或 `GLAUX_DEV_MODE=1`）后，文件栏展示 4 张真实照片。
 - 选择照片后由现有 2D 查看器加载，Agent Runtime 可经 `/image/{id}` 取得同一字节。
-- Viewer Context 明确标记 `modality=natural_image`，且不携带医学任务、模型或标定。
+- Viewer Context 以 `object` / `focus` 描述当前照片（`collection=natural_image`），且不携带医学任务、模型或标定。
 - 使用现有 SAM 配置完成至少两张照片的端到端手工走查。
 
 ## 4. 输入来源
@@ -56,26 +56,36 @@ status: implemented
 
 - 前端初始化：`GET /images?modality=natural_image`。
 - 查看器取图：`GET /image/{image_id}`。
-- 会话上下文：当前选中照片的 `image_id`。
+- 会话上下文：当前焦点对象 `focus.object_id`。
 - SAM 调用输入与外发权限：完全沿用 SDD 02 §4、§7.2、§7.4。
 
 ## 5. 输出结果
 
 ### 5.1 数据发现
 
-`GET /images?modality=natural_image` 返回 `ImageMeta[]`：
+`GET /images?modality=natural_image` 返回 `ObjectMeta[]`（字段语义见 SDD 10 §9）：
 
 ```json
 [
   {
     "id": "natural_cat",
-    "center": "Natural images",
-    "cf": null,
+    "kind": "image",
+    "modality": "natural_image",
+    "source_id": "natural-demo",
+    "display_name": "",
+    "axes": [{ "name": "x", "size": 1280, "spacing": null, "unit": "px" },
+             { "name": "y", "size": 2777, "spacing": null, "unit": "px" }],
+    "calibration": null,
+    "resources": { "frame": "/objects/natural_cat/frame" },
+    "streams": [],
     "methods": [],
-    "modality": "natural_image"
+    "meta": { "center": "Natural images" },
+    "cf": null, "voxel_spacing_mm": null, "mpp_um": null, "dims": null
   }
 ]
 ```
+
+`cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是服务端回填的过渡字段，前端类型不声明（SDD 10 D-10）。
 
 ### 5.2 图片响应
 
@@ -83,10 +93,10 @@ status: implemented
 
 ### 5.3 前端与 Agent 输出
 
-- 示例数据加载后，文件栏出现这 4 张照片的叶子项。
-- 选择后 2D 查看器显示照片，活动对象为对应 `image_id`。
-- 标题、HUD、状态栏与 Focus 顶栏不得显示医学任务、`CF` 或医学活动模型；模态切换器标签按 SDD 08 D-3 显示为“通用图像 / General images”（i18n `mod_general_images`）；Focus 顶栏上下文仍显示“自然图像 / Natural images”（i18n `natural_images`）。
-- Viewer Context 为 `{ image_id, modality: "natural_image" }`，不含 `task`、`method`、`cubs_cf`、`roi_box`。
+- 示例数据加载后，文件栏「对象」目录出现这 4 张照片的叶子项。
+- 选择后 `openObject(id)` 设焦点 `focus = { object_id, kind: "image", index: {}, region: null }`；Viewer 按 `kind=image` 挂载 2D 查看器显示照片。
+- 标题、HUD、状态栏与 Focus 顶栏不得显示医学任务、`CF` 或医学活动模型；模态切换器与 Focus 顶栏的模态标签同源，取 `/datasources` 的 `label_key`（`modality.natural_image`）→ `label` → modality 原文（SDD 10 D-22），显示为「通用图像 / General images」。
+- Viewer Context 为 `{ collection: "natural_image", object: { id, kind: "image", axes, calibration: null }, focus }`，另带过渡字段 `modality: "natural_image"` 与 `image_id`（runtime 改读 `object` / `focus` 后删除，SDD 10 §11.3）；不含 `task`、`method`、`cubs_cf`、`roi_box`。
 - SAM 多边形与建议态标注输出沿用 SDD 02 §5、§12。
 
 ## 6. 核心流程
@@ -102,10 +112,11 @@ sequenceDiagram
     F->>B: GET /images?modality=natural_image
     B-->>F: 4 条 ImageMeta
     F->>F: 用户选择 natural_cat
-    F->>V: 设置 natural_image + activeImage
+    F->>F: openObject(natural_cat) 设 focus
+    F->>V: kind=image → 2D 查看器
     V->>B: GET /image/natural_cat
     B-->>V: image/jpeg
-    F->>A: prompt + {image_id, modality=natural_image}
+    F->>A: prompt + {collection, object, focus}
     A->>B: segment_region 取当前图
     B-->>A: image/jpeg
     A->>S: image + 英文目标提示词
@@ -115,12 +126,12 @@ sequenceDiagram
 
 ## 7. 核心规则
 
-1. 自然图像是独立模态 `natural_image`，但不是任务；任务注册表不得为它制造占位任务。
+1. 自然图像是独立模态 `natural_image`，但不是任务；任务注册表不得为它制造占位任务。它没有 `TaskView`，走 SDD 10 D-18 的显式 no-task 契约：`trigger = TaskView.trigger ?? "manual"`。
 2. 自然图像列表与 ID 来自后端固定白名单，前端不得拼本地路径。
-3. 选择自然图像必须清空 `activeVolume`、`activeSlide`、ROI、医学 metrics/primitives 和旧标注视图状态。
-4. 选择自然图像不得调用 `/task/run`；SAM 只在用户通过会话触发 `segment_region` 时调用。
+3. 打开自然图像以新 `focus` 整体替换旧焦点（store 只有一个焦点，不存在按几何族分列的活动对象字段），并清空 metrics、primitives、annotations；从其他模态切入时另将工具复位为 `cursor`、`toolOptions` 复位为缺省、`activeModel` 置为该模态的活动模型（`natural_image` 为 `null`）。
+4. 选择自然图像不得调用 `/task/run`（无 `TaskView`，`runTask` 不发请求）；SAM 只在用户通过会话触发 `segment_region` 时调用。
 5. 通用图像作为模态切换器的一个候选出现（有活动数据源时）。**原「文件栏在任意医学模态下都常驻展示 `natural-images/`」已由 [SDD 08](../08-data-import-first-explorer/README.md) §7 规则 13 取代**：示例照片随示例数据显式加载,不再硬编码常驻。
-6. `natural_image` 没有 `TaskView` 时，Viewer 使用既有 `raster_2d` 兜底。
+6. Viewer 按 `ObjectMeta.kind` 选引擎（SDD 10 D-11）：`image` 挂载 2D 查看器，不读 `TaskView.viewer`，无 `raster_2d` 兜底；`kind` 无对应引擎时渲染「查看器引擎尚未接入：{kind}」空态。
 7. Agent Viewer Context 不得泄漏残留医学 `task`、`method` 或标定。
 8. 图片必须逐张有可再分发许可；来源不清晰的候选不得提交。
 9. 自然图像界面不得以 `CF —`、CUBS/HC 任务名或医学活动模型填充空位；无医学字段时直接隐藏。
@@ -132,11 +143,11 @@ sequenceDiagram
 | 对象 | 职责 |
 | --- | --- |
 | `data/natural/` | 固定照片与许可清单 |
-| Backend `Modality` / `ImageMeta` | 暴露 `natural_image` 元数据契约 |
+| Backend `Modality` / `ObjectMeta` | 暴露 `natural_image` 元数据契约 |
 | Backend `/images` | 发现固定自然照片 |
 | Backend `/image/{id}` | 按白名单安全返回照片，并向统一标注层提供像素尺寸 |
-| Frontend Session Store | 保存 `naturalImages` 与当前自然图像状态 |
-| Frontend Explorer | 示例数据加载后渲染自然图像叶子与选择动作 |
+| Frontend Session Store | `objects["natural_image"]` 保存自然图像对象表，`focus` 指向当前照片；对象元数据经 `activeObject(s)` 派生 |
+| Frontend Explorer | 示例数据加载后在「对象」目录渲染自然图像叶子，点击调 `openObject` |
 | Frontend Viewer Context | 向 Agent Runtime 发无医学任务的当前图上下文 |
 | `segment_region` | 沿用现有 SAM 取图和分割链路，不改契约 |
 
@@ -144,25 +155,27 @@ sequenceDiagram
 
 ### 9.1 `Modality`
 
-后端 Pydantic 契约与前端 TypeScript 联合类型都增加字面量 `natural_image`。
+`Modality` 在后端与前端均为 string；`natural_image` 由后端 `SOURCES` 注册，未注册模态 422（SDD 10）。
 
-### 9.2 自然图像 `ImageMeta`
+### 9.2 自然图像 `ObjectMeta`
 
 | 字段 | 类型 | 必填 | 值/约束 | 来源 |
 | --- | --- | --- | --- | --- |
-| `id` | string | 是 | `natural_cat` 等固定白名单 ID | 后端自然图像适配器 |
-| `center` | string | 是 | `Natural images` | 后端固定值 |
-| `cf` | null | 是 | 恒为 `null`，无医学标定 | 后端固定值 |
-| `methods` | string[] | 是 | 恒为空数组 | 后端固定值 |
+| `id` | string | 是 | `natural_cat` 等固定白名单 ID | 后端自然图像 Source |
+| `kind` | string | 是 | 恒为 `image` | 后端固定值 |
 | `modality` | string | 是 | 恒为 `natural_image` | 后端固定值 |
+| `axes` | `Axis[]` | 是 | `x`、`y` 两轴，单位 `px`，`spacing` 为 `null` | 图像尺寸 |
+| `calibration` | null | 是 | 恒为 `null`，无医学标定 | 后端固定值 |
+| `methods` | `MethodRef[]` | 是 | 恒为空数组 | 后端固定值 |
+| `meta.center` | string | 否 | `Natural images` | 后端固定值 |
 
 ### 9.3 前端状态
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
-| `naturalImages` | `ImageMeta[]` | 与医学 `images` 分开保存，初始化加载 |
-| `modality` | `Modality` | 选自然照片时为 `natural_image` |
-| `activeImage` | `string \| null` | 自然照片选中时为固定白名单 ID |
+| `objects["natural_image"]` | `ObjectMeta[]` | `loadObjects("natural_image")` 写入；缺键 = 未加载，空数组 = 已加载为空 |
+| `modality` | `Modality \| null` | 初始为 `null`；打开自然照片时为 `natural_image` |
+| `focus` | `Focus \| null` | 自然照片打开时为 `{ object_id: 白名单 ID, kind: "image", index: {}, region: null }`；只经 `setFocus` / `setIndex` / `setRegion` 写入 |
 
 不新增数据库表、持久化字段、事件 payload 或迁移。
 
@@ -176,15 +189,16 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> MedicalImage: 应用初始化/选择医学模态
-    MedicalImage --> NaturalImage: 选择 natural-images 叶子
+    [*] --> NoFocus: 应用初始化（modality=null，focus=null）
+    NoFocus --> NaturalImage: loadObjects(natural_image) 打开首个对象
+    MedicalObject --> NaturalImage: 切换器选通用图像 / 点最近使用项
     NaturalImage --> NaturalImage: 选择另一张自然照片
-    NaturalImage --> MedicalImage: 点击任一医学模态
+    NaturalImage --> MedicalObject: 切换器选任一医学模态
 ```
 
-- 进入 `NaturalImage`：设置 `modality=natural_image`、`activeImage`，清空 3D/WSI 与医学结果状态。
-- 离开 `NaturalImage`：复用现有 `switchModality` 加载目标医学模态首个对象。
-- 未加载示例数据时文件栏不出现自然图像项；列表为空时不自动选择，也不报全局错误。
+- 进入 `NaturalImage`：`loadObjects` / `openObject` 设 `modality=natural_image` 与 `focus`；跨模态进入时按 §7 规则 3 复位焦点、叠加、工具、工具参数与活动模型。
+- 离开 `NaturalImage`：`loadObjects(目标模态)` 做同样复位，并打开目标模态首个对象。
+- 未加载示例数据时文件栏不出现自然图像项；列表为空时 `focus=null`，查看器不挂载，也不报全局错误。
 
 ## 12. 审计或事件规则
 
@@ -209,6 +223,7 @@ stateDiagram-v2
 
 - 依赖 [02-agent-image-annotation](../02-agent-image-annotation/README.md)：`segment_region`、外发门控、SAM 契约、建议态工具结果与错误处理由其负责；本 SDD 只补真实自然图像输入。
 - 依赖 [04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)：自然图像上的 polygon 建议沿用统一 Annotation 实体、渲染与确认流。
+- 上游 [10-object-convergence](../10-object-convergence/README.md)：`ObjectMeta`、`focus` / `objects` 状态、`openObject` 的 no-task 契约（D-18）、按 `kind` 分派引擎（D-11）与模态标签来源（D-22）由其定义；本 SDD 只约束 `natural_image` 的取值。
 - 不修改 science-core 任务注册表；因此与 CT、WSI、IMT、HC TaskPlugin 无调用关系。
 
 ## 15. 验收标准
@@ -219,8 +234,8 @@ stateDiagram-v2
 - [x] 缺失、损坏或未知自然图像不进入列表，且不能作为 `/annotations` 的目标。
 - [x] 加载示例数据（或 `GLAUX_DEV_MODE=1`）后文件栏显示这 4 张照片；未加载时不显示。
 - [x] 选择任一自然照片后挂载 2D Viewer，显示正确照片且 `modality=natural_image`。
-- [x] 选择自然照片不调用 `/task/run`，并清空此前医学 metrics/primitives/3D/WSI 状态。
-- [x] 自然图像 Viewer Context 精确为当前 `image_id` + `natural_image`，不含医学 `task`、`method`、`cubs_cf`、`roi_box`。
+- [x] 选择自然照片不调用 `/task/run`，并以新焦点替换旧焦点、清空此前医学 metrics/primitives。
+- [x] 自然图像 Viewer Context 为 `collection` + `object` + `focus`（另带过渡字段 `modality`、`image_id`），不含医学 `task`、`method`、`cubs_cf`、`roi_box`。
 - [x] Workbench 与 Focus 中自然图像显示双语模态标签，且不显示 `CF`、医学任务名或医学活动模型。
 - [x] 在外发开关和 token 已配置时，至少两张照片可通过英文名词提示获得 `segment_region` 多边形候选。
 - [ ] 至少一个 SAM 候选可经 `propose_annotation` 显示为建议态，并可人工确认或驳回。

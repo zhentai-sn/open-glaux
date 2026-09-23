@@ -35,7 +35,8 @@ export function toViewerContext(): ViewerContext {
   out.image_id = obj.id;
   const cf = tv ? mmPerPx(obj) : null;
   if (cf != null) out.cubs_cf = cf;
-  const r = s.focus.region;
+  // 过渡字段只随任务上下文下发：无 TaskView 的对象（通用图像、视频）不带医学标定或 ROI（SDD 07）
+  const r = tv ? s.focus.region : null;
   if (r?.kind === "box") out.roi_box = [r.x0, r.y0, r.x1, r.y1];
   return out;
 }

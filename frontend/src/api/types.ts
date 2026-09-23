@@ -1,7 +1,8 @@
 // 前端侧的契约类型——镜像 backend/app/schemas.py（§5）。形状是单一事实源，勿擅改。
 
-export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
-export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology" | "natural_image";
+// SDD 10 规则 10 / D-14：模态字面量比较清零之后放宽为 string，取值由后端注册表决定（SOURCES / REGISTRY）。
+export type TaskType = string;
+export type Modality = string;
 
 // --- 视觉对象（SDD 10 §9.1）——镜像 backend schemas.ObjectMeta 等 ---------------------
 
@@ -51,11 +52,8 @@ export interface ObjectMeta {
   methods: MethodRef[];
   /** 自由元数据；原 center 在此（meta.center）。 */
   meta: Record<string, unknown>;
-  /** 过渡一版（W7 删）：由后端从 axes / calibration 回填；新代码不得读取（§7 规则 8）。 */
-  cf?: number | null;
-  voxel_spacing_mm?: [number, number, number] | null;
-  mpp_um?: [number, number] | null;
-  dims?: [number, number] | null;
+  // 后端过渡期仍下发 cf / voxel_spacing_mm / mpp_um / dims（W7 删）；前端类型不声明它们，
+  // 读取即编译失败（§7 规则 8），一律经 axes / calibration 取值（data/objectInfo.ts）。
 }
 /** 过渡别名一版（W7 删）。 */
 export type ImageMeta = ObjectMeta;

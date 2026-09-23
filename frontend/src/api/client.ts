@@ -7,7 +7,6 @@ import type {
   Capability,
   DataSource,
   EditRequest,
-  ImageMeta,
   Measure,
   MeasurementResult,
   Modality,
@@ -121,17 +120,11 @@ export const api = {
       req,
     ),
 
-  images: (modality: Modality = "carotid_imt") =>
-    get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
 
-  /** SDD 07：固定自然照片，仅供通用 SAM / 标注走查，不对应 science-core 任务。 */
-  naturalImages: () => get<ImageMeta[]>(`/images?modality=natural_image`),
 
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
   // --- P6：CT 体积数据 ------------------------------------------------------
-  /** CT 体积列表——同 /images?modality=ct_abdomen，分端点便于前端 discovery。 */
-  volumes: () => get<ImageMeta[]>(`/volumes`),
   /** 原始 NIfTI 字节流（CS3D DICOM image loader 走 wadouri: scheme）。 */
   volumeUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}`,
   // labelmap 字节流由后端在 VolumeMask.ref 里直接下发绝对 URL，前端不拼；分割统一走 taskRun。
@@ -143,8 +136,6 @@ export const api = {
     ),
 
   // --- P7：病理 WSI ---------------------------------------------------------
-  /** WSI slide 列表——同 /images?modality=pathology，分端点便于前端 discovery。 */
-  slides: () => get<ImageMeta[]>(`/slides`),
   /** DeepZoom 瓦片 URL（OSD 自定义 tileSource 的 getTileUrl 用；level/col/row 为 DeepZoom 坐标）。 */
   wsiTileUrl: (id: string, level: number, col: number, row: number) =>
     `${BASE}/wsi/${encodeURIComponent(id)}/tile/${level}/${col}/${row}`,

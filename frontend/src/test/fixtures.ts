@@ -18,10 +18,12 @@ const AXES: Record<ObjectKind, ObjectMeta["axes"]> = {
   video: [{ name: "x", size: 64 }, { name: "y", size: 48 }, { name: "t", size: 12 }],
 };
 
-/** 一个对象元数据；`cf` 若给出则同时写成 mm_per_px 标定（与后端回填一致）。 */
-export function objectMeta(p: Partial<ObjectMeta> & { id: string; modality: Modality }): ObjectMeta {
+/** 一个对象元数据；给 `cf` 即写成 mm_per_px 标定（过渡字段本身前端类型不声明）。 */
+export function objectMeta({
+  cf = null,
+  ...p
+}: Partial<ObjectMeta> & { id: string; modality: Modality; cf?: number | null }): ObjectMeta {
   const kind = p.kind ?? KIND_OF[p.modality] ?? "image";
-  const cf = p.cf ?? null;
   return {
     kind,
     source_id: "test-source",

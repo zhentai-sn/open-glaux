@@ -7,7 +7,7 @@
 ### Added
 
 - 数据轴注册表 `SOURCES`（`app/sources/`，SDD 10 W1）：一个模态一个 `Source`，`MODALITIES = tuple(SOURCES)`；`resolve_object` 为对象 id 的唯一解析入口。
-- `ObjectMeta`：`GET /images` 元素新增 `kind`、`source_id`、`display_name`、`axes`、`calibration`、`resources`、`streams`、`meta`；旧字段 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` / `center` 由 `SourceBase` 回填，取值不变。
+- `ObjectMeta`：`GET /images` 元素新增 `kind`、`source_id`、`display_name`、`axes`、`calibration`、`resources`、`streams`、`meta`；旧字段 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` 由 `SourceBase` 回填，取值不变。
 - `GET /datasources` 元素新增 `kind`、`label`、`label_key`、`importable`、`default_capabilities`（无任务模态的能力位默认集，SDD 10 §9.4）。
 - `video` 模态数据轴：mp4 / webm 的上传与文件夹导入、帧率探测、音轨声明（`streams[]` + `resources.audio`，不提供取流）、`GET /image/{vid}` 取第 0 帧。依赖 PyAV，作为可选 extra `video`。
 - 开发者模式下显式注册的合成源 `synthetic-us`、`synthetic-hc`，仅在同模态无其他 active 源时为 active。
@@ -28,6 +28,8 @@
 - `GET /models` 由各 `Detector.methods()` 汇总，无数据时不再回退 mock 模型表。
 - `/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{id}/tile/…` 改为 `/objects/*` 的 alias（字节等价）；`/wsi/{id}/verify` 内部改调 `Detector.verify`。
 - 标注的第三轴索引（`z` / `index`）按对象的轴范围校验，越界 422。
+- **不兼容（0.x 破坏性变更）**：`ObjectMeta.methods` 由 `string[]` 改为 `[{name, role}]`，`role` 取 `gold` / `agent` / `reference`（SDD 10 W3）。
+- **不兼容（0.x 破坏性变更）**：`ObjectMeta` 删除顶层 `center`，数据源展示名只在 `meta.center`。
 
 ### Fixed
 

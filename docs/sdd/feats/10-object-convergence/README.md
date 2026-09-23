@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0～W2 已准出（门禁结果与审阅结论见执行记录），可进入 W3 |
+| 当前阶段 | 契约冻结；W0～W2 已准出；W3 代码与门禁完成、待维护者审阅与手工走查（见执行记录 W3 节） |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -876,10 +876,9 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `ObjectMeta` 的 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` | W1 | `SourceBase` 从 `axes` / `calibration` 回填；前端 lint 禁读 | W7 |
 | `ImageMeta`（TS 与 Python 别名） | W1 | 指向 `ObjectMeta` | W7 |
-| `ObjectMeta.center` 顶层字段与 `methods` 的字符串数组形状 | W1 | `center` 由 `SourceBase` 从 `meta.center` 回填；`methods` 暂为方法名数组（前端直读二者） | W3（前端改读 `meta` 与 `methods[].role` 时同提交切换） |
 | `TaskSpec` 的 `cubs_cf` / `roi` / `roi_box` | W1 | `_legacy` validator 映射为 `calibration` / `region` | W7 |
 | 端点 alias（`/volumes`、`/slides`、`/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{slide_id}/tile/{level}/{col}/{row}`） | W2 | 内部转调 `/objects/*`，双通 | W7 |
-| `ViewerContext` 的 `image_id` / `modality` / `cubs_cf` / `roi_box` | W5 | `object` / `focus` 优先，旧字段仅在缺失时映射并 warn | W7 |
+| `ViewerContext` 的 `image_id` / `modality` / `cubs_cf` / `roi_box` | W3（前端与新字段一同下发） | W3～W4 runtime 仍只读旧字段；W5 起 `object` / `focus` 优先，旧字段仅在缺失时映射并 warn | W7 |
 | `TaskPlugin.viewer` | W2 标 deprecated | 保留字段但 `Viewer.tsx` 不再读（D-11） | W7 |
 | `Detection.roi_used` | W2 | 与新增的 `Detection.region` 并存，取值与字段名不变 | W7 |
 | `Annotation.z` API 别名 | W2 | 与 `index` 并存 | W7 删 API 别名；**存储列 `z` 保留**，不做第二次库迁移 |
@@ -957,7 +956,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 #### A. ObjectMeta（元数据单一形状）
 
-- [ ] 过渡期（W1～W7）：`GET /images?modality=ct_abdomen` 返回的首个元素的键集合等于 `ObjectMeta` 的字段集合（`id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta` 加过渡字段 `center, cf, voxel_spacing_mm, mpp_um, dims`；`center` 于 W3 删除），无其它额外顶层字段。
+- [ ] 过渡期（W1～W7）：`GET /images?modality=ct_abdomen` 返回的首个元素的键集合等于 `ObjectMeta` 的字段集合（`id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta` 加过渡字段 `cf, voxel_spacing_mm, mpp_um, dims`），无其它额外顶层字段；`methods` 元素为 `{name, role}`。
 - [ ] 同一对象经 `GET /images?modality=` 与 `GET /objects/{id}` 返回的公共字段逐字段相等（同一构造路径，非两处各算一份）。
 - [ ] 过渡期快照测试：`SourceBase` 回填的 `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 与收敛前各模块直出值逐字段 diff 为空（含舍入与轴序）。diff 不空按缺陷处理，不得改期望值。
 - [ ] `ObjectMeta.axes` 对四种 `kind` 均非空，且 `axes[].name` 取自 `x/y/z/t/level`、`size > 0`；`meta.center` 缺失时任何消费方不抛异常。

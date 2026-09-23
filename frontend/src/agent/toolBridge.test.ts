@@ -202,6 +202,8 @@ describe("toViewerContext", () => {
     const { session, conv } = await fresh();
     const s = session.getState();
     s.setTasks([IMT_TASK]);
+    s.setModality("carotid_imt");
+    session.setState({ activeModel: "caroSegDeep" });
     const obj = objectMeta({ id: "tech_401", cf: 0.06, modality: "carotid_imt" });
     s.setObjects("carotid_imt", [obj]);
     focusOn(session, "tech_401");
@@ -220,6 +222,9 @@ describe("toViewerContext", () => {
   it("carries the box region for pathology and omits the object when nothing is open", async () => {
     const { session, conv } = await fresh();
     const s = session.getState();
+    s.setTasks([
+      { ...IMT_TASK, task: "nuclei_detection", modality: "pathology", ...taskFields("pathology") },
+    ]);
     s.setModality("pathology");
     s.setObjects("pathology", [objectMeta({ id: "slide_001", modality: "pathology" })]);
     focusOn(session, "slide_001", "slide");

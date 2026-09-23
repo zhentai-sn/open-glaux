@@ -49,7 +49,7 @@ export function TerminalView() {
         setLines([]);
         break;
       case "tasks":
-        emit(st.tasks.map((tk) => ({ text: `  ${tk.task}  (${tk.modality} · viewer=${tk.viewer})`, kind: "out" })));
+        emit(st.tasks.map((tk) => ({ text: `  ${tk.task}  (${tk.modality} · ${tk.object_kinds.join("|")} · ${tk.trigger})`, kind: "out" })));
         break;
       case "caps":
         emit(st.capabilities.map((c) => ({ text: `  [${c.layer}] ${c.kind}  ${c.id}  ${c.status}`, kind: "out" })));

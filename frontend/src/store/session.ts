@@ -6,7 +6,6 @@ import type {
   Capability,
   DataSource,
   Focus,
-  ImageMeta,
   Index,
   Measure,
   Modality,
@@ -226,11 +225,7 @@ interface SessionState {
 
   // 领域
   tasks: TaskView[]; // 任务注册表（GET /tasks）——切换器/工具/度量的真相源
-  modality: Modality; // 当前模态（颈动脉 IMT / 胎儿 HC / CT 腹部）
-  activeImage: string | null; // 2D 模态的当前图（CUBS / HC18 id）
-  activeVolume: string | null; // P6：3D 模态的当前 CT volume id
-  activeSlide: string | null; // P7：病理 WSI 的当前 slide id
-  wsiRoi: [number, number, number, number] | null; // P7：当前框选 ROI (x0,y0,x1,y1) level-0 px
+  modality: Modality | null; // 当前模态（数据集路由键）；启动时由首个有数据的模态决定，不写死
   activeModel: string | null; // 当前模态无活动模型时为 null
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
@@ -239,11 +234,6 @@ interface SessionState {
   // 会让用户以为自己没数据而去重新导入，实际是后端没起。
   dsState: "loading" | "ready" | "failed";
   recentItems: RecentItem[]; // SDD 08 §9.4：最近打开过的对象（本地持久化）
-  images: ImageMeta[]; // 数据集列表（Explorer）
-  naturalImages: ImageMeta[]; // SDD 07：常驻自然图像演示集合（与医学 images 分开）
-  volumes: ImageMeta[]; // P6：CT 体积列表
-  slides: ImageMeta[]; // P7：WSI slide 列表
-  imageMeta: ImageMeta | null; // 当前图元数据（cf/methods 或 voxel_spacing_mm）
   // SDD 10 §9.1：唯一观测焦点 + 按模态分组的对象表（缺键 = 未加载，空数组 = 已加载为空）。
   focus: Focus | null;
   objects: Record<string, ObjectMeta[]>;
@@ -276,22 +266,13 @@ interface SessionState {
   upsertAnnotation: (a: Annotation) => void;
   removeAnnotation: (id: string) => void;
   setTasks: (t: TaskView[]) => void;
-  setModality: (m: Modality) => void;
-  setActiveImage: (id: string | null) => void;
-  setActiveVolume: (id: string | null) => void; // P6
-  setActiveSlide: (id: string | null) => void; // P7
-  setWsiRoi: (roi: [number, number, number, number] | null) => void; // P7
+  setModality: (m: Modality | null) => void;
   setModels: (m: ModelInfo[]) => void;
   setCapabilities: (c: Capability[]) => void;
   setDatasources: (d: DataSource[]) => void;
   setDsState: (s: "loading" | "ready" | "failed") => void;
   setRecentItems: (r: RecentItem[]) => void;
   activateModel: (id: string) => void;
-  setImages: (m: ImageMeta[]) => void;
-  setNaturalImages: (m: ImageMeta[]) => void;
-  setVolumes: (m: ImageMeta[]) => void; // P6
-  setSlides: (m: ImageMeta[]) => void; // P7
-  setImageMeta: (m: ImageMeta | null) => void;
   /** 焦点的唯一写入口（§7 规则 4）：setFocus 整体替换，setIndex / setRegion 只改一维。 */
   setFocus: (f: Focus | null) => void;
   setIndex: (p: Index) => void;
@@ -315,24 +296,6 @@ interface SessionState {
 
 let _id = 0;
 const nextId = () => ++_id;
-
-/** 过渡期：focus → 旧四槽（第三拍删除）。 */
-function legacySlots(f: Focus | null) {
-  const id = f?.object_id ?? null;
-  const box = f?.region?.kind === "box" ? f.region : null;
-  return {
-    activeImage: f && f.kind === "image" ? id : null,
-    activeVolume: f && f.kind === "volume" ? id : null,
-    activeSlide: f && f.kind === "slide" ? id : null,
-    wsiRoi: box ? ([box.x0, box.y0, box.x1, box.y1] as [number, number, number, number]) : null,
-  };
-}
-
-/** 过渡期：旧 setActiveX → focus（第三拍删除）。 */
-function legacyFocus(s: { focus: Focus | null }, id: string | null, kind: Focus["kind"]) {
-  if (id) return { focus: { object_id: id, kind, index: {}, region: null } as Focus };
-  return s.focus?.kind === kind ? { focus: null } : {};
-}
 
 const NO_OBJECTS: ObjectMeta[] = []; // 共享空数组：选择器返回值须引用稳定，否则订阅方反复重渲染
 
@@ -367,22 +330,13 @@ export const useSession = create<SessionState>((set) => ({
   annotations: [],
 
   tasks: [],
-  modality: "carotid_imt",
-  activeImage: null,
-  activeVolume: null,
-  activeSlide: null,
-  wsiRoi: null,
-  activeModel: "caroSegDeep",
+  modality: null,
+  activeModel: null,
   models: [],
   capabilities: [],
   datasources: [],
   dsState: "loading",
   recentItems: readRecent(),
-  images: [],
-  naturalImages: [],
-  volumes: [],
-  slides: [],
-  imageMeta: null,
   focus: null,
   objects: {},
   metrics: null,
@@ -443,21 +397,9 @@ export const useSession = create<SessionState>((set) => ({
     set((s) => ({ annotations: s.annotations.filter((x) => x.id !== id) })),
   setTasks: (t) => set({ tasks: t }),
   setModality: (m) => set({ modality: m }),
-  // 过渡期：旧四槽与 focus 双向同步，旧 setter 在第三拍删除。
-  setActiveImage: (id) => set((s) => ({ activeImage: id, ...legacyFocus(s, id, "image") })),
-  setActiveVolume: (id) => set((s) => ({ activeVolume: id, ...legacyFocus(s, id, "volume") })),
-  setActiveSlide: (id) => set((s) => ({ activeSlide: id, ...legacyFocus(s, id, "slide") })),
-  setWsiRoi: (roi) =>
-    set((s) => ({
-      wsiRoi: roi,
-      focus: s.focus
-        ? {
-            ...s.focus,
-            region: roi ? { kind: "box", x0: roi[0], y0: roi[1], x1: roi[2], y1: roi[3] } : null,
-          }
-        : null,
-    })),
-  setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
+  // 活动模型取当前模态的 active 模型；没有即 null，不兜底任何模态的模型名（DEBT-11）
+  setModels: (m) =>
+    set((s) => ({ models: m, activeModel: m.find((x) => x.active && x.modality === s.modality)?.id ?? null })),
   setCapabilities: (c) => set({ capabilities: c }),
   setDatasources: (d) => set({ datasources: d }),
   setDsState: (v) => set({ dsState: v }),
@@ -470,17 +412,12 @@ export const useSession = create<SessionState>((set) => ({
       activeModel: id,
       models: s.models.map((m) => ({ ...m, active: m.id === id })),
     })),
-  setImages: (m) => set({ images: m }),
-  setNaturalImages: (m) => set({ naturalImages: m }),
-  setVolumes: (m) => set({ volumes: m }),
-  setSlides: (m) => set({ slides: m }),
-  setImageMeta: (m) => set({ imageMeta: m }),
-  setFocus: (f) => set(() => ({ focus: f, ...legacySlots(f) })),
+  setFocus: (f) => set({ focus: f }),
   setIndex: (p) => set((s) => (s.focus ? { focus: { ...s.focus, index: { ...s.focus.index, ...p } } } : {})),
   setRegion: (r) =>
     set((s) =>
       s.focus
-        ? { focus: { ...s.focus, region: r }, wsiRoi: r?.kind === "box" ? [r.x0, r.y0, r.x1, r.y1] : null }
+        ? { focus: { ...s.focus, region: r } }
         : {},
     ),
   setObjects: (modality, list) => set((s) => ({ objects: { ...s.objects, [modality]: list } })),
