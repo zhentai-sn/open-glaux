@@ -21,7 +21,7 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | `GET /volume/{id}` `GET /volume/{id}/labelmap` `POST /volume/{id}/mask-edit` | `dataset_ct` / `segment_ts` | CT：NIfTI 流 + labelmap + 画笔编辑回流 |
 | `GET /wsi/{id}/tile/…` `GET /wsi/{id}/verify` | `dataset_wsi` / `segment_wsi` | 病理：DeepZoom 瓦片 + 复现验证 |
 | `GET /models` `GET /capabilities` | 注册表 | 插件市场 / 能力清单 |
-| `GET/POST/DELETE /datasources` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源 |
+| `GET/POST /datasources` `DELETE /datasources/{id}` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源 |
 | `POST /uploads/images` | `routers/uploads.py` | 浏览器上传图像（SDD 08） |
 | `/annotations` `/annotations/{id}` `/annotations/{id}/mask` | `routers/annotations.py` | 统一标注（SDD 04） |
 | `/atlas/*`（`exemplars`、`collections`、`tags`、`imports/*`） | `routers/atlas.py` | 图谱：案例库与文献导入（SDD 03） |

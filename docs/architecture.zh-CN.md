@@ -113,13 +113,13 @@ open-glaux/
 │   ├── sdd/                     #   规范驱动开发：Feature 契约、验收、决策
 │   ├── runbooks/                #   操作手册
 │   ├── landing/                 #   产品门户首页
-│   ├── researches/ brainstorms/ designs/ plans/ todo/  # 记录类文档
+│   ├── researches/ brainstorms/ designs/ plans/ todo/  # 以记录为主（不带日期的设计是活文档，见 docs/README.md）
 │   └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
 │
 └── assets/                      # 架构图 SVG（中/英各一份）
 ```
 
-`.glaux/`（本地会话 SQLite）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
+`.glaux/`（本地会话 SQLite）、`dist/`（`scripts/release/package.py` 输出的发行包 zip）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
 
 ---
 

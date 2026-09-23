@@ -395,9 +395,9 @@ v1.1 自查里"无法验证（依赖 SDD 02 `locate_roi`）"的三条，除定�
 - 检索链与卡片已在真实会话链路里跑通（工具单测 + 经 harness 的集成用例 + 前端历史渲染用例）。
 - 卡片随会话历史持久化：`session-service.visibleMessage` 保留带 `glaux.atlas_referenced` 的
   `toolResult` 并剥空 content——案例图不进快照，前端另经 `/atlas/exemplars/{id}/crop` 取。
-- 外发开关关闭时案例不外发、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`，
-  `excluded_by_egress` 计数在 `consult_atlas` 结果文案与卡片中均呈现（有测试）；02 §7.4 的
-  `GLAUX_ANNOT_ALLOW_EGRESS` 门控由 02 接线时叠加。
+- 模型连接不是回环时 `local-only` 案例不随行、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`，
+  `excluded_by_egress` 计数在 `consult_atlas` 结果文案与卡片中均呈现（有测试）；`GLAUX_ANNOT_ALLOW_EGRESS`
+  只约束第三方分割服务（02 §7.4），不参与这里的判定。
 
 **仍未达成**
 

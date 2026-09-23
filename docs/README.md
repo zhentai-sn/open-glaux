@@ -16,6 +16,7 @@ docs/
 ├── plans/             # 实现计划（按日期；承接 SDD/设计的 HOW）
 ├── runbooks/          # 操作手册（活文档：随代码同步修订）
 ├── todo/              # 代码评审与审计待办（按日期）
+├── landing/           # 产品门户首页（HTML，活文档）
 └── roadmaps/          # 路线图（按版本日期存档，根 README 指向当前版）
     └── charter.zh-CN.md  # 纲领：Glaux 的身份与一切决策的组织原则（先读这份）；路线图从纲领派生，故与路线图同属一族
 ```
@@ -79,7 +80,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 ## 核心文档
 
 - **[仓库骨架总览 · Architecture](architecture.zh-CN.md)** —— 根目录每个文件/目录的职责、三进程运行时全景、技术栈速查。**第一次接触仓库时先读这份。** 活文档，随结构演进更新。
-- **[纲领 · Charter](roadmaps/charter.zh-CN.md)** —— Glaux 是什么、发展目标、决策过滤器、边界。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新——与 roadmaps/ 下按版本日期存档的其余文件不同，但同属路线图一族（路线图由纲领派生）。
+- **[纲领 · Charter](roadmaps/charter.zh-CN.md)** —— 名字与宗旨、领域、边界、核心信念、身份（harness）、环境四要素、决策过滤器。**新成员 / 每次重大决策先读这份。** 它不随日期存档，是单一活文档，修订即更新——与 roadmaps/ 下按版本日期存档的其余文件不同，但同属路线图一族（路线图由纲领派生）。
 - **[需求清单 · Requirements](requirements.zh-CN.md)** —— 2026-07-05 的初步需求（v0），已被纲领取代，仅供追溯。
 - **[SDD 索引](sdd/README.md)** —— 实现前冻结 Feature 范围、契约、状态机、错误处理与验收标准；仅 `ready` SDD 可进入实现规划。
 
@@ -112,7 +113,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 | 文件 | 日期 | 类别 | 主题 |
 | --- | --- | --- | --- |
-| [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河） |
+| [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河；定位已被纲领 v2 取代） |
 | [20260705-02-research-ultrasound-benchmarks.zh-CN.md](researches/20260705-02-research-ultrasound-benchmarks.zh-CN.md) | 2026-07-05 | research | 公开超声图像基准调研（数据集 / 许可证 / 短名单推荐） |
 | [20260816-01-tech-annotation-exemplar-store.zh-CN.md](researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | tech | 图像标注案例库技术调研（LanceDB / BiomedCLIP·DINOv2 / 检索增强分割；含已拍板决策） |
 | [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；前提已被纲领 v2 取代，不推进） |
@@ -136,7 +137,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 ### 约定
 
 - 路线图**按版本日期存档**，不覆盖旧版——每次重大更新新建一份，保留演进痕迹。
-- **根目录 README 指向"当前版本"**；每次发布新版路线图，同步更新两个根 README（`README.md` / `README.zh-CN.md`）的路线图段指向，并更新下方索引的"当前"标记。
+- 根目录 README 链接纲领与路线图目录；发布新版路线图时，在下方索引把新版标为 `current`、旧版改为 `superseded`。
 - **例外**：`charter.zh-CN.md`（纲领）同属本目录，但不按日期存档、不建新版本——它是路线图的源头，单一活文档，修订即更新原文件。
 
 ### 现有路线图
@@ -144,8 +145,8 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | 文件 | 日期 | 范围 | 状态 |
 | --- | --- | --- | --- |
 | [charter.zh-CN.md](roadmaps/charter.zh-CN.md) | 活文档 | — | 纲领（路线图之源，不存档） |
-| [20260705-product-roadmap.zh-CN.md](roadmaps/20260705-product-roadmap.zh-CN.md) | 2026-07-05 | product | ✅ 当前 |
-| [20260818-frontend-quality-roadmap.zh-CN.md](roadmaps/20260818-frontend-quality-roadmap.zh-CN.md) | 2026-08-18 | frontend | `ready`（纲领落地：动效/无障碍/反馈打磨层） |
+| [20260705-product-roadmap.zh-CN.md](roadmaps/20260705-product-roadmap.zh-CN.md) | 2026-07-05 | product | `superseded`（已被纲领取代） |
+| [20260818-frontend-quality-roadmap.zh-CN.md](roadmaps/20260818-frontend-quality-roadmap.zh-CN.md) | 2026-08-18 | frontend | `current`（落地前端设计纲领：P0–P2 与图标系统已完成，P3 待办） |
 
 ## 三、脑暴 brainstorms/
 

@@ -95,6 +95,8 @@ curl -s -X DELETE localhost:8000/datasources/imported-xxxx   # 删除（builtin 
 - **`config.*_available()` 现注册表感知**：内部走 `resolve_root + root_has_data`；`root_has_data`
   **不查注册表**（直接判目录）——否则 seed 探针 → available → resolve_root → seed 递归。
 - **多源歧义**：一个模态多 active 源时取 `list_all` 首个（builtin 在前）；多源选择是后续。
+- **模式标识看的是有无内置源**：前端按 `origin == "builtin"` 判模式；产品模式下「加载示例数据」注册的示例源也是 builtin，
+  所以之后顶部显示「开发者模式（内置数据源）」紫点，`GLAUX_DEV_MODE` 本身没有变。
 - **落盘并发**：`sources.json` 单后端进程假设（原子写 tmp+rename）；多进程写需加锁（同 P6 mask-edit）。
 
 ## 测试

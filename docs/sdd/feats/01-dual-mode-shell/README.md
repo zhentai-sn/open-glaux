@@ -12,7 +12,7 @@ status: implemented
 | SDD 状态 | `implemented`（v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
 | 最近更新 | 2026-08-31 |
-| 目标阶段 | 前端外壳分层:为首要用户 B 提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
+| 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
 进入 `accepted` 的依据(2026-08-13):产品维护者在真实数据环境(CUBS + 参考智能体)交互评审通过并确认阶段性验收;评审期间提出的空状态布局还原、状态行下移、Markdown 渲染、上下文环形图、徽标等打磨项均已实现并复验。§15 验收项全部通过。
@@ -47,11 +47,11 @@ status: implemented
 
 ## 3. 当前目标
 
-**背景**:[前端设计纲领 G1–G2](../../../designs/frontend-design-charter.zh-CN.md) 要求界面同时服务非技术研究者与专家,并以对话优先为默认形态(非技术研究者即"不会写宏/脚本、团队里没有计算影像的人")。现前端是完整的 IDE 隐喻(活动栏/侧栏/编辑器/底部面板/终端/可停靠拖拽),对 B 构成第一眼劝退;产品承诺"用自然语言描述研究目标",入口应长得像对话。参照 OpenAI Codex 的形态:**对话/任务流是主体,工作产物按需浮现,复杂度是被召唤出来的而非预先铺开的**。
+**背景**:[前端设计纲领 G1–G2](../../../designs/frontend-design-charter.zh-CN.md) 要求界面同时服务非技术研究者与专家,并以对话优先为默认形态(非技术研究者即"不会写宏/脚本、团队里没有计算影像的人")。现前端是完整的 IDE 隐喻(活动栏/侧栏/编辑器/底部面板/终端/可停靠拖拽),对非技术研究者构成第一眼劝退;产品承诺"用自然语言描述研究目标",入口应长得像对话。参照 OpenAI Codex 的形态:**对话/任务流是主体,工作产物按需浮现,复杂度是被召唤出来的而非预先铺开的**。
 
 本需求交付:
 
-- 新增 **Focus 模式**:对话流为主体 + 图像舞台按需展开的简洁布局,面向 B。
+- 新增 **Focus 模式**:对话流为主体 + 图像舞台按需展开的简洁布局,面向非技术研究者。
 - 现有布局命名为 **Workbench 模式**,面向专家与开发,保持不变。
 - 顶栏一键**无损切换**:两模式共享同一份领域状态(会话、当前图、测量结果),切换不丢任何数据。
 - **新用户默认进入 Focus**——demo 给 B 看的第一眼就是产品承诺本身。
@@ -118,13 +118,15 @@ flowchart TD
     APP[App.tsx<br/>数据装载 effect 与模式无关,仅挂载时跑一次] --> M{useSession.uiMode}
     M -- focus --> FS[FocusShell 新增]
     M -- workbench --> WB[现状树:TitleBar + ActivityBar + Shell dockview + StatusBar]
-    FS --> FT[FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件标签) · ⚙ 弹层 · ⇄]
+    FS --> FT[FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件浏览器列) · ⚙ 弹层 · ⇄]
     FS --> SR[SessionRail 新增薄壳<br/>复用 SessionDrawer]
     FS --> CC[对话列<br/>复用 AgentConversation + ConversationComposer]
-    FS --> RP[FocusSidePanel v1.1<br/>右侧栏壳:标签条 + 折叠条]
-    RP --> SP[StagePanel<br/>复用 Viewer / VolumeViewer / WsiViewer + Tool 子集工具条]
-    RP --> FV[文件标签<br/>复用 SideBar.ExplorerView]
-    RP --> AV[图谱标签<br/>复用 atlas/AtlasView compact(feats/03)]
+    FS --> RP[FocusSidePanel v1.4<br/>右侧栏壳:文件/图谱两枚开关 + 折叠条]
+    RP --> SP[StagePanel 常驻<br/>复用 Viewer / VolumeViewer / WsiViewer + Tool 子集工具条]
+    RP --> PR[PaneResizer<br/>舞台 ⇄ 浏览器列]
+    RP --> BC[浏览器列 browserView<br/>文件 / 图谱互斥,可关闭]
+    BC --> FV[文件<br/>复用 SideBar.ExplorerView]
+    BC --> AV[图谱<br/>复用 atlas/AtlasView compact(feats/03)]
     WB --> TB2[TitleBar 改:右侧加 ⇄ 按钮]
     STORE[(useSession 单一 zustand store<br/>领域状态两模式共享)] -.读写.- FS & WB
 ```
@@ -147,7 +149,7 @@ flowchart TD
    - 舞台与浏览器列之间有第三条拖拽分隔条(见第 7 条)。
    - **窄屏降级**:侧栏可用宽度 < `SIDE_SPLIT_MIN` 时无法并排,退回 v1.1 的整栏互斥形态——浏览器内容占满侧栏,且在文件浏览器选中图像后自动切回舞台。宽度回到阈值以上即恢复分栏,`browserView` 不因降级被改写。
    - 自动切换:仅在窄屏降级态存在(选图 → 回舞台)。分栏态下选图**不**关闭浏览器列——同屏切图正是本形态的目的。`run_task` 结果写回查看器、会话卡片"在图谱中打开"照旧展开右侧栏并切到对应内容。
-3. **舞台不可省**:点选/圈画修正手势与"低风险试一把"核对(需求清单 §2/§3.2)必须在 Focus 舞台可用——Focus 不是纯聊天,是**对话 + 舞台**。
+3. **舞台不可省**:点选/圈画修正手势与"低风险试一把"核对(前端设计纲领 G4)必须在 Focus 舞台可用——Focus 不是纯聊天,是**对话 + 舞台**。
 4. **度量呈现**:度量摘要卡挂在舞台,数据取自同一 `store.metrics`;agent 的 `run_task` 结果经 toolBridge 写回查看器与 store。对话内嵌 `taskrun` 卡片仍未落地(见[实现计划 §1.3](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md))。
 5. **设置收纳**:VLM 连接配置(designs/2026-07-14-001)在 Focus 收进顶栏 ⚙ 弹层;Workbench 入口不动。
 6. **反长回规则(硬约束)**:后续新能力默认 Workbench 独占;进入 Focus 必须显式设计并更新本 SDD——防止 Focus 逐渐长回一个 IDE。
@@ -239,7 +241,7 @@ stateDiagram-v2
 ## 15. 验收标准
 
 - [x] 清空 localStorage 后首次进入,呈现 Focus 空状态(居中输入框 + 示例任务卡),不渲染 ActivityBar / SideBar / BottomPanel / StatusBar 的 DOM。
-- [x] Focus 下发送消息、执行任务,产生与 Workbench 相同的 `taskrun` 卡片数据与舞台叠加(同一 store,断言引用相等或数据一致)。
+- [x] Focus 下发送消息、执行任务,度量与舞台叠加和 Workbench 读同一 store(断言引用相等或数据一致);对话内嵌 `taskrun` 卡片未落地(见 §7 规则 4)。
 - [x] Focus → Workbench → Focus 往返后:消息流、当前图、metrics、primitives、输入框草稿逐项不变。
 - [x] 切换动作期间网络面板零新增请求。
 - [x] 在 Workbench 拖拽改变 dockview 布局 → 切到 Focus → 切回,布局保持拖拽后的状态。
