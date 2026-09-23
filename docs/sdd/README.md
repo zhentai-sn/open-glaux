@@ -32,13 +32,13 @@ stateDiagram-v2
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
 | 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-08-19 |
-| 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1.3 栏宽可拖拽；v1 `accepted`） | Glaux 项目维护者 | 2026-08-31 |
-| 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `implemented`（建议态实时写回与快照契约 D-12） | Glaux 项目维护者 | 2026-08-26 |
-| 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.2 接入会话 `consult_atlas`） | Glaux 项目维护者 | 2026-08-20 |
-| 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `implemented`（浏览器走查验收待补） | Glaux 项目维护者 | 2026-08-17 |
-| 05 | [键盘可达性与全局快捷键](feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
+| 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1.3 栏宽可拖拽；v1 `accepted`） | Glaux 项目维护者 | 2026-09-23 |
+| 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `implemented`（建议态实时写回与快照契约 D-12） | Glaux 项目维护者 | 2026-09-23 |
+| 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.2 接入会话 `consult_atlas`） | Glaux 项目维护者 | 2026-09-23 |
+| 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `implemented`（浏览器走查验收待补） | Glaux 项目维护者 | 2026-09-23 |
+| 05 | [键盘可达性与全局快捷键](feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-23 |
 | 06 | [统一图标系统](feats/06-icon-system/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
-| 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-08-26 |
+| 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-09-23 |
 | 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-08-31 |
 | 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
 | 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0 已准出） | Glaux 项目维护者 | 2026-09-23 |
