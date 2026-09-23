@@ -10,7 +10,7 @@ import { ShortcutSheet } from "./components/ShortcutSheet";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
-import { activeModalities, loadImages, loadNaturalImages, refreshDataSources } from "./data/actions";
+import { activeModalities, loadInitialObjects, refreshDataSources } from "./data/actions";
 import { useGlobalKeys } from "./keys/globalKeys";
 import { useSession } from "./store/session";
 
@@ -46,15 +46,9 @@ export function ResearchApp() {
       // 一个 active 源都没有 → 文件栏渲染空态引导，此处不再发任何数据请求（§7 规则 4）。
       // 失败态同理：failed 不是空，画成空态会让用户以为自己没数据。
       if (useSession.getState().dsState !== "ready" || !activeModalities().length) return;
-      // SDD 07/08：通用图像目录（内置示例 + 导入源）；失败不阻塞医学数据与外壳。
+      // 进入首个有数据的模态 → 打开首个对象（按任务 trigger 决定是否自动跑）
       try {
-        await loadNaturalImages();
-      } catch {
-        /* 通用图像资产缺失时显示空目录 */
-      }
-      // 载数据集 → 选首图 → 真实分割+测量
-      try {
-        await loadImages();
+        await loadInitialObjects();
       } catch {
         /* 无数据时外壳仍可用 */
       }

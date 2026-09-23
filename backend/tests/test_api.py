@@ -144,7 +144,7 @@ def test_real_dataset_cohort():
     imgs = client.get("/images", params={"modality": "carotid_imt"}).json()
     assert len(imgs) == 100  # tech_401–500 演示队列
     assert all(m["cf"] and m["cf"] > 0 for m in imgs)
-    assert "caroSegDeep" in imgs[0]["methods"]
+    assert {"name": "caroSegDeep", "role": "agent"} in imgs[0]["methods"]
 
 
 def test_real_segment_caro_and_reference():

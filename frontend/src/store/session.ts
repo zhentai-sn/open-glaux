@@ -334,12 +334,14 @@ function legacyFocus(s: { focus: Focus | null }, id: string | null, kind: Focus[
   return s.focus?.kind === kind ? { focus: null } : {};
 }
 
+const NO_OBJECTS: ObjectMeta[] = []; // 共享空数组：选择器返回值须引用稳定，否则订阅方反复重渲染
+
 /** 某模态已加载的对象列表；缺省取当前模态。未加载 → 空数组。 */
 export function objectsOf(
   s: Pick<SessionState, "objects" | "modality">,
   modality: string | null = s.modality,
 ): ObjectMeta[] {
-  return modality ? (s.objects[modality] ?? []) : [];
+  return modality ? (s.objects[modality] ?? NO_OBJECTS) : NO_OBJECTS;
 }
 
 /** 焦点对象的元数据——组件需要对象信息时一律经此反查，不在 store 里另存一份（§7 规则 4）。 */

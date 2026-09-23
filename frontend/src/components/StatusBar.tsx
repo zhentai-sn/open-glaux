@@ -1,5 +1,6 @@
+import { currentTaskView } from "../data/actions";
 import { useI18n } from "../i18n";
-import { useSession } from "../store/session";
+import { objectsOf, useSession } from "../store/session";
 import { Icon } from "./Icon";
 import { TOOL_ICON } from "./iconMap";
 
@@ -8,17 +9,13 @@ export function StatusBar() {
   const tool = useSession((s) => s.tool);
   const coords = useSession((s) => s.coords);
   const metrics = useSession((s) => s.metrics);
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
   const model = useSession((s) => s.activeModel);
-  const image = useSession((s) => s.activeImage);
-  const images = useSession((s) => s.images);
-  const naturalImages = useSession((s) => s.naturalImages);
+  const image = useSession((s) => s.focus?.object_id ?? null);
+  const shownImages = useSession((s) => objectsOf(s));
   const setView = useSession((s) => s.setSidebarView);
-  const shownImages = modality === "natural_image" ? naturalImages : images;
   const idx = image ? shownImages.findIndex((m) => m.id === image) + 1 : 0;
   // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
-  const tv = tasks.find((tk) => tk.modality === modality);
+  const tv = useSession((s) => currentTaskView(s));
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
   // SDD 04：工具文案改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）；图标走 SDD 06 的 TOOL_ICON
   const toolDef = tv?.tools.find((x) => x.id === tool);

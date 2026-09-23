@@ -8,7 +8,10 @@ import { loadAnnotations } from "../annotation/bridge";
 import { attachCsAnnoBridge, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
+import { taskViewFor } from "../data/actions";
+import { mmPerPx } from "../data/objectInfo";
 import { useSession } from "../store/session";
+import type { EngineProps } from "./viewerProps";
 
 // Cornerstone3D StackViewport 引擎（viewer="raster_2d"，SDD 04 T5 迁移）——
 // 交互全部走统一框架：相机（Pan/Zoom）与自由标注（bbox/polygon 绘制+顶点编辑）由
@@ -52,7 +55,7 @@ function maskToPng(mask: Uint8Array, columns: number, rows: number): string {
   return cv.toDataURL("image/png");
 }
 
-export function CornerstoneViewer() {
+export function CornerstoneViewer({ object }: EngineProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
@@ -65,17 +68,16 @@ export function CornerstoneViewer() {
   const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
   const [ready, setReady] = useState(false);
 
-  const activeImage = useSession((s) => s.activeImage);
+  const objectId = object.id;
   const primitives = useSession((s) => s.primitives);
   const annotations = useSession((s) => s.annotations);
-  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const cf = mmPerPx(object);
   const tool = useSession((s) => s.tool);
   const toolOptions = useSession((s) => s.toolOptions);
-  const modality = useSession((s) => s.modality);
   const tasks = useSession((s) => s.tasks);
   const setCoords = useSession((s) => s.setCoords);
 
-  const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
+  const taskView = useMemo(() => taskViewFor({ tasks }, object), [tasks, object]);
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
   const capabilities = taskView?.capabilities ?? [];
   const ovByRole = useMemo(() => new Map(overlays.map((o) => [o.role, o])), [overlays]);
@@ -97,10 +99,10 @@ export function CornerstoneViewer() {
       engineRef.current = engine;
       vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
       createToolGroup(TG_ID, VP_ID, RE_ID);
-      // 落库目标用 store 的 activeImage（对象 id 的权威值），不从图片 URL 反推
+      // 落库目标用焦点的 object_id（对象 id 的权威值），不从图片 URL 反推
       detach = attachCsAnnoBridge({
         getImageId: () => imageIdRef.current,
-        toTarget: () => ({ image_id: useSession.getState().activeImage ?? "" }),
+        toTarget: () => ({ image_id: useSession.getState().focus?.object_id ?? "" }),
       });
       setReady(true);
     })();
@@ -319,10 +321,10 @@ export function CornerstoneViewer() {
 
   // 载图：预取尺寸 → setStack → reset 相机 → 拉标注（bbox/polygon/mask 统一面）
   useEffect(() => {
-    if (!ready || !activeImage) return;
+    if (!ready || !objectId) return;
     const vp = vpRef.current;
     if (!vp) return;
-    const imageId = `web:${api.imageUrl(activeImage)}`;
+    const imageId = `web:${api.imageUrl(objectId)}`;
     imageIdRef.current = imageId;
     // 切图清旧：CS3D 标注层 + 桥映射 + 画笔缓冲 + mask 缓存
     // （同一时刻仅一个查看器挂载，removeAllAnnotations 不会误伤其他引擎）
@@ -347,12 +349,12 @@ export function CornerstoneViewer() {
       vp.resetCamera();
       vp.render();
       drawOverlayRef.current();
-      void loadAnnotations(activeImage);
+      void loadAnnotations(objectId);
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, activeImage]);
+  }, [ready, objectId]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
@@ -497,11 +499,11 @@ export function CornerstoneViewer() {
     brushing.current = false;
     const buf = brushBuf.current;
     const bd = brushDims.current;
-    if (!buf || !bd || !activeImage || !buf.some((v) => v)) return;
+    if (!buf || !bd || !objectId || !buf.some((v) => v)) return;
     const png = maskToPng(buf, bd.columns, bd.rows);
     const { createAnnotation } = await import("../annotation/bridge");
     const saved = await createAnnotation({
-      image_id: activeImage,
+      image_id: objectId,
       primitive: { kind: "mask" },
       mask_png_b64: png,
     });

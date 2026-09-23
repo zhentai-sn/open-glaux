@@ -11,7 +11,10 @@ import {
   type OsdAnnotator,
   type W3cAnnotation,
 } from "../annotation/wsiAnno";
+import { taskViewFor } from "../data/actions";
+import { axisSize } from "../data/objectInfo";
 import { useSession } from "../store/session";
+import type { EngineProps } from "./viewerProps";
 import { getT } from "../i18n";
 import type { ClassSpec, Primitive } from "../api/types";
 import { Icon } from "./Icon";
@@ -28,7 +31,7 @@ const NUCLEUS_R = 2.5; // 质心点半径（CSS px）
 
 type PointSetPrim = Extract<Primitive, { kind: "point_set" }>;
 
-export function WsiViewer() {
+export function WsiViewer({ object, focus }: EngineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -37,19 +40,22 @@ export function WsiViewer() {
   const [verify, setVerify] = useState<{ f1: number; count_pred: number; count_ref: number } | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  const activeSlide = useSession((s) => s.activeSlide);
-  const imageMeta = useSession((s) => s.imageMeta);
+  const objectId = object.id;
   const primitives = useSession((s) => s.primitives);
   const metrics = useSession((s) => s.metrics);
   const tool = useSession((s) => s.tool);
   const tasks = useSession((s) => s.tasks);
-  const modality = useSession((s) => s.modality);
-  const wsiRoi = useSession((s) => s.wsiRoi);
+  // 当前 ROI = 焦点的 box 选区（level-0 px）
+  const region = focus.region;
+  const roi = useMemo<[number, number, number, number] | null>(
+    () => (region?.kind === "box" ? [region.x0, region.y0, region.x1, region.y1] : null),
+    [region],
+  );
   const loading = useSession((s) => s.loading);
   const annotations = useSession((s) => s.annotations);
   const notify = useSession((s) => s.notify);
 
-  const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
+  const taskView = useMemo(() => taskViewFor({ tasks }, object), [tasks, object]);
   const pointSet = useMemo<PointSetPrim | null>(
     () => primitives.find((p): p is PointSetPrim => p.kind === "point_set") ?? null,
     [primitives],
@@ -59,7 +65,10 @@ export function WsiViewer() {
     for (const c of pointSet?.classes ?? []) m.set(c.class_id, c);
     return m;
   }, [pointSet]);
-  const dims = imageMeta?.dims ?? null;
+  const w0 = axisSize(object, "x");
+  const h0 = axisSize(object, "y");
+  const dims = useMemo<[number, number] | null>(() => (w0 && h0 ? [w0, h0] : null), [w0, h0]);
+  const mpp = object.calibration?.kind === "mpp_um" ? (object.calibration.value as number[]) : null;
 
   // --- overlay 绘制（核质心 + ROI 框 + 计数）——所有坐标经 OSD imageToViewerElement 换算 ------
   const drawOverlay = useCallback(() => {
@@ -97,9 +106,9 @@ export function WsiViewer() {
     }
 
     // 2) 已跑的 ROI 框（level-0 px → 元素 px）
-    if (wsiRoi) {
-      const tl = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(wsiRoi[0], wsiRoi[1]));
-      const br = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(wsiRoi[2], wsiRoi[3]));
+    if (roi) {
+      const tl = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(roi[0], roi[1]));
+      const br = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(roi[2], roi[3]));
       ctx.strokeStyle = "rgba(123,224,173,0.9)";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([5, 4]);
@@ -114,7 +123,7 @@ export function WsiViewer() {
       ctx.textAlign = "right";
       ctx.fillText(`${pointSet.points.length} 核`, w - 12, 20);
     }
-  }, [pointSet, classById, wsiRoi]);
+  }, [pointSet, classById, roi]);
 
   const drawOverlayRef = useRef(drawOverlay);
   drawOverlayRef.current = drawOverlay;
@@ -129,7 +138,7 @@ export function WsiViewer() {
     anno.on("createAnnotation", (wa: W3cAnnotation) => {
       // W3C → 契约 → annotationBridge（乐观渲染 + 落库 + on_commit 钩子产物回流）
       const prim = w3cToPrimitive(wa);
-      const slide = useSession.getState().activeSlide;
+      const slide = useSession.getState().focus?.object_id;
       if (!prim || !slide) return;
       // 框选过小 → 提示并不落库（同步移除 Annotorious 刚画的框）
       if (isRoiTooSmall(prim)) {
@@ -139,16 +148,16 @@ export function WsiViewer() {
       }
       void createAnnotation({ image_id: slide, primitive: prim }).then((saved) => {
         // 服务端落库成功后由 store 回灌 effect 用真 id 重渲染 Annotorious；
-        // bbox 同步 wsiRoi（agent 上下文 roi_box / 重跑通道仍读它）
+        // bbox 写入焦点选区（agent 上下文 / 重跑通道读 focus.region）
         if (saved && saved.primitive.kind === "bbox") {
           const b = saved.primitive;
-          useSession.getState().setWsiRoi([b.x0, b.y0, b.x1, b.y1]);
+          useSession.getState().setRegion({ kind: "box", x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 });
         }
       });
     });
     anno.on("updateAnnotation", (wa: W3cAnnotation) => {
       const s = useSession.getState();
-      const slide = s.activeSlide;
+      const slide = s.focus?.object_id;
       if (!wa.id || !slide) return;
       const local = s.annotations.find((a) => a.id === wa.id);
       const prim = w3cToPrimitive(wa);
@@ -173,10 +182,10 @@ export function WsiViewer() {
   // 切 slide / 有 dims → open 新 tileSource + 拉取该 slide 的标注
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!ready || !viewer || !activeSlide || !dims) return;
-    viewer.open(makeWsiTileSource(activeSlide, dims[0], dims[1]));
-    void loadAnnotations(activeSlide);
-  }, [ready, activeSlide, dims]);
+    if (!ready || !viewer || !objectId || !dims) return;
+    viewer.open(makeWsiTileSource(objectId, dims[0], dims[1]));
+    void loadAnnotations(objectId);
+  }, [ready, objectId, dims]);
 
   // store.annotations → Annotorious 渲染（唯一真相源回灌；临时 id 不下发避免与本地重复）
   useEffect(() => {
@@ -212,13 +221,13 @@ export function WsiViewer() {
   // primitives / ROI 变 → 重绘
   useEffect(() => {
     drawOverlayRef.current();
-  }, [pointSet, wsiRoi, drawOverlay]);
+  }, [pointSet, roi, drawOverlay]);
 
   const onVerify = async () => {
-    if (!activeSlide || verifying) return;
+    if (!objectId || verifying) return;
     setVerifying(true);
     try {
-      const r = await api.wsiVerify(activeSlide);
+      const r = await api.wsiVerify(objectId);
       setVerify({ f1: r.f1, count_pred: r.count_pred, count_ref: r.count_ref });
     } catch {
       notify("crit", "复现验证不可用（缺 reference 或隔离环境）");
@@ -243,8 +252,8 @@ export function WsiViewer() {
       />
       {/* 信息条 */}
       <div style={_infoBar}>
-        {taskView?.label.zh ?? "—"} · {activeSlide ?? "—"}
-        {imageMeta?.mpp_um && ` · ${imageMeta.mpp_um[0].toFixed(3)} µm/px`}
+        {taskView?.label.zh ?? "—"} · {objectId ?? "—"}
+        {mpp && ` · ${mpp[0].toFixed(3)} µm/px`}
         {typeof density === "number" && ` · ${density.toFixed(0)} 核/mm²`}
         {typeof area === "number" && ` · ROI ${area.toFixed(3)} mm²`}
       </div>

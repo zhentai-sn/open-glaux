@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 
-import { reRunActiveModel } from "../../data/actions";
+import { currentTaskView, reRunActiveModel } from "../../data/actions";
+import { displayName, mmPerPx } from "../../data/objectInfo";
 import { useI18n } from "../../i18n";
-import { useSession, type Tool } from "../../store/session";
+import { activeObject, useSession, type Tool } from "../../store/session";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
@@ -14,12 +15,8 @@ import { Viewer } from "../Viewer";
 // 角标承接 StatusBar 的仪器信息（图名 · 标定 · 坐标 · 来源，D8）；度量摘要卡为 v0 落点（SDD §7-4）。
 export function StagePanel() {
   const { t, lang } = useI18n();
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
-  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const obj = useSession((s) => activeObject(s));
+  const cf = mmPerPx(obj);
   const coords = useSession((s) => s.coords);
   const loading = useSession((s) => s.loading);
   const tool = useSession((s) => s.tool);
@@ -28,8 +25,8 @@ export function StagePanel() {
   const source = useSession((s) => s.source);
   const modelVersion = useSession((s) => s.modelVersion);
 
-  const image = activeImage ?? activeVolume ?? activeSlide;
-  const tv = tasks.find((tk) => tk.modality === modality);
+  const image = obj ? displayName(obj) : null;
+  const tv = useSession((s) => currentTaskView(s));
   // 工具按钮 = 注册表 tools × 引擎能力位过滤（与 ViewerChrome 同一规则；
   // 曾只有 IDE 外壳过滤，Focus 会把没有能力位的工具也摆出来，点下去静默失效）
   const tools = useMemo(() => {

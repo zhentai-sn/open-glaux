@@ -3,6 +3,7 @@
 // 无内联样式（.chrome-* 样式族），无硬编码文案（i18n），查看器内不再挂私有浮动条。
 import { useMemo } from "react";
 
+import { currentTaskView } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
 import type { ClassSpec, Primitive } from "../api/types";
@@ -22,14 +23,12 @@ type VolMaskPrim = Extract<Primitive, { kind: "volume_mask" }>;
 
 export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   const { t, lang } = useI18n();
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
   const tool = useSession((s) => s.tool);
   const toolOptions = useSession((s) => s.toolOptions);
   const setToolOptions = useSession((s) => s.setToolOptions);
   const primitives = useSession((s) => s.primitives);
 
-  const tv = tasks.find((tk) => tk.modality === modality);
+  const tv = useSession((s) => currentTaskView(s));
   // 工具按钮 = 注册表 tools × 引擎能力位过滤（WSI 无 brush；bbox/polygon 按能力位）
   const tools = useMemo(() => {
     const caps = new Set(tv?.capabilities ?? []);
@@ -46,7 +45,8 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   }, [primitives]);
 
   const { brush, voi } = toolOptions;
-  const isCt = modality === "ct_abdomen";
+  // 窗宽窗位段按能力位出现（SDD 10 §9.4：voi 由任务行声明），不按模态判断。
+  const hasVoi = tv?.capabilities.includes("voi") ?? false;
   const hintKey = TOOL_HINT[tool] ?? null;
 
   return (
@@ -60,8 +60,8 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
         ))}
       </div>
 
-      {/* 选项条（顶部居中）：绘制提示 / brush 参数 / CT 窗位——按工具与模态分段出现 */}
-      {(hintKey || tool === "brush" || isCt) && (
+      {/* 选项条（顶部居中）：绘制提示 / brush 参数 / CT 窗位——按工具与能力位分段出现 */}
+      {(hintKey || tool === "brush" || hasVoi) && (
         <div className="chrome-options">
           {hintKey && <span className="chrome-hint">{t(hintKey)}</span>}
 
@@ -107,7 +107,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
             </div>
           )}
 
-          {isCt && (
+          {hasVoi && (
             <div className="chrome-seg">
               {CT_PRESETS.map((p) => (
                 <button

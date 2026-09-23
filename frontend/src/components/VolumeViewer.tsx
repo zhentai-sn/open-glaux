@@ -12,8 +12,10 @@ import {
 import { activateTool, createToolGroup, csToolsReady, destroyToolGroup } from "../viewer/csTools";
 import { api, ApiError } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
-import { attachCsAnnoBridge, niftiTarget, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { attachCsAnnoBridge, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { taskViewFor } from "../data/actions";
 import { useSession } from "../store/session";
+import type { EngineProps } from "./viewerProps";
 import type { ClassSpec, Primitive } from "../api/types";
 
 // VolumeViewer（P6 楔子，SDD 04 T6 迁移）——CS3D StackViewport 视 NIfTI 为 z-stack。
@@ -34,7 +36,7 @@ const OVERLAY_ALPHA = 0.4; // labelmap 叠色透明度
 type VolPrim = Extract<Primitive, { kind: "volume_mask" }>;
 type LabelVol = { columns: number; rows: number; slices: number; raw: Int32Array };
 
-export function VolumeViewer() {
+export function VolumeViewer({ object }: EngineProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
@@ -51,17 +53,18 @@ export function VolumeViewer() {
   const [z, setZ] = useState(0);
   const [busy, setBusy] = useState(false);
 
-  const activeVolume = useSession((s) => s.activeVolume);
+  const objectId = object.id;
+  const activeModel = useSession((s) => s.activeModel);
+  const setIndex = useSession((s) => s.setIndex);
   const primitives = useSession((s) => s.primitives);
   const annotations = useSession((s) => s.annotations);
   const tasks = useSession((s) => s.tasks);
-  const modality = useSession((s) => s.modality);
   const tool = useSession((s) => s.tool);
   const toolOptions = useSession((s) => s.toolOptions);
   const { ww, wl } = toolOptions.voi;
   const { mode: brushMode, classId: brushClass, radius } = toolOptions.brush;
 
-  const taskView = useMemo(() => tasks.find((t) => t.modality === modality), [tasks, modality]);
+  const taskView = useMemo(() => taskViewFor({ tasks }, object), [tasks, object]);
   const capabilities = taskView?.capabilities ?? [];
   const volPrim = useMemo<VolPrim | null>(() => {
     const vol = primitives.find((p): p is VolPrim => p.kind === "volume_mask");
@@ -183,7 +186,14 @@ export function VolumeViewer() {
       engineRef.current = engine;
       vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
       createToolGroup(TG_ID, VP_ID, RE_ID);
-      detach = attachCsAnnoBridge({ getImageId: () => zImageIdRef.current, toTarget: niftiTarget });
+      // 落库目标 = 焦点对象 + 当前层（focus.index.z），不从 nifti imageId 字符串反推
+      detach = attachCsAnnoBridge({
+        getImageId: () => zImageIdRef.current,
+        toTarget: () => {
+          const f = useSession.getState().focus;
+          return { image_id: f?.object_id ?? "", z: f?.index.z ?? null };
+        },
+      });
       // 相机变化（缩放/平移）→ 重绘 overlay 保持对齐
       const el = elRef.current;
       const onCam = () => drawOverlayRef.current();
@@ -218,7 +228,7 @@ export function VolumeViewer() {
 
   // 切 volume → 建每帧一个 imageId 的 stack + 设 numSlices
   useEffect(() => {
-    if (!ready || !activeVolume) return;
+    if (!ready || !objectId) return;
     const vp = vpRef.current;
     if (!vp) return;
     // 切卷先重置：避免旧 z / 旧 label / 旧标注泄漏到新卷
@@ -234,7 +244,7 @@ export function VolumeViewer() {
       /* noop */
     }
     resetCsAnnoBridge();
-    const baseUrl = api.volumeUrl(activeVolume);
+    const baseUrl = api.volumeUrl(objectId);
     let cancelled = false;
     (async () => {
       const dim = await preloadNiftiDims(`nifti:${baseUrl}`);
@@ -254,7 +264,7 @@ export function VolumeViewer() {
     return () => {
       cancelled = true;
     };
-  }, [ready, activeVolume]);
+  }, [ready, objectId]);
 
   // primitives 变（跑分割/编辑回流）→ 拉 labelmap 整卷入 ref → 重绘
   // 只依赖 labelmap URL——不依赖 drawOverlay，否则初始 z/numSlices 变化会反复 cancel 加载。
@@ -295,10 +305,11 @@ export function VolumeViewer() {
   // z 变化 → 切 imageIdIndex + 清笔迹 + 拉该层标注（bbox/polygon 逐切片隔离）+ 重绘
   useEffect(() => {
     const vp = vpRef.current;
-    if (!vp || numSlices <= 0 || !activeVolume) return;
+    if (!vp || numSlices <= 0 || !objectId) return;
     editMaskRef.current = null;
-    const baseUrl = api.volumeUrl(activeVolume);
+    const baseUrl = api.volumeUrl(objectId);
     zImageIdRef.current = `nifti:${baseUrl}#z=${z}`;
+    setIndex({ z }); // 层号同步进唯一焦点（组件本地 z 于 W4 并入 Focus.index）
     // 旧 z 的 CS3D 标注清场（映射复位，store 回灌 effect 会按新 z 重建）
     try {
       annotation.state.removeAllAnnotations();
@@ -306,7 +317,7 @@ export function VolumeViewer() {
       /* noop */
     }
     resetCsAnnoBridge();
-    void loadAnnotations(activeVolume, z);
+    void loadAnnotations(objectId, z);
     (async () => {
       try {
         await vp.setImageIdIndex(z);
@@ -318,7 +329,7 @@ export function VolumeViewer() {
     })();
     // 依赖里不放 drawOverlay：它每次重渲染都换标识，会让本 effect 无关重跑，
     // 而开头的 removeAllAnnotations() 会把当前 z 已回灌/已画的标注整层清掉。
-  }, [z, numSlices, activeVolume]);
+  }, [z, numSlices, objectId]);
 
   // store.annotations → CS3D 标注层回灌（仅当前 z 的 bbox/polygon）
   useEffect(() => {
@@ -330,7 +341,7 @@ export function VolumeViewer() {
   }, [annotations, ready, z]);
 
   // 窗宽窗位 → cornerstone voiRange（HU 空间：[wl-ww/2, wl+ww/2]）——真相源 store.toolOptions.voi。
-  // 依赖 numSlices/activeVolume：切卷后 setStack→resetCamera 会重置 VOI 到 image 默认，
+  // 依赖 numSlices/objectId：切卷后 setStack→resetCamera 会重置 VOI 到 image 默认，
   // 故卷就绪后重跑此 effect，把当前 WW/WL 重新贴上。
   useEffect(() => {
     const vp = vpRef.current;
@@ -341,7 +352,7 @@ export function VolumeViewer() {
     } catch {
       /* VOI 设置瞬态（卷切换中）静默 */
     }
-  }, [ww, wl, numSlices, activeVolume]);
+  }, [ww, wl, numSlices, objectId]);
 
   // 元素尺寸变化 → engine.resize + overlay 重绘
   useEffect(() => {
@@ -416,7 +427,7 @@ export function VolumeViewer() {
     drawingRef.current = false;
     const mask = editMaskRef.current;
     const lv = labelVolRef.current;
-    if (!mask || !lv || !activeVolume || !volPrim) return;
+    if (!mask || !lv || !objectId || !volPrim) return;
     if (!mask.some((v) => v)) return;
 
     // 笔迹 → 二值 PNG（white=编辑区，与后端 convert("L")→bool 对齐）
@@ -425,9 +436,10 @@ export function VolumeViewer() {
     const mySeq = ++editSeqRef.current;
     setBusy(true);
     try {
-      const resp = await api.volumeMaskEdit(activeVolume, {
-        task: "totalseg_liver_kidney",
-        method: "totalsegmentator_v2",
+      const resp = await api.volumeMaskEdit(objectId, {
+        // task / method 取自当前 TaskView 与活动模型，不写常量（SDD 10 §7 规则 17）
+        task: taskView?.task ?? "totalseg_liver_kidney",
+        method: activeModel ?? taskView?.default_method ?? "",
         base_seq: baseSeqRef.current,
         slices: [{ z, class_id: brushClass, mode: brushMode, mask_png_ref: png }],
       });

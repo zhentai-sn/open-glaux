@@ -34,9 +34,7 @@ export function FocusSidePanel() {
   const browserView = useSession((s) => s.focusLayout.browserView);
   const browserW = useSession((s) => s.focusLayout.browserW);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
+  const activeId = useSession((s) => s.focus?.object_id ?? null);
 
   // ---- 实测侧栏宽度：分栏判定与分隔条上界都读它 ----
   // 不读持久化的 sideW——它为 null（未拖过）时没有像素真相值，只有量出来的才是真的。
@@ -66,7 +64,6 @@ export function FocusSidePanel() {
 
   // 窄屏降级态才保留「在文件浏览器选图 → 回舞台」（D17）：分栏态下两者同屏，
   // 自动切换只会把用户正在用的列表抢走，正是 D16 要消除的症状。
-  const activeId = activeImage ?? activeVolume ?? activeSlide ?? null;
   const prevActive = useRef(activeId);
   useEffect(() => {
     if (prevActive.current !== activeId && !split && browserView === "files" && activeId) {

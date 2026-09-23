@@ -72,6 +72,15 @@ class ObjectRef:
     modality: str
 
 
+def method_refs(names: list[str], *, gold: tuple[str, ...] = (),
+                agent: tuple[str, ...] = ()) -> list[dict]:
+    """方法名 → ``[{name, role}]``；不在 gold / agent 中的一律为 reference。"""
+    def role(n: str) -> str:
+        return "gold" if n in gold else "agent" if n in agent else "reference"
+
+    return [{"name": n, "role": role(n)} for n in names]
+
+
 def resources_for(object_id: str, *, raw: bool = False, tiles: bool = False) -> dict[str, str]:
     """``ObjectMeta.resources`` 的 URL 模板（SDD 10 §5.1）。``frame`` 必有。"""
     out = {"frame": f"/objects/{object_id}/frame"}
@@ -97,13 +106,12 @@ _LEGACY_BY_CAL_KIND = {"mm_per_px": "cf", "voxel_mm": "voxel_spacing_mm", "mpp_u
 
 
 def backfill_legacy(obj: ObjectMeta) -> ObjectMeta:
-    """从 axes / calibration / meta 回填过渡字段；对同一对象重复回填结果不变（§10）。"""
+    """从 axes / calibration 回填过渡字段；对同一对象重复回填结果不变（§10）。"""
     update: dict = {
         "cf": None,
         "voxel_spacing_mm": None,
         "mpp_um": None,
         "dims": None,
-        "center": str(obj.meta.get("center", "")),
     }
     cal = obj.calibration
     field = _LEGACY_BY_CAL_KIND.get(cal.kind) if cal is not None else None

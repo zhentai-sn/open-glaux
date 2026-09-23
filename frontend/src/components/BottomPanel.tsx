@@ -1,8 +1,12 @@
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 import { TerminalView } from "./TerminalView";
+import { currentTaskView } from "../data/actions";
+import { mmPerPx } from "../data/objectInfo";
 import { useI18n } from "../i18n";
-import { useSession, type PanelTab } from "../store/session";
+import { activeObject, useSession, type PanelTab } from "../store/session";
+
+const NO_OVERLAYS: never[] = [];
 
 const TABS: { id: PanelTab; key: "p_meas" | "p_out" | "p_prob" | "p_term" }[] = [
   { id: "meas", key: "p_meas" },
@@ -26,8 +30,7 @@ const mcell = (k: string, v: string, unit: string, hi = false) => (
 function MeasurementsView() {
   const { t, lang } = useI18n();
   const metrics = useSession((s) => s.metrics);
-  const modality = useSession((s) => s.modality);
-  const overlays = useSession((s) => s.tasks.find((tk) => tk.modality === modality)?.overlays ?? []);
+  const overlays = useSession((s) => currentTaskView(s)?.overlays) ?? NO_OVERLAYS;
   const src = useSession((s) => s.source);
   if (!metrics) return <div className="stub">— no run yet —</div>;
   const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));
@@ -58,12 +61,10 @@ const logline = (body: JSX.Element, key: string) => (
 // 泛型运行日志——按注册表标签 + 泛型 metrics/modelVersion 渲染 provenance，不再逐模态硬写。
 function OutputView() {
   const { lang } = useI18n();
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
   const metrics = useSession((s) => s.metrics);
-  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const cf = mmPerPx(useSession((s) => activeObject(s)));
   const modelVersion = useSession((s) => s.modelVersion);
-  const tv = tasks.find((tk) => tk.modality === modality);
+  const tv = useSession((s) => currentTaskView(s));
   if (!metrics || !tv) return <div className="stub">— no run yet —</div>;
   const head = (tv.metrics[0] && metrics[tv.metrics[0].key]) || Object.values(metrics)[0];
   const fmt = (v: number) => (Math.abs(v) < 10 ? v.toFixed(3) : v.toFixed(1));

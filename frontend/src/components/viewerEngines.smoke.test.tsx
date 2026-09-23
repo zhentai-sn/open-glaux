@@ -2,7 +2,7 @@
 // 覆盖 CornerstoneViewer（raster_2d）与 VolumeViewer（CT）的真实组件路径，三步：
 //   1. 渲染一帧：组件向渲染引擎挂 STACK 视口并 setStack 期望的 imageId；
 //   2. 画一条多边形：store.tool=polygon 激活 PlanarFreehandROI，CS3D 的 ANNOTATION_COMPLETED
-//      经 csAnno 桥落 POST /annotations，落库目标按引擎区分（2D=activeImage；CT=volume id + z）；
+//      经 csAnno 桥落 POST /annotations，落库目标 = 焦点对象（CT 另带当前 z）；
 //   3. 提交一笔画笔：overlay 自持缓冲的笔迹，2D 落 /annotations（kind=mask），CT 落 mask-edit。
 // 替身边界只在 jsdom 做不到的地方：
 //   - @cornerstonejs/core：`RenderingEngine`（WebGL/vtk）与 `init` 替换；其余（utilities 坐标换算、
@@ -15,7 +15,8 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Annotation, Primitive, TaskView } from "../api/types";
+import type { Annotation, Focus, ObjectMeta, Primitive, TaskView } from "../api/types";
+import { objectMeta, taskFields } from "../test/fixtures";
 
 // --- 替身注册表（vi.mock 工厂提升到文件顶，只能经 vi.hoisted 共享状态）-------------
 
@@ -233,7 +234,20 @@ const posts = (pred: (url: string) => boolean) => calls.filter((c) => c.method =
 // --- 场景装配 ---------------------------------------------------------------
 
 function task(modality: string, viewer: string): TaskView {
-  return { modality, viewer, capabilities: ["bbox", "polygon", "brush"], overlays: [] } as unknown as TaskView;
+  return {
+    modality,
+    viewer,
+    capabilities: ["bbox", "polygon", "brush"],
+    overlays: [],
+    ...taskFields(modality),
+  } as unknown as TaskView;
+}
+
+/** W3：引擎从 props 收当前对象与焦点（Viewer.tsx 是唯一读 store 处）；桥的落库目标读 store 焦点。 */
+function focusOn(object: ObjectMeta): Focus {
+  const focus: Focus = { object_id: object.id, kind: object.kind, index: {}, region: null };
+  useSession.setState({ objects: { [object.modality]: [object] }, focus });
+  return focus;
 }
 
 const LABEL_REF = "/api/labelmap/ct_1";
@@ -308,8 +322,9 @@ describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
   const IMAGE_ID = "web:/api/image/img_1";
 
   async function mount2d() {
-    useSession.setState({ modality: "carotid_imt", tasks: [task("carotid_imt", "raster_2d")], activeImage: "img_1" });
-    const r = render(<CornerstoneViewer />);
+    useSession.setState({ modality: "carotid_imt", tasks: [task("carotid_imt", "raster_2d")] });
+    const object = objectMeta({ id: "img_1", modality: "carotid_imt" });
+    const r = render(<CornerstoneViewer object={object} focus={focusOn(object)} />);
     await waitFor(() => expect(engine("glaux-re").viewports.get("glaux-stack")?.setStack).toHaveBeenCalled());
     return r;
   }
@@ -327,7 +342,7 @@ describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
     await waitFor(() => expect(calls.some((c) => c.url === "/api/annotations?image_id=img_1")).toBe(true));
   });
 
-  it("画一条多边形：激活 PlanarFreehandROI，完成事件落 /annotations（目标 = activeImage）", async () => {
+  it("画一条多边形：激活 PlanarFreehandROI，完成事件落 /annotations（目标 = 焦点对象）", async () => {
     await mount2d();
     act(() => useSession.getState().setTool("polygon"));
     expect(h.toolGroups.get("glaux-tg-raster2d")?.primary).toBe(PlanarFreehandROITool.toolName);
@@ -370,12 +385,9 @@ describe("VolumeViewer（CT）接线冒烟", () => {
   const BASE = "nifti:/api/volume/ct_1";
 
   async function mountCt() {
-    useSession.setState({
-      modality: "ct_abdomen",
-      tasks: [task("ct_abdomen", "volume_3d")],
-      activeVolume: "ct_1",
-    });
-    const r = render(<VolumeViewer />);
+    useSession.setState({ modality: "ct_abdomen", tasks: [task("ct_abdomen", "volume_3d")] });
+    const object = objectMeta({ id: "ct_1", modality: "ct_abdomen" });
+    const r = render(<VolumeViewer object={object} focus={focusOn(object)} />);
     const vp = () => engine("glaux-re-vol").viewports.get("glaux-stack-vol");
     await waitFor(() => expect(vp()?.setImageIdIndex).toHaveBeenCalledWith(CT_DIMS.slices / 2));
     // 分割结果回流（primitives 带 volume_mask）→ 拉 labelmap → 自动跳到有器官体素的层。

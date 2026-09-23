@@ -266,7 +266,7 @@ from PIL import Image  # noqa: E402
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, resources_for  # noqa: E402
+from .sources.base import SourceBase, method_refs, resources_for  # noqa: E402
 
 
 class CtSource(SourceBase):
@@ -316,7 +316,7 @@ class CtSource(SourceBase):
                   Axis(name="z", size=nz, spacing=sz, unit="mm")],
             calibration=Calibration(kind="voxel_mm", value=[sx, sy, sz], source="nifti_header"),
             resources=resources_for(object_id, raw=True),
-            methods=rec["methods"],
+            methods=method_refs(rec["methods"], agent=tuple(rec["methods"])),
             meta={"center": rec["center"]},
         )
 

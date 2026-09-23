@@ -140,7 +140,7 @@ def image_size(image_id: str) -> tuple[int, int]:
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, resources_for  # noqa: E402
+from .sources.base import SourceBase, method_refs, resources_for  # noqa: E402
 
 
 class NaturalSource(SourceBase):
@@ -199,7 +199,7 @@ class NaturalSource(SourceBase):
             source_id=source.id,
             axes=[Axis(name="x", size=w), Axis(name="y", size=h)],
             resources=resources_for(object_id),
-            methods=rec["methods"],
+            methods=method_refs(rec["methods"]),
             meta={"center": rec["center"]},
         )
 

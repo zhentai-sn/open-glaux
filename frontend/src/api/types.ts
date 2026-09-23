@@ -32,6 +32,11 @@ export interface Stream {
   codec?: string | null;
 }
 
+export interface MethodRef {
+  name: string;
+  role: "gold" | "agent" | "reference";
+}
+
 export interface ObjectMeta {
   id: string;
   kind: ObjectKind;
@@ -43,10 +48,10 @@ export interface ObjectMeta {
   /** 后端下发的 URL 模板；前端不拼路径（§7 规则 3）。 */
   resources: { frame: string; raw?: string; tiles?: string; audio?: string };
   streams: Stream[];
-  methods: string[];
+  methods: MethodRef[];
+  /** 自由元数据；原 center 在此（meta.center）。 */
   meta: Record<string, unknown>;
   /** 过渡一版（W7 删）：由后端从 axes / calibration 回填；新代码不得读取（§7 规则 8）。 */
-  center?: string;
   cf?: number | null;
   voxel_spacing_mm?: [number, number, number] | null;
   mpp_um?: [number, number] | null;

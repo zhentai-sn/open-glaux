@@ -146,12 +146,18 @@ class ReferenceFrame(BaseModel):
 _THIRD_AXIS = ("z", "t", "level")
 
 
+class MethodRef(BaseModel):
+    """对象上可用的一个方法及其角色：gold（金标准）/ agent（模型）/ reference（参考）。"""
+
+    name: str
+    role: Literal["gold", "agent", "reference"]
+
+
 class ObjectMeta(BaseModel):
     """一个视觉对象的元数据——``GET /images?modality=`` 列表元素（SDD 10 §5.1）。
 
     ``cf`` / ``voxel_spacing_mm`` / ``mpp_um`` / ``dims`` 为过渡字段，由 ``SourceBase`` 从
-    ``axes`` / ``calibration`` 单向回填（D-10），W7 删除。``center`` 与 ``methods: list[str]``
-    同为过渡形态：前端在 W3 前仍直读二者，W1 保持旧形状（见执行记录 W1）。
+    ``axes`` / ``calibration`` 单向回填（D-10），W7 删除。原顶层 ``center`` 已降入 ``meta.center``。
     """
 
     id: str
@@ -163,10 +169,9 @@ class ObjectMeta(BaseModel):
     calibration: Calibration | None = None
     resources: dict[str, str]
     streams: list[Stream] = Field(default_factory=list)
-    methods: list[str] = Field(default_factory=list)
+    methods: list[MethodRef] = Field(default_factory=list)
     meta: dict = Field(default_factory=dict)
     # 过渡一版（W7 删）
-    center: str = ""
     cf: float | None = None
     voxel_spacing_mm: list[float] | None = None
     mpp_um: list[float] | None = None

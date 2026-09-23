@@ -1,8 +1,10 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type { Modality, UploadRejectReason, UploadResult } from "../api/types";
 import { importDataSource, loadSamples, uploadImages } from "../data/actions";
 import { useI18n, type I18nKey } from "../i18n";
+import { useModalityLabel } from "../i18n/modalityLabel";
+import { useSession } from "../store/session";
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 
@@ -11,11 +13,9 @@ import { ICONS } from "./iconMap";
 // 曾经只有「服务端文件夹路径」一个入口，还埋在插件市场里：那是给开发者用的，
 // 普通用户既没有那个目录概念，也没有把文件放进去的手段。
 
-// v0 只放开端到端可用的 WSI/CT（SDD 08 D-5）；carotid/HC 数据结构复杂，导入后续。
-const IMPORTABLE: { modality: Modality; label: string }[] = [
-  { modality: "pathology", label: "pathology · WSI" },
-  { modality: "ct_abdomen", label: "ct_abdomen · CT" },
-];
+// 服务端文件夹导入承载浏览器上传放不下的大体积对象（SDD 08 D-5）：候选 = 任务注册表里
+// 几何族为 volume / slide 的模态，不在前端手写模态清单。
+const FOLDER_KINDS = new Set(["volume", "slide"]);
 
 const REJECT_KEY: Record<UploadRejectReason, I18nKey> = {
   unsupported_type: "imp_reject_type",
@@ -23,15 +23,24 @@ const REJECT_KEY: Record<UploadRejectReason, I18nKey> = {
   corrupt: "imp_reject_corrupt",
 };
 
-/** 前端预筛：类型/大小不合格的直接本地拒，不发请求（与后端同一套判据，后端仍是权威）。 */
+/** 前端预筛：后缀/大小不合格的直接本地拒，不发请求（后端仍是权威）。
+ *  可受理后缀取自 `/datasources` 的 `importable`（SDD 10 §4.1，受理表唯一来源在后端）；
+ *  尚无任何数据源时不知道受理表，只按大小预筛、类型交给后端判定。 */
 const MAX_BYTES = 32 * 1024 * 1024;
-const OK_TYPES = new Set(["image/jpeg", "image/png"]);
 
-function prefilter(files: File[]): { pass: File[]; fail: { filename: string; reason: UploadRejectReason }[] } {
+function suffixOf(name: string): string {
+  const i = name.lastIndexOf(".");
+  return i < 0 ? "" : name.slice(i).toLowerCase();
+}
+
+function prefilter(
+  files: File[],
+  importable: Set<string>,
+): { pass: File[]; fail: { filename: string; reason: UploadRejectReason }[] } {
   const pass: File[] = [];
   const fail: { filename: string; reason: UploadRejectReason }[] = [];
   for (const f of files) {
-    if (!OK_TYPES.has(f.type)) fail.push({ filename: f.name, reason: "unsupported_type" });
+    if (importable.size && !importable.has(suffixOf(f.name))) fail.push({ filename: f.name, reason: "unsupported_type" });
     else if (f.size > MAX_BYTES) fail.push({ filename: f.name, reason: "too_large" });
     else pass.push(f);
   }
@@ -50,11 +59,23 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
   // 服务端文件夹导入（医学）
   const [folderOpen, setFolderOpen] = useState(false);
   const [path, setPath] = useState("");
-  const [modality, setModality] = useState<Modality>("pathology");
+  const datasources = useSession((s) => s.datasources);
+  const tasks = useSession((s) => s.tasks);
+  const label = useModalityLabel();
+  const importable = useMemo(
+    () => new Set(datasources.flatMap((d) => d.importable.map((x) => x.toLowerCase()))),
+    [datasources],
+  );
+  const folderModalities = useMemo(
+    () => [...new Set(tasks.filter((tk) => tk.object_kinds.some((k) => FOLDER_KINDS.has(k))).map((tk) => tk.modality))],
+    [tasks],
+  );
+  const [picked, setModality] = useState<Modality | null>(null);
+  const modality = picked ?? folderModalities[0] ?? null;
 
   const runUpload = async (files: File[]) => {
     if (!files.length || busy) return;
-    const { pass, fail } = prefilter(files);
+    const { pass, fail } = prefilter(files, importable);
     setLocalRejects(fail);
     setResult(null);
     setMsg(null);
@@ -85,7 +106,7 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
 
   const runFolder = async () => {
     const p = path.trim();
-    if (!p || busy) return;
+    if (!p || busy || !modality) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -130,7 +151,7 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
           ref={fileRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png"
+          accept={importable.size ? [...importable].join(",") : undefined}
           style={{ display: "none" }}
           onChange={(e) => {
             void runUpload([...(e.target.files ?? [])]);
@@ -182,12 +203,12 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
           />
           <select
             className="dsin"
-            value={modality}
+            value={modality ?? ""}
             onChange={(e) => setModality(e.target.value as Modality)}
           >
-            {IMPORTABLE.map((m) => (
-              <option key={m.modality} value={m.modality}>
-                {m.label}
+            {folderModalities.map((m) => (
+              <option key={m} value={m}>
+                {label(m)}
               </option>
             ))}
           </select>

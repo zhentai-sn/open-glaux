@@ -1,3 +1,5 @@
+import type { Focus, ObjectMeta } from "../../api/types";
+
 export type SessionStatus = "active" | "archived";
 export type PermissionMode = "observe" | "suggest" | "controlled" | "autonomous";
 export type SessionPhase = "idle" | "running" | "stopping" | "compacting" | "error";
@@ -98,11 +100,20 @@ export interface AtlasReferencedPayload {
 }
 
 /** 查看器当前上下文——随 prompt 下发，供 agent-runtime 的 `run_task` 工具缺省取当前图 / 当前任务。 */
+/**
+ * 查看器上下文（SDD 10 §9.1）：``{collection, task, method, object, focus}``。
+ * ``image_id`` / ``modality`` / ``cubs_cf`` / ``roi_box`` 为过渡字段——runtime 在 W5 改读 object / focus
+ * 之前仍只认它们，故前端同时下发，W7 删除。
+ */
 export interface ViewerContext {
-  image_id?: string;
+  collection?: string;
   task?: string;
-  modality?: string;
   method?: string;
+  object?: Pick<ObjectMeta, "id" | "kind" | "axes" | "calibration">;
+  focus?: Focus;
+  // 过渡一版（W7 删）
+  image_id?: string;
+  modality?: string;
   cubs_cf?: number;
   roi_box?: [number, number, number, number];
 }

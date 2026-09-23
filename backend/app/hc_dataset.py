@@ -74,7 +74,7 @@ from PIL import Image  # noqa: E402
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, resources_for  # noqa: E402
+from .sources.base import SourceBase, method_refs, resources_for  # noqa: E402
 
 SYNTHETIC_ID = "synthetic-hc"
 
@@ -138,7 +138,8 @@ class HcSource(SourceBase):
                 source="synthetic" if source.synthetic else "hc18_csv",
             ),
             resources=resources_for(object_id),
-            methods=rec["methods"],
+            methods=method_refs(rec["methods"], gold=("GT-ellipse",),
+                                agent=tuple(rec["methods"][:1])),
             meta={"center": rec["center"]},
         )
 

@@ -2,19 +2,18 @@ import { useState, type ReactNode } from "react";
 
 import type { CapabilityLayer, Modality } from "../api/types";
 import {
+  loadObjects,
+  openObject,
   prunedRecent,
   reRunActiveModel,
   refreshDataSources,
   removeDataSource,
-  selectImage,
-  selectNaturalImage,
-  selectSlide,
-  selectVolume,
-  switchModality,
 } from "../data/actions";
+import { datasourceOf, displayName } from "../data/objectInfo";
 import { ImportPanel } from "./ImportPanel";
 import { useI18n, type I18nKey } from "../i18n";
-import { useSession } from "../store/session";
+import { useModalityLabel } from "../i18n/modalityLabel";
+import { activeObject, objectsOf, useSession } from "../store/session";
 import { AtlasView } from "./atlas/AtlasView";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
@@ -22,14 +21,12 @@ import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
 // ---- 文件树（F5：images/ 由真实 /images 驱动，选图触发分割/检测+测量） ----
 const IMG_LIMIT = 14; // images/ 展开时先显 14 个，其余折叠为 "…N more"
 
-// 模态切换（SDD 08 D-1）——**可见性来自数据源，标签来自任务注册表**。
-// 任务注册表是静态能力清单，与「用户有没有数据」无关；此前二者被合并，直接后果是选中通用图像时
-// 四个 tab 一个都不高亮（通用图像没有 TaskPlugin）。现在只列有 active 数据源的模态。
+// 模态切换（SDD 08 D-1、SDD 10 D-22）——可见性与标签都来自数据源：只列有 active 数据源的模态，
+// 标签按 label_key → label → modality 取，无任务的模态（通用图像、视频）不再需要特判。
 function ModalitySwitch() {
-  const { lang, t } = useI18n();
   const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
   const datasources = useSession((s) => s.datasources);
+  const label = useModalityLabel();
 
   const seen = new Set<Modality>();
   const opts: Modality[] = [];
@@ -40,17 +37,13 @@ function ModalitySwitch() {
   }
   if (opts.length < 2) return null; // 单模态无需切换器
 
-  // 标签仍取自任务注册表；通用图像没有任务，用中性 i18n 常量（SDD 08 D-3）。
-  const label = (m: Modality) =>
-    m === "natural_image" ? t("mod_general_images") : tasks.find((tk) => tk.modality === m)?.label[lang] ?? m;
-
   return (
     <div className="modsw" data-n={opts.length}>
       {opts.map((m) => (
         <button
           key={m}
           className={"modseg" + (modality === m ? " on" : "")}
-          onClick={() => void switchModality(m)}
+          onClick={() => void loadObjects(m)}
         >
           {label(m)}
         </button>
@@ -59,18 +52,13 @@ function ModalitySwitch() {
   );
 }
 
-// 最近使用（SDD 08 §5.4/§9.4）——只读本地记录，点击按其模态走对应选择动作。
+// 最近使用（SDD 08 §5.4/§9.4）——只读本地记录，点击一律 openObject（对象所属模态未加载时顺带加载）。
 function RecentList() {
   const { t } = useI18n();
   useSession((s) => s.recentItems); // 订阅变更
   const items = prunedRecent();
   if (!items.length) return null;
-  const open = (modality: Modality, id: string) => {
-    if (modality === "natural_image") return selectNaturalImage(id);
-    if (modality === "ct_abdomen") return void selectVolume(id);
-    if (modality === "pathology") return void selectSlide(id);
-    return void selectImage(id);
-  };
+  const open = (modality: string, id: string) => void openObject(id, modality as Modality);
   return (
     <>
       <div className="sec">{t("exp_recent")}</div>
@@ -190,54 +178,16 @@ function ExplorerTree() {
   const { t } = useI18n();
   const [importOpen, setImportOpen] = useState(false);
   const modality = useSession((s) => s.modality);
-  const images = useSession((s) => s.images);
-  const naturalImages = useSession((s) => s.naturalImages);
-  const volumes = useSession((s) => s.volumes);
-  const slides = useSession((s) => s.slides);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
-  const methods = useSession((s) => s.imageMeta?.methods ?? []);
-  const center = useSession((s) => s.imageMeta?.center);
-  const isHC = modality === "fetal_hc";
-  const isCT = modality === "ct_abdomen";
-  const isWSI = modality === "pathology";
-  const isNatural = modality === "natural_image";
-  // 列表 + 选中 + 选择动作按模态派生（CT 走 volumes/activeVolume，WSI 走 slides/activeSlide）。
-  const list = isNatural ? naturalImages : isCT ? volumes : isWSI ? slides : images;
-  const activeId = isCT ? activeVolume : isWSI ? activeSlide : activeImage;
-  const onSelect = isNatural
-    ? selectNaturalImage
-    : isCT
-      ? selectVolume
-      : isWSI
-        ? selectSlide
-        : selectImage;
+  const list = useSession((s) => objectsOf(s));
+  const focusId = useSession((s) => s.focus?.object_id ?? null);
+  const obj = useSession((s) => activeObject(s));
+  const datasources = useSession((s) => s.datasources);
+  const label = useModalityLabel();
   const shown = list.slice(0, IMG_LIMIT);
   const rest = list.length - shown.length;
-  // 工作区/方法名读真实元数据；无数据时按模态回退默认。
-  const ws =
-    center ??
-    (isNatural
-      ? "Natural images"
-      : isHC
-        ? "HC18"
-        : isCT
-          ? "CT"
-          : isWSI
-            ? "Pathology"
-            : "CUBS-tech");
-  const dirName = isNatural ? "natural-images" : isCT || isWSI ? "slides" : "images";
-  const methodsDir = isHC ? "ellipse-profiles" : isCT ? "labelmaps" : isWSI ? "detections" : "LIMA-Profiles";
-  const goldMethod = isHC ? "GT-ellipse" : "Manual-A1";
-  const agentMethod = isHC
-    ? (methods.find((m) => m !== goldMethod) ?? "CSM")
-    : isCT
-      ? "totalsegmentator_v2"
-      : isWSI
-        ? "stardist_he"
-        : "caroSegDeep";
-  const isIMT = modality === "carotid_imt";
+  // 工作区名取当前对象所属数据源；无焦点时取模态标签——不按模态硬写数据集名（DEBT-20）。
+  const ws = datasourceOf(datasources, obj)?.name ?? (modality ? label(modality) : "");
+  const methods = obj?.methods ?? [];
 
   return (
     <div className="sb-view">
@@ -257,14 +207,14 @@ function ExplorerTree() {
       {importOpen && <ImportPanel compact />}
       <RecentList />
       <div>
-        <Dir name={dirName} depth={0} defaultOpen>
+        <Dir name={t("exp_objects")} depth={0} defaultOpen>
           {shown.map((m) => (
             <ImageLeaf
               key={m.id}
-              id={m.id}
+              id={displayName(m)}
               depth={1}
-              selected={activeId === m.id}
-              onSelect={() => void onSelect(m.id)}
+              selected={focusId === m.id}
+              onSelect={() => void openObject(m.id)}
             />
           ))}
           {rest > 0 && (
@@ -274,24 +224,20 @@ function ExplorerTree() {
             </div>
           )}
         </Dir>
-        {!isNatural && (
-          <Dir name={methodsDir} depth={0} defaultOpen={methods.length > 0}>
+        {methods.length > 0 && (
+          <Dir name={t("exp_methods")} depth={0} defaultOpen>
             {methods.map((mth) => (
-              <div key={mth} className="row" style={{ paddingLeft: 16 }}>
+              <div key={mth.name} className="row" style={{ paddingLeft: 16 }}>
                 <span className="tw" />
-                <span className={"nm" + (mth === goldMethod ? " gold" : "")}>{mth}</span>
-                {mth === goldMethod && <span className="tag">gold</span>}
-                {mth === agentMethod && (
+                <span className={"nm" + (mth.role === "gold" ? " gold" : "")}>{mth.name}</span>
+                {mth.role === "gold" && <span className="tag">gold</span>}
+                {mth.role === "agent" && (
                   <span className="tag" style={{ color: "var(--agent)" }}>agent</span>
                 )}
               </div>
             ))}
           </Dir>
         )}
-        {isIMT && <Dir name="CF" depth={0} />}
-        {isIMT && <Dir name="Folds" depth={0} />}
-        {/* SDD 08 §7 规则 13：通用图像不再作为常驻目录挂在每个医学模态下——它现在是
-            模态切换器里的一个候选（有数据源时才出现），由数据轴而非硬编码决定可见性。 */}
       </div>
     </div>
   );

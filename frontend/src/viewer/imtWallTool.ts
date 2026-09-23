@@ -8,7 +8,8 @@ import { BaseTool, type Types as ToolTypes } from "@cornerstonejs/tools";
 import { api, ApiError } from "../api/client";
 import type { Primitive } from "../api/types";
 import { getT } from "../i18n";
-import { useSession } from "../store/session";
+import { taskViewFor } from "../data/actions";
+import { activeObject, useSession } from "../store/session";
 import { clonePrims, deform, sampleHandles } from "./wallGeom";
 
 type Poly = Extract<Primitive, { kind: "polyline" }>;
@@ -37,14 +38,15 @@ export class ImtWallHandleTool extends BaseTool {
   /** 当前可编辑壁线（注册表 overlays editable=true 的 polyline）。 */
   private editableWalls(): Poly[] {
     const s = useSession.getState();
-    const tv = s.tasks.find((tk) => tk.modality === s.modality);
+    const tv = taskViewFor(s, activeObject(s));
     const editable = new Set((tv?.overlays ?? []).filter((o) => o.editable).map((o) => o.role));
     return s.primitives.filter((p): p is Poly => p.kind === "polyline" && editable.has(p.role));
   }
 
+  /** 当前对象的 CS3D imageId——对象 id 取自唯一焦点（取图路径由 W4 的 FrameSource 接管）。 */
   private imageId(): string | null {
-    const s = useSession.getState();
-    return s.activeImage ? `web:${api.imageUrl(s.activeImage)}` : null;
+    const id = useSession.getState().focus?.object_id;
+    return id ? `web:${api.imageUrl(id)}` : null;
   }
 
   /** 世界坐标 → canvas px（经 viewport 投影）。 */
@@ -113,17 +115,18 @@ export class ImtWallHandleTool extends BaseTool {
     this.drag = null;
     if (!d) return;
     const st = useSession.getState();
-    const tv = st.tasks.find((tk) => tk.modality === st.modality);
-    const cf = st.imageMeta?.cf ?? null;
+    const obj = activeObject(st);
+    const tv = taskViewFor(st, obj);
+    const cal = obj?.calibration ?? null;
     const edited = clonePrims(st.primitives);
-    if (!tv || !cf) {
+    if (!tv || !cal) {
       st.setPrimitives(d.prePrims);
       return;
     }
     const mySeq = ++wallSeq;
     const t = getT();
     try {
-      const meas = await api.taskMeasure(tv.task, edited, cf);
+      const meas = await api.taskMeasure(tv.task, edited, cal);
       if (mySeq !== wallSeq) return; // 已被新编辑取代，丢弃过期响应
       const s = useSession.getState();
       s.setMetrics(meas.metrics);

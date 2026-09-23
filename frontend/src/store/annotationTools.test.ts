@@ -1,10 +1,10 @@
-// store 工具态测试（SDD 04 T8）——tool/toolOptions 设置 + switchModality 复位无泄漏。
+// store 工具态测试（SDD 04 T8）——tool/toolOptions 设置 + 切模态（loadObjects）复位无泄漏。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { switchModality } from "../data/actions";
+import { loadObjects as switchModality } from "../data/actions";
 import { TOOL_OPTIONS_DEFAULTS, useSession } from "./session";
 
-// switchModality 内部拉数据集/体积/slide——统一 mock 空列表，只验状态复位面。
+// loadObjects 内部拉对象表——统一 mock 空列表，只验状态复位面。
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",

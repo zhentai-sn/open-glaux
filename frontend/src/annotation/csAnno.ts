@@ -215,8 +215,8 @@ const SUGGESTION_DASH = "6,4";
 
 export interface CsAnnoBridgeOpts {
   getImageId: () => string | null;
-  /** imageId → 落库目标（raster：web: 去前缀；volume：解析 nifti url 得 volume id + z）。 */
-  toTarget?: (imageId: string) => { image_id: string; z?: number | null };
+  /** 落库目标：由查看器按 focus.object_id + 当前索引给出，不从 imageId 字符串反推（SDD 10 §8.3）。 */
+  toTarget: (imageId: string) => { image_id: string; z?: number | null };
 }
 
 /**
@@ -246,7 +246,7 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
       return;
     }
     pendingCs.add(ann.annotationUID);
-    const target = (opts.toTarget ?? defaultTarget)(imageId);
+    const target = opts.toTarget(imageId);
     void createAnnotation({ ...target, primitive: prim }).then((saved) => {
       pendingCs.delete(ann.annotationUID);
       if (saved) {
@@ -308,25 +308,6 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
     eventTarget.removeEventListener(ToolEnums.Events.ANNOTATION_MODIFIED as unknown as string, onModified);
     eventTarget.removeEventListener(ToolEnums.Events.ANNOTATION_REMOVED as unknown as string, onRemoved);
   };
-}
-
-// 默认落库目标（raster_2d）：`web:<图片 URL>` → 对象 id。
-// 只去 `web:` 前缀会把整条 URL（/api/image/tech_401）当 image_id 发给后端——落库目标必须是对象 id。
-// 查看器一般注入 toTarget（activeImage 是权威值），这里是兜底解析。
-function defaultTarget(imageId: string): { image_id: string; z?: number | null } {
-  const path = imageId.replace(/^web:/, "").split(/[?#]/)[0];
-  const seg = path.split("/").filter(Boolean);
-  return { image_id: decodeURIComponent(seg[seg.length - 1] ?? path) };
-}
-
-/** volume_3d 落库目标解析器：`nifti:<url>#z=<n>` → { image_id: volume id, z }。 */
-export function niftiTarget(imageId: string): { image_id: string; z?: number | null } {
-  const zm = /#z=(\d+)$/.exec(imageId);
-  const z = zm ? Number(zm[1]) : null;
-  // volume id 取 URL 末段（/volume/<id>），去 nifti: 前缀与 #z 后缀
-  const path = imageId.replace(/^nifti:/, "").replace(/#z=\d+$/, "");
-  const seg = path.split("/").filter(Boolean);
-  return { image_id: seg[seg.length - 1] ?? path, z };
 }
 
 // 延迟引用 store（避免模块循环）

@@ -4,17 +4,32 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../../i18n";
-import type { TaskView } from "../../api/types";
+import type { DataSource, Focus } from "../../api/types";
 import { useSession } from "../../store/session";
+import { dsFields, KIND_OF } from "../../test/fixtures";
 
 vi.mock("../agent/ConnectionConfig", () => ({ ConnectionConfig: () => <div /> }));
 
 import { FocusTopBar } from "./FocusTopBar";
 
-const TASKS = [
-  { modality: "carotid_imt", label: { zh: "颈动脉远壁 IMT", en: "Carotid far-wall IMT" } },
-  { modality: "ct_abdomen", label: { zh: "肝+双肾", en: "Liver + kidneys" } },
-] as unknown as TaskView[];
+// 模态标签来自数据源的 label_key（SDD 10 D-22），不来自任务注册表。
+const DS: DataSource[] = ["carotid_imt", "ct_abdomen", "natural_image"].map((m) => ({
+  id: m,
+  name: m,
+  modality: m as DataSource["modality"],
+  root: "/r",
+  origin: "builtin",
+  calibration: {},
+  status: "active",
+  ...dsFields(m),
+}));
+
+const focusOn = (id: string, modality: string): Focus => ({
+  object_id: id,
+  kind: KIND_OF[modality],
+  index: {},
+  region: null,
+});
 
 function ui() {
   return render(
@@ -31,18 +46,17 @@ describe("FocusTopBar 图像上下文 chip", () => {
     useSession.setState({
       uiMode: "focus",
       focusLayout: { railOpen: false, rightOpen: false, browserView: null, browserW: null, railW: null, sideW: null },
-      tasks: TASKS,
+      tasks: [],
+      datasources: DS,
       modality: "carotid_imt",
-      activeImage: "tech_401",
-      activeVolume: null,
-      activeSlide: null,
+      focus: focusOn("tech_401", "carotid_imt"),
     });
   });
 
   it("显示「模态 · 当前对象」，且顶栏不再有下拉选择器", () => {
     const { container } = ui();
     const chip = screen.getByRole("button", { name: /Current image context/ });
-    expect(chip).toHaveTextContent("Carotid far-wall IMT");
+    expect(chip).toHaveTextContent("Carotid ultrasound");
     expect(chip).toHaveTextContent("tech_401");
     expect(container.querySelectorAll("select")).toHaveLength(0);
   });
@@ -51,30 +65,30 @@ describe("FocusTopBar 图像上下文 chip", () => {
     ui();
     fireEvent.click(screen.getByRole("button", { name: /Current image context/ }));
     expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, browserView: "files" });
-    expect(useSession.getState().activeImage).toBe("tech_401");
+    expect(useSession.getState().focus?.object_id).toBe("tech_401");
   });
 
   it("无活动对象时呈现提示态", () => {
-    useSession.setState({ activeImage: null });
+    useSession.setState({ focus: null });
     ui();
     const chip = screen.getByRole("button", { name: /Current image context/ });
     expect(chip).toHaveTextContent("Select image…");
     expect(chip.className).toContain("empty");
   });
 
-  it("活动对象随模态派生：CT 下读 activeVolume", () => {
-    useSession.setState({ modality: "ct_abdomen", activeImage: null, activeVolume: "ct_012" });
+  it("活动对象即唯一焦点：CT 下同样读 focus.object_id", () => {
+    useSession.setState({ modality: "ct_abdomen", focus: focusOn("ct_012", "ct_abdomen") });
     ui();
     const chip = screen.getByRole("button", { name: /Current image context/ });
-    expect(chip).toHaveTextContent("Liver + kidneys");
+    expect(chip).toHaveTextContent("Abdominal CT");
     expect(chip).toHaveTextContent("ct_012");
   });
 
   it("自然图像显示中性模态标签，不依赖医学任务注册表", () => {
-    useSession.setState({ modality: "natural_image", activeImage: "natural_cat" });
+    useSession.setState({ modality: "natural_image", focus: focusOn("natural_cat", "natural_image") });
     ui();
     const chip = screen.getByRole("button", { name: /Current image context/ });
-    expect(chip).toHaveTextContent("Natural images");
+    expect(chip).toHaveTextContent("General images");
     expect(chip).toHaveTextContent("natural_cat");
     expect(chip).not.toHaveTextContent("Carotid");
   });

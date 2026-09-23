@@ -1,6 +1,6 @@
 // SDD 10 W0 安全网：钉住「活动对象」的语义不变量（§7 规则 4 / 20、§11.1、§15 准出）。
-// 用今天的四槽字段与逐模态 select 动作写；W3 收成 `focus` + `openObject` 时只改
-// currentObjectId() 的取值方式，断言语义不动。
+// W0 以四槽字段与逐模态 select 动作写成；W3 收成 `focus` + `openObject` / `loadObjects` 后
+// 只换了取值方式与动作名，断言语义未动。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { objectMeta, taskFields } from "../test/fixtures";
 
@@ -8,28 +8,22 @@ import { api } from "../api/client";
 import type { ImageMeta, ModelInfo, Modality, TaskOutput, TaskView } from "../api/types";
 import { applyToolExecutionEvent } from "../agent/toolBridge";
 import { toViewerContext } from "../agent/useConversation";
-import {
-  selectImage,
-  selectNaturalImage,
-  selectSlide,
-  selectVolume,
-  switchModality,
-} from "../data/actions";
+import { loadObjects, openObject } from "../data/actions";
 import { useSession } from "./session";
 
 type S = ReturnType<typeof useSession.getState>;
 
-// 「当前被观测对象的 id」。W3：改为 `return s.focus?.object_id ?? null;`，其余断言不动。
+// 「当前被观测对象的 id」——唯一焦点。
 function currentObjectId(s: S = useSession.getState()): string | null {
-  if (s.modality === "ct_abdomen") return s.activeVolume;
-  if (s.modality === "pathology") return s.activeSlide;
-  return s.activeImage;
+  return s.focus?.object_id ?? null;
 }
+
+const switchModality = (m: Modality) => loadObjects(m);
 
 const INITIAL = useSession.getState();
 
 function meta(id: string, modality: Modality): ImageMeta {
-  return objectMeta({ id, center: "test", cf: modality === "carotid_imt" ? 0.06 : null, modality });
+  return objectMeta({ id, cf: modality === "carotid_imt" ? 0.06 : null, modality });
 }
 
 function task(t: TaskView["task"], modality: Modality, viewer: string): TaskView {
@@ -127,13 +121,13 @@ function proposeEnd(imageId: string, annotationId: string) {
   };
 }
 
-/** 各模态路径：先经 switchModality 打开首个对象，再用该路径的 select 动作换到第二个。 */
+/** 各模态路径：先经 loadObjects 打开首个对象，再用 openObject 换到第二个（五条路径同一动作）。 */
 const PATHS: { modality: Modality; from: Modality; select: (id: string) => unknown }[] = [
-  { modality: "carotid_imt", from: "fetal_hc", select: selectImage },
-  { modality: "fetal_hc", from: "carotid_imt", select: selectImage },
-  { modality: "ct_abdomen", from: "carotid_imt", select: selectVolume },
-  { modality: "pathology", from: "carotid_imt", select: selectSlide },
-  { modality: "natural_image", from: "carotid_imt", select: selectNaturalImage },
+  { modality: "carotid_imt", from: "fetal_hc", select: openObject },
+  { modality: "fetal_hc", from: "carotid_imt", select: openObject },
+  { modality: "ct_abdomen", from: "carotid_imt", select: openObject },
+  { modality: "pathology", from: "carotid_imt", select: openObject },
+  { modality: "natural_image", from: "carotid_imt", select: openObject },
 ];
 
 beforeEach(() => {
@@ -141,10 +135,7 @@ beforeEach(() => {
   useSession.setState(INITIAL, true);
   useSession.setState({ tasks: TASKS });
   useSession.getState().setModels(MODELS);
-  vi.spyOn(api, "images").mockImplementation(async (m: Modality = "carotid_imt") => metas(m));
-  vi.spyOn(api, "volumes").mockResolvedValue(metas("ct_abdomen"));
-  vi.spyOn(api, "slides").mockResolvedValue(metas("pathology"));
-  vi.spyOn(api, "naturalImages").mockResolvedValue(metas("natural_image"));
+  vi.spyOn(api, "objects").mockImplementation(async (m: Modality) => metas(m));
   vi.spyOn(api, "taskRun").mockImplementation(async () => taskOutput());
 });
 

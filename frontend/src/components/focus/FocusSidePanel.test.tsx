@@ -11,7 +11,7 @@ vi.mock("../SideBar", () => ({ ExplorerView: () => <div data-testid="files-view"
 vi.mock("../atlas/AtlasView", () => ({ AtlasView: () => <div data-testid="atlas-view">atlas</div> }));
 vi.mock("./StagePanel", () => ({
   StagePanel: () => {
-    const image = useSession((s) => s.activeImage);
+    const image = useSession((s) => s.focus?.object_id);
     return <div data-testid="stage-view">{image ? `stage:${image}` : "stage-empty"}</div>;
   },
 }));
@@ -62,9 +62,7 @@ describe("FocusSidePanel v1.4 · 舞台常驻 + 分栏", () => {
     useSession.setState({
       uiMode: "focus",
       focusLayout: layout(),
-      activeImage: null,
-      activeVolume: null,
-      activeSlide: null,
+      focus: null,
     });
   });
 
@@ -91,12 +89,12 @@ describe("FocusSidePanel v1.4 · 舞台常驻 + 分栏", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    act(() => useSession.setState({ activeImage: "tech_401" }));
+    act(() => useSession.setState({ focus: { object_id: "tech_401", kind: "image", index: {}, region: null } }));
     expect(screen.getByTestId("stage-view")).toHaveTextContent("stage:tech_401");
     expect(screen.getByTestId("files-view")).toBeInTheDocument();
     expect(useSession.getState().focusLayout.browserView).toBe("files");
 
-    act(() => useSession.setState({ activeImage: "tech_402" }));
+    act(() => useSession.setState({ focus: { object_id: "tech_402", kind: "image", index: {}, region: null } }));
     expect(screen.getByTestId("stage-view")).toHaveTextContent("stage:tech_402");
     expect(useSession.getState().focusLayout.browserView).toBe("files");
   });
@@ -150,7 +148,7 @@ describe("FocusSidePanel v1.4 · 分隔条", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem("glaux.lang", "en");
-    useSession.setState({ uiMode: "focus", focusLayout: layout(), activeImage: null });
+    useSession.setState({ uiMode: "focus", focusLayout: layout(), focus: null });
   });
 
   it("浏览器列关闭时不渲染分隔条；打开后渲染", () => {
@@ -208,9 +206,7 @@ describe("FocusSidePanel v1.4 · 窄屏降级", () => {
     useSession.setState({
       uiMode: "focus",
       focusLayout: layout({ browserView: "files" }),
-      activeImage: null,
-      activeVolume: null,
-      activeSlide: null,
+      focus: null,
     });
   });
 
@@ -225,7 +221,7 @@ describe("FocusSidePanel v1.4 · 窄屏降级", () => {
   it("降级态下选图自动切回舞台（D17）", () => {
     stubSideWidth(500);
     ui();
-    act(() => useSession.setState({ activeImage: "tech_401" }));
+    act(() => useSession.setState({ focus: { object_id: "tech_401", kind: "image", index: {}, region: null } }));
     expect(useSession.getState().focusLayout.browserView).toBeNull();
     expect(screen.getByTestId("stage-view")).toHaveTextContent("stage:tech_401");
   });

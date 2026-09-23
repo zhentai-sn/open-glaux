@@ -3,28 +3,23 @@ import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 import { Viewer } from "./Viewer";
 import { ViewerChrome } from "./ViewerChrome";
-import { reRunActiveModel } from "../data/actions";
+import { currentTaskView, reRunActiveModel } from "../data/actions";
+import { datasourceOf, displayName, mmPerPx } from "../data/objectInfo";
 import { useI18n } from "../i18n";
-import { useSession, type Tool } from "../store/session";
+import { activeObject, useSession, type Tool } from "../store/session";
 
 export function Editor() {
   const { t, lang } = useI18n();
-  const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
-  // 2D 模态用 activeImage，3D（CT）用 activeVolume，WSI（病理）用 activeSlide——查看器/标签统一
-  // 走「当前对象」，否则 CT/WSI 因 activeImage 恒 null 永远卡在空状态、对应 Viewer 从不挂载。
-  const image = activeImage ?? activeVolume ?? activeSlide;
-  const center = useSession((s) => s.imageMeta?.center ?? "dataset");
-  const cf = useSession((s) => s.imageMeta?.cf ?? null);
+  const obj = useSession((s) => activeObject(s));
+  const image = obj ? displayName(obj) : null;
+  const source = useSession((s) => datasourceOf(s.datasources, obj)?.name ?? "dataset");
+  const cf = mmPerPx(obj);
   const loading = useSession((s) => s.loading);
   const setTool = useSession((s) => s.setTool);
   const modelVersion = useSession((s) => s.modelVersion);
 
-  // 当前模态对应任务（注册表）——标签从这里来；工具栏/选项条由 ViewerChrome 统一渲染，不再 if 模态。
-  const tv = tasks.find((tk) => tk.modality === modality);
+  // 当前对象的任务（注册表）——标签从这里来；工具栏/选项条由 ViewerChrome 统一渲染，不再 if 模态。
+  const tv = useSession((s) => currentTaskView(s));
   const label = tv?.label[lang] ?? "";
 
   // reset：回光标 + 重跑活动模型（结果直接体现在叠加/度量面板，不再叙事）
@@ -48,8 +43,8 @@ export function Editor() {
         )}
       </div>
       <div className="breadcrumb">
-        <span>{center}</span>
-        <span>images</span>
+        <span>{source}</span>
+        <span>{t("exp_objects")}</span>
         <span style={{ color: "var(--ink)" }}>{image ?? "—"}</span>
       </div>
 

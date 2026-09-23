@@ -177,7 +177,7 @@ from pathlib import Path  # noqa: E402
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
-from .sources.base import FrameTooLarge, SourceBase, resources_for  # noqa: E402
+from .sources.base import FrameTooLarge, SourceBase, method_refs, resources_for  # noqa: E402
 
 #: 单次取帧在目标 level 上读出的像素上限（与 SDD 10 §5.2 的 64 Mpx 同值）。
 MAX_READ_PX = 64_000_000
@@ -241,7 +241,7 @@ class WsiSource(SourceBase):
                 else None
             ),
             resources=resources_for(object_id, tiles=True),
-            methods=rec["methods"],
+            methods=method_refs(rec["methods"], agent=tuple(rec["methods"])),
             meta={
                 "center": rec["center"],
                 "level_downsamples": [float(d) for d in slide.level_downsamples],

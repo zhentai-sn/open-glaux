@@ -83,12 +83,9 @@ function asProposedAnnotation(value: unknown): Annotation | null {
   };
 }
 
-/** 当前查看器"活动对象"的 id（图 / 体 / 切片按模态取一个）。 */
-function activeTargetId(): string | null {
-  const s = useSession.getState();
-  if (s.modality === "ct_abdomen") return s.activeVolume;
-  if (s.modality === "pathology") return s.activeSlide;
-  return s.activeImage;
+/** 工具结果的目标比对一律用唯一焦点（SDD 10 §7 规则 20），不按模态取活动 id。 */
+function focusedId(): string | null {
+  return useSession.getState().focus?.object_id ?? null;
 }
 
 /**
@@ -106,7 +103,7 @@ export function applyToolExecutionEvent(event: unknown): boolean {
   if (e.type !== "tool_execution_end" || e.isError) return false;
   if (e.toolName === PROPOSE_ANNOTATION_TOOL_NAME) {
     const annotation = asProposedAnnotation(e.result?.details);
-    if (!annotation || activeTargetId() !== annotation.image_id) return false;
+    if (!annotation || focusedId() !== annotation.image_id) return false;
     const session = useSession.getState();
     const existing = session.annotations.find((item) => item.id === annotation.id);
     // SSE 重复送达不得把已经确认/驳回、seq 更高的状态退回 suggested。
@@ -115,7 +112,7 @@ export function applyToolExecutionEvent(event: unknown): boolean {
   }
   if (e.toolName !== RUN_TASK_TOOL_NAME) return false;
   const details = asTaskOutputDetails(e.result?.details);
-  if (!details || activeTargetId() !== details.image_id) return false;
+  if (!details || focusedId() !== details.image_id) return false;
 
   const s = useSession.getState();
   s.setMetrics(details.output.metrics ?? null);

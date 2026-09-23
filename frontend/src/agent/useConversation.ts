@@ -1,6 +1,8 @@
 import { CHAT_EDITION } from "../edition";
 import { useAgentSessions } from "../store/agentSessions";
-import { useSession, type Connection } from "../store/session";
+import { taskViewFor } from "../data/actions";
+import { mmPerPx } from "../data/objectInfo";
+import { activeObject, useSession, type Connection } from "../store/session";
 import type {
   ConnectionInput,
   ConnectionProbeInput,
@@ -9,31 +11,32 @@ import type {
 } from "./runtime/types";
 
 /**
- * 查看器当前上下文（随 prompt 下发给 agent-runtime，`run_task` 工具据此缺省取当前图 / 当前任务）。
- * 按模态取活动对象：CT → activeVolume；病理 → activeSlide（附 ROI）；其它 → activeImage（附 cf）。
+ * 查看器当前上下文（随 prompt 下发给 agent-runtime，`run_task` 工具据此缺省取当前对象 / 当前任务）。
+ * 单一投影，不按模态分支（SDD 10 §7 规则 20）：无 TaskView 的对象不带 task / method，
+ * 故通用图像、视频不会泄漏上一个任务、活动模型或标定（SDD 07）。
  */
 export function toViewerContext(): ViewerContext {
   const s = useSession.getState();
-  const out: ViewerContext = { modality: s.modality };
-  // SDD 07：自然图像不是 science-core 任务。只给 Agent 当前图，不泄漏上一个医学任务、
-  // 活动模型或标定，否则模型可能错误选择 run_task 而不是 segment_region。
-  if (s.modality === "natural_image") {
-    if (s.activeImage) out.image_id = s.activeImage;
-    return out;
+  const out: ViewerContext = {};
+  if (s.modality) {
+    out.collection = s.modality;
+    out.modality = s.modality; // 过渡字段
   }
-  const task = s.tasks.find((t) => t.modality === s.modality)?.task;
-  if (task) out.task = task;
-  if (s.activeModel) out.method = s.activeModel;
-  if (s.modality === "ct_abdomen") {
-    if (s.activeVolume) out.image_id = s.activeVolume;
-  } else if (s.modality === "pathology") {
-    if (s.activeSlide) out.image_id = s.activeSlide;
-    if (s.wsiRoi) out.roi_box = s.wsiRoi;
-  } else {
-    if (s.activeImage) out.image_id = s.activeImage;
-    const cf = s.imageMeta?.cf;
-    if (typeof cf === "number") out.cubs_cf = cf;
+  const obj = activeObject(s);
+  const tv = taskViewFor(s, obj) ?? (obj ? undefined : s.tasks.find((t) => t.modality === s.modality));
+  if (tv) {
+    out.task = tv.task;
+    if (s.activeModel) out.method = s.activeModel;
   }
+  if (!obj || !s.focus) return out;
+  out.object = { id: obj.id, kind: obj.kind, axes: obj.axes, calibration: obj.calibration };
+  out.focus = s.focus;
+  // 过渡字段：runtime 在 W5 改读 object / focus 前只认这几个
+  out.image_id = obj.id;
+  const cf = tv ? mmPerPx(obj) : null;
+  if (cf != null) out.cubs_cf = cf;
+  const r = s.focus.region;
+  if (r?.kind === "box") out.roi_box = [r.x0, r.y0, r.x1, r.y1];
   return out;
 }
 

@@ -1,7 +1,7 @@
 // 退役 orchestration P3：智能体工具产出 → 查看器（toolBridge）与查看器上下文出站（toViewerContext）。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TaskView } from "../api/types";
+import type { Focus, TaskView } from "../api/types";
 import { objectMeta, taskFields } from "../test/fixtures";
 
 const IMT_TASK: TaskView = {
@@ -18,6 +18,14 @@ const IMT_TASK: TaskView = {
   on_commit: null,
   ...taskFields("carotid_imt"),
 };
+
+function focusOn(
+  session: { getState: () => { setFocus: (f: Focus | null) => void } },
+  id: string,
+  kind: Focus["kind"] = "image",
+) {
+  session.getState().setFocus({ object_id: id, kind, index: {}, region: null });
+}
 
 async function fresh() {
   vi.resetModules();
@@ -66,7 +74,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 
   it("applies run_task output to the viewer when it matches the active image", async () => {
     const { session, bridge } = await fresh();
-    session.getState().setActiveImage("tech_401");
+    focusOn(session, "tech_401");
     expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS))).toBe(true);
     const s = session.getState();
     expect(s.metrics?.IMT_mean.value).toBe(0.62);
@@ -77,9 +85,9 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 
   it("ignores stale results (user switched image), errors, other tools and malformed details", async () => {
     const { session, bridge } = await fresh();
-    session.getState().setActiveImage("tech_999");
+    focusOn(session, "tech_999");
     expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS))).toBe(false);
-    session.getState().setActiveImage("tech_401");
+    focusOn(session, "tech_401");
     expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { isError: true }))).toBe(false);
     expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { toolName: "other" }))).toBe(false);
     expect(bridge.applyToolExecutionEvent(toolEnd({ kind: "nope" }))).toBe(false);
@@ -89,7 +97,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 
   it("applies propose_annotation to the current viewer immediately and idempotently", async () => {
     const { session, bridge } = await fresh();
-    session.getState().setActiveImage("natural_cat");
+    focusOn(session, "natural_cat");
     const event = toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" });
 
     expect(bridge.applyToolExecutionEvent(event)).toBe(true);
@@ -124,14 +132,14 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 
   it("ignores stale, failed, empty and malformed annotation proposals", async () => {
     const { session, bridge } = await fresh();
-    session.getState().setActiveImage("natural_dog");
+    focusOn(session, "natural_dog");
     expect(
       bridge.applyToolExecutionEvent(
         toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" }),
       ),
     ).toBe(false);
 
-    session.getState().setActiveImage("natural_cat");
+    focusOn(session, "natural_cat");
     expect(
       bridge.applyToolExecutionEvent(
         toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation", isError: true }),
@@ -161,7 +169,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 
   it("applies a closed polygon proposal without retaining untrusted extra fields", async () => {
     const { session, bridge } = await fresh();
-    session.getState().setActiveImage("natural_cat");
+    focusOn(session, "natural_cat");
     const details = {
       ...PROPOSED_DETAILS,
       payload: {
@@ -190,47 +198,56 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 describe("toViewerContext", () => {
   beforeEach(() => localStorage.clear());
 
-  it("reports the active image, task, method and cf for raster modalities", async () => {
+  it("reports object, focus, task, method and the transitional cf for raster modalities", async () => {
     const { session, conv } = await fresh();
     const s = session.getState();
     s.setTasks([IMT_TASK]);
-    s.setActiveImage("tech_401");
-    s.setImageMeta(objectMeta({ id: "tech_401", center: "c", cf: 0.06, modality: "carotid_imt" }));
+    const obj = objectMeta({ id: "tech_401", cf: 0.06, modality: "carotid_imt" });
+    s.setObjects("carotid_imt", [obj]);
+    focusOn(session, "tech_401");
     expect(conv.toViewerContext()).toEqual({
+      collection: "carotid_imt",
       modality: "carotid_imt",
       task: "far_wall_cca_imt",
       method: "caroSegDeep",
+      object: { id: "tech_401", kind: "image", axes: obj.axes, calibration: obj.calibration },
+      focus: { object_id: "tech_401", kind: "image", index: {}, region: null },
       image_id: "tech_401",
       cubs_cf: 0.06,
     });
   });
 
-  it("uses the slide + roi for pathology and omits image_id when nothing is open", async () => {
+  it("carries the box region for pathology and omits the object when nothing is open", async () => {
     const { session, conv } = await fresh();
     const s = session.getState();
     s.setModality("pathology");
-    s.setActiveSlide("slide_001");
-    s.setWsiRoi([1, 2, 3, 4]);
+    s.setObjects("pathology", [objectMeta({ id: "slide_001", modality: "pathology" })]);
+    focusOn(session, "slide_001", "slide");
+    s.setRegion({ kind: "box", x0: 1, y0: 2, x1: 3, y1: 4 });
     expect(conv.toViewerContext()).toMatchObject({
-      modality: "pathology",
+      collection: "pathology",
       image_id: "slide_001",
+      focus: { region: { kind: "box", x0: 1, y0: 2, x1: 3, y1: 4 } },
       roi_box: [1, 2, 3, 4],
     });
-    s.setActiveSlide(null);
+    s.setFocus(null);
     expect(conv.toViewerContext().image_id).toBeUndefined();
+    expect(conv.toViewerContext().object).toBeUndefined();
   });
 
-  it("sends natural images without a stale medical task, method or calibration", async () => {
+  it("sends objects without a TaskView without a stale task, method or calibration", async () => {
     const { session, conv } = await fresh();
     const s = session.getState();
     s.setTasks([IMT_TASK]);
     s.setModality("natural_image");
-    s.setActiveImage("natural_cat");
-    s.setImageMeta(
-      objectMeta({ id: "natural_cat", center: "Natural images", modality: "natural_image" }),
-    );
+    const obj = objectMeta({ id: "natural_cat", modality: "natural_image" });
+    s.setObjects("natural_image", [obj]);
+    focusOn(session, "natural_cat");
     expect(conv.toViewerContext()).toEqual({
+      collection: "natural_image",
       modality: "natural_image",
+      object: { id: "natural_cat", kind: "image", axes: obj.axes, calibration: null },
+      focus: { object_id: "natural_cat", kind: "image", index: {}, region: null },
       image_id: "natural_cat",
     });
   });

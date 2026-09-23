@@ -68,13 +68,11 @@ const newTool = () => new ImtWallHandleTool({}, {});
 beforeEach(() => {
   taskMeasure.mockClear();
   useSession.setState({
-    activeImage: "tech_401",
     modality: "carotid_imt",
     tasks: [task()],
     primitives: [{ kind: "polyline", id: "li", role: "LI", closed: false, points: WALL_POINTS.map((p) => [...p]) }],
-    imageMeta: objectMeta({
-      id: "tech_401", center: "tech", cf: 0.05, methods: ["caroSegDeep"], modality: "carotid_imt",
-    }),
+    objects: { carotid_imt: [objectMeta({ id: "tech_401", cf: 0.05, modality: "carotid_imt" })] },
+    focus: { object_id: "tech_401", kind: "image", index: {}, region: null },
   });
 });
 

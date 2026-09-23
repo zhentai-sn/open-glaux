@@ -123,7 +123,7 @@ from pathlib import Path  # noqa: E402
 from . import mock  # noqa: E402
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, resources_for  # noqa: E402
+from .sources.base import SourceBase, method_refs, resources_for  # noqa: E402
 
 SYNTHETIC_ID = "synthetic-us"
 
@@ -191,7 +191,7 @@ class CarotidSource(SourceBase):
                 Calibration(kind="mm_per_px", value=cf, source=cal_source) if cf else None
             ),
             resources=resources_for(object_id),
-            methods=rec["methods"],
+            methods=method_refs(rec["methods"], gold=("Manual-A1",), agent=(CARO,)),
             meta={"center": rec["center"]},
         )
 

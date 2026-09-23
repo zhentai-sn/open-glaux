@@ -14,9 +14,8 @@ describe("SideBar 文件树可达性", () => {
     // SDD 08：文件树只在有 active 数据源时渲染，故这里先备一个（不然进的是空态卡）
     useSession.setState({
       modality: "carotid_imt",
-      images: [],
-      volumes: [],
-      slides: [],
+      objects: {},
+      focus: null,
       dsState: "ready",
       datasources: [
         {
@@ -39,8 +38,8 @@ describe("SideBar 文件树可达性", () => {
         <ExplorerView />
       </I18nProvider>,
     );
-    // "images" 目录头默认展开，应为可聚焦 button 且 aria-expanded=true
-    const dir = screen.getByRole("button", { name: /^images$/i });
+    // 对象目录头默认展开，应为可聚焦 button 且 aria-expanded=true
+    const dir = screen.getByRole("button", { name: /^objects$/i });
     expect(dir).toBeInstanceOf(HTMLButtonElement);
     expect(dir).toHaveAttribute("aria-expanded", "true");
     // 点击折叠 → aria-expanded 翻转（证明键盘/点击均可触发同一 button）

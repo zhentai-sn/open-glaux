@@ -1,5 +1,6 @@
 import { CHAT_EDITION } from "../../edition";
 import { useI18n } from "../../i18n";
+import { useModalityLabel } from "../../i18n/modalityLabel";
 import { useSession } from "../../store/session";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
 import { Icon } from "../Icon";
@@ -11,20 +12,12 @@ import { ModeSwitch } from "./ModeSwitch";
 // 不再自带选择器：选图的唯一 UI 入口是右侧栏「文件」标签（复用 ExplorerView），
 // 点击本 chip 即展开右侧栏并切到该标签，避免同一份派生规则在两处各写一遍。
 function ImageContextChip() {
-  const { lang, t } = useI18n();
+  const { t } = useI18n();
   const modality = useSession((s) => s.modality);
-  const tasks = useSession((s) => s.tasks);
-  const activeImage = useSession((s) => s.activeImage);
-  const activeVolume = useSession((s) => s.activeVolume);
-  const activeSlide = useSession((s) => s.activeSlide);
+  const activeId = useSession((s) => s.focus?.object_id ?? null);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
-
-  const modalityLabel =
-    modality === "natural_image"
-      ? t("natural_images")
-      : tasks.find((tk) => tk.modality === modality)?.label[lang];
-  // 活动对象按模态互斥（IMT/HC → image，CT → volume，WSI → slide），取其一即可。
-  const activeId = activeImage ?? activeVolume ?? activeSlide ?? null;
+  const label = useModalityLabel();
+  const modalityLabel = modality ? label(modality) : "";
 
   return (
     <button

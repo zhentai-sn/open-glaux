@@ -67,4 +67,10 @@ export function getT(): (key: I18nKey, vars?: Vars) => string {
   return (key, vars) => interpolate(DICTS[lang][key] ?? key, vars);
 }
 
+/** 按运行期字符串键取词面（如后端下发的 ``DataSource.label_key``）；缺键 → undefined。 */
+export function lookup(lang: Lang, key: string): string | undefined {
+  const dict = DICTS[lang] as Record<string, string>;
+  return Object.prototype.hasOwnProperty.call(dict, key) ? dict[key] : undefined;
+}
+
 export type { I18nKey };

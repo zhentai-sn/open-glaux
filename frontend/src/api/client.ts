@@ -3,6 +3,7 @@ import type {
   Annotation,
   AnnotationCreated,
   AnnotationInput,
+  Calibration,
   Capability,
   DataSource,
   EditRequest,
@@ -198,9 +199,9 @@ export const api = {
   tasks: () => get<TaskView[]>("/tasks"),
   /** 统一驱动：取数 → 测量 → TaskOutput（多模态通吃）。 */
   taskRun: (spec: TaskSpec) => post<TaskOutput>("/task/run", spec),
-  /** 由编辑后的图元重测（泛型替代 measure + hcMeasure）。 */
-  taskMeasure: (task: TaskType, primitives: Primitive[], cf: number) =>
-    post<MeasurementResult>("/task/measure", { task, primitives, cf }),
+  /** 由编辑后的图元重测；标定收对象的 Calibration（开放集，SDD 10 D-16）。 */
+  taskMeasure: (task: TaskType, primitives: Primitive[], calibration: Calibration) =>
+    post<MeasurementResult>("/task/measure", { task, primitives, calibration }),
 
   // --- 统一标注（SDD 04）——bbox/polygon/brush 产物的持久化面 -----------------
   annotations: {

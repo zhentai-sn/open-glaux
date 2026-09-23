@@ -1,48 +1,72 @@
-// 真实数据编排（F5/F6/F8 + 多模态）——载数据集、切模态、选图、统一驱动 /task/run。
-// 单一泛型入口 runCurrentTask：按注册表取当前模态的任务 → api.taskRun → 设 metrics/primitives/
-// source/modelVersion。加任务/模态零改（不再 segmentAndMeasure vs hcDetectAndMeasure 逐模态）。
+// 真实数据编排——三个动作（SDD 10 §6.2 / §6.3）：
+//   loadObjects(modality) 载某模态的对象表；openObject(id) 设唯一焦点；runTask(region?) 跑当前对象的任务。
+// 模态差异一律经 ObjectMeta.kind / TaskView（trigger、object_kinds）表达，本文件不按模态分支（D-14）。
 // 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
-import type { Modality, TaskType, UploadResult } from "../api/types";
-import { TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
+import type { Index, Modality, ObjectMeta, Region, TaskSpec, TaskView, UploadResult } from "../api/types";
+import { activeObject, TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
 import { pushRecent, pruneRecent } from "./recent";
 
-/** 记一条最近使用（SDD 08 §9.4）；label 即对象 id——文件栏与最近区展示的是同一个名字。 */
-function noteRecent(modality: Modality, id: string): void {
+type State = ReturnType<typeof useSession.getState>;
+
+/** 对象所属模态下、接受其几何族的 TaskView；无任务的模态（natural_image、video）为 undefined。 */
+export function taskViewFor(s: Pick<State, "tasks">, obj: ObjectMeta | null): TaskView | undefined {
+  if (!obj) return undefined;
+  return s.tasks.find((t) => t.modality === obj.modality && t.object_kinds.includes(obj.kind));
+}
+
+/** 当前焦点对象的 TaskView（无焦点时退回当前模态的首个任务行，供工具栏 / 度量面板取字段）。 */
+export function currentTaskView(s: Pick<State, "tasks" | "objects" | "modality" | "focus">): TaskView | undefined {
+  const obj = activeObject(s);
+  if (obj) return taskViewFor(s, obj);
+  return s.tasks.find((t) => t.modality === s.modality);
+}
+
+/** 打开对象时的缺省索引，由 axes 决定：z / t 取 0，level 取最粗层（§11.1）。 */
+export function defaultIndex(obj: ObjectMeta): Index {
+  const out: Index = {};
+  for (const a of obj.axes) {
+    if (a.name === "z" || a.name === "t") out[a.name] = 0;
+    if (a.name === "level") out.level = a.size - 1;
+  }
+  return out;
+}
+
+function findObject(s: State, id: string): ObjectMeta | null {
+  for (const list of Object.values(s.objects)) {
+    const hit = list.find((o) => o.id === id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** 记一条最近使用（SDD 08 §9.4、SDD 10 §9.5）。 */
+function noteRecent(obj: ObjectMeta): void {
   const s = useSession.getState();
   s.setRecentItems(
-    pushRecent(s.recentItems, { modality, id, label: id, at: new Date().toISOString() }),
+    pushRecent(s.recentItems, {
+      modality: obj.modality,
+      kind: obj.kind,
+      id: obj.id,
+      label: obj.display_name || obj.id,
+      at: new Date().toISOString(),
+    }),
   );
 }
 
-/** 剔除已不存在的最近项（源被删/图被移走）——渲染前调，静默且写回持久化（§7 规则 12）。 */
+/** 剔除已不存在的最近项——某模态**已加载**的列表里没有该 id 才剔除；未加载的模态一律保留。 */
 export function prunedRecent() {
   const s = useSession.getState();
-  // 按模态分别持有该模态当前已加载的列表。**空列表 = 尚未加载，不是「不存在」**——
-  // 二者混同会让启动期（列表还没拉回来）把有效记录当失效项永久删掉，走查时就是这么丢的。
-  const lists: Partial<Record<Modality, string[]>> = {
-    carotid_imt: s.images.map((m) => m.id),
-    fetal_hc: s.images.map((m) => m.id),
-    natural_image: s.naturalImages.map((m) => m.id),
-    ct_abdomen: s.volumes.map((m) => m.id),
-    pathology: s.slides.map((m) => m.id),
-  };
   const next = pruneRecent(s.recentItems, (m, id) => {
-    const list = lists[m];
-    if (!list || !list.length) return true; // 该模态还没加载出来 → 保留，等下一次渲染再判
-    return list.includes(id);
+    const list = s.objects[m];
+    if (!list) return true; // 缺键 = 尚未加载，不是「不存在」
+    return list.some((o) => o.id === id);
   });
   if (next.length !== s.recentItems.length) s.setRecentItems(next);
   return next;
 }
 
-/** 当前模态对应的任务类型（注册表真相源）；未就绪则 null。 */
-function currentTask(): TaskType | null {
-  const { tasks, modality } = useSession.getState();
-  return tasks.find((t) => t.modality === modality)?.task ?? null;
-}
-
-/** 清空叠加/度量态（切图/切模态时）。 */
+/** 清空叠加/度量态（切对象/切模态时）。 */
 function clearOverlays(): void {
   const s = useSession.getState();
   s.setMetrics(null);
@@ -52,185 +76,90 @@ function clearOverlays(): void {
   s.setAnnotations([]); // SDD 04：标注随对象切走，由查看器重新拉取
 }
 
-/** 载入当前模态的数据集列表（Explorer）；若无选中图则选第一张。 */
-export async function loadImages(): Promise<void> {
-  const { modality } = useSession.getState();
-  if (modality === "natural_image") {
-    const imgs = await api.naturalImages();
-    useSession.getState().setNaturalImages(imgs);
-    const { activeImage } = useSession.getState();
-    if (!activeImage && imgs.length) selectNaturalImage(imgs[0].id);
-    return;
-  }
-  if (modality === "ct_abdomen") {
-    // P6：CT 模态走 volumes（不同端点 + activeVolume 而非 activeImage）
-    const vols = await api.volumes();
-    useSession.getState().setVolumes(vols);
-    const { activeVolume } = useSession.getState();
-    if (!activeVolume && vols.length) await selectVolume(vols[0].id);
-    return;
-  }
-  if (modality === "pathology") {
-    // P7：WSI 走 slides（activeSlide；不自动跑——核检测要先框 ROI）
-    const sl = await api.slides();
-    useSession.getState().setSlides(sl);
-    const { activeSlide } = useSession.getState();
-    if (!activeSlide && sl.length) await selectSlide(sl[0].id);
-    return;
-  }
-  const imgs = await api.images(modality);
-  useSession.getState().setImages(imgs);
-  const { activeImage } = useSession.getState();
-  if (!activeImage && imgs.length) await selectImage(imgs[0].id);
-}
-
-/** 载入常驻自然图像目录；不自动切离当前医学模态。 */
-export async function loadNaturalImages(): Promise<void> {
-  useSession.getState().setNaturalImages(await api.naturalImages());
-}
-
-/** 切换模态：换列表、清叠加、选首图并跑该模态的检测/分割 + 测量。 */
-export async function switchModality(modality: Modality): Promise<void> {
+/**
+ * 进入一个模态：焦点置空、清叠加、工具与工具参数复位、活动模型跟随模态（§11.1 切模态即清空）。
+ * 新模态没有活动模型时置 null，不沿用上一模态的（W0 F-1）。
+ */
+function enterModality(modality: Modality): void {
   const s = useSession.getState();
-  if (s.modality === modality) return;
   s.setModality(modality);
-  s.setActiveImage(null);
-  s.setActiveVolume(null);
-  s.setActiveSlide(null);
-  s.setWsiRoi(null);
-  s.setImageMeta(null);
+  s.setFocus(null);
   clearOverlays();
   s.setTool("cursor");
-  // SDD 04：工具参数随模态复位（brush/voi 不跨模态泄漏）
   s.setToolOptions({
     brush: { ...TOOL_OPTIONS_DEFAULTS.brush },
     voi: { ...TOOL_OPTIONS_DEFAULTS.voi },
   });
-  // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
-  // 新模态没有活动模型时置空，不沿用上一模态的：否则 IMT → CT 会以 method=caroSegDeep
-  // 调 /task/run，而 CT 分割执行器只接受 totalsegmentator_v2（SDD 10 §11.1）。
   const pick = s.models.find((m) => m.modality === modality && m.active);
   useSession.setState({ activeModel: pick?.id ?? null });
-  if (modality === "natural_image") {
-    let imgs = useSession.getState().naturalImages;
-    if (!imgs.length) {
-      imgs = await api.naturalImages();
-      useSession.getState().setNaturalImages(imgs);
-    }
-    if (imgs.length) selectNaturalImage(imgs[0].id);
-    return;
-  }
-  if (modality === "ct_abdomen") {
-    // P6：CT 模态独立分支——拉 volumes + 选首 volume
-    const vols = await api.volumes();
-    useSession.getState().setVolumes(vols);
-    if (vols.length) await selectVolume(vols[0].id);
-    return;
-  }
-  if (modality === "pathology") {
-    // P7：WSI 模态独立分支——拉 slides + 选首 slide（不自动跑，等框 ROI）
-    const sl = await api.slides();
-    useSession.getState().setSlides(sl);
-    if (sl.length) await selectSlide(sl[0].id);
-    return;
-  }
-  const imgs = await api.images(modality);
-  useSession.getState().setImages(imgs);
-  if (imgs.length) await selectImage(imgs[0].id);
-}
-
-/** 泛型驱动：/task/run 当前模态的任务 → 设 metrics/primitives/source/modelVersion。成功返回 true。 */
-export async function runCurrentTask(imageId: string): Promise<boolean> {
-  const s = useSession.getState();
-  const task = currentTask();
-  if (!task) return false;
-  const cf = s.imageMeta?.cf ?? undefined;
-  const method = s.activeModel || undefined;
-  s.setLoading(true);
-  try {
-    const res = await api.taskRun({ task, image_id: imageId, cubs_cf: cf, method });
-    useSession.getState().setMetrics(res.metrics);
-    useSession.getState().setPrimitives(res.primitives);
-    useSession.getState().setSource("agent");
-    useSession.getState().setModelVersion(String(res.provenance.model_version ?? method ?? ""));
-    return Object.keys(res.metrics).length > 0;
-  } catch {
-    clearOverlays();
-    return false;
-  } finally {
-    useSession.getState().setLoading(false);
-  }
-}
-
-/** 选图：设元数据 + 载真图（画布自取 /image）+ 跑当前模态的检测/分割测量。 */
-export async function selectImage(imageId: string): Promise<void> {
-  const s = useSession.getState();
-  noteRecent(s.modality, imageId);
-  const meta = s.images.find((m) => m.id === imageId) ?? null;
-  s.setActiveImage(imageId);
-  s.setImageMeta(meta);
-  clearOverlays();
-  await runCurrentTask(imageId);
 }
 
 /**
- * 选择自然图像：只准备 2D Viewer 与 Agent 的当前图上下文，不触发任何医学 TaskPlugin。
- * 与 switchModality 分开，防止把自然照片送进 /task/run。
+ * 载入某模态的对象表。切到新模态时先复位（enterModality）；同一模态则只刷新列表、保留仍存在的焦点。
+ * 无焦点时打开 ``open`` 指定的对象，缺省打开首个对象。
  */
-export function selectNaturalImage(imageId: string): void {
+export async function loadObjects(modality: Modality, opts: { open?: string } = {}): Promise<void> {
+  if (useSession.getState().modality !== modality) enterModality(modality);
+  const list = await api.objects(modality);
   const s = useSession.getState();
-  const meta = s.naturalImages.find((m) => m.id === imageId) ?? null;
-  if (!meta) return;
-  noteRecent("natural_image", imageId);
-  s.setModality("natural_image");
-  s.setActiveImage(imageId);
-  s.setActiveVolume(null);
-  s.setActiveSlide(null);
-  s.setWsiRoi(null);
-  s.setImageMeta(meta);
-  clearOverlays();
-  s.setTool("cursor");
+  s.setObjects(modality, list);
+  const target = opts.open ?? s.focus?.object_id;
+  if (target && list.some((o) => o.id === target)) {
+    if (target !== s.focus?.object_id) await openObject(target);
+    return;
+  }
+  if (list.length) await openObject(list[0].id);
+  else s.setFocus(null);
 }
 
-/** P6：选 CT volume——设元数据（含 voxel_spacing_mm）+ 跑当前模态的 volume 任务。 */
-export async function selectVolume(volumeId: string): Promise<void> {
-  const s = useSession.getState();
-  noteRecent("ct_abdomen", volumeId);
-  const meta = s.volumes.find((m) => m.id === volumeId) ?? null;
-  s.setActiveVolume(volumeId);
-  s.setImageMeta(meta);
+/**
+ * 打开一个对象（SDD 10 §6.2）：设焦点（缺省索引、无选区）、清叠加，按 TaskView.trigger 决定是否自动跑。
+ * 无 TaskView 的模态即 manual（D-18 显式 no-task 契约）。对象所属模态尚未加载时给出 ``modality``。
+ */
+export async function openObject(id: string, modality?: Modality): Promise<void> {
+  let s = useSession.getState();
+  let obj = findObject(s, id);
+  if (!obj && modality) {
+    s.setObjects(modality, await api.objects(modality));
+    s = useSession.getState();
+    obj = findObject(s, id);
+  }
+  if (!obj) return;
+  if (obj.modality !== s.modality) enterModality(obj.modality);
+  noteRecent(obj);
+  useSession.getState().setFocus({ object_id: id, kind: obj.kind, index: defaultIndex(obj), region: null });
   clearOverlays();
-  await runCurrentTask(volumeId);
+  const trigger = taskViewFor(useSession.getState(), obj)?.trigger ?? "manual";
+  if (trigger === "on_open") await runTask();
 }
 
-/** P7：选 WSI slide——设元数据（含 mpp/dims）+ 清叠加/ROI。**不自动跑**（核检测要先框 ROI）。 */
-export async function selectSlide(slideId: string): Promise<void> {
+/**
+ * 跑当前对象的任务（SDD 10 §6.3）。入参来源固定：image_id ← focus.object_id；calibration ←
+ * 对象标定（null 不下发）；region ← 实参 ?? focus.region；method ← activeModel。成功返回 true。
+ * ``on_region`` 任务在没有选区时不发请求。
+ */
+export async function runTask(region?: Region): Promise<boolean> {
   const s = useSession.getState();
-  noteRecent("pathology", slideId);
-  const meta = s.slides.find((m) => m.id === slideId) ?? null;
-  s.setActiveSlide(slideId);
-  s.setImageMeta(meta);
-  s.setWsiRoi(null);
-  clearOverlays();
-}
-
-/** P7：WSI 核检测——按框选 ROI 跑 /task/run（roi_box）。成功返回 true。 */
-export async function runWsiTask(
-  slideId: string,
-  roiBox: [number, number, number, number],
-): Promise<boolean> {
-  const s = useSession.getState();
-  const task = currentTask();
-  if (!task) return false;
+  const obj = activeObject(s);
+  const tv = taskViewFor(s, obj);
+  if (!obj || !tv) return false;
+  if (region) s.setRegion(region);
+  const r = region ?? s.focus?.region ?? null;
+  if (tv.trigger === "on_region" && !r) return false;
+  const spec: TaskSpec = { task: tv.task, image_id: obj.id };
+  if (obj.calibration) spec.calibration = obj.calibration;
+  if (r) spec.region = r;
   const method = s.activeModel || undefined;
-  s.setWsiRoi(roiBox);
+  if (method) spec.method = method;
   s.setLoading(true);
   try {
-    const res = await api.taskRun({ task, image_id: slideId, roi_box: roiBox, method });
-    useSession.getState().setMetrics(res.metrics);
-    useSession.getState().setPrimitives(res.primitives);
-    useSession.getState().setSource("agent");
-    useSession.getState().setModelVersion(String(res.provenance.model_version ?? method ?? ""));
+    const res = await api.taskRun(spec);
+    const now = useSession.getState();
+    if (now.focus?.object_id !== obj.id) return false; // 结果回来前已切走：丢弃，不串到新对象
+    now.setMetrics(res.metrics);
+    now.setPrimitives(res.primitives);
+    now.setSource("agent");
+    now.setModelVersion(String(res.provenance.model_version ?? method ?? ""));
     return Object.keys(res.metrics).length > 0;
   } catch {
     clearOverlays();
@@ -263,14 +192,20 @@ export function activeModalities(): Modality[] {
   return [...seen];
 }
 
-/** 上传一批本地图像 → 刷新数据源与通用图像列表 → 选中首个新图。返回结果供 UI 列出被拒项。 */
+/** 启动与数据源变更后的装配：当前模态仍有数据则刷新，否则进入首个有数据的模态。 */
+export async function loadInitialObjects(): Promise<void> {
+  const mods = activeModalities();
+  if (!mods.length) return;
+  const cur = useSession.getState().modality;
+  await loadObjects(cur && mods.includes(cur) ? cur : mods[0]);
+}
+
+/** 上传一批本地文件 → 刷新数据源 → 进入其模态并打开首个受理的对象。返回结果供 UI 列出被拒项。 */
 export async function uploadImages(files: File[]): Promise<UploadResult> {
   const result = await api.uploadImages(files);
   await refreshDataSources();
-  const imgs = await api.naturalImages();
-  useSession.getState().setNaturalImages(imgs);
   const first = result.accepted[0];
-  if (first) selectNaturalImage(first.id);
+  if (first) await loadObjects(result.source.modality, { open: first.id });
   return result;
 }
 
@@ -278,12 +213,7 @@ export async function uploadImages(files: File[]): Promise<UploadResult> {
 export async function loadSamples(): Promise<number> {
   const added = await api.loadSamples();
   await refreshDataSources();
-  const mods = activeModalities();
-  if (added.length && mods.length) {
-    const cur = useSession.getState().modality;
-    if (mods.includes(cur)) await loadImages();
-    else await switchModality(mods[0]);
-  }
+  if (added.length) await loadInitialObjects();
   return added.length;
 }
 
@@ -299,41 +229,29 @@ export async function reloadMarket(): Promise<void> {
   useSession.getState().setModels(models);
 }
 
-/** 导入一个文件夹为数据源 → 刷新市场；若导入的是当前模态，刷新数据列表。返回状态。 */
+/** 导入一个文件夹为数据源 → 刷新市场；若导入的是当前模态，刷新对象表。返回状态。 */
 export async function importDataSource(path: string, modality: Modality): Promise<string> {
   const src = await api.importDatasource(path, modality);
   await reloadMarket();
-  if (useSession.getState().modality === modality) await loadImages();
+  if (useSession.getState().modality === modality) await loadObjects(modality);
   return src.status;
 }
 
-/** 删除一个导入源 → 刷新市场（含当前模态数据列表，防删掉正用的源后列表悬空）。 */
+/** 删除一个导入源 → 刷新市场与对象表（防删掉正用的源后列表悬空）。 */
 export async function removeDataSource(id: string): Promise<void> {
   await api.removeDatasource(id);
   await reloadMarket();
   useSession.getState().setDsState("ready");
-  // 删到一个 active 源都不剩 → 回空态，不再去拉必然为空的数据列表（§7 规则 4）
+  // 删到一个 active 源都不剩 → 回空态，不再去拉必然为空的对象表（§7 规则 4）
   if (!activeModalities().length) {
-    useSession.getState().setNaturalImages([]);
+    useSession.setState({ objects: {} });
+    useSession.getState().setFocus(null);
     return;
   }
-  await loadImages();
+  await loadInitialObjects();
 }
 
-/** 重跑当前模态的活动模型/检测器（切模型 / Reset 用）。 */
+/** 重跑当前对象的任务（切模型 / Reset 用）；on_region 任务无选区时为空操作。 */
 export async function reRunActiveModel(): Promise<void> {
-  const s = useSession.getState();
-  if (s.modality === "ct_abdomen") {
-    if (!s.activeVolume) return;
-    await runCurrentTask(s.activeVolume);
-    return;
-  }
-  if (s.modality === "pathology") {
-    // P7：重跑要有已框 ROI；否则无操作（提示在 WsiViewer 里）
-    if (!s.activeSlide || !s.wsiRoi) return;
-    await runWsiTask(s.activeSlide, s.wsiRoi);
-    return;
-  }
-  if (!s.activeImage) return;
-  await runCurrentTask(s.activeImage);
+  await runTask();
 }

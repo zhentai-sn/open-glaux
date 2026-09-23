@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 
 import { annotationToW3c, isRoiTooSmall, w3cToPrimitive, type W3cAnnotation } from "./wsiAnno";
-import { niftiTarget } from "./csAnno";
 import type { Annotation } from "../api/types";
 
 function ann(primitive: Annotation["primitive"]): Annotation {
@@ -57,15 +56,6 @@ describe("annotationToW3c 往返", () => {
 
   it("mask 在 WSI 无能力位 → null（不下发 Annotorious）", () => {
     expect(annotationToW3c(ann({ kind: "mask", ref: "masks/a1.png" }))).toBeNull();
-  });
-});
-
-describe("niftiTarget（volume 落库目标解析）", () => {
-  it("解析 volume id 与 z", () => {
-    expect(niftiTarget("nifti:http://localhost/api/volume/ct_001#z=17")).toEqual({ image_id: "ct_001", z: 17 });
-  });
-  it("无 z 后缀 → z=null", () => {
-    expect(niftiTarget("nifti:http://localhost/api/volume/ct_001")).toEqual({ image_id: "ct_001", z: null });
   });
 });
 
