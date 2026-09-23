@@ -186,7 +186,7 @@ export type PanelTab = "meas" | "out" | "prob" | "term";
  * `wall` 是任务专属编辑（IMT 壁线形变），单独占一个工具位：曾经把它挂在 polygon 上，
  * 结果 IMT 模态的「多边形标注」既画不出多边形、无壁线时还静默无响应。
  */
-export type Tool = "cursor" | "bbox" | "polygon" | "wall" | "brush" | "reset";
+export type Tool = string;
 
 /** SDD 04：工具参数（随 switchModality 复位）——从查看器本地 state 提升为全局真相源。 */
 export interface ToolOptions {

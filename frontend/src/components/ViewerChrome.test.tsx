@@ -8,7 +8,7 @@ import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import { TOOL_OPTIONS_DEFAULTS, useSession, type Tool } from "../store/session";
 import type { TaskView } from "../api/types";
-import { taskFields } from "../test/fixtures";
+import { dsFields, objectMeta, taskFields } from "../test/fixtures";
 
 const UNIFIED_TOOLS = [
   { id: "cursor", glyph: "▸", label: { en: "Select / Pan", zh: "选择 / 平移" } },
@@ -37,9 +37,12 @@ function makeTask(modality: TaskView["modality"], capabilities: string[]): TaskV
 }
 
 function mount(modality: TaskView["modality"], capabilities: string[], tool: Tool = "cursor") {
+  const object = objectMeta({ id: `${modality}-test`, modality });
   useSession.setState({
     modality,
     tasks: [makeTask(modality, capabilities)],
+    objects: { [modality]: [object] },
+    focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
     tool,
     toolOptions: { brush: { ...TOOL_OPTIONS_DEFAULTS.brush }, voi: { ...TOOL_OPTIONS_DEFAULTS.voi } },
     primitives: [],
@@ -59,6 +62,31 @@ beforeEach(() => {
 // 按钮内容 = lucide 图标（SDD 06）+ .tip 文案（注册表 label，SDD 04）；
 // 断言走文案，不再断言 glyph 字符——字符渲染已随 SDD 06 退役。
 describe("引擎能力位过滤", () => {
+  it("无 TaskView 时显示数据源默认标注工具", () => {
+    const object = objectMeta({ id: "natural-1", modality: "natural_image" });
+    useSession.setState({
+      modality: "natural_image",
+      tasks: [],
+      objects: { natural_image: [object] },
+      focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
+      datasources: [{
+        id: object.source_id,
+        name: "Natural",
+        modality: "natural_image",
+        root: "",
+        origin: "imported",
+        calibration: {},
+        status: "active",
+        ...dsFields("natural_image"),
+        default_capabilities: ["bbox", "polygon"],
+      }],
+    });
+    render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
+    expect(screen.getByText("Bounding box")).toBeTruthy();
+    expect(screen.getByText("Polygon")).toBeTruthy();
+    expect(screen.queryByText("Brush")).toBeNull();
+  });
+
   it("WSI（capabilities 无 brush/wall）不渲染画笔与壁线按钮，bbox/polygon 在", () => {
     mount("pathology", ["bbox", "polygon"]);
     expect(screen.queryByText("Brush")).toBeNull();

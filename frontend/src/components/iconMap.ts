@@ -54,7 +54,7 @@ export const FALLBACK_ICON: LucideIcon = Diamond;
 // 工具（与 SDD 05 键位映射同源，D-2）× SDD 06 线性图标。
 // SDD 04 统一工具集（cursor/bbox/polygon/brush/reset）+ 任务专属编辑 wall（IMT 壁线）：
 // 旧的 editli/editma 曾并入 polygon，现由 wall 单独承接（polygon 归还给自由多边形）。
-export const TOOL_ICON: Record<Tool, LucideIcon> = {
+export const TOOL_ICON: Partial<Record<Tool, LucideIcon>> = {
   cursor: MousePointer2,
   bbox: Square, // 框选
   polygon: Spline, // 自由多边形轮廓

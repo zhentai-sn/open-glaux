@@ -384,3 +384,14 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 | F-19 | W4 实现 | `useTaskTools()` 属 W4 范围（SDD 10 §8.3） |
 
 W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已有自动化证据，场景 3（CT 逐层画笔）与场景 4（WSI ROI，受 F-18 阻塞）仍需维护者在真实浏览器签字，签字结果追加于此。SDD 10 §0 改为 W3 已准出（走查签字待补）。
+
+## W4 · 查看器引擎收敛（进行中）
+
+按 [W4 设计记录](../plans/2026-09-23-object-viewer-w4-design.md) 分段实施。起点 `6a58dc8`：`viewerEngines.smoke.test.tsx` 6/6 通过，前端 lint 通过。
+
+| 段 | 已完成 | 验证 |
+| --- | --- | --- |
+| 共用接线 | 2D 与 CT 共用 mask PNG、画笔缓冲、CS3D 挂载生命周期和叠加画布监听 | 原有 smoke 6/6、前端 lint 通过 |
+| 工具装配 | `useTaskTools()` 供 Workbench 与 Focus 共用；有任务只读任务能力位，无任务读数据源 `default_capabilities`；2D 引擎也消费同一能力位（F-19） | 工具装配与 Chrome 定向测试、原有 smoke、前端 lint 通过 |
+
+待完成：`FrameSource` / `MaskSink`、`FrameStackViewer` 合并、`PyramidViewer` 替换 Annotorious、`registerTaskTool`、快捷键数据化与全量门禁。W4 尚未准出。

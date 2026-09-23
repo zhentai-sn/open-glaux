@@ -1,9 +1,8 @@
-import { useMemo } from "react";
-
 import { currentTaskView, reRunActiveModel } from "../../data/actions";
 import { displayName, mmPerPx } from "../../data/objectInfo";
 import { useI18n } from "../../i18n";
 import { activeObject, useSession, type Tool } from "../../store/session";
+import { useTaskTools } from "../../viewer/useTaskTools";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
@@ -27,14 +26,7 @@ export function StagePanel() {
 
   const image = obj ? displayName(obj) : null;
   const tv = useSession((s) => currentTaskView(s));
-  // 工具按钮 = 注册表 tools × 引擎能力位过滤（与 ViewerChrome 同一规则；
-  // 曾只有 IDE 外壳过滤，Focus 会把没有能力位的工具也摆出来，点下去静默失效）
-  const tools = useMemo(() => {
-    const caps = new Set(tv?.capabilities ?? []);
-    return (tv?.tools ?? []).filter((tl) =>
-      tl.id === "bbox" || tl.id === "polygon" || tl.id === "brush" || tl.id === "wall" ? caps.has(tl.id) : true,
-    );
-  }, [tv]);
+  const { tools } = useTaskTools();
 
   // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {

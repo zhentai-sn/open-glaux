@@ -3,9 +3,9 @@
 // 无内联样式（.chrome-* 样式族），无硬编码文案（i18n），查看器内不再挂私有浮动条。
 import { useMemo } from "react";
 
-import { currentTaskView } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type Tool } from "../store/session";
+import { useTaskTools } from "../viewer/useTaskTools";
 import type { ClassSpec, Primitive } from "../api/types";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
@@ -28,15 +28,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   const setToolOptions = useSession((s) => s.setToolOptions);
   const primitives = useSession((s) => s.primitives);
 
-  const tv = useSession((s) => currentTaskView(s));
-  // 工具按钮 = 注册表 tools × 引擎能力位过滤（WSI 无 brush；bbox/polygon 按能力位）
-  const tools = useMemo(() => {
-    const caps = new Set(tv?.capabilities ?? []);
-    return (tv?.tools ?? []).filter((tl) => {
-      if (tl.id === "bbox" || tl.id === "polygon" || tl.id === "brush" || tl.id === "wall") return caps.has(tl.id);
-      return true; // cursor/reset 恒在
-    });
-  }, [tv]);
+  const { capabilities, tools } = useTaskTools();
 
   // brush 的 class 列表：来自当前 volume_mask 产物（CT 分割类）；无则隐藏选择器
   const classes = useMemo<ClassSpec[]>(() => {
@@ -46,7 +38,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
 
   const { brush, voi } = toolOptions;
   // 窗宽窗位段按能力位出现（SDD 10 §9.4：voi 由任务行声明），不按模态判断。
-  const hasVoi = tv?.capabilities.includes("voi") ?? false;
+  const hasVoi = capabilities.includes("voi");
   const hintKey = TOOL_HINT[tool] ?? null;
 
   return (

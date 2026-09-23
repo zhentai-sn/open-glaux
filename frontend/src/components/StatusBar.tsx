@@ -1,8 +1,9 @@
 import { currentTaskView } from "../data/actions";
 import { useI18n } from "../i18n";
 import { objectsOf, useSession } from "../store/session";
+import { useTaskTools } from "../viewer/useTaskTools";
 import { Icon } from "./Icon";
-import { TOOL_ICON } from "./iconMap";
+import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
 
 export function StatusBar() {
   const { t, lang, toggle } = useI18n();
@@ -18,7 +19,7 @@ export function StatusBar() {
   const tv = useSession((s) => currentTaskView(s));
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
   // SDD 04：工具文案改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）；图标走 SDD 06 的 TOOL_ICON
-  const toolDef = tv?.tools.find((x) => x.id === tool);
+  const toolDef = useTaskTools().tools.find((x) => x.id === tool);
 
   return (
     <div className="status">
@@ -29,7 +30,7 @@ export function StatusBar() {
         <span className="mono">{image ?? "—"} · {idx}/{shownImages.length}</span>
       </span>
       <span className="item">
-        <Icon icon={TOOL_ICON[tool]} size="sm" />{" "}
+        <Icon icon={TOOL_ICON[tool] ?? FALLBACK_ICON} size="sm" />{" "}
         <span>{toolDef ? toolDef.label[lang] : t("tl_cursor")}</span>
       </span>
       <span className="sp" />

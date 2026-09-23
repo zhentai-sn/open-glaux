@@ -7,12 +7,12 @@ import { maskToPng } from "../viewer/maskPng";
 import { useBrushBuffer } from "../viewer/hooks/useBrushBuffer";
 import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
 import { useOverlayCanvas } from "../viewer/hooks/useOverlayCanvas";
+import { taskToolsFor } from "../viewer/useTaskTools";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
-import { taskViewFor } from "../data/actions";
 import { mmPerPx } from "../data/objectInfo";
 import { useSession } from "../store/session";
 import type { EngineProps } from "./viewerProps";
@@ -63,11 +63,14 @@ export function CornerstoneViewer({ object }: EngineProps) {
   const tool = useSession((s) => s.tool);
   const toolOptions = useSession((s) => s.toolOptions);
   const tasks = useSession((s) => s.tasks);
+  const datasources = useSession((s) => s.datasources);
   const setCoords = useSession((s) => s.setCoords);
 
-  const taskView = useMemo(() => taskViewFor({ tasks }, object), [tasks, object]);
+  const { task: taskView, capabilities } = useMemo(
+    () => taskToolsFor(object, tasks, datasources),
+    [object, tasks, datasources],
+  );
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
-  const capabilities = taskView?.capabilities ?? [];
   const ovByRole = useMemo(() => new Map(overlays.map((o) => [o.role, o])), [overlays]);
   const wallEditing = tool === "wall"; // 手柄只在壁线编辑态画（能力位由注册表限定为 IMT）
 
