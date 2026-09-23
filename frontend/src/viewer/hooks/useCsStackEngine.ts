@@ -37,6 +37,7 @@ export function useCsStackEngine(options: StackEngineOptions) {
       createToolGroup(toolGroupId, viewportId, renderingEngineId);
       detach = attachCsAnnoBridge({
         getImageId: () => current.current.getImageId(),
+        pixelMap: current.current.pixelMap ? () => current.current.pixelMap!() : undefined,
         toTarget: (imageId) => current.current.toTarget(imageId),
       });
       setReady(true);

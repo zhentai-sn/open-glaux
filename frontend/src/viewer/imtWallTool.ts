@@ -11,6 +11,7 @@ import { getT } from "../i18n";
 import { taskViewFor } from "../data/actions";
 import { useSession } from "../store/session";
 import { registerTaskTool } from "./csTools";
+import { IDENTITY_PIXEL_MAP, type PixelMap } from "./pixelMap";
 import { clonePrims, deform, sampleHandles } from "./wallGeom";
 
 type Poly = Extract<Primitive, { kind: "polyline" }>;
@@ -35,6 +36,10 @@ export class ImtWallHandleTool extends BaseTool {
   static toolName = "ImtWallHandleTool";
 
   private drag: DragState | null = null;
+
+  private pixelMap(): PixelMap {
+    return (this.configuration as { pixelMap?: PixelMap }).pixelMap ?? IDENTITY_PIXEL_MAP;
+  }
 
   private targetObject() {
     const objectId = (this.configuration as { objectId?: string }).objectId;
@@ -79,11 +84,11 @@ export class ImtWallHandleTool extends BaseTool {
     if (!hitCanvas) return false;
     for (const poly of walls) {
       for (const i of sampleHandles(poly.points)) {
-        const w = csCoreUtils.imageToWorldCoords(imageId, poly.points[i] as CoreTypes.Point2) as CoreTypes.Point3;
+        const w = csCoreUtils.imageToWorldCoords(imageId, this.pixelMap().toFrame(poly.points[i][0], poly.points[i][1]) as CoreTypes.Point2) as CoreTypes.Point3;
         const c = this.toCanvas(evt, w);
         if (!c) continue;
         if (Math.hypot(hitCanvas[0] - c[0], hitCanvas[1] - c[1]) < HANDLE_HIT_PX) {
-          const [, y0img] = csCoreUtils.worldToImageCoords(imageId, world) as CoreTypes.Point2;
+          const [, y0img] = this.pixelMap().toObject(...csCoreUtils.worldToImageCoords(imageId, world) as CoreTypes.Point2);
           const xs = poly.points.map((q) => q[0]);
           const sigma = ((Math.max(...xs) - Math.min(...xs)) / sampleHandles(poly.points).length) * 0.7;
           this.drag = {
@@ -105,7 +110,7 @@ export class ImtWallHandleTool extends BaseTool {
     const d = this.drag;
     const imageId = this.imageId();
     if (!d || !imageId) return;
-    const [, iy] = csCoreUtils.worldToImageCoords(imageId, evt.detail.currentPoints.world) as CoreTypes.Point2;
+    const [, iy] = this.pixelMap().toObject(...csCoreUtils.worldToImageCoords(imageId, evt.detail.currentPoints.world) as CoreTypes.Point2);
     const next = clonePrims(d.prePrims);
     for (const p of next) {
       if (p.kind === "polyline" && p.role === d.role) {

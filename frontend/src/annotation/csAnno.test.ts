@@ -20,6 +20,8 @@ vi.mock("@cornerstonejs/core", async (importOriginal) => {
 
 const { PlanarFreehandROITool, RectangleROITool } = await import("@cornerstonejs/tools");
 const { csToPrimitive, primitiveToCs } = await import("./csAnno");
+const { pixelMapFor } = await import("../viewer/pixelMap");
+const { objectMeta } = await import("../test/fixtures");
 type CsAnn = Parameters<typeof csToPrimitive>[0];
 
 const IMG = "web:/api/image/tech_401";
@@ -126,6 +128,20 @@ describe("primitiveToCs", () => {
       ],
     };
     expect(csToPrimitive(primitiveToCs(srvAnn(poly), IMG, "F") as CsAnn, IMG)).toEqual(poly);
+  });
+
+  it("缩小预览帧上的框与多边形往返保持对象坐标", () => {
+    const object = objectMeta({ id: "large", modality: "natural_image" });
+    object.axes = [{ name: "x", size: 8192 }, { name: "y", size: 6000 }];
+    const map = pixelMapFor(object, { columns: 4096, rows: 3000 });
+    const primitives: AnnotationPrimitive[] = [
+      { kind: "bbox", x0: 1000, y0: 800, x1: 4000, y1: 3000 },
+      { kind: "polyline", closed: true, points: [[1000, 800], [4000, 800], [4000, 3000]] },
+    ];
+    for (const primitive of primitives) {
+      const cs = primitiveToCs(srvAnn(primitive), IMG, "F", map) as CsAnn;
+      expect(csToPrimitive(cs, IMG, map)).toEqual(primitive);
+    }
   });
 });
 

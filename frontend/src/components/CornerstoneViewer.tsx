@@ -10,6 +10,7 @@ import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
 import { useOverlayCanvas } from "../viewer/hooks/useOverlayCanvas";
 import { taskToolsFor } from "../viewer/useTaskTools";
 import { frameSourceFor } from "../viewer/frameSources";
+import { IDENTITY_PIXEL_MAP, pixelMapFor } from "../viewer/pixelMap";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
@@ -40,11 +41,13 @@ function clonePrims(ps: Primitive[]): Primitive[] {
 
 export function CornerstoneViewer({ object, focus }: EngineProps) {
   const imageIdRef = useRef<string | null>(null);
+  const pixelMapRef = useRef(IDENTITY_PIXEL_MAP);
   const { elementRef: elRef, engineRef, viewportRef: vpRef, ready } = useCsStackEngine({
     renderingEngineId: RE_ID,
     viewportId: VP_ID,
     toolGroupId: TG_ID,
     getImageId: () => imageIdRef.current,
+    pixelMap: () => pixelMapRef.current,
     toTarget: () => ({ image_id: useSession.getState().focus?.object_id ?? "" }),
   });
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -106,7 +109,7 @@ export function CornerstoneViewer({ object, focus }: EngineProps) {
     ctx.clearRect(0, 0, ov.width, ov.height);
 
     const proj = (x: number, y: number): [number, number] => {
-      const world = csUtils.imageToWorldCoords(imageId, [x, y] as Types.Point2) as Types.Point3;
+      const world = csUtils.imageToWorldCoords(imageId, pixelMapRef.current.toFrame(x, y) as Types.Point2) as Types.Point3;
       const [cx, cy] = vp.worldToCanvas(world);
       return [cx, cy];
     };
@@ -208,8 +211,9 @@ export function CornerstoneViewer({ object, focus }: EngineProps) {
       const dim = await source.dims();
       if (cancelled) return;
       imageIdRef.current = imageId;
-      ToolGroupManager.getToolGroup(TG_ID)?.setToolConfiguration(ImtWallHandleTool.toolName, { objectId, imageId });
-      brushDims.current = { columns: dim.columns, rows: dim.rows };
+      pixelMapRef.current = pixelMapFor(object, dim);
+      ToolGroupManager.getToolGroup(TG_ID)?.setToolConfiguration(ImtWallHandleTool.toolName, { objectId, imageId, pixelMap: pixelMapRef.current });
+      brushDims.current = pixelMapRef.current.objectDims;
       for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
         await new Promise((r) => requestAnimationFrame(r));
       }
@@ -223,14 +227,14 @@ export function CornerstoneViewer({ object, focus }: EngineProps) {
     return () => {
       cancelled = true;
     };
-  }, [ready, objectId, source, clearBrush]);
+  }, [ready, objectId, object, source, clearBrush]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
     if (!ready || !imageIdRef.current) return;
     const vp = vpRef.current;
     const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_2D";
-    if (syncCsAnnotations(annotations, imageIdRef.current, forId, forId))
+    if (syncCsAnnotations(annotations, imageIdRef.current, forId, forId, pixelMapRef.current))
       csToolsUtils.triggerAnnotationRenderForViewportIds([VP_ID]);
     // mask 着色画布懒加载（加载完成触发重绘）
     for (const a of annotations) {
@@ -281,7 +285,8 @@ export function CornerstoneViewer({ object, focus }: EngineProps) {
       try {
         const world = vp.canvasToWorld([e.clientX - r.left, e.clientY - r.top] as Types.Point2);
         const [ix, iy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
-        setCoords(Math.round(ix), Math.round(iy));
+        const [ox, oy] = pixelMapRef.current.toObject(ix, iy);
+        setCoords(Math.round(ox), Math.round(oy));
       } catch {
         /* 视口瞬态 */
       }
@@ -301,8 +306,9 @@ export function CornerstoneViewer({ object, focus }: EngineProps) {
       const r = ov.getBoundingClientRect();
       const world = vp.canvasToWorld([clientX - r.left, clientY - r.top] as Types.Point2);
       const [fx, fy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
-      const col = Math.round(fx);
-      const row = Math.round(fy);
+      const [ox, oy] = pixelMapRef.current.toObject(fx, fy);
+      const col = Math.round(ox);
+      const row = Math.round(oy);
       paintBrush(col, row, bd, toolOptions.brush.radius, toolOptions.brush.mode);
       drawOverlay();
     },

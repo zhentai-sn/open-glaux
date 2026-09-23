@@ -584,6 +584,8 @@ export async function runTask(region?: Region): Promise<boolean>;
 // ---- 查看器契约（frontend/src/viewer/contract.ts）----
 export type FrameAxis = { kind: "none" } | { kind: "z" | "t"; index: number; count: number; fps?: number; onIndex(i: number): void };
 export interface FrameSource { objectId: string; imageIds(): Promise<string[]>; dims(): Promise<{ columns: number; rows: number; frames: number }>; defaultVoi?: { ww: number; wl: number } }
+// `/frame?size=` 缩小预览时，帧尺寸与 ObjectMeta.axes[x/y].size 构成双向 PixelMap；
+// CS3D 几何、壁线、画笔、叠加层均映射到对象像素后再读写 Annotation/Detection。
 export interface MaskSink { commit(mask: Uint8Array, dims: { columns: number; rows: number }, index: Index): Promise<void> }   // annotationMaskSink / editMaskSink（D-6）
 export type Painter = (ctx: CanvasRenderingContext2D, p: Primitive, proj: (x: number, y: number) => [number, number], o: { color: string; index: Index; classes?: ClassSpec[] }) => void;
 export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView | null; source: FrameSource; axis: FrameAxis; voi: { ww: number; wl: number } | null;

@@ -13,6 +13,7 @@ import {
 
 import { createAnnotation, patchAnnotation, removeAnnotation } from "./bridge";
 import type { Annotation, AnnotationPrimitive } from "../api/types";
+import { IDENTITY_PIXEL_MAP, type PixelMap } from "../viewer/pixelMap";
 
 type CsAnn = ToolTypes.Annotation;
 type Point3 = CoreTypes.Point3;
@@ -48,14 +49,14 @@ function toImage(imageId: string, w: Point3): [number, number] {
 
 // --- CS3D annotation → 契约原语 ------------------------------------------------
 
-export function csToPrimitive(ann: CsAnn, imageId: string): AnnotationPrimitive | null {
+export function csToPrimitive(ann: CsAnn, imageId: string, map: PixelMap = IDENTITY_PIXEL_MAP): AnnotationPrimitive | null {
   const toolName = ann.metadata?.toolName;
   if (toolName === RectangleROITool.toolName) {
     // RectangleROI 的 handles.points 是**四角**（对角是 [0] 与 [3]，[1]/[2] 是另两角）——
     // 取 [0]/[1] 会拿到共边的两点（同一条边）→ 退化成零高矩形。按全部角点求 AABB，与角序无关。
     const pts = (ann.data?.handles as { points?: Point3[] } | undefined)?.points;
     if (!pts || pts.length < 2) return null;
-    const img = pts.map((p) => toImage(imageId, p));
+    const img = pts.map((p) => map.toObject(...toImage(imageId, p)));
     const xs = img.map(([x]) => x);
     const ys = img.map(([, y]) => y);
     const x0 = Math.min(...xs);
@@ -70,15 +71,16 @@ export function csToPrimitive(ann: CsAnn, imageId: string): AnnotationPrimitive 
     const contour = (ann.data as { contour?: { polyline?: Point3[] } } | undefined)?.contour;
     const pts = contour?.polyline;
     if (!pts || pts.length < 3) return null;
-    return { kind: "polyline", closed: true, points: pts.map((p) => toImage(imageId, p)) };
+    return { kind: "polyline", closed: true, points: pts.map((p) => map.toObject(...toImage(imageId, p))) };
   }
   return null;
 }
 
 // --- 契约原语 → CS3D annotation（reload/切对象回灌）-----------------------------
 
-export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId: string): CsAnn | null {
+export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId: string, map: PixelMap = IDENTITY_PIXEL_MAP): CsAnn | null {
   const p = a.primitive;
+  const objectToWorld = (x: number, y: number) => toWorld(imageId, ...map.toFrame(x, y));
   const base = {
     annotationUID: csCoreUtils.uuidv4() as string,
     metadata: {
@@ -99,13 +101,13 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
           // 四角，顺序须与工具一致（bottomLeft / bottomRight / topLeft / topRight）——
           // 渲染与拖拽都按 [0]/[3] 取对角，少给点会渲染不出来。
           points: [
-            toWorld(imageId, p.x0, p.y1),
-            toWorld(imageId, p.x1, p.y1),
-            toWorld(imageId, p.x0, p.y0),
-            toWorld(imageId, p.x1, p.y0),
+            objectToWorld(p.x0, p.y1),
+            objectToWorld(p.x1, p.y1),
+            objectToWorld(p.x0, p.y0),
+            objectToWorld(p.x1, p.y0),
           ],
           activeHandleIndex: null,
-          textBox: { hasMoved: false, worldPosition: toWorld(imageId, p.x1, p.y0) },
+          textBox: { hasMoved: false, worldPosition: objectToWorld(p.x1, p.y0) },
         },
         label: "",
         cachedStats: {},
@@ -120,9 +122,9 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
         handles: {
           points: [],
           activeHandleIndex: null,
-          textBox: { hasMoved: false, worldPosition: toWorld(imageId, p.points[0][0], p.points[0][1]) },
+          textBox: { hasMoved: false, worldPosition: objectToWorld(p.points[0][0], p.points[0][1]) },
         },
-        contour: { polyline: p.points.map(([x, y]) => toWorld(imageId, x, y)), closed: true },
+        contour: { polyline: p.points.map(([x, y]) => objectToWorld(x, y)), closed: true },
         label: "",
         cachedStats: {},
       },
@@ -142,6 +144,7 @@ export function syncCsAnnotations(
   imageId: string,
   frameOfReferenceId: string,
   selector: string,
+  map: PixelMap = IDENTITY_PIXEL_MAP,
 ): boolean {
   let changed = false;
   const renderable = annotations.filter(isRenderable);
@@ -170,7 +173,7 @@ export function syncCsAnnotations(
       }
       continue;
     }
-    const cs = primitiveToCs(a, imageId, frameOfReferenceId);
+    const cs = primitiveToCs(a, imageId, frameOfReferenceId, map);
     if (!cs) continue;
     const csId = annotation.state.addAnnotation(cs, selector);
     srvToCs.set(a.id, csId);
@@ -215,6 +218,7 @@ const SUGGESTION_DASH = "6,4";
 
 export interface CsAnnoBridgeOpts {
   getImageId: () => string | null;
+  pixelMap?: () => PixelMap;
   /** 落库目标：由查看器按 focus.object_id + 当前索引给出，不从 imageId 字符串反推（SDD 10 §8.3）。 */
   toTarget: (imageId: string) => { image_id: string; z?: number | null };
 }
@@ -240,7 +244,7 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
     if (csToSrv.has(ann.annotationUID)) return; // 回灌的标注不再走创建
     const imageId = opts.getImageId();
     if (!imageId) return;
-    const prim = csToPrimitive(ann, imageId);
+    const prim = csToPrimitive(ann, imageId, opts.pixelMap?.());
     if (!prim) {
       annotation.state.removeAnnotation(ann.annotationUID);
       return;
@@ -273,7 +277,7 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
         modTimers.delete(ann.annotationUID);
         const imageId = opts.getImageId();
         if (!imageId) return;
-        const prim = csToPrimitive(ann, imageId);
+        const prim = csToPrimitive(ann, imageId, opts.pixelMap?.());
         const local = useSessionAnnotations().find((a) => a.id === srvId);
         if (!prim || !local) return;
         void patchAnnotation(srvId, local.seq, { primitive: prim });
