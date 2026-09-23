@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { Enums, RenderingEngine, csReady, csUtils, preloadDims, type Types } from "../viewer/cornerstone";
-import { activateTool, createToolGroup, csToolsReady, destroyToolGroup } from "../viewer/csTools";
+import { csUtils, preloadDims, type Types } from "../viewer/cornerstone";
+import { activateTool } from "../viewer/csTools";
 import { sampleHandles } from "../viewer/wallGeom";
+import { maskToPng } from "../viewer/maskPng";
+import { useBrushBuffer } from "../viewer/hooks/useBrushBuffer";
+import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
+import { useOverlayCanvas } from "../viewer/hooks/useOverlayCanvas";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
-import { attachCsAnnoBridge, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { Primitive, TaskOverlaySpec } from "../api/types";
 import { taskViewFor } from "../data/actions";
@@ -36,37 +40,21 @@ function clonePrims(ps: Primitive[]): Primitive[] {
   return ps.map((p) => (p.kind === "polyline" ? { ...p, points: p.points.map((q) => [...q]) } : { ...p }));
 }
 
-/** 二值笔迹 mask → base64 PNG（white=笔画，后端 convert("L")→bool 对齐）。 */
-function maskToPng(mask: Uint8Array, columns: number, rows: number): string {
-  const cv = document.createElement("canvas");
-  cv.width = columns;
-  cv.height = rows;
-  const ctx = cv.getContext("2d")!;
-  const img = ctx.createImageData(columns, rows);
-  for (let i = 0; i < mask.length; i++) {
-    const o = i * 4;
-    const v = mask[i] ? 255 : 0;
-    img.data[o] = v;
-    img.data[o + 1] = v;
-    img.data[o + 2] = v;
-    img.data[o + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  return cv.toDataURL("image/png");
-}
-
 export function CornerstoneViewer({ object }: EngineProps) {
-  const elRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<RenderingEngine | null>(null);
-  const vpRef = useRef<Types.IStackViewport | null>(null);
   const imageIdRef = useRef<string | null>(null);
+  const { elementRef: elRef, engineRef, viewportRef: vpRef, ready } = useCsStackEngine({
+    renderingEngineId: RE_ID,
+    viewportId: VP_ID,
+    toolGroupId: TG_ID,
+    getImageId: () => imageIdRef.current,
+    toTarget: () => ({ image_id: useSession.getState().focus?.object_id ?? "" }),
+  });
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const work = useRef<Primitive[]>([]);
-  const brushBuf = useRef<Uint8Array | null>(null); // 当前图像未提交的画笔笔迹
+  const { buffer: brushBuf, clear: clearBrush, paint: paintBrush } = useBrushBuffer();
   const brushDims = useRef<{ columns: number; rows: number } | null>(null);
   const brushing = useRef(false);
   const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
-  const [ready, setReady] = useState(false);
 
   const objectId = object.id;
   const primitives = useSession((s) => s.primitives);
@@ -85,41 +73,6 @@ export function CornerstoneViewer({ object }: EngineProps) {
 
   // 像素坐标 → overlay 画布坐标（CSS px，与 worldToCanvas / pointer 同一空间）
   const projRef = useRef<(x: number, y: number) => [number, number]>(() => [0, 0]);
-
-  // --- 一次性初始化：CS3D core + tools + ToolGroup + 标注事件桥 ----------------
-  useEffect(() => {
-    let disposed = false;
-    let detach: (() => void) | null = null;
-    (async () => {
-      await csReady();
-      await csToolsReady();
-      if (disposed || !elRef.current) return;
-      const engine = new RenderingEngine(RE_ID);
-      engine.enableElement({ viewportId: VP_ID, type: Enums.ViewportType.STACK, element: elRef.current });
-      engineRef.current = engine;
-      vpRef.current = engine.getViewport(VP_ID) as Types.IStackViewport;
-      createToolGroup(TG_ID, VP_ID, RE_ID);
-      // 落库目标用焦点的 object_id（对象 id 的权威值），不从图片 URL 反推
-      detach = attachCsAnnoBridge({
-        getImageId: () => imageIdRef.current,
-        toTarget: () => ({ image_id: useSession.getState().focus?.object_id ?? "" }),
-      });
-      setReady(true);
-    })();
-    return () => {
-      disposed = true;
-      detach?.();
-      destroyToolGroup(TG_ID);
-      resetCsAnnoBridge();
-      try {
-        engineRef.current?.destroy();
-      } catch {
-        /* noop */
-      }
-      engineRef.current = null;
-      vpRef.current = null;
-    };
-  }, []);
 
   // --- store.tool → ToolGroup 激活态（2D brush 走自持缓冲，不激活 CS3D BrushTool）
   useEffect(() => {
@@ -334,7 +287,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
       /* 无标注时静默 */
     }
     resetCsAnnoBridge();
-    brushBuf.current = null;
+    clearBrush();
     brushDims.current = null;
     let cancelled = false;
     (async () => {
@@ -354,7 +307,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
     return () => {
       cancelled = true;
     };
-  }, [ready, objectId]);
+  }, [ready, objectId, clearBrush]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
@@ -398,39 +351,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
     drawOverlay();
   }, [primitives, drawOverlay]);
 
-  // 相机变动（缩放/平移，CS3D 工具驱动）→ overlay 跟随
-  useEffect(() => {
-    if (!ready) return;
-    const el = elRef.current;
-    if (!el) return;
-    const onCam = () => drawOverlay();
-    el.addEventListener(Enums.Events.CAMERA_MODIFIED, onCam);
-    el.addEventListener(Enums.Events.IMAGE_RENDERED, onCam);
-    return () => {
-      el.removeEventListener(Enums.Events.CAMERA_MODIFIED, onCam);
-      el.removeEventListener(Enums.Events.IMAGE_RENDERED, onCam);
-    };
-  }, [ready, drawOverlay]);
-
-  // 元素尺寸变化 → engine.resize + overlay 重绘
-  useEffect(() => {
-    if (!ready || !elRef.current) return;
-    const el = elRef.current;
-    const ro = new ResizeObserver(() => {
-      const engine = engineRef.current;
-      const vp = vpRef.current;
-      if (!engine || !vp || el.clientWidth === 0 || el.clientHeight === 0) return;
-      try {
-        engine.resize(true, false);
-        vp.render();
-      } catch {
-        /* 尺寸瞬态 */
-      }
-      drawOverlay();
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ready, drawOverlay]);
+  useOverlayCanvas(ready, elRef, engineRef, vpRef, drawOverlay);
 
   // 坐标展示：CS3D 容器原生 mousemove → 图像 px（工具交互期间同样生效）
   useEffect(() => {
@@ -466,22 +387,10 @@ export function CornerstoneViewer({ object }: EngineProps) {
       const [fx, fy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
       const col = Math.round(fx);
       const row = Math.round(fy);
-      if (!brushBuf.current) brushBuf.current = new Uint8Array(bd.columns * bd.rows);
-      const buf = brushBuf.current;
-      const rad = toolOptions.brush.radius;
-      const erase = toolOptions.brush.mode === "erase";
-      for (let dy = -rad; dy <= rad; dy++) {
-        for (let dx = -rad; dx <= rad; dx++) {
-          if (dx * dx + dy * dy > rad * rad) continue;
-          const x = col + dx;
-          const y = row + dy;
-          if (x < 0 || x >= bd.columns || y < 0 || y >= bd.rows) continue;
-          buf[y * bd.columns + x] = erase ? 0 : 1;
-        }
-      }
+      paintBrush(col, row, bd, toolOptions.brush.radius, toolOptions.brush.mode);
       drawOverlay();
     },
-    [toolOptions.brush.radius, toolOptions.brush.mode, drawOverlay],
+    [toolOptions.brush.radius, toolOptions.brush.mode, paintBrush, drawOverlay],
   );
 
   const onBrushDown = (e: React.PointerEvent) => {
@@ -508,7 +417,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
       mask_png_b64: png,
     });
     if (saved) {
-      brushBuf.current = null; // 已落库，转由已保存 mask 通道渲染
+      clearBrush(); // 已落库，转由已保存 mask 通道渲染
       drawOverlay();
     }
   };
