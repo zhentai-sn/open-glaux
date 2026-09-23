@@ -13,7 +13,7 @@ status: implemented
 | 当前阶段 | 已实现并通过开发验证（62 前端测试含 9 项本 SDD 用例）；待业务验收回 accepted |
 | 关联主 SDD | [前端设计纲领 G10/G13](../../../designs/frontend-design-charter.zh-CN.md) · [IDE 前端设计稿 R13](../../../designs/2026-07-06-glaux-ide-frontend.zh-CN.md) · [前端品质提升路线图 · P2](../../../roadmaps/20260818-frontend-quality-roadmap.zh-CN.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-19 |
+| 最后更新 | 2026-09-23 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -84,7 +84,7 @@ flowchart TD
 - **R1 单一监听器**：全局快捷键只有一个 `window` keydown 监听点（顶层 effect），卸载时移除。组件内不得各自监听全局键。
 - **R2 输入优先**：焦点在 `input`/`textarea`/`[contenteditable]` 时，除 `Esc` 外一律放行，绝不 `preventDefault`——不干扰打字与输入法组合。
 - **R3 工具键需上下文**：无修饰单键（V/R/P/W/B）仅当**焦点落在查看器表面 `[data-viewer-surface]` 或页面主体 `body`（点击画布后的常态），且非可编辑元素**，并且当前引擎声明了该键时才生效（现状：分发器只查 `TOOL_KEYS` 与查看器上下文，未按引擎声明过滤，见 §15）；焦点在具体交互控件（侧栏按钮、输入框等）上时放行——避免全局误触，又无需给查看器强加焦点管理。
-- **R4 键位数据化**：工具→键位映射由工具声明携带（随 04 的工具集变化自动跟随），**不在分发器里硬编码具体工具名**（见 §16 D-2）。
+- **R4 键位数据化**：工具→键位映射由工具声明携带（随 04 的工具集变化自动跟随），**不在分发器里硬编码具体工具名**（见 §16 D-2）。现状：键位仍由 `globalKeys.ts` 的 `TOOL_KEYS` 常量承载，未迁到工具声明。
 - **R5 避开浏览器保留键**：不绑定 `Cmd/Ctrl+N/T/W/J/Q` 等浏览器强占组合；全局组合键选用可安全 `preventDefault` 的键（见 §17 待定表）。
 - **R6 幂等/可逆**：面板/模式/侧栏类快捷键为切换（toggle）或幂等设值，重复按行为可预期（§10）。
 - **R7 尊重 reduced-motion**：快捷键触发的布局变化过渡沿用既有 token 机制；`prefers-reduced-motion` 下由全局规则降级为瞬时（纲领 M5），本 SDD 不新增动效。

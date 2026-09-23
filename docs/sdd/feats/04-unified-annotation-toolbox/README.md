@@ -14,7 +14,7 @@ status: implemented
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 | 承接需求 | [脑暴 20260816-02 · 统一图像标注工具箱](../../../brainstorms/20260816-02-unified-annotation-toolbox.zh-CN.md)（D-1～D-7 已拍板） |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-17 |
+| 最后更新 | 2026-09-23 |
 
 ## 1. 本 SDD 负责什么
 
@@ -252,7 +252,7 @@ stateDiagram-v2
 
 ## 14. 与其他 SDD 的调用关系
 
-- **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（被依赖）：其 §11 "accepted 后归影像标注既有逻辑"由本 SDD 承接——`propose_annotation` 落库走本 SDD `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status。本 SDD 先行实现，SDD 02 推进 `ready` 时应核对本契约并删除其 §17-Q3/Q4 重叠项。
+- **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（被依赖）：其 §11 "`confirmed` 后归影像标注既有逻辑"由本 SDD 承接——`propose_annotation` 落库走本 SDD `POST /annotations`（`status=suggested, source=agent`），接受/拒绝即 PATCH status。本 SDD 先行实现，SDD 02 已据本契约把其 §17-Q3/Q4 收敛为 D-9。
 - **[01-dual-mode-shell](../01-dual-mode-shell/README.md)**：ViewerChrome 落入 Workbench 编辑区既有布局，不改外壳结构。
 - **[03-atlas](../03-atlas/README.md)**：无直接调用；远期"已验证标注沉淀案例"另立需求。
 - 各 SDD 的当前状态见 [SDD 索引](../../README.md)。

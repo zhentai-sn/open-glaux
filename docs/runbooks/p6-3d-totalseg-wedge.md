@@ -88,8 +88,6 @@ export GLAUX_TS_CACHE=$HOME/glaux_models/ts_out
 export GLAUX_CT_ROOT=/path/to/open-glaux/data/ct
 ```
 
-或用现成的 .env（见 `backend/.env.example`——本流程不入仓，工程师本地维护）。
-
 ## 6. 启动后端（`~10 s`）
 
 ```bash
@@ -151,13 +149,12 @@ VITE v5.4.21  ready in 250 ms
    print(dice_per_class(pred, ref, [c.class_id for c in LIVER_KIDNEY_CLASSES]))
    EOF
    ```
-   输出是 `{class_id: dice}`（1=肝、2=左肾、3=右肾），例如：
+   输出是 `{class_id: dice}`（1=肝、2=左肾、3=右肾）。缓存命中时 pred 与 reference 是同一份 labelmap，应得：
    ```
-   {1: 0.98, 2: 0.96, 3: 0.96}
+   {1: 1.0, 2: 1.0, 3: 1.0}
    ```
-   - **Dice ≥ 0.90** = 复现好，pipeline 健康
-   - **Dice < 0.85** = 检查 measure / 标定 / 缓存逻辑；不**代表临床正确性**（reference 是
-     本机首跑快照，非真 GT）
+   - 清掉缓存重新推理后，各类 **Dice ≥ 0.95** = 复现好（与文首门槛一致）
+   - 明显低于 0.95 见 §9；无论高低都不**代表临床正确性**（reference 是本机首跑快照，非真 GT）
 7. **回滚验证** → 查看器工具栏 **Reset to model（重置为模型输出）**，内部走 `reRunActiveModel()` 重跑 `POST /task/run`，丢弃画笔编辑。
 
 ## 9. 已知问题
@@ -165,7 +162,7 @@ VITE v5.4.21  ready in 250 ms
 - **首跑慢 / 要 GPU**：子进程 env 最小化（`MPLBACKEND` / `CUDA_VISIBLE_DEVICES=-1` / `PATH`），
   v0 CPU-only，首跑 ~3-10 min（nnU-Net），之后命中缓存 < 1s；要用 GPU 改 `segment_ts._run_live`
   的 env，去掉 `CUDA_VISIBLE_DEVICES=-1`。
-- **Dice < 0.85**：reference 是本机首跑快照，复跑应近乎一致；偏低先查 TotalSegmentator 或权重版本是否变了、
+- **重新推理后 Dice 明显低于 0.95**：reference 是本机首跑快照，复跑应近乎一致；偏低先查 TotalSegmentator 或权重版本是否变了、
   缓存 labelmap 是否被覆盖，也可能是 voxel_spacing 解析差异（检查 `dataset_ct.vox_spacing_mm`）。
 - **镜像体积错误**：检查 `data/ct/ct_001.nii.gz` 的 `pixdim[1:4]`，是否包含负值
   （nibabel 会自动取 abs → 误通过）。

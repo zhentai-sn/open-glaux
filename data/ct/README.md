@@ -10,7 +10,7 @@
 
 ## 手动拉取（不入仓）
 
-TotalSegmentator v2.4.0 公开 demo 案例在 GitHub release / Zenodo 资产中。手工步骤见
+输入病例取自 TotalSegmentator 仓库的测试文件 `tests/reference_files/example_ct.nii.gz`（master 分支）。手工步骤见
 `docs/runbooks/p6-3d-totalseg-wedge.md`（U6 落地）。本目录**不**入 git（`.gitignore` 已含
 体积数据通配符）。
 
@@ -24,5 +24,5 @@ TotalSegmentator v2.4.0 公开 demo 案例在 GitHub release / Zenodo 资产中�
 ## 权限与协议
 
 TotalSegmentator 预训练权重 Apache-2.0；其 demo 案例的 CT 卷通常走原数据集协议
-（CT-RATE / LiTS / AutoPET 等各自的 DUA）。v0 用 TotalSegmentator 自带 demo（公开、
-无需额外协议）作 reproducibility reference，非真 GT。
+（CT-RATE / LiTS / AutoPET 等各自的 DUA）。v0 的输入病例是 TotalSegmentator 仓库
+自带的公开测试 CT；reproducibility reference 是本机首跑快照，非真 GT。

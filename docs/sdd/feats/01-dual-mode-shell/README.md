@@ -11,7 +11,7 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented`（v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-08-31 |
+| 最近更新 | 2026-09-23 |
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
@@ -54,7 +54,7 @@ status: implemented
 - 新增 **Focus 模式**:对话流为主体 + 图像舞台按需展开的简洁布局,面向非技术研究者。
 - 现有布局命名为 **Workbench 模式**,面向专家与开发,保持不变。
 - 顶栏一键**无损切换**:两模式共享同一份领域状态(会话、当前图、测量结果),切换不丢任何数据。
-- **新用户默认进入 Focus**——demo 给 B 看的第一眼就是产品承诺本身。
+- **新用户默认进入 Focus**——demo 给非技术研究者看的第一眼就是产品承诺本身。
 
 ## 4. 输入
 
@@ -65,7 +65,7 @@ status: implemented
 | 模式切换动作 | — | 顶栏按钮,双向切换 |
 | 对话消息 | — | 沿用现有会话基础设施(feats/00),Focus 不改发送语义 |
 | 图像选择 | — | Focus 内经右侧栏「文件」标签或对话完成(v1.2 起顶栏不再承担选择,D14);Workbench 仍经资源管理器 |
-| 修正手势 | — | 点选/圈画,Focus 舞台内可用(B 刚需,见 §7) |
+| 修正手势 | — | 点选/圈画,Focus 舞台内可用(非技术研究者刚需,见 §7) |
 
 ### 4.2 系统输入
 
@@ -115,10 +115,12 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    APP[App.tsx<br/>数据装载 effect 与模式无关,仅挂载时跑一次] --> M{useSession.uiMode}
+    APP["App.tsx<br/>按 edition 分叉"] -- chat --> CS["ChatShell<br/>对话 + 会话栏,无舞台(SDD 09)"]
+    APP -- full --> RA["ResearchApp<br/>数据装载 effect 与模式无关,仅挂载时跑一次"] --> M{useSession.uiMode}
     M -- focus --> FS[FocusShell 新增]
     M -- workbench --> WB[现状树:TitleBar + ActivityBar + Shell dockview + StatusBar]
-    FS --> FT[FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件浏览器列) · ⚙ 弹层 · ⇄]
+    FS --> FT["FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件浏览器列) · ⚙ 弹层 · ⇄"]
+    FS --> PZ["PaneResizer ×2<br/>会话栏 ⇄ 对话列 ⇄ 右侧栏"]
     FS --> SR[SessionRail 新增薄壳<br/>复用 SessionDrawer]
     FS --> CC[对话列<br/>复用 AgentConversation + ConversationComposer]
     FS --> RP[FocusSidePanel v1.4<br/>右侧栏壳:文件/图谱两枚开关 + 折叠条]
@@ -126,7 +128,7 @@ flowchart TD
     RP --> PR[PaneResizer<br/>舞台 ⇄ 浏览器列]
     RP --> BC[浏览器列 browserView<br/>文件 / 图谱互斥,可关闭]
     BC --> FV[文件<br/>复用 SideBar.ExplorerView]
-    BC --> AV[图谱<br/>复用 atlas/AtlasView compact(feats/03)]
+    BC --> AV["图谱<br/>复用 atlas/AtlasView compact(feats/03)"]
     WB --> TB2[TitleBar 改:右侧加 ⇄ 按钮]
     STORE[(useSession 单一 zustand store<br/>领域状态两模式共享)] -.读写.- FS & WB
 ```
