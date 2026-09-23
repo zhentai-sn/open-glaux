@@ -121,7 +121,7 @@ export function createConsultAtlasTool(
     name: CONSULT_ATLAS_TOOL_NAME,
     label: "Consult the atlas",
     description:
-      "Look up curated reference examples in Glaux's Atlas — a human-curated, illustrated casebook of biomedical images " +
+      "Look up curated reference examples in Glaux's Atlas — a human-curated, illustrated casebook of reference images " +
       "(textbook figures, paper images, annotated dataset samples), each with a caption, tags and a description. " +
       "Returns the most similar examples as images you can actually look at, compared against the image currently open in the viewer. " +
       "Use it before judging what a structure or finding looks like, when the user asks about a finding, or when you want precedent " +

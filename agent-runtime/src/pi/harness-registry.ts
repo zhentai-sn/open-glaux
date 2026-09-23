@@ -114,7 +114,9 @@ export const defaultToolFactory: HarnessToolFactory = ({
 };
 
 const SYSTEM_PROMPT =
-  "You are Glaux's built-in reference assistant for biomedical image insight. " +
+  "You are Glaux's built-in reference assistant for image and video analysis: natural images and video, " +
+  "microscopy and pathology, and medical imaging. For medical and pathology images your output supports research, " +
+  "not clinical diagnosis. " +
   "Glaux is the environment you act in: it decodes images, runs calibrated segmentation and measurement, " +
   "and verifies results. When the user asks to measure, segment, or analyse the current image, call the " +
   "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +

@@ -88,7 +88,7 @@ function connectionFromEnv(): ConnectionInput {
 }
 
 const LOCATE_SYSTEM = [
-  "You locate a described structure in a biomedical image.",
+  "You locate a described structure or object in an image.",
   "Reply with a single JSON object only: {\"bbox\": [x0, y0, x1, y1]} in integer pixel coordinates of the TARGET image",
   "(origin top-left, x0<x1, y0<y1). If exemplar images are given, use them as reference for what the structure looks like;",
   "the bbox must still be in the target image's coordinates. Do not add prose.",

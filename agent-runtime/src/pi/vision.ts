@@ -37,22 +37,22 @@ export interface AtlasDescription {
 export const DESCRIPTION_STATEMENT_VERSION = "v1";
 
 const DESCRIBE_SYSTEM = [
-  "You are a biomedical image curator building an illustrated atlas.",
+  "You are an image curator building an illustrated atlas of reference cases.",
   "Describe the given image for later retrieval by text search.",
   "Answer with ONE JSON object only (no markdown, no prose) with exactly these keys:",
   '{"modality": string, "subject": string, "findings": [{"name": string, "location": string, "appearance": string}],',
   ' "pattern": string, "summary": string, "extra": {string: string}}',
-  "- modality: imaging method (e.g. TEM, ultrasound, CT, H&E). Infer from the image.",
+  "- modality: how the image was acquired (e.g. photograph, video frame, microscopy, H&E, TEM, ultrasound, CT). Infer from the image.",
   "- subject: the main structure shown.",
-  "- findings: key observations; name = the finding term a pathologist would search for.",
+  "- findings: key observations; name = the term a domain expert would search for.",
   "- pattern: overall distribution / morphology pattern.",
   "- summary: one sentence suitable for full-text search.",
-  "- extra: any other salient key facts you can infer (magnification, stain, artifacts, laterality...). Use an empty object if none.",
+  "- extra: any other salient key facts you can infer (scale, lighting, magnification, stain, artifacts, laterality...). Use an empty object if none.",
   "Write field values in the same language as the hint when a hint is given; otherwise use Chinese.",
 ].join("\n");
 
 const SELECT_SYSTEM = [
-  "You are helping a biomedical image agent pick reference examples from an atlas.",
+  "You are helping an image-analysis agent pick reference examples from an atlas.",
   "The FIRST image is the target. The following images are candidates, each labelled with an id and a short summary.",
   "Choose the candidates most visually similar to the target for the same kind of structure.",
   'Answer with ONE JSON object only: {"selected": [id, ...]} — ids must come from the candidate list, most similar first.',
@@ -217,7 +217,7 @@ export async function chooseAmongImages(
 // --- grounding：文字目标 → 归一化 bbox（SDD 02 §7.2 `locate_roi`）---------------
 
 const LOCATE_SYSTEM = [
-  "You are a biomedical image agent locating a structure the user described.",
+  "You are an image-analysis agent locating a structure or object the user described.",
   "Coordinates use a normalized frame: (0,0) is the TOP-LEFT of the image and (1,1) the BOTTOM-RIGHT.",
   'Answer with ONE JSON object only: {"boxes": [{"box": [x0, y0, x1, y1], "confidence": 0..1, "why": string}]}',
   "- box: the tight bounding box of ONE instance, with x0 < x1 and y0 < y1, all within [0, 1].",
