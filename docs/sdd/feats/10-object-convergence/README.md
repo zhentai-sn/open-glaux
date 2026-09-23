@@ -588,9 +588,10 @@ export interface FrameSource { objectId: string; imageIds(): Promise<string[]>; 
 // CS3D 几何、壁线、画笔、叠加层均映射到对象像素后再读写 Annotation/Detection。
 export interface MaskSink { commit(mask: Uint8Array, dims: { columns: number; rows: number }, index: Index): Promise<void> }   // annotationMaskSink / editMaskSink（D-6）
 export type Painter = (ctx: CanvasRenderingContext2D, p: Primitive, proj: (x: number, y: number) => [number, number], o: { color: string; index: Index; classes?: ClassSpec[] }) => void;
-export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView | null; source: FrameSource; axis: FrameAxis; voi: { ww: number; wl: number } | null;
-  primitives: Primitive[]; annotations: Annotation[]; tool: string; toolOptions: Record<string, unknown>; maskSink: MaskSink; painters: Record<string, Painter>; onCoords(c: SessionState["coords"]): void }
-export const ENGINES: Record<ObjectKind, ComponentType<ViewerProps>> = { image: FrameStackViewer, volume: FrameStackViewer, video: FrameStackViewer, slide: PyramidViewer };
+export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView | null; capabilities: string[]; source: FrameSource; axis: FrameAxis; voi: { ww: number; wl: number } | null;
+  primitives: Primitive[]; annotations: Annotation[]; tool: string; toolOptions: ToolOptions; maskSink: MaskSink; painters: Record<string, Painter>;
+  onCoords(c: SessionState["coords"]): void; onRegion(region: Region): void; notify(tone: "info" | "crit", message: string): void }
+export const ENGINES: Partial<Record<ObjectKind, ComponentType<ViewerProps>>> = { image: FrameStackViewer, volume: FrameStackViewer, slide: PyramidViewer }; // video 在 W6 接入同一 FrameStackViewer
 export const axisFor = (o: ObjectMeta): "z" | "t" | null => o.axes.find(a => a.name === "z" || a.name === "t")?.name ?? null;
 export const PAINTERS: Record<string, Painter>;
 export const CHROME_SEGMENTS: { cap: string; Seg: ComponentType }[];              // voi→VoiSeg, timeline→TimelineSeg, brush→BrushSeg

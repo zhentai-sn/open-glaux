@@ -55,6 +55,7 @@ Glaux（小鸮）是面向图像与视频分析的智能体 harness：模型由�
 
 - [纲领](https://github.com/zhentai-sn/open-glaux/blob/main/docs/roadmaps/charter.zh-CN.md)
 - [架构说明](https://github.com/zhentai-sn/open-glaux/blob/main/docs/architecture.zh-CN.md)
+- [对象收敛规范（SDD 10）](https://github.com/zhentai-sn/open-glaux/blob/main/docs/sdd/feats/10-object-convergence/README.md)
 - [路线图](https://github.com/zhentai-sn/open-glaux/tree/main/docs/roadmaps)
 
 ## 许可

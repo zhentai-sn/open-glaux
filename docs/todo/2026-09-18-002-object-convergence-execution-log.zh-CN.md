@@ -398,5 +398,6 @@ W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已�
 | 绘制与工具 | 2D 原语绘制按 `PAINTERS` 分派；壁线通过 `registerTaskTool` 注册，对象与帧由查看器写入 ToolGroup 配置（P-11）；任务工具的 `key` 经 `/tasks` 下发，快捷键和速查面板共用 `useTaskTools()` 的过滤结果 | 相关前端测试 32/32、science-core 任务测试 15/15、前端 lint 通过 |
 | 对象像素映射 | 2D 帧缩小时，从对象 `axes[x/y]` 与实际帧宽高建双向映射；标注桥、壁线、原语叠加、坐标显示与画笔提交使用对象坐标 | 缩放往返定向测试、前端 lint 通过；真实大图走查待补 |
 | 选项段装配 | `CHROME_SEGMENTS` 按能力位和当前工具装配画笔、VOI，Workbench 与 Focus 共用；移除 Chrome 内的两段硬编码条件 | VOI 能力位显隐定向测试、前端 lint 通过 |
+| 引擎合并 | `CornerstoneViewer` 与 `VolumeViewer` 删除；`FrameStackViewer` 共用一套 CS3D 生命周期、ToolGroup、叠加画布及标注桥，2D / CT 差异由对象 `kind`、轴、帧源与 sink 装配；`PyramidViewer` 也改收 Viewer 注入的数据与动作 | 合并后 smoke 7/7、WSI 组件 3/3、前端全量 235/235、lint 与 production build 通过；真实浏览器走查待补 |
 
 待完成：`FrameStackViewer` 合并与全量门禁。W4 尚未准出。

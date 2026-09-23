@@ -32,6 +32,19 @@ vi.mock("../annotation/bridge", () => ({
 
 import { PyramidViewer } from "./PyramidViewer";
 
+function props() {
+  const state = useSession.getState();
+  return {
+    object: state.objects.pathology[0],
+    focus: state.focus!,
+    primitives: state.primitives,
+    annotations: state.annotations,
+    tool: state.tool,
+    onRegion: state.setRegion,
+    notify: state.notify,
+  };
+}
+
 class NoopResizeObserver {
   observe() {}
   disconnect() {}
@@ -58,9 +71,7 @@ beforeEach(() => {
 describe("PyramidViewer", () => {
   it("挂载瓦片且原生框选经标注写桥落库，不初始化 Annotorious", async () => {
     h.createAnnotation.mockImplementation(async (input: { image_id: string; primitive: unknown }) => ({ id: "saved-1", ...input }));
-    const object = useSession.getState().objects.pathology[0];
-    const focus = useSession.getState().focus!;
-    const { container } = render(<PyramidViewer object={object} focus={focus} />);
+    const { container } = render(<PyramidViewer {...props()} />);
     await waitFor(() => expect(h.viewer.open).toHaveBeenCalledOnce());
     const overlay = container.querySelector(".wsi-annotation-overlay")!;
     fireEvent.pointerDown(overlay, { pointerId: 1, clientX: 10, clientY: 20 });
@@ -73,9 +84,7 @@ describe("PyramidViewer", () => {
   });
 
   it("过小框不落库；多边形双击完成后落为闭合折线", async () => {
-    const object = useSession.getState().objects.pathology[0];
-    const focus = useSession.getState().focus!;
-    const { container, rerender } = render(<PyramidViewer object={object} focus={focus} />);
+    const { container, rerender } = render(<PyramidViewer {...props()} />);
     await waitFor(() => expect(h.viewer.open).toHaveBeenCalledOnce());
     const overlay = container.querySelector(".wsi-annotation-overlay")!;
     fireEvent.pointerDown(overlay, { pointerId: 1, clientX: 10, clientY: 20 });
@@ -83,7 +92,7 @@ describe("PyramidViewer", () => {
     expect(h.createAnnotation).not.toHaveBeenCalled();
 
     useSession.getState().setTool("polygon");
-    rerender(<PyramidViewer object={object} focus={focus} />);
+    rerender(<PyramidViewer {...props()} />);
     fireEvent.click(overlay, { clientX: 10, clientY: 10 });
     fireEvent.click(overlay, { clientX: 50, clientY: 10 });
     fireEvent.click(overlay, { clientX: 30, clientY: 50 });
@@ -107,9 +116,7 @@ describe("PyramidViewer", () => {
         seq: 4,
       }],
     });
-    const object = useSession.getState().objects.pathology[0];
-    const focus = useSession.getState().focus!;
-    const { container } = render(<PyramidViewer object={object} focus={focus} />);
+    const { container } = render(<PyramidViewer {...props()} />);
     await waitFor(() => expect(h.viewer.open).toHaveBeenCalledOnce());
     const overlay = container.querySelector(".wsi-annotation-overlay")!;
     const firstVertex = container.querySelector(".pyramid-vertex")!;

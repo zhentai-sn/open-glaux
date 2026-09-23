@@ -85,6 +85,7 @@ export function drawPrimitives(
   primitives: Primitive[],
   project: Project,
   options: { overlays: TaskOverlaySpec[]; index: Index; wallEditing: boolean },
+  painters: Record<string, Painter> = PAINTERS,
 ) {
   const byRole = new Map(options.overlays.map((overlay) => [overlay.role, overlay]));
   const walls = primitives.filter((primitive): primitive is Extract<Primitive, { kind: "polyline" }> =>
@@ -108,7 +109,7 @@ export function drawPrimitives(
 
   for (const primitive of primitives) {
     if (!inIndex(primitive, options.index)) continue;
-    const painter = PAINTERS[primitive.kind];
+    const painter = painters[primitive.kind];
     if (!painter) continue;
     const role = "role" in primitive ? primitive.role : "";
     const overlay = byRole.get(role);

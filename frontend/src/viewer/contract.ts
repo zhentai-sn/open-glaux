@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import type { Annotation, ClassSpec, Focus, Index, ObjectMeta, Primitive, TaskView } from "../api/types";
+import type { Annotation, ClassSpec, Focus, Index, ObjectMeta, Primitive, Region, TaskView } from "../api/types";
 import type { ToolOptions } from "../store/session";
 
 export type FrameAxis =
@@ -29,6 +29,7 @@ export interface ViewerProps {
   object: ObjectMeta;
   focus: Focus;
   task: TaskView | null;
+  capabilities: string[];
   source: FrameSource;
   axis: FrameAxis;
   voi: { ww: number; wl: number } | null;
@@ -39,6 +40,8 @@ export interface ViewerProps {
   maskSink: MaskSink;
   painters: Record<string, Painter>;
   onCoords(coords: { x: number; y: number } & Index): void;
+  onRegion(region: Region): void;
+  notify(tone: "info" | "crit", message: string): void;
 }
 
 export type ViewerEngine = ComponentType<ViewerProps>;

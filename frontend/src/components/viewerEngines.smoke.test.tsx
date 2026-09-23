@@ -1,5 +1,5 @@
 // 查看器引擎冒烟测试（SDD 10 D-21 / §17 Q1）——W4 引擎合并前的接线回归网。
-// 覆盖 CornerstoneViewer（raster_2d）与 VolumeViewer（CT）的真实组件路径，三步：
+// 覆盖 FrameStackViewer 的 image / volume 两条真实组件路径，三步：
 //   1. 渲染一帧：组件向渲染引擎挂 STACK 视口并 setStack 期望的 imageId；
 //   2. 画一条多边形：store.tool=polygon 激活 PlanarFreehandROI，CS3D 的 ANNOTATION_COMPLETED
 //      经 csAnno 桥落 POST /annotations，落库目标 = 焦点对象（CT 另带当前 z）；
@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Annotation, Focus, ObjectMeta, Primitive, TaskView } from "../api/types";
 import { objectMeta, taskFields } from "../test/fixtures";
+import { I18nProvider } from "../i18n";
 
 // --- 替身注册表（vi.mock 工厂提升到文件顶，只能经 vi.hoisted 共享状态）-------------
 
@@ -144,7 +145,7 @@ vi.mock("../viewer/cornerstone", async (importOriginal) => {
 });
 
 const CT_DIMS = { columns: 16, rows: 16, slices: 8 };
-const LABEL_Z = 5; // 标签体素所在层：VolumeViewer 应自动跳到器官体素最多的 z
+const LABEL_Z = 5; // 标签体素所在层：FrameStackViewer 应自动跳到器官体素最多的 z
 
 vi.mock("../viewer/nifti", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../viewer/nifti")>();
@@ -164,8 +165,7 @@ vi.mock("../viewer/nifti", async (importOriginal) => {
 const { eventTarget } = await import("@cornerstonejs/core");
 const { Enums: ToolEnums, PlanarFreehandROITool } = await import("@cornerstonejs/tools");
 const { invalidateNiftiVolume } = await import("../viewer/nifti");
-const { CornerstoneViewer } = await import("./CornerstoneViewer");
-const { VolumeViewer } = await import("./VolumeViewer");
+const { Viewer } = await import("./Viewer");
 const { useSession } = await import("../store/session");
 const { _resetEditSeqForTest } = await import("../annotation/bridge");
 
@@ -239,7 +239,7 @@ function task(modality: string, viewer: string): TaskView {
     default_method: "test-model",
     modality,
     viewer,
-    capabilities: ["bbox", "polygon", "brush"],
+    capabilities: ["bbox", "polygon", "brush", ...(modality === "ct_abdomen" ? ["voi"] : [])],
     overlays: [],
     ...taskFields(modality),
   } as unknown as TaskView;
@@ -261,11 +261,6 @@ const VOL_PRIM = {
 } as unknown as Primitive;
 
 const initial = useSession.getState();
-
-function CtHarness({ object }: { object: ObjectMeta }) {
-  const focus = useSession((state) => state.focus);
-  return focus ? <VolumeViewer object={object} focus={focus} /> : null;
-}
 
 beforeEach(() => {
   h.engines.length = 0;
@@ -325,13 +320,14 @@ function brushStroke(container: HTMLElement) {
 
 // --- raster_2d --------------------------------------------------------------
 
-describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
+describe("FrameStackViewer（image）接线冒烟", () => {
   const IMAGE_ID = "web:/api/objects/img_1/frame?size=4096";
 
   async function mount2d() {
     useSession.setState({ modality: "carotid_imt", tasks: [task("carotid_imt", "raster_2d")] });
     const object = objectMeta({ id: "img_1", modality: "carotid_imt" });
-    const r = render(<CornerstoneViewer object={object} focus={focusOn(object)} />);
+    focusOn(object);
+    const r = render(<I18nProvider><Viewer /></I18nProvider>);
     await waitFor(() => expect(engine("glaux-re").viewports.get("glaux-stack")?.setStack).toHaveBeenCalled());
     return r;
   }
@@ -388,14 +384,14 @@ describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
 
 // --- volume_3d（CT）---------------------------------------------------------
 
-describe("VolumeViewer（CT）接线冒烟", () => {
+describe("FrameStackViewer（volume）接线冒烟", () => {
   const BASE = "nifti:/api/objects/ct_1/raw";
 
   async function mountCt() {
     useSession.setState({ modality: "ct_abdomen", tasks: [task("ct_abdomen", "volume_3d")] });
     const object = objectMeta({ id: "ct_1", modality: "ct_abdomen", resources: { frame: "/objects/ct_1/frame", raw: "/objects/ct_1/raw" } });
     focusOn(object);
-    const r = render(<CtHarness object={object} />);
+    const r = render(<I18nProvider><Viewer /></I18nProvider>);
     const vp = () => engine("glaux-re-vol").viewports.get("glaux-stack-vol");
     await waitFor(() => expect(vp()?.setImageIdIndex).toHaveBeenCalledWith(CT_DIMS.slices / 2));
     // 分割结果回流（primitives 带 volume_mask）→ 拉 labelmap → 自动跳到有器官体素的层。
@@ -420,7 +416,7 @@ describe("VolumeViewer（CT）接线冒烟", () => {
     useSession.setState({ modality: "ct_abdomen", tasks: [task("ct_abdomen", "volume_3d")], primitives: [VOL_PRIM] });
     const object = objectMeta({ id: "ct_1", modality: "ct_abdomen", resources: { frame: "/objects/ct_1/frame", raw: "/objects/ct_1/raw" } });
     focusOn(object);
-    render(<CtHarness object={object} />);
+    render(<I18nProvider><Viewer /></I18nProvider>);
     const viewport = () => engine("glaux-re-vol").viewports.get("glaux-stack-vol");
     await waitFor(() => expect(viewport()?.setStack).toHaveBeenCalled());
     await waitFor(() => expect(viewport()?.setImageIdIndex).toHaveBeenLastCalledWith(LABEL_Z));

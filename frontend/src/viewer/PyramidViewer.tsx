@@ -5,8 +5,7 @@ import { api } from "../api/client";
 import { createAnnotation, loadAnnotations, patchAnnotation } from "../annotation/bridge";
 import { bboxFromPoints, isRoiTooSmall, moveVertex } from "./wsiGeometry";
 import { axisSize } from "../data/objectInfo";
-import { useSession } from "../store/session";
-import type { EngineProps } from "../components/viewerProps";
+import type { ViewerProps } from "./contract";
 import { getT } from "../i18n";
 import type { Annotation, AnnotationPrimitive, ClassSpec, Primitive } from "../api/types";
 
@@ -23,7 +22,9 @@ type PointSetPrim = Extract<Primitive, { kind: "point_set" }>;
 type Shape = Exclude<AnnotationPrimitive, { kind: "mask" }>;
 type EditDraft = { annotation: Annotation; vertex: number; primitive: Shape };
 
-export function PyramidViewer({ object, focus }: EngineProps) {
+type PyramidProps = Pick<ViewerProps, "object" | "focus" | "primitives" | "annotations" | "tool" | "onRegion" | "notify">;
+
+export function PyramidViewer({ object, focus, primitives, annotations, tool, onRegion, notify }: PyramidProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -39,16 +40,12 @@ export function PyramidViewer({ object, focus }: EngineProps) {
   const [verifying, setVerifying] = useState(false);
 
   const objectId = object.id;
-  const primitives = useSession((s) => s.primitives);
-  const tool = useSession((s) => s.tool);
   // 当前 ROI = 焦点的 box 选区（level-0 px）
   const region = focus.region;
   const roi = useMemo<[number, number, number, number] | null>(
     () => (region?.kind === "box" ? [region.x0, region.y0, region.x1, region.y1] : null),
     [region],
   );
-  const annotations = useSession((s) => s.annotations);
-  const notify = useSession((s) => s.notify);
 
   const pointSet = useMemo<PointSetPrim | null>(
     () => primitives.find((p): p is PointSetPrim => p.kind === "point_set") ?? null,
@@ -201,7 +198,7 @@ export function PyramidViewer({ object, focus }: EngineProps) {
     void createAnnotation({ image_id: objectId, primitive }).then((saved) => {
       if (saved?.primitive.kind === "bbox") {
         const box = saved.primitive;
-        useSession.getState().setRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
+        onRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
       }
     });
   };
@@ -234,9 +231,9 @@ export function PyramidViewer({ object, focus }: EngineProps) {
       editRef.current = null;
       setEditDraft(null);
       void patchAnnotation(current.annotation.id, current.annotation.seq, { primitive: current.primitive }).then((saved) => {
-        if (saved?.primitive.kind === "bbox" && useSession.getState().focus?.object_id === objectId) {
+        if (saved?.primitive.kind === "bbox" && focus.object_id === objectId) {
           const box = saved.primitive;
-          useSession.getState().setRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
+          onRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
         }
       });
       return;
