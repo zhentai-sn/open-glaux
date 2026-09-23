@@ -10,7 +10,7 @@ status: draft
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `draft` |
-| 当前阶段 | W0 立起契约冻结稿；§17 的 Q1～Q4 全部关闭后转 `ready`，转 `ready` 后方可进入 W1 |
+| 当前阶段 | W0 立起契约冻结稿；§17 的 Q1～Q2 全部关闭后转 `ready`，转 `ready` 后方可进入 W1 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | `docs/todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md`（`kind: record`，W0 产出；承载 grep 基线、零改清单、手工回归签字表） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -1074,19 +1074,18 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 | D-17 | 删除 mock / hc_synth 隐式回退，改为 `dev_mode()` 下显式注册的 `synthetic-us` / `synthetic-hc` Source；无数据首屏为空态加导入优先 | 保留无数据回退分支 | mock 回退让伪造 id 看似成功（代码注释已自述此风险）；同波须改 `scripts/dev/health.sh` 与 `scripts/dev/restart-backend.sh`，否则无数据机器会误报服务不可用 | 2026-09-18 |
 | D-18 | `openObject` 触发规则显式化为 `trigger = task?.trigger ?? "manual"`，无任务模态写成显式 no-task 契约，`REGISTRY` 不为其造空行 | 「无行即 manual」的隐式规则；为 `natural_image` 加空行 | 隐式缺省与「REGISTRY 是能力清单单一事实源」冲突；而 REGISTRY 是任务清单，造空行反而污染任务轴 | 2026-09-18 |
 | D-19 | `VideoSource` 提前落地注册，只做数据轴；表征、任务与 agent 观测排在后续波次 | 视频整体放最后一波 | 数据轴前置既是 Source 协议的真实验收（第六个模态零改核心文件），也让视频表征波只剩前端与观测 | 2026-09-18 |
-| D-20 | 设计落为本 Feature SDD 10「视觉对象与数据源收敛」；`docs/designs` 只写决策理由记录；SDD 02/04/08/01/05/07 的修订以本 SDD 为上游 | 只新建 `docs/designs` 一篇 | 改了三份以上冻结契约字段而无自己的 SDD，会重演「设计意图在 designs、落地在 SDD、二者脱节」；仓库规则要求跨层契约立 Feature SDD | 2026-09-18 |
+| D-20 | 设计落为本 Feature SDD 10「视觉对象与数据源收敛」，决策理由以本节与审计 §7.8 为准，不另建 `docs/designs` 记录；SDD 02/04/08/01/05/07 的修订以本 SDD 为上游 | 只新建 `docs/designs` 一篇；SDD 之外再建一份决策理由记录 | 改了三份以上冻结契约字段而无自己的 SDD，会重演「设计意图在 designs、落地在 SDD、二者脱节」；仓库规则要求跨层契约立 Feature SDD。同一批理由已在审计 §7.8 与本节各写一遍，第三份只会漂移 | 2026-09-23 |
 | D-21 | 登记降级路径：若 CS3D mock `RenderingEngine` smoke 测试做不出，引擎合并降为「只抽纯函数加共用 hooks 加手工回归清单」，合并顺延独立立项 | 无降级路径，硬做合并 | 两引擎合计 1044 行、零组件测试兜底，是全计划最高风险单步，不应阻塞其后三波 | 2026-09-18 |
 | D-22 | 模态切换器标签来源改由 `/datasources` 下发：顺序固定为 `label_key` → `label` → `modality` 原文 | 沿用 SDD 08 D-1 的「标签取自 `/tasks`」 | 本 SDD 新增。`natural_image`／`video` 没有 `TaskPlugin`，标签取自 `/tasks` 对无任务模态不成立；标签属数据源展示属性，与任务能力无关 | 2026-09-22 |
 | D-23 | 视频自带音频是一等观测内容：W1 即由 `VideoSource.meta()` 探测音轨，以 `ObjectMeta.streams[]`（与 `axes` 正交的开放集）声明参数、以 `resources.audio` 保留取流入口；消费形状留给 SDD 11 | 一、留到视频理解立项时再加字段；二、以 `meta` 自由字段承载；三、把音频写成第四根轴 | 本 SDD 新增。音画同步理解是视频特性的产品前提，契约位置晚定一次就是第二次迁移（`ObjectMeta` 是三端镜像类型，迁移成本按三倍算）。选 `streams[]` 而非可空字段，是因为逐模态可空字段正是本 SDD 要消除的形态（对比被取代的 `cf`／`voxel_spacing_mm`／`mpp_um`／`dims` 四并列）；音频不是采样网格，写成轴会让 `axes` 的轴序约定与 `check_index` 失效。只声明不消费，是为了不在观测形状未定时预设 API | 2026-09-22 |
+| D-24 | 观测焦点类型沿用 `Focus`：store 字段 `focus`，写入口 `setFocus`／`setIndex`／`setRegion`；外壳布局状态保持 `uiMode`／`focusLayout`／`setFocusLayout` 命名不变，两组之外不再新增以 `focus` 开头的 store 字段 | 改名 `Viewpoint`，三端同步改名 | 本 SDD 新增。`Focus` 是审计与三端契约草案的共用词，撞名只发生在前端 store 一处；以命名边界约束撞名风险：观测焦点只有这一组字段与写入口，外壳布局只有既有三个名字 | 2026-09-23 |
 
 ## 17. 待确认问题
 
-本 SDD 状态为 `draft`。转 `ready` 需关闭 Q1～Q4 全部问题（依据 [SDD 索引](../../README.md)：`ready` 要求范围、输入输出、状态机、错误处理与验收完整，开放问题为零）。
+本 SDD 状态为 `draft`。转 `ready` 需关闭 Q1～Q2 全部问题（依据 [SDD 索引](../../README.md)：`ready` 要求范围、输入输出、状态机、错误处理与验收完整，开放问题为零）。
 
 - [ ] **Q1 引擎合并可行性未决**：CS3D mock `RenderingEngine` smoke 测试（渲染一帧、画一条 polyline、提交一次画笔）能否写出，决定 D-21 的降级是否触发。结论进执行记录 record，§3 据此确定引擎收敛的交付边界。
-- [ ] **Q2 模态标签 i18n 归属待裁定**：`label_key` → `label` → `modality` 原文的回退顺序已写入 §9.3，须经 W0 裁定确认后方可视为冻结。
-- [ ] **Q3 字面量基线未产出**：`check-modality-literals.sh` 的三端命中基线未测，D-14「先清零再放宽」的前置条件当前不可判，§15.1 J 组的门禁数值无法定稿。
-- [ ] **Q4 `Focus` 一词在前端 store 内撞名**：`frontend/src/store/session.ts` 已有 `uiMode: "focus" | "workbench"`（SDD 01 的 Focus 模式）、`focusLayout` 与 `setFocusLayout`，另有 `frontend/src/components/focus/` 整个目录。本 SDD 要向**同一个 store** 加 `focus: Focus | null` 与 `setFocus`——`setFocus` 与 `setFocusLayout` 只差一个词，前者是「现在观测哪个对象的哪一帧哪个区域」，后者是「右侧栏开不开」。备选是把观测焦点改名 `Viewpoint`（三端同步改名，`Observation` 不可用，已被 `agent-runtime` 的取图结果占用）。W3 动手前必须裁定；在此之前只是全文替换一个词，成本为零，动手后则是三端七个类型的改名。§14 中 SDD 01 一条已记录「同名不同物」的事实，但不构成裁定。
+- [ ] **Q2 字面量基线未产出**：`check-modality-literals.sh` 的三端命中基线未测，D-14「先清零再放宽」的前置条件当前不可判，§15.1 J 组的门禁数值无法定稿。
 
 **视频理解的观测形状不在本 SDD 内，且不构成开放问题**：2026-09-22 确定视频特性的形态是「给模型做理解视频的 harness」，工程约束尽量薄、不预先写死工具集，因此本 SDD 只冻结衬底（对象、焦点、索引、观测的参照系与取图口），不冻结模型怎么用它。以下四项一并落入 SDD 11，其中前三项已由本 SDD 备好底座、第四项待触发：一是时间以秒寻址而非帧号（`Index.t` 当前是帧索引，`Calibration{kind:"time_base"}` 已带 `fps`，缺的是观测返回把时间戳写进 `ReferenceFrame` 的兄弟结构、工具签名以秒计）；二是长视频的分层导航（一小时 25fps 即九万帧，抽帧必须先粗后细，由模型指定区间放大，而非核心预设抽样策略）；三是音画按时间区间同步交付（D-23 已把音轨声明与取流入口备好，缺的是「一个时间区间 → 帧集合加音频片段，共享同一 time base」的观测形状）；四是模型时序发现的记录原语（Track/Event），其触发条件由审计 §8.6 的「出现跟踪任务需求」改写为「第一次需要验证模型的时序判断」——纯观测能让模型说出结论，但纲领四要素中的验证器与回合轨迹需要结论可落库。
 
