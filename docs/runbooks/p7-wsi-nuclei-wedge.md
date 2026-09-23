@@ -134,7 +134,7 @@ make frontend        # 三进程一起起用 make -j3 dev
   **隐藏标签页会暂停 rAF** → 背景空白（overlay/度量仍正常，那些不靠 rAF）。**在可见浏览器里正常**。
   这是 CS3D（按需 `.render()`）在预览里能显示、OSD 不能的原因。
 - **最小 env 需带 HOME**：StarDist 首次 `from_pretrained` 把权重缓存到 `~/.keras`，子进程最小 env
-  含 `HOME`（`segment_wsi._run_live` 已加）——同 P6 对 TotalSegmentator 记的 HOME 坑。
+  含 `HOME`（`segment_wsi._run_live` 已加）。
 - **背景 patch 触发 StarDist ClipperLib 崩溃**：完整切片（非纯组织小样本）的 ROI 会混入背景/玻璃 patch，
   喂给 StarDist 时其星凸多边形 NMS（ClipperLib）在近白/平坦输入上抛 C++ 异常 → `std::terminate`
   **杀整个子进程**（Python 抓不住）。driver 加 **tissue masking**：`gray.mean()>220 或 std<5` 的 patch

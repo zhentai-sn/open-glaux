@@ -9,7 +9,7 @@ status: living
 > 第一个 3D CT 楔子（肝+双肾分割 + 体积度量 + 画笔编辑 + Reproducibility Dice）。
 > **依据**：[P6 设计文档](../designs/2026-07-09-001-p6-3d-totalseg-wedge.zh-CN.md) ·
 > [P6 实施计划](../plans/2026-07-09-001-feat-p6-3d-totalseg-wedge-plan.md)
-> **半衰期**：TotalSegmentator 权重版本 / CS3D 4.x→5.x API 漂移时复核。
+> **半衰期**：TotalSegmentator 权重版本变化或 Cornerstone3D 主版本升级（当前 3.x）时复核。
 
 ## 一句话
 
@@ -64,7 +64,7 @@ python -c "import nibabel as nib; i=nib.load('data/ct/ct_001.nii.gz'); print(i.s
 
 > **reproducibility reference（`ct_001_ref.nii.gz`）**：TS 官方不 ship 该 CT 的 liver_kidney
 > 预测，故 v0 用「本机首跑 TotalSegmentator 产出的 labelmap 快照」作 reference——
-> 见下方步骤 6.a。这是**自复现快照**，非真 GT；Dice=1.0 说明 verify 链路端到端通，不代表
+> 生成方式：§8 第 3 步首跑后，把 `$GLAUX_TS_CACHE/ct_001_totalsegmentator_v2.nii.gz` 拷为 `data/ct/ct_001_ref.nii.gz`。这是**自复现快照**，非真 GT；Dice=1.0 说明 verify 链路端到端通，不代表
 > 临床正确性。若日后拿到独立 GT，替换 `ct_001_ref.nii.gz` 即可。
 
 ## 4. 装 driver 脚本（`~10 s`）
@@ -93,8 +93,8 @@ export GLAUX_CT_ROOT=/path/to/open-glaux/data/ct
 ## 6. 启动后端（`~10 s`）
 
 ```bash
-cd /path/to/open-glaux/backend
-.venv/bin/uvicorn app.main:app --reload --port 8000
+cd /path/to/open-glaux
+make backend          # 已显式 GLAUX_DEV_MODE=1，内置 CT 源可见；也可用 bash scripts/dev/run-backend.sh
 ```
 
 应看到：
@@ -157,7 +157,7 @@ VITE v5.4.21  ready in 250 ms
    ```
    - **Dice ≥ 0.90** = 复现好，pipeline 健康
    - **Dice < 0.85** = 检查 measure / 标定 / 缓存逻辑；不**代表临床正确性**（reference 是
-     ship 的官方 demo 预测，非真 GT）
+     本机首跑快照，非真 GT）
 7. **回滚验证** → 查看器工具栏 **Reset to model（重置为模型输出）**，内部走 `reRunActiveModel()` 重跑 `POST /task/run`，丢弃画笔编辑。
 
 ## 9. 已知问题
@@ -165,8 +165,8 @@ VITE v5.4.21  ready in 250 ms
 - **首跑慢 / 要 GPU**：子进程 env 最小化（`MPLBACKEND` / `CUDA_VISIBLE_DEVICES=-1` / `PATH`），
   v0 CPU-only，首跑 ~3-10 min（nnU-Net），之后命中缓存 < 1s；要用 GPU 改 `segment_ts._run_live`
   的 env，去掉 `CUDA_VISIBLE_DEVICES=-1`。
-- **Dice < 0.85**：通常因为 reference 是 ship demo 预测，**不是**我们 pipeline bug；
-  也可能是我们 voxel_spacing 解析差异（检查 `dataset_ct.vox_spacing_mm`）。
+- **Dice < 0.85**：reference 是本机首跑快照，复跑应近乎一致；偏低先查 TotalSegmentator 或权重版本是否变了、
+  缓存 labelmap 是否被覆盖，也可能是 voxel_spacing 解析差异（检查 `dataset_ct.vox_spacing_mm`）。
 - **镜像体积错误**：检查 `data/ct/ct_001.nii.gz` 的 `pixdim[1:4]`，是否包含负值
   （nibabel 会自动取 abs → 误通过）。
 

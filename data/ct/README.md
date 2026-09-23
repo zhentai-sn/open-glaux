@@ -19,7 +19,7 @@ TotalSegmentator v2.4.0 公开 demo 案例在 GitHub release / Zenodo 资产中�
 本目录当前只需 1 例 demo：
 
 - `ct_001.nii.gz` —— 1 例腹部 CT（TotalSegmentator 公开 demo，3mm 各向同性，122×101×112）
-- `ct_001_ref.nii.gz` —— TotalSegmentator 首跑输出的 reproducibility reference（**非真 GT**），生成步骤见同一 runbook 第 6 步
+- `ct_001_ref.nii.gz` —— TotalSegmentator 首跑输出的 reproducibility reference（**非真 GT**），生成方式见同一 runbook 第 3 步末尾的说明
 
 ## 权限与协议
 
