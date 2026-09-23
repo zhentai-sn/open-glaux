@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0～W3 已准出（W3 手工走查场景 3、4 待维护者签字，见执行记录）；可进入 W4 |
+| 当前阶段 | 契约冻结；W0～W3 已准出（W3 手工走查场景 3、4 待维护者签字）；W4 代码与自动化门禁完成，真实浏览器走查待签，见执行记录 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |

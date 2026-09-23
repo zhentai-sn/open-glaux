@@ -38,3 +38,7 @@ created: 2026-09-23
 1. 维护者先在真实浏览器确认复现。
 2. 确认后以独立 `fix(frontend)` 提交做降级修复，不并入 SDD 10 的波次提交；补一条 smoke 用例断言 Annotorious 初始化失败时瓦片仍打开。
 3. 根治随 W4 `PyramidViewer` 落地；若上游提供免 eval 构建，可改为升级。
+
+## 6. W4 进展
+
+`PyramidViewer` 已删除 Annotorious / pixi 依赖，用 OpenSeadragon 原生标注层承接 bbox / polygon；无头组件测试、前端构建和全量门禁通过。真实浏览器的瓦片、框选与控制台走查仍待维护者签字；签字前本单保持 open，§5 的降级修复路径不再适用于当前代码。

@@ -323,6 +323,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
       }
       if (cancelled) return;
       await vp.setStack([imageId]);
+      if (cancelled) return;
       vp.resetCamera();
       vp.render();
       drawOverlayRef.current();

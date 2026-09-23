@@ -400,4 +400,26 @@ W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已�
 | 选项段装配 | `CHROME_SEGMENTS` 按能力位和当前工具装配画笔、VOI，Workbench 与 Focus 共用；移除 Chrome 内的两段硬编码条件 | VOI 能力位显隐定向测试、前端 lint 通过 |
 | 引擎合并 | `CornerstoneViewer` 与 `VolumeViewer` 删除；`FrameStackViewer` 共用一套 CS3D 生命周期、ToolGroup、叠加画布及标注桥，2D / CT 差异由对象 `kind`、轴、帧源与 sink 装配；`PyramidViewer` 也改收 Viewer 注入的数据与动作 | 合并后 smoke 7/7、WSI 组件 3/3、前端全量 235/235、lint 与 production build 通过；真实浏览器走查待补 |
 
-待完成：`FrameStackViewer` 合并与全量门禁。W4 尚未准出。
+W4 代码与自动化门禁完成：`make test` 的 version 5、runtime 205、frontend 235、backend 333、science-core 214 项全绿；`make lint` 全绿；前端 production build 通过。受限沙箱内 `anyio.to_thread.run_sync` 最小复现也会挂起，后端 `TestClient` 因此停在首个请求；在沙箱外运行同一 `make test` 全绿，属执行环境限制，不是产品失败。以上均为本地验证，未推送。
+
+W4 真实浏览器走查待维护者签字。自动化 smoke 只验接线，不替代下列像素、指针与交互检查：
+
+| 组 | 手工项 | 状态 |
+| --- | --- | --- |
+| 2D 壁线 1 | 打开 `tech_401`，底图、LI/MA 壁线与淡带位置一致 | 待签 |
+| 2D 壁线 2 | `w` 键进入壁线编辑，拖手柄后线形与 IMT 度量同步变化 | 待签 |
+| 2D 壁线 3 | 切到 polygon 绘制并刷新，标注仍显示且壁线未被改动 | 待签 |
+| 2D 壁线 4 | 大于 4096 像素的导入图绘制 bbox、画笔，刷新后与底图对齐 | 待签 |
+| 2D 壁线 5 | 画笔保存失败时笔迹可重试，成功后 mask 叠色位置一致 | 待签 |
+| CT 逐层 1 | 打开 CT，首层自动定位到有器官的 z，角标与 `focus.index.z` 一致 | 待签 |
+| CT 逐层 2 | 滚轮切 z，bbox / polygon 只在所属切片出现 | 待签 |
+| CT 逐层 3 | CT 图像与 labelmap 的左右 / 上下方向对齐（F-16） | 待签 |
+| CT 逐层 4 | VOI 预设和滑杆实时改变窗宽窗位，隐藏 `voi` 能力位后控件消失 | 待签 |
+| CT 逐层 5 | 画笔提交、冲突提示、切层后重开均与 labelmap 一致 | 待签 |
+| WSI ROI 1 | 在真实浏览器打开 slide，瓦片与核质心叠加可见，控制台无 `unsafe-eval` 崩溃（F-18） | 待签 |
+| WSI ROI 2 | 缩放和平移后 bbox 框选仍对齐 level-0 座标，ROI 写入焦点 | 待签 |
+| WSI ROI 3 | polygon 绘制、顶点拖动、刷新回显位置一致 | 待签 |
+| WSI ROI 4 | 框选过小有提示；有效 ROI 触发核检测并更新度量 | 待签 |
+| WSI ROI 5 | 验证按钮仍调用 `/wsi/{id}/verify` 并显示结果 | 待签 |
+
+以上手工项未签字，W4 暂不记准出；F-18 待办在真实浏览器确认替代路径后关闭。W5 依赖 W4，暂不开始。
