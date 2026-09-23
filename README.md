@@ -13,7 +13,7 @@ Glaux (Ancient Greek for *little owl*) is an agent harness for image and video a
 
 | Element | What Glaux handles |
 | --- | --- |
-| **Observation space** | Reads images and video across modalities and formats, with physical metadata (pixel spacing, channels, frame timing); decides which part the model sees (tiles, sampled frames, crops, overlays) |
+| **Observation space** | Reads images and video across modalities and formats, with physical metadata (pixel spacing, channels, frame timing, sample rate); decides which part is presented to the model (tiles, sampled frames, crops, overlays, and audio segments aligned with the frames) |
 | **Action space** | Tools for segmentation, measurement, tracking and reconstruction, backed by specialized models |
 | **Verifier** | Results traceable to frames and regions, rerunnable as-is, cross-checked across methods, reviewed by humans; metrics when ground truth exists |
 | **Episodes and trajectories** | Verified trajectories and human corrections kept as a case library |
