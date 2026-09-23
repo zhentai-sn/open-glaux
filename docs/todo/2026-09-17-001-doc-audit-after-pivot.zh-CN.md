@@ -350,17 +350,30 @@ status: open
 | `models/hc_seg/README.md` | HC 隔离分割模型的来源、部署、推理管线和验证结果。对照 backend/app/config.py，GLAUX_HC_SEG_* 默认路径、fetal_hc 模态和 hc_harness.py 都还在，内容准确，也没有定位类说法。 |
 | `data/natural/README.md` | 自然图像 SAM 演示资产的来源、许可和提示词清单（SDD 07 要求保留），与纲领「自然图像与视频」领域一致，内容准确。 |
 
-## 执行进度（2026-09-22）
+## 执行进度（2026-09-23）
 
-已完成：
+两轮独立核查（逐条对照当前文件与代码）后的状态：
 
-- 文档治理规则与 frontmatter：`docs/README.md`「活文档与记录」、`AGENTS.md`、65 份文档补齐 `kind`/`status`。
-- P1 入口文档：`docs/architecture.zh-CN.md` 重写、`docs/landing/index.html` 按纲领重写、backend / science-core / scripts/dev 三份 README、前端设计纲领。
-- P3 全部 10 份：六份 runbook（含 p7 的 orchestration PYTHONPATH）、`science-core/eval`、`data/ct`、`data/wsi`、技术债审计 D10 进度。
-- P2 已做 10 份：SDD 00 / 01 / 03 / 05、版本治理 SDD、脑暴索引与 agent-browser-capability、退役设计、前端质量路线图、docs/README 调研条目。
+- 本记录列出的 42 份文档：除下方「待拍板」各项外均已处理，包括原定随 SDD 10 修订、后改由文档治理直接处理的 SDD 02 / 04 / 07 状态与用词漂移。
+- 规则与 frontmatter：`docs/README.md`「活文档与记录」、`AGENTS.md`；`docs/**/*.md` frontmatter 全量合规。
+- 跨文档共性问题：
+  - 旧「环境四层」与比喻：活文档与代码注释（`.py`、`.ts`、`.tsx`）中已清零。
+  - 旧纲领章节号、orchestration 残留、活文档里的变更记录：已清理。
+  - `science-core/pyproject.toml` 的 description、`datasource_registry.py` 的 docstring：已改。
+- 纲领音频措辞（第 13、29、61 行）已同步到根 README 与落地页。
+- 过程中自身引入的错误均已修正：脑暴开放问题被覆盖、退役设计终态记录被改正文、版本治理写 0.2.0 已发布、p6 示例输出为虚构值、误入库的 MSYS 临时文件、`make lint` 的 E501。
 
-未完成：
+待拍板：
 
-- SDD 02 / 04 / 07 / 08 与 `docs/sdd/README.md`：等 SDD 10（对象收敛）落地后一并改，避免与并行会话冲突。
-- 需维护者拍板：`docs/plans/2026-08-26-release-blocker-fixes-plan.md` 是否删除；SDD 01 版本治理与退役设计是否升为 `accepted`；落地页未被引用的插画是否删除。
-- 非文档项：agent-runtime 系统提示词仍写 biomedical；`science-core/pyproject.toml` 的 description 仍是「首个楔子 CUBS IMT」。
+- `docs/plans/2026-08-26-release-blocker-fixes-plan.md` 是否删除。
+- agent-runtime 系统提示词（`harness-registry.ts`、`vision.ts`、`consult-atlas.ts`）仍写 biomedical；改动会影响模型行为。
+- 纲领「依据」一节链接两份已被纲领取代的记录，形成循环引用：改写还是删除。
+- 版本治理 SDD 与退役设计是否升为 `accepted`（设计类记录的状态取值里没有 `accepted`，需一并定）。
+- 落地页未被引用的插画、`assets/architecture*.svg`（全仓无引用，仍是旧四层比喻）是否删除。
+- 「纲领 v2」称呼：纲领本身没有版本号，是否统一去掉。
+- `docs/README.md` 第四节的 SDD 表与 `docs/sdd/README.md` 并存：保留（已注明以索引为准）还是删去只留链接。
+
+代码缺口（文档已如实记录，未改代码）：
+
+- SDD 05：工具键未按当前引擎声明过滤，速查面板不置灰。
+- 插件市场的模式标识按「有无内置源」判断，产品模式下加载示例数据后会显示「开发者模式」。
