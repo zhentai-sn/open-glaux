@@ -3,7 +3,7 @@
 //   1. 渲染一帧：组件向渲染引擎挂 STACK 视口并 setStack 期望的 imageId；
 //   2. 画一条多边形：store.tool=polygon 激活 PlanarFreehandROI，CS3D 的 ANNOTATION_COMPLETED
 //      经 csAnno 桥落 POST /annotations，落库目标 = 焦点对象（CT 另带当前 z）；
-//   3. 提交一笔画笔：overlay 自持缓冲的笔迹，2D 落 /annotations（kind=mask），CT 落 mask-edit。
+//   3. 提交一笔画笔：overlay 自持缓冲的笔迹，2D 落 /annotations（kind=mask），CT 落 /objects/{id}/edits。
 // 替身边界只在 jsdom 做不到的地方：
 //   - @cornerstonejs/core：`RenderingEngine`（WebGL/vtk）与 `init` 替换；其余（utilities 坐标换算、
 //     metaData、eventTarget、Enums）用真实实现；
@@ -223,7 +223,7 @@ function stubBackend() {
           seq: 1,
         };
         json = { annotation, hook_result: null };
-      } else if (method === "POST" && /\/mask-edit$/.test(url)) json = { metrics: {}, labelmap_ref: "x", seq: 7 };
+      } else if (method === "POST" && /\/objects\/[^/]+\/edits$/.test(url)) json = { metrics: {}, labelmap_ref: "x", seq: 7 };
       return { ok: true, status: 200, json: async () => json };
     }),
   );
@@ -235,6 +235,8 @@ const posts = (pred: (url: string) => boolean) => calls.filter((c) => c.method =
 
 function task(modality: string, viewer: string): TaskView {
   return {
+    task: modality === "ct_abdomen" ? "totalseg_liver_kidney" : "far_wall_cca_imt",
+    default_method: "test-model",
     modality,
     viewer,
     capabilities: ["bbox", "polygon", "brush"],
@@ -259,6 +261,11 @@ const VOL_PRIM = {
 } as unknown as Primitive;
 
 const initial = useSession.getState();
+
+function CtHarness({ object }: { object: ObjectMeta }) {
+  const focus = useSession((state) => state.focus);
+  return focus ? <VolumeViewer object={object} focus={focus} /> : null;
+}
 
 beforeEach(() => {
   h.engines.length = 0;
@@ -319,7 +326,7 @@ function brushStroke(container: HTMLElement) {
 // --- raster_2d --------------------------------------------------------------
 
 describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
-  const IMAGE_ID = "web:/api/image/img_1";
+  const IMAGE_ID = "web:/api/objects/img_1/frame?size=4096";
 
   async function mount2d() {
     useSession.setState({ modality: "carotid_imt", tasks: [task("carotid_imt", "raster_2d")] });
@@ -362,7 +369,7 @@ describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
     expect(posts((u) => u === "/api/annotations")).toHaveLength(1);
   });
 
-  it("提交一笔画笔：自持缓冲 → /annotations kind=mask（不走 mask-edit）", async () => {
+  it("提交一笔画笔：自持缓冲 → /annotations kind=mask（不走对象编辑）", async () => {
     const { container } = await mount2d();
     act(() => {
       useSession.getState().setToolOptions({ brush: { mode: "paint", radius: 2 } });
@@ -375,24 +382,23 @@ describe("CornerstoneViewer（raster_2d）接线冒烟", () => {
     await waitFor(() => expect(posts((u) => u === "/api/annotations")).toHaveLength(1));
     const body = posts((u) => u === "/api/annotations")[0].body!;
     expect(body).toMatchObject({ image_id: "img_1", primitive: { kind: "mask" }, mask_png_b64: PNG_STUB });
-    expect(posts((u) => u.includes("mask-edit"))).toHaveLength(0);
+    expect(posts((u) => u.endsWith("/edits"))).toHaveLength(0);
   });
 });
 
 // --- volume_3d（CT）---------------------------------------------------------
 
 describe("VolumeViewer（CT）接线冒烟", () => {
-  const BASE = "nifti:/api/volume/ct_1";
+  const BASE = "nifti:/api/objects/ct_1/raw";
 
   async function mountCt() {
     useSession.setState({ modality: "ct_abdomen", tasks: [task("ct_abdomen", "volume_3d")] });
-    const object = objectMeta({ id: "ct_1", modality: "ct_abdomen" });
-    const r = render(<VolumeViewer object={object} focus={focusOn(object)} />);
+    const object = objectMeta({ id: "ct_1", modality: "ct_abdomen", resources: { frame: "/objects/ct_1/frame", raw: "/objects/ct_1/raw" } });
+    focusOn(object);
+    const r = render(<CtHarness object={object} />);
     const vp = () => engine("glaux-re-vol").viewports.get("glaux-stack-vol");
     await waitFor(() => expect(vp()?.setImageIdIndex).toHaveBeenCalledWith(CT_DIMS.slices / 2));
     // 分割结果回流（primitives 带 volume_mask）→ 拉 labelmap → 自动跳到有器官体素的层。
-    // 注：若 labelmap 先于 CT 维度就绪（primitives 在挂载前已在 store），载卷 effect 的 setZ(mid)
-    // 会盖掉这次跳层——产品侧的时序竞争，本测试按「先载卷、后回流」的常规路径驱动。
     act(() => useSession.getState().setPrimitives([VOL_PRIM]));
     await waitFor(() => expect(vp()!.setImageIdIndex).toHaveBeenLastCalledWith(LABEL_Z));
     return { ...r, vp: vp()! };
@@ -408,6 +414,17 @@ describe("VolumeViewer（CT）接线冒烟", () => {
       { viewportId: "glaux-stack-vol", renderingEngineId: "glaux-re-vol" },
     ]);
     await waitFor(() => expect(calls.some((c) => c.url === `/api/annotations?image_id=ct_1&z=${LABEL_Z}`)).toBe(true));
+  });
+
+  it("labelmap 在挂载前已有时，初始层定位不会被体数据加载覆盖（F-3）", async () => {
+    useSession.setState({ modality: "ct_abdomen", tasks: [task("ct_abdomen", "volume_3d")], primitives: [VOL_PRIM] });
+    const object = objectMeta({ id: "ct_1", modality: "ct_abdomen", resources: { frame: "/objects/ct_1/frame", raw: "/objects/ct_1/raw" } });
+    focusOn(object);
+    render(<CtHarness object={object} />);
+    const viewport = () => engine("glaux-re-vol").viewports.get("glaux-stack-vol");
+    await waitFor(() => expect(viewport()?.setStack).toHaveBeenCalled());
+    await waitFor(() => expect(viewport()?.setImageIdIndex).toHaveBeenLastCalledWith(LABEL_Z));
+    expect(useSession.getState().focus?.index.z).toBe(LABEL_Z);
   });
 
   it("画一条多边形：完成事件落 /annotations（目标 = volume id + 当前 z）", async () => {
@@ -428,7 +445,7 @@ describe("VolumeViewer（CT）接线冒烟", () => {
     expect(posts((u) => u === "/api/annotations")).toHaveLength(1);
   });
 
-  it("提交一笔画笔：自持缓冲 → mask-edit（D-13，不落 /annotations），成功后失效并重拉 labelmap", async () => {
+  it("提交一笔画笔：自持缓冲 → 对象编辑（D-13，不落 /annotations），成功后失效并重拉 labelmap", async () => {
     const { container } = await mountCt();
     act(() => {
       useSession.getState().setToolOptions({ brush: { mode: "paint", classId: 2, radius: 2 } });
@@ -436,12 +453,14 @@ describe("VolumeViewer（CT）接线冒烟", () => {
     });
     brushStroke(container);
 
-    await waitFor(() => expect(posts((u) => u.endsWith("/mask-edit"))).toHaveLength(1));
-    const call = posts((u) => u.endsWith("/mask-edit"))[0];
-    expect(call.url).toBe("/api/volume/ct_1/mask-edit");
+    await waitFor(() => expect(posts((u) => u.endsWith("/edits"))).toHaveLength(1));
+    const call = posts((u) => u.endsWith("/edits"))[0];
+    expect(call.url).toBe("/api/objects/ct_1/edits");
     expect(call.body).toMatchObject({
+      task: "totalseg_liver_kidney",
+      method: "test-model",
       base_seq: 0,
-      slices: [{ z: LABEL_Z, class_id: 2, mode: "paint", mask_png_ref: PNG_STUB }],
+      ops: [{ index: { z: LABEL_Z }, class_id: 2, mode: "paint", mask_png: PNG_STUB }],
     });
     await waitFor(() => expect(invalidateNiftiVolume).toHaveBeenCalledWith(LABEL_REF));
     expect(posts((u) => u === "/api/annotations")).toHaveLength(0);

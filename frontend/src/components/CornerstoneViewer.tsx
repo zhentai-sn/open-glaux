@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { csUtils, preloadDims, type Types } from "../viewer/cornerstone";
+import { csUtils, type Types } from "../viewer/cornerstone";
 import { activateTool } from "../viewer/csTools";
 import { sampleHandles } from "../viewer/wallGeom";
-import { maskToPng } from "../viewer/maskPng";
+import { annotationMaskSink } from "../viewer/maskSinks";
 import { useBrushBuffer } from "../viewer/hooks/useBrushBuffer";
 import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
 import { useOverlayCanvas } from "../viewer/hooks/useOverlayCanvas";
 import { taskToolsFor } from "../viewer/useTaskTools";
+import { frameSourceFor } from "../viewer/frameSources";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
@@ -57,6 +58,8 @@ export function CornerstoneViewer({ object }: EngineProps) {
   const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
 
   const objectId = object.id;
+  const source = useMemo(() => frameSourceFor(object), [object]);
+  const maskSink = useMemo(() => annotationMaskSink(objectId), [objectId]);
   const primitives = useSession((s) => s.primitives);
   const annotations = useSession((s) => s.annotations);
   const cf = mmPerPx(object);
@@ -280,8 +283,6 @@ export function CornerstoneViewer({ object }: EngineProps) {
     if (!ready || !objectId) return;
     const vp = vpRef.current;
     if (!vp) return;
-    const imageId = `web:${api.imageUrl(objectId)}`;
-    imageIdRef.current = imageId;
     // 切图清旧：CS3D 标注层 + 桥映射 + 画笔缓冲 + mask 缓存
     // （同一时刻仅一个查看器挂载，removeAllAnnotations 不会误伤其他引擎）
     try {
@@ -294,8 +295,10 @@ export function CornerstoneViewer({ object }: EngineProps) {
     brushDims.current = null;
     let cancelled = false;
     (async () => {
-      const dim = await preloadDims(imageId);
+      const [imageId] = await source.imageIds();
+      const dim = await source.dims();
       if (cancelled) return;
+      imageIdRef.current = imageId;
       brushDims.current = { columns: dim.columns, rows: dim.rows };
       for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
         await new Promise((r) => requestAnimationFrame(r));
@@ -310,7 +313,7 @@ export function CornerstoneViewer({ object }: EngineProps) {
     return () => {
       cancelled = true;
     };
-  }, [ready, objectId, clearBrush]);
+  }, [ready, objectId, source, clearBrush]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
@@ -412,16 +415,12 @@ export function CornerstoneViewer({ object }: EngineProps) {
     const buf = brushBuf.current;
     const bd = brushDims.current;
     if (!buf || !bd || !objectId || !buf.some((v) => v)) return;
-    const png = maskToPng(buf, bd.columns, bd.rows);
-    const { createAnnotation } = await import("../annotation/bridge");
-    const saved = await createAnnotation({
-      image_id: objectId,
-      primitive: { kind: "mask" },
-      mask_png_b64: png,
-    });
-    if (saved) {
+    try {
+      await maskSink.commit(buf, bd, {});
       clearBrush(); // 已落库，转由已保存 mask 通道渲染
       drawOverlay();
+    } catch {
+      // annotationBridge 已提示并回滚乐观草稿；保留笔迹供用户重试。
     }
   };
 

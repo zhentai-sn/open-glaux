@@ -3,17 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 
 import { type Types } from "../viewer/cornerstone";
-import {
-  preloadNiftiDims,
-  loadNiftiVolume,
-  invalidateNiftiVolume,
-} from "../viewer/nifti";
+import { loadNiftiVolume, invalidateNiftiVolume } from "../viewer/nifti";
 import { activateTool } from "../viewer/csTools";
-import { maskToPng } from "../viewer/maskPng";
+import { editMaskSink } from "../viewer/maskSinks";
 import { useBrushBuffer } from "../viewer/hooks/useBrushBuffer";
 import { useCsStackEngine } from "../viewer/hooks/useCsStackEngine";
 import { useOverlayCanvas } from "../viewer/hooks/useOverlayCanvas";
-import { api, ApiError } from "../api/client";
+import { frameSourceFor } from "../viewer/frameSources";
 import { loadAnnotations } from "../annotation/bridge";
 import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
 import { taskViewFor } from "../data/actions";
@@ -26,7 +22,7 @@ import type { ClassSpec, Primitive } from "../api/types";
 // 统一框架收编：
 // - brush 参数（mode/class/radius）与 WW/WL 迁 store.toolOptions（选项条在 ViewerChrome）；
 // - 逐切片 bbox/polygon 经 csAnno 桥落 /annotations（带 z；imageId 含 #z= 天然按层隔离）；
-// - CT brush 提交**仍走** POST /volume/{id}/mask-edit（D-13：labelmap 是任务结果不是标注），
+// - CT brush 经 editMaskSink 走 POST /objects/{id}/edits（D-13：labelmap 是任务结果不是标注），
 //   宿主为 overlay 自持笔迹缓冲（spike3 退化方案：CS3D segmentation 在 stack 未打通）；
 // - 滚轮切 z（ZoomTool wheel 关闭，activateTool wheelZoom=false）；
 // - labelmap 叠色保留现有 canvas 渲染（CS3D segmentation 原生渲染随 spike3 一并留后）。
@@ -39,8 +35,10 @@ const OVERLAY_ALPHA = 0.4; // labelmap 叠色透明度
 type VolPrim = Extract<Primitive, { kind: "volume_mask" }>;
 type LabelVol = { columns: number; rows: number; slices: number; raw: Int32Array };
 
-export function VolumeViewer({ object }: EngineProps) {
+export function VolumeViewer({ object, focus }: EngineProps) {
   const zImageIdRef = useRef<string | null>(null); // 当前 z 的 nifti imageId（csAnno 桥用）
+  const stackIdsRef = useRef<string[]>([]);
+  const preferredZRef = useRef<{ objectId: string; z: number } | null>(null);
   const { elementRef: elRef, engineRef, viewportRef: vpRef, ready } = useCsStackEngine({
     renderingEngineId: RE_ID,
     viewportId: VP_ID,
@@ -56,15 +54,13 @@ export function VolumeViewer({ object }: EngineProps) {
   const labelVolRef = useRef<LabelVol | null>(null);
   const { buffer: editMaskRef, clear: clearBrush, paint: paintBrush } = useBrushBuffer();
   const drawingRef = useRef(false);
-  const editSeqRef = useRef(0); // 前端请求序号：只接受最新一次响应
-  const baseSeqRef = useRef(0); // 后端乐观并发 base_seq（成功编辑后跟随服务端 seq）
 
   const [numSlices, setNumSlices] = useState(0);
-  const [z, setZ] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const objectId = object.id;
-  const activeModel = useSession((s) => s.activeModel);
+  const z = focus.index.z ?? 0;
+  const source = useMemo(() => frameSourceFor(object), [object]);
   const setIndex = useSession((s) => s.setIndex);
   const primitives = useSession((s) => s.primitives);
   const annotations = useSession((s) => s.annotations);
@@ -181,6 +177,28 @@ export function VolumeViewer({ object }: EngineProps) {
   // 避免把它放进数据加载 effect 的 deps（否则加载中途被 cleanup cancel，labelmap 永远设不上）。
   const drawOverlayRef = useRef(drawOverlay);
   drawOverlayRef.current = drawOverlay;
+  const maskSink = useMemo(() => {
+    if (!taskView || !volPrim?.ref) return null;
+    const labelRef = volPrim.ref;
+    return editMaskSink({
+      objectId,
+      task: taskView,
+      method: () => useSession.getState().activeModel ?? taskView.default_method,
+      brush: () => {
+        const { classId, mode } = useSession.getState().toolOptions.brush;
+        return { classId, mode };
+      },
+      onSaved: async (response) => {
+        useSession.getState().setMetrics(response.metrics);
+        invalidateNiftiVolume(labelRef);
+        clearBrush();
+        const volume = await loadNiftiVolume(labelRef);
+        labelVolRef.current = { columns: volume.columns, rows: volume.rows, slices: volume.slices, raw: volume.raw };
+        drawOverlayRef.current();
+      },
+      notify: (message) => useSession.getState().notify("crit", message),
+    });
+  }, [objectId, taskView, volPrim?.ref, clearBrush]);
 
   // --- store.tool → ToolGroup（brush 走自持缓冲不激活 CS3D；滚轮留给切 z）------
   useEffect(() => {
@@ -197,38 +215,45 @@ export function VolumeViewer({ object }: EngineProps) {
     if (!vp) return;
     // 切卷先重置：避免旧 z / 旧 label / 旧标注泄漏到新卷
     setNumSlices(0);
-    setZ(0);
+    const preferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
+    setIndex({ z: preferred ?? 0 });
     labelVolRef.current = null;
     clearBrush();
-    baseSeqRef.current = 0;
     zImageIdRef.current = null;
+    stackIdsRef.current = [];
     try {
       annotation.state.removeAllAnnotations();
     } catch {
       /* noop */
     }
     resetCsAnnoBridge();
-    const baseUrl = api.volumeUrl(objectId);
     let cancelled = false;
     (async () => {
-      const dim = await preloadNiftiDims(`nifti:${baseUrl}`);
+      const dim = await source.dims();
+      const ids = await source.imageIds();
       if (cancelled) return;
       for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
         await new Promise((r) => requestAnimationFrame(r));
       }
       if (cancelled) return;
-      const mid = Math.floor(dim.slices / 2);
-      const ids = Array.from({ length: dim.slices }, (_, i) => `nifti:${baseUrl}#z=${i}`);
+      const mid = Math.floor(dim.frames / 2);
+      stackIdsRef.current = ids;
       await vp.setStack(ids, mid);
+      if (cancelled) return;
+      const preferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
+      const initialZ = preferred ?? mid;
+      if (initialZ !== mid) await vp.setImageIdIndex(initialZ);
+      if (cancelled) return;
       vp.resetCamera();
       vp.render();
-      setNumSlices(dim.slices);
-      setZ(mid);
+      setNumSlices(dim.frames);
+      const latestPreferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
+      setIndex({ z: latestPreferred ?? initialZ });
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, objectId, clearBrush]);
+  }, [ready, objectId, source, clearBrush, setIndex]);
 
   // primitives 变（跑分割/编辑回流）→ 拉 labelmap 整卷入 ref → 重绘
   // 只依赖 labelmap URL——不依赖 drawOverlay，否则初始 z/numSlices 变化会反复 cancel 加载。
@@ -255,7 +280,10 @@ export function VolumeViewer({ object }: EngineProps) {
           for (let i = 0; i < sliceLen; i++) if (vol.raw[base + i] > 0) c++;
           if (c > bestCount) { bestCount = c; bestZ = zz; }
         }
-        if (bestZ >= 0) setZ(bestZ);
+        if (bestZ >= 0) {
+          preferredZRef.current = { objectId, z: bestZ };
+          setIndex({ z: bestZ });
+        }
       } catch {
         labelVolRef.current = null; // labelmap 404/未就绪 → 空白不抛
       }
@@ -264,16 +292,14 @@ export function VolumeViewer({ object }: EngineProps) {
     return () => {
       cancelled = true;
     };
-  }, [labelRef]);
+  }, [labelRef, objectId, setIndex]);
 
   // z 变化 → 切 imageIdIndex + 清笔迹 + 拉该层标注（bbox/polygon 逐切片隔离）+ 重绘
   useEffect(() => {
     const vp = vpRef.current;
     if (!vp || numSlices <= 0 || !objectId) return;
     clearBrush();
-    const baseUrl = api.volumeUrl(objectId);
-    zImageIdRef.current = `nifti:${baseUrl}#z=${z}`;
-    setIndex({ z }); // 层号同步进唯一焦点（组件本地 z 于 W4 并入 Focus.index）
+    zImageIdRef.current = stackIdsRef.current[z] ?? null;
     // 旧 z 的 CS3D 标注清场（映射复位，store 回灌 effect 会按新 z 重建）
     try {
       annotation.state.removeAllAnnotations();
@@ -324,10 +350,10 @@ export function VolumeViewer({ object }: EngineProps) {
   const onWheel = (e: React.WheelEvent) => {
     if (numSlices <= 0) return;
     const dz = e.deltaY > 0 ? 1 : -1;
-    setZ((cur) => Math.max(0, Math.min(numSlices - 1, cur + dz)));
+    setIndex({ z: Math.max(0, Math.min(numSlices - 1, z + dz)) });
   };
 
-  // --- 画笔：pointer → 图像像素 → 笔迹 mask（自持缓冲；提交走 mask-edit，D-13）---
+  // --- 画笔：pointer → 图像像素 → 笔迹 mask（自持缓冲；提交经 editMaskSink，D-13）---
   const paintAt = useCallback(
     (clientX: number, clientY: number) => {
       const vp = vpRef.current;
@@ -360,40 +386,14 @@ export function VolumeViewer({ object }: EngineProps) {
     drawingRef.current = false;
     const mask = editMaskRef.current;
     const lv = labelVolRef.current;
-    if (!mask || !lv || !objectId || !volPrim) return;
+    if (!mask || !lv || !objectId || !maskSink) return;
     if (!mask.some((v) => v)) return;
-
-    // 笔迹 → 二值 PNG（white=编辑区，与后端 convert("L")→bool 对齐）
-    const png = maskToPng(mask, lv.columns, lv.rows);
-    const st = useSession.getState();
-    const mySeq = ++editSeqRef.current;
     setBusy(true);
     try {
-      const resp = await api.volumeMaskEdit(objectId, {
-        // task / method 取自当前 TaskView 与活动模型，不写常量（SDD 10 §7 规则 17）
-        task: taskView?.task ?? "totalseg_liver_kidney",
-        method: activeModel ?? taskView?.default_method ?? "",
-        base_seq: baseSeqRef.current,
-        slices: [{ z, class_id: brushClass, mode: brushMode, mask_png_ref: png }],
-      });
-      if (mySeq !== editSeqRef.current) return; // 被更新的编辑取代，丢弃过期响应
-      baseSeqRef.current = resp.seq;
-      st.setMetrics(resp.metrics);
-      // labelmap 已在服务端变更 → 失效缓存 + 重拉当前卷 label + 清笔迹 + 重绘
-      invalidateNiftiVolume(volPrim.ref);
-      clearBrush();
-      const vol = await loadNiftiVolume(volPrim.ref);
-      labelVolRef.current = { columns: vol.columns, rows: vol.rows, slices: vol.slices, raw: vol.raw };
-      drawOverlay();
-    } catch (err) {
-      if (mySeq !== editSeqRef.current) return;
-      // 失败回滚：丢弃本地笔迹（服务端未变），提示用户（Notice 胶囊）
+      await maskSink.commit(mask, lv, { z });
+    } catch {
       clearBrush();
       drawOverlay();
-      const msg = err instanceof ApiError && err.status === 409
-        ? "编辑冲突：labelmap 已被其他编辑超越，请刷新后重试"
-        : "画笔编辑未生效（后端失败），已丢弃本次修正";
-      st.notify("crit", msg);
     } finally {
       setBusy(false);
     }

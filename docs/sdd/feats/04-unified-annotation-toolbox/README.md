@@ -136,7 +136,7 @@ flowchart LR
 画笔写契约由 [SDD 10](../10-object-convergence/README.md) 承载（其 §7 规则 17、D-6），本节只引用。
 
 - CT labelmap 是任务结果而非标注，画笔编辑**不走** `/annotations`，走任务结果编辑端点 `POST /objects/{id}/edits`（`EditRequest{task, method, base_seq, ops}`，`base_seq` 乐观并发，冲突 409），由 `Detector.apply_edit` 派发并按注册表重测。
-- 旧端点 `POST /volume/{id}/mask-edit` 是其 alias（同一实现、同一响应），前端在 SDD 10 W4 切到新端点前仍调用它，W7 删除。
+- 旧端点 `POST /volume/{id}/mask-edit` 是其 alias（同一实现、同一响应）；前端已在 SDD 10 W4 切到新端点，alias 于 W7 删除。
 - 前端两条提交路径经注入的 `MaskSink` 区分：`annotationMaskSink`（2D 画笔 → `/annotations` kind=mask）与 `editMaskSink`（任务结果编辑 → `/objects/{id}/edits`），二者不合并；`task` / `method` 取自当前 `TaskView`，不写常量。
 - `/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。画笔宿主实施期为 overlay 自持笔迹缓冲（D-15）。
 
@@ -302,7 +302,7 @@ stateDiagram-v2
 - [ ] `PATCH` 携带过期 `base_seq` 时返回 409 且不落写；前端收到 409 时 Notice 提示并丢弃过期响应，不覆盖最新态。
 - [ ] `POST` 几何越出图像 dims 时返回 422 `INVALID_GEOMETRY`，前端草稿被移除。
 - [ ] `switchModality` 后 `tool` 回 `cursor`、`toolOptions` 复位，无跨模态状态泄漏（连续切换三模态后各工具行为正常）。
-- [ ] 标注读写回流范式仅一份实现（annotationBridge）；任务绑定编辑（IMT 壁线测量 / CT mask-edit）属 Detection 链路，各自领域内单一 seq 守卫（wallSeq / 组件内 editSeqRef），三查看器无标注回流复制代码。
+- [ ] 标注读写回流范式仅一份实现（annotationBridge）；任务绑定编辑（IMT 壁线测量 / CT 对象编辑）属 Detection 链路，各自领域内单一 seq 守卫（wallSeq / editMaskSink），三查看器无标注回流复制代码。
 - [ ] `on_commit` 钩子失败时标注仍成功落库（201），用户收到"标注已保存、检测未触发"提示。
 - [ ] 2D brush 产物落库为 `kind='mask'`，`masks/<id>.png` 存在且重新加载后叠加渲染一致。
 
@@ -317,9 +317,9 @@ stateDiagram-v2
 | D-10 | ~~Annotorious W3C 格式在前端映射~~ **已被 D-18 替代** | 后端映射 | 后端只认一份 Annotation 契约 | 2026-08-16 |
 | D-11 | `ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`，环境变量 `GLAUX_ANNOTATIONS_ROOT` 覆盖 | 放数据集根下 | 对齐 `GLAUX_ATLAS_ROOT` 惯例（不污染数据集） | 2026-08-16 |
 | D-12 | IMT 高斯形变手柄实现为 CS3D 自定义 BaseTool | 保留手写 overlay 交互 | 复用成熟框架而非平行实现 | 2026-08-16 |
-| D-13 | CT brush 不走 `/annotations`，仍走 `mask-edit` | 统一到 annotations | labelmap 是任务结果而非标注；成熟闭环不重写 | 2026-08-16 |
+| D-13 | CT brush 不走 `/annotations`，经 `editMaskSink` 调 `/objects/{id}/edits` | 统一到 annotations | labelmap 是任务结果而非标注；编辑语义不变 | 2026-08-16 |
 | D-14 | IMT 壁线编辑仍走既有 `/task` 编辑端点（交互换通用折线编辑），不走 `/annotations` | 统一到 annotations | 壁线编辑必须同步重算测量（`/task/measure` 权威口径）；数据归属 Detection 而非自由标注 | 2026-08-16 |
-| D-15 | 2D/CT brush 宿主退化为 overlay 自持 mask 缓冲（提交分别走 `/annotations` kind=mask / `mask-edit`）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；退化方案行为等价且不阻塞本期交付 | 2026-08-17 |
+| D-15 | 2D/CT brush 宿主使用 overlay 自持 mask 缓冲（提交分别经 annotationMaskSink / editMaskSink）；CS3D segmentation 原生交互与渲染留后续 | D-9 的 CS3D labelmap 宿主 | T0 spike3 未打通 StackViewport labelmap（3.33.5 需预建派生 imageId + 引用校验）；画笔缓冲共用且保留两条写语义 | 2026-08-17 |
 | D-16 | ~~IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存~~ **已被 D-17 推翻** | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
 | D-17 | 壁线形变独立成 `wall` 工具（IMT 专属能力位），`polygon` 归还给自由多边形；两者各占一个工具位 | 维持 D-16 的单入口复用 | D-16 的前提「主键交互只能激活一个工具」不成立——工具位本就互斥切换，多一个按钮不冲突。实际代价是：IMT 上「多边形标注」画不出多边形，且 caroSegDeep 未产出壁线时（`editableWalls()` 为空）连形变都没有，按下鼠标直接 return，用户看到的是**完全静默**的按钮。通用工具的语义必须跨模态一致 | 2026-08-30 |
 | D-18 | WSI 的 bbox / polygon 改由 OpenSeadragon 原生 SVG 叠加层绘制与编辑，直接使用 Annotation 几何与现有写桥；删除 Annotorious 与 W3C 映射 | 继续使用 Annotorious | Annotorious 内嵌 pixi 在现有 CSP 下初始化失败；WSI 只需要 bbox 与 polygon，原生叠加层可保留 level-0 坐标与后端权威写契约 | 2026-09-23 |

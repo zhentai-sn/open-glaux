@@ -329,6 +329,7 @@ export interface Annotation {
 /** POST /annotations 请求体（mask 的 PNG 走 mask_png_b64）。 */
 export interface AnnotationInput {
   image_id: string;
+  index?: Index;
   z?: number | null;
   primitive: AnnotationPrimitive | { kind: "mask" };
   mask_png_b64?: string;

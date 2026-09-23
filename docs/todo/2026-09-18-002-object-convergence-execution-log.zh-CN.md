@@ -394,5 +394,6 @@ W3 准出：自动化门禁全部通过；手工走查场景 1、2、5、6 已�
 | 共用接线 | 2D 与 CT 共用 mask PNG、画笔缓冲、CS3D 挂载生命周期和叠加画布监听 | 原有 smoke 6/6、前端 lint 通过 |
 | 工具装配 | `useTaskTools()` 供 Workbench 与 Focus 共用；有任务只读任务能力位，无任务读数据源 `default_capabilities`；2D 引擎也消费同一能力位（F-19） | 工具装配与 Chrome 定向测试、原有 smoke、前端 lint 通过 |
 | WSI 引擎 | `PyramidViewer` 用 OpenSeadragon 坐标映射 + SVG 叠加层绘制、编辑 bbox / polygon；切片 URL 改读 `resources.tiles`；删除 Annotorious / pixi 依赖与 W3C 映射（F-18 根因路径） | 几何与组件交互测试通过，前端 lint / production build 通过；构建产物无 Annotorious 字符串；真实浏览器走查待补 |
+| 帧源与画笔写入 | `FrameSource` 从 `resources.frame/raw` 装配 2D / CT 栈；2D 与 CT 画笔分别经 `annotationMaskSink` / `editMaskSink`，CT 已切 `/objects/{id}/edits`；CT 层号只读写 `Focus.index.z`，挂载前已有 labelmap 的 F-3 竞争已加回归 | 帧源、两种 sink、409 冲突与 7 个查看器 smoke 测试通过；前端 lint 通过 |
 
-待完成：`FrameSource` / `MaskSink`、`FrameStackViewer` 合并、`registerTaskTool`、快捷键数据化与全量门禁。W4 尚未准出。
+待完成：绘制函数表、`FrameStackViewer` 合并、`registerTaskTool`、快捷键数据化、2D 帧缩放时的对象坐标映射与全量门禁。W4 尚未准出。
