@@ -25,7 +25,7 @@ stateDiagram-v2
 
 | 编号 | 规范 | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
-| 01 | [多组件版本与发布治理](01-version-release-governance.md) | `implemented` | Glaux 项目维护者 | 2026-09-23 |
+| 01 | [多组件版本与发布治理](01-version-release-governance.md) | `accepted` | Glaux 项目维护者 | 2026-09-23 |
 
 ## Feature SDD
 

@@ -64,7 +64,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | 门户首页 | `landing/` | living | — |
 | 调研 | `researches/` | record | `draft` / `review` / `done` / `superseded` |
 | 脑暴 | `brainstorms/` | record | `idea` / `brainstorming` / `review` / `promoted` / `shelved` / `superseded` |
-| 设计 | `designs/`（带日期）、`plans/*-design.md` | record | `draft` / `reviewed` / `implemented` / `superseded` |
+| 设计 | `designs/`（带日期）、`plans/*-design.md` | record | `draft` / `reviewed` / `implemented` / `accepted` / `superseded` |
 | 实现计划 | `plans/` | record | `active` / `done` / `abandoned` / `superseded` |
 | 代码评审与审计待办 | `todo/` | record | `open` / `closed` / `superseded` |
 | 版本路线图 | `roadmaps/`（带日期） | record | `current` / `superseded` |
@@ -113,10 +113,10 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 | 文件 | 日期 | 类别 | 主题 |
 | --- | --- | --- | --- |
-| [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河；定位已被纲领 v2 取代） |
+| [20260705-01-market-competitive-landscape.zh-CN.md](researches/20260705-01-market-competitive-landscape.zh-CN.md) | 2026-07-05 | market | 竞争格局与定位分析（含通用 agent 防御 / 护城河；定位已被纲领取代） |
 | [20260705-02-research-ultrasound-benchmarks.zh-CN.md](researches/20260705-02-research-ultrasound-benchmarks.zh-CN.md) | 2026-07-05 | research | 公开超声图像基准调研（数据集 / 许可证 / 短名单推荐） |
 | [20260816-01-tech-annotation-exemplar-store.zh-CN.md](researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | tech | 图像标注案例库技术调研（LanceDB / BiomedCLIP·DINOv2 / 检索增强分割；含已拍板决策） |
-| [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；前提已被纲领 v2 取代，不推进） |
+| [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；前提已被纲领取代，不推进） |
 | [20260923-01-tech-omni-model-fit.zh-CN.md](researches/20260923-01-tech-omni-model-fit.zh-CN.md) | 2026-09-23 | tech | 全模态模型选型与仓库契合度（主选 Qwen3.8-Omni-Flash、备选 MiMo-V2.6-Flash；agent-runtime 音视频通道缺口；SDD 11 输入） |
 
 ## 二、路线图 roadmaps/

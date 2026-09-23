@@ -1,6 +1,6 @@
 ---
 kind: living
-status: implemented
+status: accepted
 ---
 
 # 多组件版本与发布治理
@@ -9,7 +9,7 @@ status: implemented
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | implemented |
+| 状态 | accepted |
 | 当前阶段 | 版本事实源、日志、运行时读取与检查入口已实现；v0.1.0 已发布（2026-08-26 打标签）；0.2.0 已写入 `VERSION` 与 CHANGELOG（2026-08-31），尚未打标签，按 R5–R7 还不算发布 |
 | 关联主 SDD | [Glaux SDD 索引](README.md) |
 | 负责人 | Glaux 项目维护者 |

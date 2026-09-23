@@ -1,11 +1,11 @@
 ---
 kind: record
-status: open
+status: closed
 ---
 
 # 战略转向后文档摸排
 
-> 日期：2026-09-17 · 依据：纲领 v2（docs/roadmaps/charter.zh-CN.md）与 README 重写 · 范围：仓库内 80 份文档（不含本次已重写的纲领、README、chat-distribution 手册）
+> 日期：2026-09-17 · 依据：纲领（docs/roadmaps/charter.zh-CN.md）与 README 重写 · 范围：仓库内 80 份文档（不含本次已重写的纲领、README、chat-distribution 手册）
 
 ## 结论
 
@@ -34,8 +34,8 @@ status: open
 | 文档 | 说明 |
 | --- | --- |
 | `docs/requirements.zh-CN.md` | 2026-07-05 的 v0 需求清单，自称活文档，但全文建立在已废弃的前提上：生物医学定位、首用户 B、超声楔子、按旧环境四层（眼/手）编排、Tauri 桌面壳、引用纲领 §七 边界。逐条修正等于重写。它是早期决策的留痕，仍被 SDD 01 双模式外壳 §背景和多份历史文档引用，建议改为历史文档并标 superseded。 取代者：docs/roadmaps/charter.zh-CN.md |
-| `docs/roadmaps/20260705-product-roadmap.zh-CN.md` | 首版产品路线图，仍自标“当前（current）”。北极星、生物医学影像 agent-native 环境、引擎两者兼有、旧环境四层与眼/手/律法/记忆、护城河判据“详见纲领 §六”、辅助决策远期北极星，均已被纲领 v2 删除或改写。按 roadmaps 按日期存档的约定，应保留留痕、只改状态；它仍被纲领“依据”节和 SDD 00 引用。 取代者：docs/roadmaps/charter.zh-CN.md |
-| `docs/researches/20260705-01-market-competitive-landscape.zh-CN.md` | 2026-07-05 的竞品格局与定位分析。竞品清单和监控信号有留痕价值，但定位和 §9 护城河论述已被纲领 v2 取代。纲领「依据」一节仍把它的 §9 列为依据，所以不能删；建议加 superseded 标注，指向纲领 §五～§七。 取代者：docs/roadmaps/charter.zh-CN.md |
+| `docs/roadmaps/20260705-product-roadmap.zh-CN.md` | 首版产品路线图，仍自标“当前（current）”。北极星、生物医学影像 agent-native 环境、引擎两者兼有、旧环境四层与眼/手/律法/记忆、护城河判据“详见纲领 §六”、辅助决策远期北极星，均已被纲领删除或改写。按 roadmaps 按日期存档的约定，应保留留痕、只改状态；它仍被纲领“依据”节和 SDD 00 引用。 取代者：docs/roadmaps/charter.zh-CN.md |
+| `docs/researches/20260705-01-market-competitive-landscape.zh-CN.md` | 2026-07-05 的竞品格局与定位分析。竞品清单和监控信号有留痕价值，但定位和 §9 护城河论述已被纲领取代。纲领「依据」一节仍把它的 §9 列为依据，所以不能删；建议加 superseded 标注，指向纲领 §五～§七。 取代者：docs/roadmaps/charter.zh-CN.md |
 | `docs/researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md` | 反方核查不支持删除：MCP server 暴露方案、原子工具切分原则、不替换 pi-agent-core 的理由别处没有。文首标已取代，并改 docs/README.md:69 与 brainstorms/README.md:44 两处索引状态。 |
 | `docs/designs/2026-07-06-glaux-ide-frontend.zh-CN.md` | 2026-07-06 IDE 式前端的交接规范（CUBS IMT 标注器）。IDE 作为唯一或默认界面、Agent 栏走意图守卫、后端契约写 FastAPI → orchestration、修正回流「记忆层」，这些已分别被双模式外壳设计、前端设计纲领和 orchestration 退役取代；Workbench 布局和 token 的出处有留痕价值。 |
 | `docs/designs/2026-07-07-glaux-multimodal-architecture.zh-CN.md` | 多模态多任务架构设计（统一信封、TaskPlugin、Viewer 接缝、Capability 能力模型）。其中信封、注册表、Viewer 接缝已经落地（现为 glaux_core.tasks.REGISTRY，另有 VolumeViewer、WsiViewer），仍被 P6/P7 和 SDD 00 引用；但注册表位置（orchestration/spec.py）和按旧纲领「环境四层」划分的 Capability 模型已过期，留痕价值高，不宜删除。 |
@@ -51,7 +51,7 @@ status: open
 #### `docs/landing/index.html`
 
 - 产品发布后的门户首页，整页仍是旧定位：生物医学影像洞察、"模型越强环境越值钱"、旧环境四层与眼/手/裁判/记忆插画、辅助决策远期。
-- **全文**：按纲领 v2 重写宗旨、领域（图像与视频）、边界、harness 身份与环境四要素，删掉比喻插画的用法（judge.png、memory.png 只对应旧比喻）。
+- **全文**：按纲领重写宗旨、领域（图像与视频）、边界、harness 身份与环境四要素，删掉比喻插画的用法（judge.png、memory.png 只对应旧比喻）。
 - **GitHub 链接**：写成 pre-tech/open-glaux → 改为 zhentai-sn/open-glaux。
 - **页脚**：链向已过期的产品路线图 → 改指纲领。
 - **演示数据**：0.82 mm、Dice 0.94 是示意值 → 发布前换成真实结果或标明示意。
@@ -59,10 +59,10 @@ status: open
 
 #### `docs/README.md`
 
-- 文档区导航与命名规约，属活文档。命名规约仍然有效，但 SDD 表、路线图状态、纲领和需求清单的描述都停在 8 月中旬及纲领 v1 的状态。
-- **§核心文档·纲领条目**：纲领 v2 已删除北极星和发展目标，现在共七节：名字与宗旨、领域、边界、核心信念、身份、环境四要素、决策过滤器 → 改为：名字与宗旨、领域（图像与视频）、边界、核心信念、身份（harness）、环境四要素、决策过滤器
-- **§核心文档·需求清单条目**：旧“环境四层”已删除。v0 需求以生物医学首用户 B 和超声楔子为前提，已不是活文档（本组建议给它标 superseded） → 改为：2026-07-05 首版需求（历史，已被纲领 v2 取代），或移出“核心文档”
-- **§二 现有路线图表**：产品路线图的北极星、旧四层和引擎两者兼有都已废弃，不能再标“当前”。前端路线图 P0～P2 已落地；“纲领”容易被误读为产品纲领，实际指前端设计纲领 → 产品路线图状态改为 superseded（被纲领 v2 取代，新版路线图待立）；前端路线图改为“P0–P2 已落地，P3 待办（落地前端设计纲领）”
+- 文档区导航与命名规约，属活文档。命名规约仍然有效，但 SDD 表、路线图状态、纲领和需求清单的描述都停在 8 月中旬、战略转向之前的纲领状态。
+- **§核心文档·纲领条目**：纲领已删除北极星和发展目标，现在共七节：名字与宗旨、领域、边界、核心信念、身份、环境四要素、决策过滤器 → 改为：名字与宗旨、领域（图像与视频）、边界、核心信念、身份（harness）、环境四要素、决策过滤器
+- **§核心文档·需求清单条目**：旧“环境四层”已删除。v0 需求以生物医学首用户 B 和超声楔子为前提，已不是活文档（本组建议给它标 superseded） → 改为：2026-07-05 首版需求（历史，已被纲领取代），或移出“核心文档”
+- **§二 现有路线图表**：产品路线图的北极星、旧四层和引擎两者兼有都已废弃，不能再标“当前”。前端路线图 P0～P2 已落地；“纲领”容易被误读为产品纲领，实际指前端设计纲领 → 产品路线图状态改为 superseded（被纲领取代，新版路线图待立）；前端路线图改为“P0–P2 已落地，P3 待办（落地前端设计纲领）”
 - **§四 规范驱动开发 sdd/ 表**：与 sdd/README.md 和各 Feature 实际状态不符：01 是 implemented v1.4，02 和 04 是 implemented，03 是 v1.2；缺 05–09 和公共规范 01 → 删掉这张重复表，只留一句“索引与状态见 sdd/README.md”，避免双份事实源漂移
 - **§当前发行工作**：SDD 09 已 implemented，当前真相应以 SDD 和 runbook 为准，不应指向带日期的 plan → 改为指向 sdd/feats/09-chat-distribution/README.md 和 runbooks/chat-distribution.md（安装、运行与分发手册）
 - **§目录结构树**：docs/landing/ 未登记 → 补一行 `landing/`，说明是产品门户首页
@@ -73,7 +73,7 @@ status: open
 - **frontmatter updated / 正文“日期”**：之后有版本治理、发行包、脚本和 Dockerfile 迁移等结构变化，均未同步 → 修订后更新日期
 - **§仓库文件树·根目录**：缺 VERSION、CHANGELOG.md、compose.yaml（chat 版发行 compose）、docker/（Dockerfile、compose.build.yaml、nginx.conf）、dist/（发行产物，gitignore） → 补上这些条目，注明 docker/ 为发行包镜像构建、compose.yaml 为对话预览版（chat edition）部署
 - **§仓库文件树 scripts/ 与 §scripts/ — 归档开发脚本**：scripts/ 已重组：scripts/dev/ 放 run-backend.sh、restart-backend.sh、run-agent-runtime.sh、health.sh 和历史 glaux_* 脚本；scripts/release/ 放 package.py 和 launcher/start|stop；根下另有 version_matrix.py（版本检查） → 改为三行：scripts/dev（开发启动/健康检查 + 归档一次性脚本）、scripts/release（发行打包与启停 launcher）、version_matrix.py（SDD 01 版本矩阵检查）
-- **§仓库文件树 science-core/ 与 §science-core 小节首句**：纲领 v2 已删除旧环境四层，改为观测空间、动作空间、验证器、回合与轨迹 → 改为“无头科学内核：观测、动作、验证等要素的纯计算实现 + 任务注册表”，或直接去掉四层括注
+- **§仓库文件树 science-core/ 与 §science-core 小节首句**：纲领已删除旧环境四层，改为观测空间、动作空间、验证器、回合与轨迹 → 改为“无头科学内核：观测、动作、验证等要素的纯计算实现 + 任务注册表”，或直接去掉四层括注
 - **§运行时全景首句 / 图**：只描述开发形态，缺 Docker 发行包（chat edition：agent + web/nginx，无 backend）和 edition 区分（本地开发缺省 full，含舞台、图谱） → 加一小段“部署形态”：本地开发 = full 三进程；Docker 发行包 = chat edition（agent-runtime + nginx 静态前端），指向 SDD 09 和 runbooks/chat-distribution.md
 - **§frontend 小节首句 / 文件树 frontend 注释**：“生物医学影像”定位已废弃，领域现为图像与视频；前端已有 Focus 对话优先形态和 edition 开关（src/edition.ts） → 改为“图像与视频分析前端：Focus（对话优先）/ Workbench（IDE）双模式，按 edition 裁剪（chat / full）”
 - **§agent-runtime 表·工具行**：工具实际还有 view_image、propose_annotation、segment_region、locate_roi、consult_atlas（agent-runtime/src/pi/tools/） → 列出全部工具，并注明 run_task 是 SDD 02 之前的过渡工具
@@ -88,7 +88,7 @@ status: open
 - **§5 末尾「动效 token(共享层)」**：frontend/src/styles/tokens.css 第 75-80 行已经定义了 --motion-fast/base/slow 和 --ease-*，这条待办已完成 → 删掉这句，改为「真相源：tokens.css」
 - **§6 末尾遗留待办**：tokens.css 里 --accent 已是蓝色 #0e70c0，只有 --status 还是紫色 #6a3fb0，注释与值对不上，纲领沿用了过期的注释说法 → 改为「--status 仍是临时紫色，与 --agent 同系，待主题 SDD 处理」；另开一项改正 tokens.css 的注释（不在本文档范围）
 - **§2 G1「双模式恒定」**：Docker 发行包是对话预览版（VITE_GLAUX_EDITION=chat），隐藏模式切换并锁定 Focus（见 frontend/src/chatEdition.test.tsx）；本地开发缺省是完整版 full。G1 没有区分发行版本 → 补一句：对话预览版只保留 Focus、不出现模式切换；完整版保持双模式、默认 Focus
-- **§3 G11 深色冷调的理由**：纲领 v2 把领域扩大到自然图像与视频、显微与病理、医学影像，只用医学影像审读来论证过窄 → 改成「影像审读（医学影像、显微、视频）在低眩光底色下动态范围与叠加对比最好」
+- **§3 G11 深色冷调的理由**：纲领把领域扩大到自然图像与视频、显微与病理、医学影像，只用医学影像审读来论证过窄 → 改成「影像审读（医学影像、显微、视频）在低眩光底色下动态范围与叠加对比最好」
 - **文末「变更记录」一节**：违反活文档不写变更简史的约定，变化看 git diff → 删除整节
 
 #### `docs/plans/2026-09-06-chat-distribution-design.md`
@@ -107,7 +107,7 @@ status: open
 #### `backend/README.md`
 
 - backend 组件的活文档（端点表 + 运行/测试），2026-08-16 退役 orchestration 后更新过。但端点表缺少后来加的路由，标题和开头还在用旧叫法。
-- **第 1 行标题**：纲领 v2 定位是 harness（智能体 = harness + 模型），不再用 IDE 定位；README 已重写，不再用这个叫法 → 改为「# backend · Glaux 的 FastAPI 服务」，或写明它是 harness 的数据与计算服务
+- **第 1 行标题**：纲领定位是 harness（智能体 = harness + 模型），不再用 IDE 定位；README 已重写，不再用这个叫法 → 改为「# backend · Glaux 的 FastAPI 服务」，或写明它是 harness 的数据与计算服务
 - **第 3 行**：「§5 契约」没有说明出处（原指早期计划文档的章节），对照现行文档无法定位 → 删掉「§5 契约」，改为「把 HTTP 端点接到 science-core 内核与各隔离模型子进程（caroSegDeep、HC、TotalSegmentator、StarDist 等）」
 - **第 6 行 / 第 20 行设计文档链接**：实际文件名带 .zh-CN.md 后缀，现在的写法不能点击跳转 → 改成 Markdown 链接，指向 ../docs/designs/2026-08-16-001-retire-orchestration.zh-CN.md
 - **第 8-21 行端点表**：代码里现有、表里没有的路由：GET /health；POST /datasources/samples；POST /uploads/images（SDD 08）；/atlas/* 整组（annotations、exemplars、exemplars/search、exemplars/referenced、collections、tags、imports/pdf、imports/url 等，SDD 03 Atlas）。表头「只保留前端 / agent-runtime 实际调用的」已经不能代表全部路由 → 补上 /health、/datasources/samples、/uploads/images 三行；Atlas 加一行汇总「/atlas/*（标注、案例库、导入）→ 见 SDD 03」；小标题去掉「2026-08-16 清理后」这个日期限定
@@ -116,7 +116,7 @@ status: open
 
 - science-core 包的入口 README，仍停留在只做 CUBS IMT 的阶段：包名、定位、四层说法都过期了。安装、数据、边界约束几节仍然有效。
 - **第 1 行标题**：pyproject 里的包名早已是 glaux-core（导入名 glaux_core）；tasks.REGISTRY 覆盖 carotid_imt、fetal_hc、ct_abdomen、pathology 四个模态，不止 IMT → 改为「# glaux-core · Glaux 科学内核」
-- **第 3-5 行**：纲领 v2 已删除「环境四层」，改为环境四要素（观测空间、动作空间、验证器、回合与轨迹）；「首个楔子」是早期阶段的叫法 → 改为：headless 科学内核，提供任务注册表 glaux_core.tasks.REGISTRY（能力清单单一事实源）以及各模态的读取、标定、分割/检测、测量、验证。CUBS IMT 是第一个实现的任务，流程为 读取→标定→表征→分割→PDM 测量→验证→结构化产物→评测。删掉四层的说法，需要的话改用纲领 §六 的四要素术语
+- **第 3-5 行**：纲领已删除「环境四层」，改为环境四要素（观测空间、动作空间、验证器、回合与轨迹）；「首个楔子」是早期阶段的叫法 → 改为：headless 科学内核，提供任务注册表 glaux_core.tasks.REGISTRY（能力清单单一事实源）以及各模态的读取、标定、分割/检测、测量、验证。CUBS IMT 是第一个实现的任务，流程为 读取→标定→表征→分割→PDM 测量→验证→结构化产物→评测。删掉四层的说法，需要的话改用纲领 §六 的四要素术语
 - **第 7-8 行计划/需求链接**：都是历史文档，只对应 IMT 首任务，不代表现状 → 保留，但标为「IMT 首任务的历史计划 / 需求」；现状指向 docs/architecture.zh-CN.md
 - **第 40-43 行边界约束**：与纲领 §三 一致，但没有写「到可计算表征为止，决策由用户自建」 → 可以补一句「输出止于可计算表征，决策由用户自建（纲领 §三）」
 
@@ -132,7 +132,7 @@ status: open
 #### `docs/roadmaps/20260818-frontend-quality-roadmap.zh-CN.md`
 
 - 前端打磨层执行路线，落地的是前端设计纲领（designs/frontend-design-charter），与产品纲领无关，内容基本准确，P3 仍待办。只有两处引用了产品纲领已删除的概念和旧章节号；另外 frontmatter 状态没有反映 P0～P2 已落地。
-- **§3 设计资产策略首句（约第 90 行）**：“两条纪律（环境要深、复用优先）”已从纲领 v2 删除 → 改为“依产品纲领 §七 决策过滤器”，删去“复用优先”引语，或改写为“结构层无差异化，按决策过滤器属负债，复用成熟资产”
+- **§3 设计资产策略首句（约第 90 行）**：“两条纪律（环境要深、复用优先）”已从纲领删除 → 改为“依产品纲领 §七 决策过滤器”，删去“复用优先”引语，或改写为“结构层无差异化，按决策过滤器属负债，复用成熟资产”
 - **§3 末“一句话”（约第 106 行）**：决策过滤器现为纲领 §七 → 改为“产品纲领 §七 决策过滤器”
 - **frontmatter status / 变更记录**：落地进度已写明 P0、P1、P2 和图标系统完成，仅剩 P3 与 Radix/React Aria → status 保持为执行中，或按项目习惯改为 implemented（P3 待办）；变更记录补 2026-08-19 P2 与 SDD 06
 - **§P1-2（第 67 行）**：“B 类用户”出自已被取代的需求清单 → 改为“非技术用户”（可选，低优先级）
@@ -150,7 +150,7 @@ status: open
 - **需求跟踪表 20260816-01-agent-browser-capability 行「去向」**：SDD 02 已是 `implemented`（2026-08-26 更新） → 改为 → SDD 02 `implemented`；分支 B 待评审
 - **需求跟踪表 20260816-02-unified-annotation-toolbox 行「去向」**：SDD 04 已是 `implemented` → 改为 → SDD 04 `implemented`
 - **调研阶段需求表 20260816-01-tech-annotation-exemplar-store 行**：SDD 03 已是 `implemented`（v1.2，待维护者验收） → 改为 → SDD 03 Atlas `implemented`
-- **调研阶段需求表 20260816-02-tech-deepseek-harness-integration 行**：该调研前提已被纲领 v2 §五 推翻，建议删除 → 删除该文档后同步删掉这一行；如果保留文档，就把状态改为「已被纲领 v2 取代，不推进」
+- **调研阶段需求表 20260816-02-tech-deepseek-harness-integration 行**：该调研前提已被纲领 §五 推翻，建议删除 → 删除该文档后同步删掉这一行；如果保留文档，就把状态改为「已被纲领取代，不推进」
 
 #### `docs/brainstorms/20260816-01-agent-browser-capability.zh-CN.md`
 
@@ -158,14 +158,14 @@ status: open
 - **文首状态、§1 末句、§5 流程图 A3 节点、§5.1、变更记录**：SDD 02 已是 `implemented`，§17 已于 2026-08-22 收敛 → 改为 SDD 02 `implemented`，删掉「待 §17 收敛后转 ready」
 - **§5.1**：SDD 02 §17 已选定 Gitee AI（模力方舟）`sam3` 作为分割后端并实测 → 改为「分割走 SDD 02 选定的托管 sam3（Gitee AI），见 SDD 02 §17」
 - **§3 第 1 条**：agent-runtime/src/pi/harness-registry.ts 已注册 locate_roi / segment_region / consult_atlas 等工具，不再只有过渡工具 → 改为「工具注册在 agent-runtime harness-registry，run_task 为过渡工具，分支 A 工具已登记」
-- **§3 第 4 条**：这一方向出自 2026-07-05 旧路线图；纲领 v2 §五 定 Glaux 为 harness、模型用户自带，「被外部 agent 调用」不再是现行方向 → 删掉这条，或改为「旧路线图曾列 MCP server 方向，纲领 v2 未保留」
+- **§3 第 4 条**：这一方向出自 2026-07-05 旧路线图；纲领 §五 定 Glaux 为 harness、模型用户自带，「被外部 agent 调用」不再是现行方向 → 删掉这条，或改为「旧路线图曾列 MCP server 方向，纲领未保留」
 - **§5.2、§6 开放问题 1**：SDD 03 图谱已实现从网页 URL 导入（backend/app/routers/atlas.py `/imports/url`，带出站守卫），是由 backend 直接抓取，不走浏览器自动化 → 补一句：外部网页读取已有一个具体落地（图谱 URL 导入，服务端抓取、不需要浏览器自动化），分支 B 仍只指需要交互操作的第三方页面
 
 #### `docs/designs/2026-08-16-001-retire-orchestration.zh-CN.md`
 
 - 退役 orchestration 的设计，P1–P3 已落地（orchestration/ 目录已不存在，REGISTRY 在 science-core/glaux_core/tasks.py），是三条架构不变量的出处，仍是当前依据。正文作为落地记录保持原样，只需修正对纲领的引用和状态字段。
-- **文首引用块「依据」**：「agent 是引擎」那一节已从纲领删除；纲领 v2 §五 的说法是智能体 = harness + 模型，Glaux 是 harness → 改为「[纲领 §五](../roadmaps/charter.zh-CN.md)（智能体 = harness + 模型，Glaux 是 harness）」
-- **§0「目标不变量（本设计新增，进入纲领级约束）」**：纲领 v2 共七节，没有收录这三条不变量，读者去纲领里找不到 → 改为「本设计确立的架构不变量（记录于 architecture.zh-CN.md）」，或者确实写进 architecture 文档后再指向那里
+- **文首引用块「依据」**：「agent 是引擎」那一节已从纲领删除；纲领 §五 的说法是智能体 = harness + 模型，Glaux 是 harness → 改为「[纲领 §五](../roadmaps/charter.zh-CN.md)（智能体 = harness + 模型，Glaux 是 harness）」
+- **§0「目标不变量（本设计新增，进入纲领级约束）」**：纲领共七节，没有收录这三条不变量，读者去纲领里找不到 → 改为「本设计确立的架构不变量（记录于 architecture.zh-CN.md）」，或者确实写进 architecture 文档后再指向那里
 - **frontmatter status 与引用块「状态」**：orchestration/ 已删除，意图端点已退役一个月；如果已经验收，应改为 accepted，否则会长期挂着「待验收」 → 由维护者确认后改成 accepted，或写明验收还差什么
 
 #### `docs/sdd/feats/00-reference-agent-conversations/README.md`
@@ -183,8 +183,8 @@ status: open
 - **§5.1 用户可见输出第一条**：v1.4（D16/D19）已改为舞台常驻 + 文件/图谱两枚开关式浏览器列。 → 改为'右侧栏(可折叠;舞台常驻,文件/图谱为贴右缘的浏览器列,二者互斥可关闭;v1.4,D16–D19)'。
 - **§7 规则 4 度量呈现**：run_task、locate_roi、segment_region、propose_annotation、consult_atlas 均已在 agent-runtime 注册，会话内已产生任务运行。 → 改写为现状：run_task 结果经 toolBridge 写回查看器；对话内 taskrun 卡片是否已落地按代码核实后写明。
 - **§0 进入 ready 的依据**：动效规则现为 §7 第 8 条（第 7 条是栏宽可调）。 → 改为'见本文 §7 第 8 条'。
-- **§3 背景**：需求清单是 2026-07-05 v0 文档（按旧'环境四层'编排），纲领 v2 未再以'首要用户 B'定位；作为活依据需确认。 → 若需求清单被判过期，改为引用纲领/前端设计纲领 G1–G2，保留'对话优先'表述，去掉'首要用户 B'作为现行依据。
-- **§16 D12 理由**：纲领 v2 已删除'两条纪律（环境要深、复用优先）'，该引用无处可查。 → 决策记录可不改正文，或改为'复用优先(工程取向)'去掉 charter 指向。
+- **§3 背景**：需求清单是 2026-07-05 v0 文档（按旧'环境四层'编排），纲领未再以'首要用户 B'定位；作为活依据需确认。 → 若需求清单被判过期，改为引用纲领/前端设计纲领 G1–G2，保留'对话优先'表述，去掉'首要用户 B'作为现行依据。
+- **§16 D12 理由**：纲领已删除'两条纪律（环境要深、复用优先）'，该引用无处可查。 → 决策记录可不改正文，或改为'复用优先(工程取向)'去掉 charter 指向。
 
 #### `docs/sdd/feats/02-agent-image-annotation/README.md`
 
@@ -197,7 +197,7 @@ status: open
 - Atlas 图谱 SDD（implemented v1.2），后端/工具契约与代码一致；但 Focus 布局字段仍按 SDD 01 v1.1 的 rightView 描述，另含旧路线图'主线楔子'概念与外发门控表述和 02 不一致。
 - **§9 末段'前端状态'**：SDD 01 v1.4 已用 browserView: "files"|"atlas"|null 取代 rightView（frontend FocusSidePanel.tsx 读 browserView）。 → 改为'`FocusLayout.browserView = "atlas"`（SDD 01 v1.4 §9）；「在图谱中打开」设置 {rightOpen:true, browserView:"atlas"}'。
 - **§8 涉及对象'Atlas 页面（Focus）'行 与 §14 依赖 01 条**：现为 Focus 右侧栏中与常驻舞台并排的浏览器列；§14 只写 Workbench 不全。 → 改为'Workbench 左侧侧栏视图；Focus 右侧栏浏览器列（SDD 01 v1.4）'。
-- **§2 非目标末条 与 §16 D-12**：'楔子'来自 2026-07-05 产品路线图的'愿景宽、楔子窄'，纲领 v2 已不再以单一楔子定位（领域为图像与视频多模态）。 → §2 改为'改变 science-core 既有任务（如颈动脉超声分割）'；D-12 决策记录可保留。
+- **§2 非目标末条 与 §16 D-12**：'楔子'来自 2026-07-05 产品路线图的'愿景宽、楔子窄'，纲领已不再以单一楔子定位（领域为图像与视频多模态）。 → §2 改为'改变 science-core 既有任务（如颈动脉超声分割）'；D-12 决策记录可保留。
 - **§7.4 外发规则首条**：02 §7.4 明确 locate_roi 发往用户自配模型连接不受该开关约束，实现以 egressFor(connection) 按回环与否决定 local-only 案例是否随行；两份 SDD 表述不一致。 → 改为'按 egressFor(connection) 判定：仅回环 base_url 可带 local-only 案例；GLAUX_ANNOT_ALLOW_EGRESS 只约束第三方分割服务（02 §7.4）'，并同步 §15 未勾选项。
 
 #### `docs/sdd/feats/04-unified-annotation-toolbox/README.md`
@@ -205,8 +205,8 @@ status: open
 - 统一标注工具箱 SDD（implemented），契约与代码路径仍有效；相关 SDD 状态标注停留在 2026-08-16，且引用了纲领已删除的'记忆层'和'复用优先'。
 - **§14 与其他 SDD 的调用关系**：三者现均为 implemented（01 为 v1.4 implemented、v1 accepted）。 → 去掉括号内状态或改为指向 docs/sdd/README.md 索引，避免再次过期。
 - **§2 表格首行**：02 已 implemented；02 状态词为 confirmed 而非 accept。 → 改为'（implemented）；其 suggested → confirmed 后即本 SDD 的 confirmed 实体'。
-- **§2 表格末行**：纲领 v2 已删除'记忆层'（旧环境四层）；现用语为环境四要素中的回合与轨迹。 → 改为'标注与 Atlas 的联动（已验证标注沉淀为案例）'。
-- **§16 D-12 理由**：纲领 v2 已删除'两条纪律'，引用无处可查。 → 决策记录可保留；如修，改为'复用成熟框架而非平行实现'，去掉纲领指向。
+- **§2 表格末行**：纲领已删除'记忆层'（旧环境四层）；现用语为环境四要素中的回合与轨迹。 → 改为'标注与 Atlas 的联动（已验证标注沉淀为案例）'。
+- **§16 D-12 理由**：纲领已删除'两条纪律'，引用无处可查。 → 决策记录可保留；如修，改为'复用成熟框架而非平行实现'，去掉纲领指向。
 
 #### `docs/sdd/feats/05-keyboard-shortcuts-a11y/README.md`
 
@@ -247,7 +247,7 @@ status: open
 - 活 runbook，讲 DataSource 注册表和开发者/产品模式。SDD 08 之后缺省值、内置源数量、导入入口和范围都变了，文档仍停在 2026-07-13 的状态，多处与代码冲突。
 - **§两种模式 表头与 §关键路径/env 表 GLAUX_DEV_MODE 行**：SDD 08 D-4 已把缺省改为 0（datasource_registry.py:75），产品模式才是缺省；Makefile 的 backend 目标显式设了 GLAUX_DEV_MODE=1。 → 改成：缺省 0（产品模式）；`make dev` / scripts/dev 启动时显式设为 1；产品模式可用「加载示例数据」（POST /datasources/samples）按需注册示例源。
 - **§一句话 与 §两种模式「内置源 4 个（CUBS/HC18/CT/WSI）」**：_builtin_specs 现在有 5 个源，多了 natural-demo（natural_image）。 → 改成 5 个，补上 Natural images · demo。
-- **§一句话「数据表征层从 config 写死……」、§导入 A 第 2 步「表征层 下点」**：「表征层」出自旧的「环境四层」，纲领 v2 已删除。导入入口也已从插件市场移到统一导入面板（ImportPanel.tsx，SDD 08 §5.4）。 → 去掉「表征层」说法，直接写「数据源」；步骤改成统一导入面板的三个入口：上传本地图片、打开服务端文件夹、加载示例数据。
+- **§一句话「数据表征层从 config 写死……」、§导入 A 第 2 步「表征层 下点」**：「表征层」出自旧的「环境四层」，纲领已删除。导入入口也已从插件市场移到统一导入面板（ImportPanel.tsx，SDD 08 §5.4）。 → 去掉「表征层」说法，直接写「数据源」；步骤改成统一导入面板的三个入口：上传本地图片、打开服务端文件夹、加载示例数据。
 - **§导入 A 第 1 步与 §两种模式「前端标识 市场页…紫点/绿点」**：入口已经迁走，模式标识需要按现有 UI 重新核实。 → 按现有 ImportPanel / 侧栏重写 UI 步骤；模式标识如已删除就去掉这一行。
 - **§范围（v0）「不做：浏览器上传（v0 是服务端可达路径）」**：浏览器上传已经实现（POST /uploads/images，只收 JPEG/PNG，≤32MB）。 → 改成「浏览器上传支持通用图像（jpeg/png，≤32MB）；医学模态（WSI/CT）仍走服务端文件夹导入」。
 - **§验证（真机 e2e，2026-07-13）**：这是当时的一次性验证记录，测试数量已经过期（现在 backend 217+）。 → 删掉，或只保留一句「相关测试见 backend/tests/test_datasource*」。
@@ -317,7 +317,7 @@ status: open
 | `docs/plans/2026-07-10-001-feat-p7-wsi-nuclei-wedge-plan.md` | P7 病理 WSI 细胞核检测楔子的实现计划，已落地：NUCLEI_DETECTION 在 science-core/glaux_core/tasks.py，segment_wsi.py 和 dataset_wsi.py 也在，runbook 引用它。与新纲领不冲突（显微与病理仍在领域内），只是代码路径过时，按历史文档保留。 |
 | `docs/plans/2026-07-13-001-feat-datasource-registry-plan.md` | DataSource 注册表、文件夹导入和开发者模式的计划，已落地：backend/app/datasource_registry.py 的 docstring 和 runbook 都引用它。第 24 行用了“环境四层本体（representation/action/verification/memory）”的说法，但这是在描述当时 capabilities() 的 layer 字段，kernel.py 现在仍在用这个字段，不算与代码冲突，保持原样。 |
 | `docs/plans/2026-07-27-001-feat-reference-agent-conversations-plan.md` | 内置参考智能体与本地会话管理（Pi harness、Node sidecar、REST/SSE）的实现计划，已自标 completed。对应的 SDD 00 状态为 implemented，agent-runtime 仍依赖 @earendil-works/pi-agent-core。它与“Glaux 是 harness、模型由用户自带”的纲领一致，不需要改动。 |
-| `docs/plans/2026-08-13-001-feat-dual-mode-shell-plan.md` | SDD 01 v1 双模式外壳的实现计划，头部状态 completed；其中“纲领 §5”指 designs/frontend-design-charter，不是产品纲领，所以不受纲领 v2 重写影响。v1.4 分栏已改掉部分布局，但计划本身是当时的记录。 |
+| `docs/plans/2026-08-13-001-feat-dual-mode-shell-plan.md` | SDD 01 v1 双模式外壳的实现计划，头部状态 completed；其中“纲领 §5”指 designs/frontend-design-charter，不是产品纲领，所以不受纲领重写影响。v1.4 分栏已改掉部分布局，但计划本身是当时的记录。 |
 | `docs/plans/2026-08-16-001-feat-atlas-plan.md` | SDD 03 Atlas 的实现计划。SDD 03 已是 implemented（T1-T8 已提交），计划作为执行记录保留；头部状态仍写 draft，与实际不符，可顺手改成 completed，但不必改正文。 |
 | `docs/plans/2026-08-16-002-feat-unified-annotation-toolbox-plan.md` | SDD 04 统一标注工具箱的实现计划。SDD 04 已 implemented，计划是执行记录；头部状态仍是 draft。 |
 | `docs/plans/2026-08-25-natural-image-sam-demo-design.md` | 自然图像 SAM 演示集合的设计（对应 SDD 07），带日期的历史设计。后来 SDD 08 把自然图像数据源合并进上传与数据源编排，但本文记录的是当时的决策，没有与纲领冲突的现行说法。 |
@@ -333,7 +333,7 @@ status: open
 | `docs/plans/2026-08-30-focus-stage-browser-split-plan.md` | SDD 01 v1.4 舞台常驻加浏览器分栏的实施计划，已于 2026-08-31 实现完成，保留为历史记录。 |
 | `docs/todo/2026-07-09-001-code-review-multimodal-arch.zh-CN.md` | 2026-07-09 对 feat/multimodal-arch 分支的代码评审待办，按评审时的 HEAD 定位。orchestration 相关条目已划掉并注明失效，/interpret 已移除；这是历史评审记录，而且被 P6/P7 计划引用。 |
 | `docs/todo/2026-07-10-001-code-review-p6-3d-wedge.zh-CN.md` | 2026-07-10 对 P6 3D CT 楔子的评审待办，含 v3 真机 e2e 修复记录；已声明半衰期，属于历史记录，被 P7 计划作为教训引用。 |
-| `docs/todo/2026-08-19-001-code-review-frontend-quality-uplift.zh-CN.md` | 2026-08-19 前端品质提升阶段（P0–P2 + 图标系统）的收口评审。文中的「纲领 §5 / G11 / M6」指 docs/designs/frontend-design-charter.zh-CN.md，不是产品纲领，所以不受纲领 v2 重写影响；保持原样。 |
+| `docs/todo/2026-08-19-001-code-review-frontend-quality-uplift.zh-CN.md` | 2026-08-19 前端品质提升阶段（P0–P2 + 图标系统）的收口评审。文中的「纲领 §5 / G11 / M6」指 docs/designs/frontend-design-charter.zh-CN.md，不是产品纲领，所以不受纲领重写影响；保持原样。 |
 | `CHANGELOG.md` | 整体发布记录（0.1.0、0.2.0），按版本记录，属于历史，没有与现状冲突的「当前说明」。 |
 | `agent-runtime/CHANGELOG.md` | Agent Runtime 0.2.0 发布记录，属于历史记录。 |
 | `backend/CHANGELOG.md` | Backend 0.2.0 发布记录，属于历史记录。 |
@@ -350,30 +350,30 @@ status: open
 | `models/hc_seg/README.md` | HC 隔离分割模型的来源、部署、推理管线和验证结果。对照 backend/app/config.py，GLAUX_HC_SEG_* 默认路径、fetal_hc 模态和 hc_harness.py 都还在，内容准确，也没有定位类说法。 |
 | `data/natural/README.md` | 自然图像 SAM 演示资产的来源、许可和提示词清单（SDD 07 要求保留），与纲领「自然图像与视频」领域一致，内容准确。 |
 
-## 执行进度（2026-09-23）
+## 执行进度（2026-09-23，已关闭）
 
 两轮独立核查（逐条对照当前文件与代码）后的状态：
 
-- 本记录列出的 42 份文档：除下方「待拍板」各项外均已处理，包括原定随 SDD 10 修订、后改由文档治理直接处理的 SDD 02 / 04 / 07 状态与用词漂移。
+- 本记录列出的 42 份文档全部处理完毕，包括原定随 SDD 10 修订、后改由文档治理直接处理的 SDD 02 / 04 / 07 状态与用词漂移。
 - 规则与 frontmatter：`docs/README.md`「活文档与记录」、`AGENTS.md`；`docs/**/*.md` frontmatter 全量合规。
 - 跨文档共性问题：
   - 旧「环境四层」与比喻：活文档与代码注释（`.py`、`.ts`、`.tsx`）中已清零。
   - 旧纲领章节号、orchestration 残留、活文档里的变更记录：已清理。
-  - `science-core/pyproject.toml` 的 description、`datasource_registry.py` 的 docstring：已改。
+  - agent-runtime 系统提示词已从 biomedical 转向通用图像与视频场景，保留医学与病理图像只做研究的边界。
 - 纲领音频措辞（第 13、29、61 行）已同步到根 README 与落地页。
 - 过程中自身引入的错误均已修正：脑暴开放问题被覆盖、退役设计终态记录被改正文、版本治理写 0.2.0 已发布、p6 示例输出为虚构值、误入库的 MSYS 临时文件、`make lint` 的 E501。
 
-待拍板：
+拍板结果（2026-09-23，维护者）：
 
-- `docs/plans/2026-08-26-release-blocker-fixes-plan.md` 是否删除。
-- agent-runtime 系统提示词（`harness-registry.ts`、`vision.ts`、`consult-atlas.ts`）仍写 biomedical；改动会影响模型行为。
-- 纲领「依据」一节链接两份已被纲领取代的记录，形成循环引用：改写还是删除。
-- 版本治理 SDD 与退役设计是否升为 `accepted`（设计类记录的状态取值里没有 `accepted`，需一并定）。
-- 落地页未被引用的插画、`assets/architecture*.svg`（全仓无引用，仍是旧四层比喻）是否删除。
-- 「纲领 v2」称呼：纲领本身没有版本号，是否统一去掉。
-- `docs/README.md` 第四节的 SDD 表与 `docs/sdd/README.md` 并存：保留（已注明以索引为准）还是删去只留链接。
+- 删除 `docs/plans/2026-08-26-release-blocker-fixes-plan.md`。
+- 系统提示词去掉 biomedical，转向通用场景。
+- 删除纲领「依据」一节，消除与两份已取代记录的循环引用。
+- 版本治理 SDD 与退役设计升为 `accepted`；设计类记录的状态取值补 `accepted`。
+- 删除落地页未被引用的插画（`judge.png`、`memory.png`、`fluoro.png`）与 `assets/architecture*.svg`。
+- 不再使用「纲领 v2」称呼，纲领就是纲领；活文档、索引与未结记录中已统一。
+- `docs/README.md` 第四节的 SDD 表保留，以 `docs/sdd/README.md` 为准。
 
-代码缺口（文档已如实记录，未改代码）：
+代码缺口（已在对应活文档如实记录，不属于文档治理）：
 
-- SDD 05：工具键未按当前引擎声明过滤，速查面板不置灰。
-- 插件市场的模式标识按「有无内置源」判断，产品模式下加载示例数据后会显示「开发者模式」。
+- SDD 05：工具键未按当前引擎声明过滤，速查面板不置灰（§15 对应项未勾选）。
+- 插件市场的模式标识按「有无内置源」判断，产品模式下加载示例数据后会显示「开发者模式」（见 `docs/runbooks/datasource-registry.md` 已知坑）。

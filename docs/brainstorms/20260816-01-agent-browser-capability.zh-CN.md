@@ -30,7 +30,7 @@ status: review
 - Glaux 真正执行 agent 工具调用（tool-calling）循环的进程是 **agent-runtime**（Node/TS，基于 `@earendil-works/pi-agent-core`），不是 Python `backend`。工具注册在 `agent-runtime/src/pi/harness-registry.ts`：`run_task` 是退役 orchestration 时引入的过渡工具，分支 A 的标注工具（`locate_roi` / `segment_region` / `propose_annotation`）也登记在此。
 - 会话已有 `observe / suggest / controlled / autonomous` 四级 `permission_mode` 字段，此前只是存储占位，未在任何工具执行路径生效——这是分支 A 首次把它接线为真正门控的机会，具体规则见 SDD 02 §7.3。
 - 前端影像标注基于 `@cornerstonejs/*` 的 Canvas 渲染，标注内容是 Canvas 内部像素级绘制状态，不是独立可选中的 DOM 元素。这是判断"分支 A 不该走浏览器自动化"的直接技术依据：DOM 选择器方案（`click(selector)`）对 Canvas 内部区域天然无效，退化到坐标点击又达不到医学标注所需精度（详见 SDD 02 决策 D-1）。
-- 项目 roadmap 另有一条独立方向——"Glaux 作为 **MCP server** 被外部通用 agent（已自带浏览器等能力）调用"。该方向出自 2026-07-05 旧路线图，纲领 v2 未保留；[SDD 00](../sdd/feats/00-reference-agent-conversations/README.md) 也把"MCP、Codex、外部 Agent 进程接入及多 Agent 协作"列为 out of scope。**本文档不涉及**，仅在此提示避免和分支 B 混淆。
+- 项目 roadmap 另有一条独立方向——"Glaux 作为 **MCP server** 被外部通用 agent（已自带浏览器等能力）调用"。该方向出自 2026-07-05 旧路线图，纲领未保留；[SDD 00](../sdd/feats/00-reference-agent-conversations/README.md) 也把"MCP、Codex、外部 Agent 进程接入及多 Agent 协作"列为 out of scope。**本文档不涉及**，仅在此提示避免和分支 B 混淆。
 
 ## 4. 开源浏览器自动化方案调研（分支 B 的参考依据）
 

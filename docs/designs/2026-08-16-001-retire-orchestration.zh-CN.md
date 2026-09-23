@@ -1,6 +1,6 @@
 ---
 kind: record
-status: implemented
+status: accepted
 title: "设计 · 退役 orchestration/ —— 注册表归 science-core、模型连接归 agent-runtime、意图层交还 agent"
 type: design
 created: 2026-08-16

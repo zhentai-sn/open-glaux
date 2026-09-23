@@ -10,7 +10,7 @@ scope: 全仓 frontend / backend / science-core / agent-runtime 中与模态相�
 > **用途**：在接入第六个模态（视频）之前，定位「模态不是一等抽象」所派生的全部代码债，给出目标抽象与分波清理计划。本文件是记录（record），正文只写结论；执行过程中的 grep 基线、git diff 零改清单、手工回归签字表另落 `docs/todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md`（第 0 波开工时建立）。
 > **日期**：2026-09-18 执行，2026-09-20 归档。
 > **基线**：HEAD = `96a1ef0`（docs(governance): 为 docs 下文档补齐 kind 与 status frontmatter）。
-> **触发**：纲领 v2 战略转向（领域 = 图像与视频，身份 = harness）；视频是 2026-08-27 审计 D6/D7 等待的第六个模态。
+> **触发**：纲领战略转向（领域 = 图像与视频，身份 = harness）；视频是 2026-08-27 审计 D6/D7 等待的第六个模态。
 > **方法**：Read/Grep/Glob 只读审计，不改代码、不跑测试；每条结论给 file:line 与原文引用；事实核验与价值核验两轮，再做归并与评分。
 > **半衰期提醒**：本文件的债务明细与计划在第 7 波（过渡物清除）完成后即失效，届时以 SDD 10 为准。2026-12 前若未开工，行号需重新核对。
 
@@ -44,7 +44,7 @@ science-core 的 `TaskPlugin`/`REGISTRY` 与三信封、后端 `/task/run` `/tas
 
 ### 触发
 
-- **战略转向**：`docs/roadmaps/charter.zh-CN.md`（纲领 v2）把领域定为「图像与视频，多模态多格式」，把身份定为 harness（观测空间 / 动作空间 / 验证器 / 回合与轨迹）。§七决策过滤器：更强模型会让它作废的就是负债；加深环境四要素的才值得投。
+- **战略转向**：`docs/roadmaps/charter.zh-CN.md`（纲领）把领域定为「图像与视频，多模态多格式」，把身份定为 harness（观测空间 / 动作空间 / 验证器 / 回合与轨迹）。§七决策过滤器：更强模型会让它作废的就是负债；加深环境四要素的才值得投。
 - **视频是第六个模态**：帧、时间、轨迹、事件也是分析对象。
 - **`README.zh-CN.md:39`** 声明工作台、舞台、图谱、分割与测量工具「相关实现保留在源码中，后续以插件交付」——这决定了这些面的债务价值下调。
 
@@ -176,7 +176,7 @@ science-core 的 `TaskPlugin`/`REGISTRY` 与三信封、后端 `/task/run` `/tas
 
 **症状**：`Annotation` 只有 `z`，六种 Primitive 全无帧索引，`store._KINDS` 只有 bbox/polyline/mask 且 SQL CHECK 同样钉死。`_check_within_dims` 只校 (w,h)，第三轴越界（含 CT 的 z）静默接受。`VolumeViewer.tsx:309` 按 z 逐层拉标注，视频照抄就是每切一帧发一次请求。
 
-**为何是债**：`z` 是为 P6 加的最小字段；纲领 v2 把「帧、时间、轨迹、事件」列为分析对象，`contracts.py:24` 自己也把视频帧掩膜写成待办。
+**为何是债**：`z` 是为 P6 加的最小字段；纲领把「帧、时间、轨迹、事件」列为分析对象，`contracts.py:24` 自己也把视频帧掩膜写成待办。
 
 **建议改法**：API 层 `z` → `index`（存储列保留 `z`，API 保留别名一版）；`_check_within_dims` 改读 `ObjectMeta.axes` 并校验 `index < size`；各 Primitive 加可选 `at: Index`；`GET /annotations` 增 `index_from`/`index_to`；`store._KINDS` 与 SQL CHECK 扩展需带 schema 版本号迁移。
 
@@ -747,7 +747,7 @@ science-core 的 `TaskPlugin`/`REGISTRY` 与三信封、后端 `/task/run` `/tas
 - `agent-runtime/src/pi/tools/run-task.ts:34` — `Type.String({`
 - `agent-runtime/src/pi/tools/run-task.ts:114` — `const task = params.task?.trim() || viewer.task;`
 
-**症状**：纲领 v2 的领域是「图像与视频，通用场景」，runtime 在 5 处把身份写死为 biomedical（`harness-registry.ts:117`、`consult-atlas.ts:124`、`vision.ts:40/55/220`）；`systemPromptFor` 只会说 "image"/"No image is currently open"，视频对象打开时提示词语义错误。
+**症状**：纲领的领域是「图像与视频，通用场景」，runtime 在 5 处把身份写死为 biomedical（`harness-registry.ts:117`、`consult-atlas.ts:124`、`vision.ts:40/55/220`）；`systemPromptFor` 只会说 "image"/"No image is currently open"，视频对象打开时提示词语义错误。
 
 **为何是债**：纲领 §七第一问：更强模型会让硬编码提示词链作废——这些字符串正是负债。
 
@@ -1280,7 +1280,7 @@ def run_task(spec: TaskSpec) -> dict:
 - `check-modality-literals.sh` 对 `backend/app`（除 `sources/`）命中为 0（**含 `datasource_detect.py`**）。
 - 前端与 agent-runtime 一行未改；chat 版两份 edition 测试绿。
 
-**SDD 联动**：SDD 10（Source 协议、resolve_object 索引规则、ObjectMeta/Axis/Calibration；draft → ready）；SDD 08 §5/§6（ObjectMeta 与 DataSource 新字段、新增「SOURCES 与 DataSource 的关系」小节、**「/images?modality= 冻结」改写为「路径与查询参数冻结，响应体按 SDD 10 演进」**、上传模态由 probe 推断、mock/hc_synth 改 dev_mode）；**`docs/runbooks/datasource-registry.md` 同提交更新**（含 5 处模态字面量）；`docs/architecture.zh-CN.md` 与 `assets/architecture.svg`（新增 `sources/` 与 `dataset_video.py`）。
+**SDD 联动**：SDD 10（Source 协议、resolve_object 索引规则、ObjectMeta/Axis/Calibration；draft → ready）；SDD 08 §5/§6（ObjectMeta 与 DataSource 新字段、新增「SOURCES 与 DataSource 的关系」小节、**「/images?modality= 冻结」改写为「路径与查询参数冻结，响应体按 SDD 10 演进」**、上传模态由 probe 推断、mock/hc_synth 改 dev_mode）；**`docs/runbooks/datasource-registry.md` 同提交更新**（含 5 处模态字面量）；`docs/architecture.zh-CN.md`（新增 `sources/` 与 `dataset_video.py`；架构图 SVG 已于 2026-09-23 删除，不再维护）。
 
 #### W2 · 后端动作轴与表征面
 

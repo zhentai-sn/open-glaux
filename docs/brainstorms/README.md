@@ -44,7 +44,7 @@ stateDiagram-v2
 | 调研 | 日期 | 主题 | 状态 | 去向 |
 | --- | --- | --- | --- | --- |
 | [20260816-01-tech-annotation-exemplar-store](../researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | 图像标注案例库技术选型 | 已拍板 | → [SDD 03 Atlas](../sdd/feats/03-atlas/README.md) `implemented` |
-| [20260816-02-tech-deepseek-harness-integration](../researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | DeepSeek Harness 插件生态集成 | `superseded` | 前提被纲领 v2 §五推翻（Glaux 是 harness），不推进 |
+| [20260816-02-tech-deepseek-harness-integration](../researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | DeepSeek Harness 插件生态集成 | `superseded` | 前提被纲领 §五推翻（Glaux 是 harness），不推进 |
 
 ## 命名规约
 
