@@ -222,12 +222,10 @@ describe("activeModel does not leak across modalities", () => {
     expect(toViewerContext().method).toBeUndefined();
   });
 
-  // 现状缺陷（W0 发现，W3 按 SDD 10 §11.1「切模态即清空」修）：switchModality 只在新模态
-  // 有 active 模型时才改 activeModel，否则保留上一模态的。CT / 病理在 kernel.models() 里没有
-  // 模型，于是 IMT → CT 后 activeModel 仍是 caroSegDeep：selectVolume → runCurrentTask 以
-  // method=caroSegDeep 调 /task/run，toViewerContext 也把它作为 method 发给 agent。
-  it.fails("切到无模型的模态时，activeModel 不沿用上一模态的（现状泄漏）", async () => {
-    await switchModality("ct_abdomen");
+  // 回归（执行记录 F-1）：CT / 病理在 kernel.models() 里没有模型；曾经 IMT → CT 后 activeModel
+  // 仍是 caroSegDeep，以 method=caroSegDeep 调 /task/run，CT 分割执行器因此报错退出。
+  it.each(["ct_abdomen", "pathology"] as const)("切到无模型的模态 %s 时，activeModel 不沿用上一模态的", async (target) => {
+    await switchModality(target);
     const run = vi.mocked(api.taskRun);
     const methods = run.mock.calls.map(([spec]) => spec.method);
     expect(methods).not.toContain("caroSegDeep");

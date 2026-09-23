@@ -227,7 +227,7 @@ interface SessionState {
   activeVolume: string | null; // P6：3D 模态的当前 CT volume id
   activeSlide: string | null; // P7：病理 WSI 的当前 slide id
   wsiRoi: [number, number, number, number] | null; // P7：当前框选 ROI (x0,y0,x1,y1) level-0 px
-  activeModel: string;
+  activeModel: string | null; // 当前模态无活动模型时为 null
   models: ModelInfo[];
   capabilities: Capability[]; // 能力注册表（GET /capabilities）——「插件市场」真相源
   datasources: DataSource[]; // 数据源注册表（GET /datasources）——dev-mode 标识 + 导入源管理

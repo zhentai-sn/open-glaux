@@ -49,7 +49,7 @@ export function StatusBar() {
           "—"
         )}
       </span>
-      {modality !== "natural_image" && (
+      {model && (
         <button className="item" onClick={() => setView("market")}>
           ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>
         </button>

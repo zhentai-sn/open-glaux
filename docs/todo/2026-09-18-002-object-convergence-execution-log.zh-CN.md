@@ -29,7 +29,7 @@ created: 2026-09-23
 | --- | --- |
 | `make test`（含 `test-version`） | 绿：agent-runtime 31 文件 / 205；frontend 35 文件 / 208 + 1 预期失败；backend 241 + 2 xfailed；science-core 169 |
 | `make lint` | 绿 |
-| 新增行为测试在当前代码上通过 | 是。唯一例外是 `activeModel` 跨模态泄漏，以 `it.fails` 固定，见 §5 F-1 |
+| 新增行为测试在当前代码上通过 | 是。唯一例外是 `activeModel` 跨模态泄漏，W0 准出时以 `it.fails` 固定，随后已修复，见 §5 F-1 |
 | 后端 8 个测试文件、runtime 工具测试、science-core `test_tasks.py` 的旧断言改完 | 是，见 §3；`test_uploads_api.py` 的字面量描述的是固定为自然图像的上传通道，保留 |
 | `check-modality-literals.sh` 可运行，基线入本记录 | 是，见 §4 |
 | SDD 10 与本记录存在、frontmatter 合规、索引登记 | 是 |
@@ -100,7 +100,7 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 
 | # | 问题 | 位置 | 影响 | 处置 |
 | --- | --- | --- | --- | --- |
-| F-1 | `activeModel` 跨模态泄漏：新模态无活动模型时沿用上一模态的值 | `frontend/src/data/actions.ts:111` | IMT／HC 切到 CT：`method=caroSegDeep` 经 `/task/run` 传到 `science-core/runners/segment_ts_headless.py:44`，该执行器只接受 `totalsegmentator_v2`，CT 分割失败。切到 WSI：method 被当作缓存键与溯源字段，结果标错、既有缓存失效。智能体上下文同样携带错误 method | 已以 `it.fails` 固定；修复方式待定 |
+| F-1 | `activeModel` 跨模态泄漏：新模态无活动模型时沿用上一模态的值 | `frontend/src/data/actions.ts:111` | IMT／HC 切到 CT：`method=caroSegDeep` 经 `/task/run` 传到 `science-core/runners/segment_ts_headless.py:44`，该执行器只接受 `totalsegmentator_v2`，CT 分割失败。切到 WSI：method 被当作缓存键与溯源字段，结果标错、既有缓存失效。智能体上下文同样携带错误 method；状态栏在 CT／病理下显示泄漏的 `caroSegDeep` | 已在 W0 后单独修复（`fix(frontend)` 提交）：无活动模型时置 `null`，`SessionState.activeModel` 类型改为 `string | null`；状态栏改为有活动模型才显示模型段，由此消去 `StatusBar.tsx:52` 一处字面量比较，门禁计数 40 → 39；`objectFocus.test.ts` 的 `it.fails` 改为覆盖 CT 与病理的回归用例 |
 | F-2 | CT 的 `/task/measure` 携旧 `cf` 返回 500 而非 422 | `backend/app/routers/api.py`（只捕获 `ValueError`） | 请求丢失 primitive 的 `path`，science-core 抛出的 `RuntimeError` 未被捕获 | W2 重做测量接口时处理 |
 | F-3 | CT 查看器挂载时若 labelmap 已在 store，「跳到器官所在层」被随后的体数据加载覆盖回中间层 | `frontend/src/components/VolumeViewer.tsx` | 初始定位错误，不影响数据 | W4 合并时修复 |
 | F-4 | `parseViewer` 接受反向角点（x0 > x1） | `agent-runtime/src/transport/routes.ts:343-352` | 后端 `segment_wsi.py:69` 以「ROI 非正」拒绝，不产生错误结果 | 已以用例固定现状；W5 若加顺序校验需同步改该断言 |
@@ -121,4 +121,3 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 | 通用导入与缓存测试以 `pathology`／`carotid_imt` 作示例，妨碍删源用例；待 `SOURCES` 支持按能力挑选后改写 | W1 之后 |
 | science-core 的 `adapter_kind` 断言升级为「∈ `DETECTORS` 键集合」 | W2 |
 | `/objects/{id}/frame` 桩接入各工具测试的假后端 | W5 |
-| `objectFocus.test.ts` 的 `it.fails` 翻为 `it` | F-1 修复时 |

@@ -107,8 +107,10 @@ export async function switchModality(modality: Modality): Promise<void> {
     voi: { ...TOOL_OPTIONS_DEFAULTS.voi },
   });
   // 活动模型跟随模态：HC → CSM（真实）/ellipse-fit（合成），IMT → caroSegDeep。
+  // 新模态没有活动模型时置空，不沿用上一模态的：否则 IMT → CT 会以 method=caroSegDeep
+  // 调 /task/run，而 CT 分割执行器只接受 totalsegmentator_v2（SDD 10 §11.1）。
   const pick = s.models.find((m) => m.modality === modality && m.active);
-  if (pick) useSession.setState({ activeModel: pick.id });
+  useSession.setState({ activeModel: pick?.id ?? null });
   if (modality === "natural_image") {
     let imgs = useSession.getState().naturalImages;
     if (!imgs.length) {
