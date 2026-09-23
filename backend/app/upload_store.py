@@ -17,14 +17,32 @@ from pathlib import Path
 from . import config
 
 # 扩展名 → 该类型必须具备的文件头魔数。扩展名与魔数**都要**过，只对一个不算数（§7 规则 5）。
-_MAGIC: dict[str, bytes] = {
-    ".jpg": b"\xff\xd8\xff",
-    ".jpeg": b"\xff\xd8\xff",
-    ".png": b"\x89PNG\r\n\x1a\n",
-}
-# 落盘用的规范扩展名（.jpeg 归一到 .jpg，避免同一张图两种后缀两个 ID）。
-_CANONICAL = {".jpg": ".jpg", ".jpeg": ".jpg", ".png": ".png"}
-MAGIC_PREFIX_LEN = max(len(m) for m in _MAGIC.values())
+# 魔数表的唯一来源是各 Source 的 ``formats``（SDD 10 §4.1）：(后缀, 魔数, offset)。
+# 落盘用的规范扩展名：.jpeg 归一到 .jpg，避免同一张图两种后缀两个 ID。
+_ALIAS = {".jpeg": ".jpg"}
+
+
+def _formats() -> dict[str, tuple[bytes, int, str]]:
+    """后缀 → (魔数, offset, modality)，按 SOURCES 登记顺序汇总；同后缀先登记者胜出。"""
+    from .sources import SOURCES  # 延迟导入：SOURCES 会导入各数据模块
+
+    out: dict[str, tuple[bytes, int, str]] = {}
+    for modality, src in SOURCES.items():
+        for ext, magic, offset in src.formats:
+            out.setdefault(ext.lower(), (magic, offset, modality))
+    return out
+
+
+def magic_prefix_len() -> int:
+    """判定魔数需要读的文件头字节数。"""
+    return max((len(m) + off for m, off, _ in _formats().values()), default=0)
+
+
+def modality_of(filename: str) -> str | None:
+    """按后缀推断上传文件的模态；不受理的后缀 → None。"""
+    hit = _formats().get(Path(filename).suffix.lower())
+    return hit[2] if hit else None
+
 
 #: 拒绝原因（SDD 08 §9.2 的 enum，顺序即判定顺序）。
 REASON_UNSUPPORTED = "unsupported_type"
@@ -74,16 +92,24 @@ def classify(filename: str, head: bytes, size: int) -> tuple[str, str]:
     判定顺序即 §13 表格顺序：类型 → 大小 → 魔数。
     """
     ext = Path(filename).suffix.lower()
-    if ext not in _MAGIC:
+    fmt = _formats().get(ext)
+    if fmt is None:
         return ("reject", REASON_UNSUPPORTED)
     if size > config.UPLOAD_MAX_BYTES:
         return ("reject", REASON_TOO_LARGE)
-    if not head.startswith(_MAGIC[ext]):
+    magic, offset, _modality = fmt
+    if head[offset : offset + len(magic)] != magic:
         # 扩展名合法但内容不是——改名的文本文件、截断的图，都落这里
         return ("reject", REASON_CORRUPT)
-    return ("accept", _CANONICAL[ext])
+    return ("accept", _ALIAS.get(ext, ext))
 
 
-def is_supported_file(path: Path) -> bool:
-    """目录列举时的过滤：后缀在白名单内即可（内容校验留给取图，避免列表逐个读文件头）。"""
-    return path.is_file() and path.suffix.lower() in _CANONICAL
+def is_supported_file(path: Path, modality: str | None = None) -> bool:
+    """目录列举时的过滤：后缀在受理表内即可（内容校验留给取图，避免列表逐个读文件头）。
+
+    给 ``modality`` 时只认该模态的后缀。
+    """
+    if not path.is_file():
+        return False
+    fmt = _formats().get(path.suffix.lower())
+    return fmt is not None and (modality is None or fmt[2] == modality)

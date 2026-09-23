@@ -13,7 +13,7 @@ status: implemented
 | 当前阶段 | 代码完成并通过开发侧走查（见 §15 自查）；业务验收待维护者确认后转 `accepted` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-30 |
+| 最后更新 | 2026-09-23 |
 
 ## 1. 本 SDD 负责什么
 
@@ -26,13 +26,15 @@ status: implemented
 3. 模态切换器的可见性来源由 `/tasks` 改为 `/datasources`。
 4. `GLAUX_DEV_MODE` 缺省值由 `1` 翻为 `0`，示例数据改为显式加载。
 
+数据轴入口 `GET /images?modality=`、`GET /datasources`、`POST /datasources/samples` 的**路径与查询参数冻结，响应体按 [SDD 10](../10-object-convergence/README.md) 演进**：列表元素是 `ObjectMeta`，数据源元素新增 `kind` / `label` / `label_key` / `importable`。
+
 ## 2. 本 SDD 不负责什么
 
 - 不新增 science-core `TaskPlugin`，不改任务注册表内容，也不改 `/tasks` 契约本身。
 - 不放开医学模态（`carotid_imt` / `fetal_hc`）的文件夹导入；本期医学导入仍限 `pathology` / `ct_abdomen`，且仍走「服务端文件夹路径」而非浏览器上传（决策 D-5）。
 - 不支持通过浏览器上传 WSI / NIfTI 等大体积医学卷（决策 D-5）。
 - 不改 `segment_region`、SAM 供应商、外发门控或建议态标注流；见 [SDD 02](../02-agent-image-annotation/README.md) 与 [SDD 04](../04-unified-annotation-toolbox/README.md)。
-- 不改 `/images?modality=carotid_imt` 在无数据源时回退合成 mock 的既有语义（见 §7 规则 9）。
+- 不定义对象元数据、数据轴注册表与对象 id 解析（`ObjectMeta`、`SOURCES`、`resolve_object`），归 [SDD 10](../10-object-convergence/README.md)；本 SDD 与它的边界见 §6.4。
 - 不实现多数据源并存选择、云端连接器、数据集版本管理或权限模型。
 - 不做导入图像的自动分类、缩略图生成或元数据抽取。
 
@@ -66,7 +68,7 @@ status: implemented
 
 | 变量 | 旧缺省 | 新缺省 | 含义 |
 | --- | --- | --- | --- |
-| `GLAUX_DEV_MODE` | `1` | `0` | `1` 时内置示例源自动可见（今天的行为）；`0` 时须显式加载示例 |
+| `GLAUX_DEV_MODE` | `1` | `0` | `1` 时内置示例源自动可见，另有合成源 `synthetic-us` / `synthetic-hc`（SDD 10 D-17）；`0` 时须显式加载示例，且没有合成源 |
 | `GLAUX_DATASETS_ROOT` | `~/glaux_datasets` | 不变 | 导入与上传的允许根 |
 | `GLAUX_UPLOAD_MAX_BYTES` | 不存在 | `33554432` | 单文件上限（32 MiB） |
 | `GLAUX_UPLOAD_MAX_FILES` | 不存在 | `20` | 单次请求文件数上限 |
@@ -86,7 +88,11 @@ status: implemented
     "root": "/home/zhentai/glaux_datasets/uploads/imported-3f2a9c11",
     "origin": "imported",
     "calibration": {},
-    "status": "active"
+    "status": "active",
+    "kind": "image",
+    "label": "Natural images",
+    "label_key": "modality.natural_image",
+    "importable": [".jpg", ".jpeg", ".png"]
   },
   "accepted": [
     { "id": "nat-3f2a9c11-8b1d0e42", "filename": "IMG_0042.JPG", "bytes": 2483910 }
@@ -103,7 +109,7 @@ status: implemented
 
 ### 5.2 数据源列表
 
-`GET /datasources` 契约不变（`DataSourceInfo[]`）。变化仅在于：`GLAUX_DEV_MODE=0` 时返回值不含 `origin=builtin` 的条目，直到用户加载示例。
+`GET /datasources` 返回 `DataSourceInfo[]`。`GLAUX_DEV_MODE=0` 时返回值不含 `origin=builtin` 的条目，直到用户加载示例。每个元素带 `kind`（几何族）、`label`（服务端兜底文案）、`label_key`（i18n 键）、`importable`（该模态可上传的后缀），四者均由 `SOURCES[modality]` 派生（SDD 10 §9.3）。
 
 `POST /datasources/samples` 返回 `DataSourceInfo[]`（本次注册成功的示例源）。
 
@@ -111,17 +117,28 @@ status: implemented
 
 `GET /images?modality=natural_image` 返回内置白名单图（若示例已加载）**与**全部已导入 `natural_image` 源下的图，合并后按「示例在前、导入源按注册顺序、源内按文件名」稳定排序。
 
-导入图的 `ImageMeta`：
+导入图的列表元素（`ObjectMeta`，字段语义见 SDD 10 §9）：
 
 ```json
 {
   "id": "nat-3f2a9c11-8b1d0e42",
-  "center": "上传 · 2026-08-30 14:05",
-  "cf": null,
+  "kind": "image",
+  "modality": "natural_image",
+  "source_id": "imported-3f2a9c11",
+  "display_name": "",
+  "axes": [{ "name": "x", "size": 4032, "spacing": null, "unit": "px" },
+           { "name": "y", "size": 3024, "spacing": null, "unit": "px" }],
+  "calibration": null,
+  "resources": { "frame": "/objects/nat-3f2a9c11-8b1d0e42/frame" },
+  "streams": [],
   "methods": [],
-  "modality": "natural_image"
+  "meta": { "center": "上传 · 2026-08-30 14:05" },
+  "center": "上传 · 2026-08-30 14:05",
+  "cf": null, "voxel_spacing_mm": null, "mpp_um": null, "dims": null
 }
 ```
+
+`center`、`cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是过渡字段，由服务端从 `meta` / `axes` / `calibration` 回填，删除时点见 SDD 10 §11.3。
 
 ### 5.4 前端输出
 
@@ -213,19 +230,33 @@ sequenceDiagram
     end
 ```
 
+### 6.4 `SOURCES` 与 `DataSource` 的关系
+
+两者是两张表，键不同、职责不同：
+
+| 表 | 键 | 定义处 | 条目数 | 职责 |
+| --- | --- | --- | --- | --- |
+| `SOURCES` | modality | `backend/app/sources/`（SDD 10 §8.2） | 每模态恰一个 `Source` | 这个模态的数据**怎么读**：探测、列举、元数据、取帧、标定探测、内置示例、受理表 |
+| `DataSource` 注册表 | 数据源 id | `backend/app/datasource_registry.py` | 每个文件夹一条 | **有哪些**数据：内置示例、导入源、上传源、开发者模式的合成源 |
+
+- 一个 `DataSource` 的 `modality` 必须是 `SOURCES` 的键；`POST /datasources` 的非法模态 422。模态从 `SOURCES` 中移除后，该模态的导入源保留在 `sources.json` 里但不再列出。
+- 内置示例源由 `Source.builtin_sample()` 提供，状态由 `Source.probe(root)` 决定；合成源由 `Source.synthetic_sample()` 提供，只在开发者模式、且同模态没有其他 active 源时为 active。
+- `GET /images?modality=m` = 对 `m` 的每个 active `DataSource` 调 `SOURCES[m].list_ids`，按数据源顺序合并去重。
+- 对象 id → 所属 `DataSource` 的反查只经 `resolve_object`（SDD 10 §6.5），不按 id 前缀猜。
+
 ## 7. 核心规则
 
 1. **可见性来自数据源，标签来自任务注册表。** 前端不得再用 `/tasks` 判断某模态是否应出现在切换器里。
 2. 模态切换器只显示至少有一个 `status=active` 数据源的模态；候选少于 2 个时不渲染切换器（沿用现状）。
 3. `natural_image` 在任务注册表中没有 `TaskPlugin`，其切换器标签取前端 i18n 常量，不得为它伪造任务。
 4. 无任何活动数据源时，Explorer 只渲染空态，**不得**调用 `/images` / `/volumes` / `/slides` / `/task/run`。
-5. 上传只接受 JPEG 与 PNG，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。
+5. 上传只接受受理表内的类型，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。受理表由 `SOURCES[*].formats` 汇总（SDD 10 §4.1）：JPEG / PNG → `natural_image`，MP4 / WebM → `video`。
 6. **客户端文件名一律不进入文件系统路径。** 服务端为每个接受的文件生成落盘名与图像 ID；原始文件名只回显在响应与 UI 中。
-7. 图像 ID 形如 `nat-<source_hash8>-<file_hash8>`，由「数据源 id + 源内相对文件名」确定性派生；同一文件重复列举得到同一 ID。
+7. 上传对象的 ID 由「数据源 id + 源内相对文件名」确定性派生：通用图像形如 `nat-<source_hash8>-<file_hash8>`，视频形如 `vid-<source_hash8>-<file_hash8>`；同一文件重复列举得到同一 ID。
 8. 上传目录必须落在 `datasets_root()/uploads/` 下，并复用 `register_folder` 的白名单校验；越界一律 422。
-9. 某模态无活动数据源时，后端既有的 mock 回退与 503 语义不变；由前端规则 4 保证不会走到那里。
+9. 某模态无活动数据源时，`/images` 返回空数组、`/image/{id}` 返回 404，不产生 503，也不存在 mock 回退（SDD 10 D-17）；前端规则 4 保证空态下不发这些请求。
 10. 移除导入源只做注销，**不删除磁盘文件**；UI 必须明示这一点（决策 D-6）。
-11. 「加载示例数据」只注册内置根中 `config.root_has_data` 为真的模态；空目录不注册、不报错。
+11. 「加载示例数据」只注册内置根中 `Source.probe` 为真的模态；空目录不注册、不报错。
 12. 最近使用记录只存在浏览器本地，不落服务端、不进任何接口契约；引用的对象已不存在时静默剔除。
 13. 示例数据（含 SDD 07 的 4 张自然照片）在 `GLAUX_DEV_MODE=0` 且未加载示例时不出现在文件栏（决策 D-4，覆盖 SDD 07 §7.5）。
 14. 上传失败、部分失败、越限均不得让 Explorer 进入不可恢复状态；已接受的文件保留，被拒的逐条列出原因。
@@ -258,7 +289,7 @@ sequenceDiagram
 | `files` | multipart 文件，可重复 | 是 | 1 ≤ 个数 ≤ `GLAUX_UPLOAD_MAX_FILES`；单个 ≤ `GLAUX_UPLOAD_MAX_BYTES` |
 | `name` | form 字段 | 否 | 数据源展示名；缺省为 `上传 · <本地时间>` |
 
-模态固定为 `natural_image`，**不接受**客户端指定（决策 D-2）。
+模态**不接受**客户端指定（决策 D-2），由服务端按受理表推断（§7 规则 5）。一批只落一个数据源：模态取第一个受理文件的模态，其余模态的文件按 `unsupported_type` 拒收；同名数据源已存在时沿用其模态。
 
 ### 9.2 `UploadResult` 响应
 
@@ -273,14 +304,15 @@ sequenceDiagram
 | `rejected[].filename` | string | 是 | 客户端原始文件名 |
 | `rejected[].reason` | enum | 是 | `unsupported_type` 或 `too_large` 或 `corrupt` |
 
-### 9.3 `natural_image` 图像 ID
+### 9.3 上传对象 ID
 
 | 来源 | ID 形态 | 稳定性 |
 | --- | --- | --- |
 | 内置示例（SDD 07） | `natural_cat` 等固定白名单 | 由 SDD 07 冻结，不变 |
-| 导入源 | `nat-<source_hash8>-<file_hash8>` | 同源同文件名恒定；源被移除后 ID 失效返回 404 |
+| 导入源（通用图像） | `nat-<source_hash8>-<file_hash8>` | 同源同文件名恒定；源被移除后 ID 失效返回 404 |
+| 导入源（视频） | `vid-<source_hash8>-<file_hash8>` | 同上 |
 
-两类 ID 空间不重叠：内置 ID 不以 `nat-` 前缀开头。
+三类 ID 空间不重叠：内置 ID 不以 `nat-` / `vid-` 前缀开头。前缀只用于避免冲突，不承载语义；后端一律经 `resolve_object` 寻址，不按前缀判别（SDD 10 D-7）。
 
 ### 9.4 前端状态
 
@@ -333,7 +365,7 @@ stateDiagram-v2
 
 | 场景 | 系统行为 | 用户感知 |
 | --- | --- | --- |
-| 上传非 JPEG/PNG | 该文件计入 `rejected`，`reason=unsupported_type` | 列出被跳过的文件与原因 |
+| 上传受理表外的类型，或与本批模态不同的文件 | 该文件计入 `rejected`，`reason=unsupported_type` | 列出被跳过的文件与原因 |
 | 扩展名合法但魔数不符 | `rejected`，`reason=corrupt` | 同上 |
 | 单文件超上限 | `rejected`，`reason=too_large` | 提示上限值 |
 | 单次文件数超上限 | 整体 `422`，不写盘 | 提示一次最多 N 个 |
@@ -418,7 +450,7 @@ stateDiagram-v2
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
 | D-1 | 模态切换器可见性改由 `/datasources` 决定，标签仍取自 `/tasks` | 继续由 `/tasks` 全权决定；新增专门的「可见模态」端点 | 任务注册表是静态能力清单，天然与「用户有没有数据」无关。今天二者被强行合并，直接后果是选中自然图像时四个 tab 全不高亮 | 2026-08-30 |
-| D-2 | 浏览器上传固定归入 `natural_image`，不接受客户端指定模态 | 新增 `user_image` 模态；让用户在上传时选模态 | `natural_image` 已经是「无 TaskPlugin、无标定、走 raster_2d 兜底」的通用图像通道，语义完全吻合；再开一根轴会让前端多一处等价分支 | 2026-08-30 |
+| D-2 | 浏览器上传不接受客户端指定模态；本 SDD 期内固定归入 `natural_image`，SDD 10 起改由受理表推断（§7 规则 5） | 新增 `user_image` 模态；让用户在上传时选模态 | `natural_image` 已经是「无 TaskPlugin、无标定、走 raster_2d 兜底」的通用图像通道，语义完全吻合；再开一根轴会让前端多一处等价分支 | 2026-08-30 |
 | D-3 | UI 标签由「自然图像」改为「通用图像 / General images」 | 保持「自然图像」 | 用户上传的可能是自己的截图、示意图或非演示照片，「自然图像」是学术用语且会误导；线上契约值 `natural_image` 保持不变以免破坏兼容 | 2026-08-30 |
 | D-4 | `GLAUX_DEV_MODE` 缺省翻为 `0`，示例数据（含 SDD 07 的 4 张照片）改为显式加载 | 保持缺省 `1`；只对医学示例生效、自然照片仍常驻 | 新用户首屏应当是「把你的数据放进来」。若自然照片仍常驻，空态永远不为空，引导入口失去位置。开发脚本显式置 `1` 保证开发体验不回退 | 2026-08-30 |
 | D-5 | 本期医学模态导入维持现状（服务端文件夹路径 + 仅 `pathology`/`ct_abdomen`） | 医学模态也支持浏览器上传文件夹 | 大体积 WSI/NIfTI 的分片上传、目录结构重建与标定回填是独立难题，塞进本期会同时放大工作量与出错面 | 2026-08-30 |

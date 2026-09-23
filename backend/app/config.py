@@ -5,7 +5,7 @@
 - caroSegDeep 隔离环境：``~/glaux_models/caroSegDeep/.venv-csd`` + ``run_headless.py``
 - caroSegDeep 真实产出缓存（eval 100 图 tech_401–500）：``~/glaux_models/csd_out``
 
-数据不可用时端点回退 mock（见 mock.py），使外壳/CI 无数据也能起。
+数据不可用时列表为空、未知 id 为 404；开发者模式下另有显式注册的合成源（见 mock.py / hc_synth.py）。
 主进程只 import science-core（纯 numpy/PIL），**绝不引入 TF**——
 TF 隔离在 caroSegDeep 的 .venv-csd 子进程（见 segment_proc.py）。
 主进程也不含任何 LLM SDK：与模型说话的唯一进程是 agent-runtime（退役 orchestration，2026-08-16）。
@@ -117,44 +117,22 @@ _WSI_SUFFIXES = (".svs", ".ndpi", ".tif", ".tiff", ".mrxs", ".scn", ".vms", ".bi
 
 
 def root_has_data(modality: str, root: Path) -> bool:
-    """某模态在给定 ``root`` 下是否有数据——内置源探针 + 可用性判定共用。
+    """某模态在给定 ``root`` 下是否有数据——薄 alias，判据在 ``SOURCES[modality].probe``。
 
-    **不查注册表**（直接判目录），故可安全用作 ``seed_builtin`` 的探针，不会与
-    :func:`datasource_registry.resolve_root` 递归。各模态的「有数据」判据即原
-    ``*_available`` 的目录检查，只是把 root 参数化。
+    **不查注册表**（直接判目录），故可安全用作内置源探针，不会与
+    :func:`datasource_registry.resolve_root` 递归。未注册的模态 → False。
     """
-    if modality == "carotid_imt":
-        return (
-            (root / "images").is_dir()
-            and (root / "CF").is_dir()
-            and (root / "LIMA-Profiles").is_dir()
-        )
-    if modality == "fetal_hc":
-        return (root / "training_set/training_set").is_dir() and (
-            root / "training_set_pixel_size_and_HC.csv"
-        ).is_file()
-    if modality == "ct_abdomen":
-        # 注：Path("ct_001.nii.gz").suffix == ".gz"（非 ".nii.gz"），用 name.endswith 判复合后缀。
-        return root.is_dir() and any(
-            p.name.endswith((".nii", ".nii.gz")) for p in root.glob("ct_*")
-        )
-    if modality == "pathology":
-        return root.is_dir() and any(
-            p.suffix.lower() in _WSI_SUFFIXES for p in root.glob("slide_*")
-        )
-    if modality == "natural_image":
-        # 通用图像无命名约定（用户上传的什么名字都有），故判后缀而非前缀。
-        from . import upload_store
+    from .sources import SOURCES  # 延迟导入：SOURCES 会导入各数据模块
 
-        return root.is_dir() and any(upload_store.is_supported_file(p) for p in root.iterdir())
-    return False
+    src = SOURCES.get(modality)
+    return src is not None and src.probe(root)
 
 
 def _available(modality: str) -> bool:
     """某模态数据是否就绪——注册表感知：当前生效源（resolve_root）下有数据即就绪。
 
     开发者模式下 resolve_root 返回内置源 root（== 本文件的 X_ROOT 默认），行为与改前一致；
-    产品模式无源 → None → False（端点回退 mock / 503）。
+    产品模式无源 → None → False。
     """
     from . import datasource_registry as reg  # 延迟导入，避免模块级循环
 
@@ -163,7 +141,7 @@ def _available(modality: str) -> bool:
 
 
 def data_available() -> bool:
-    """真实数据集是否就绪（否则端点回退 mock）。"""
+    """真实 CUBS 数据集是否就绪。"""
     return _available("carotid_imt")
 
 
@@ -173,7 +151,7 @@ def csd_live_available() -> bool:
 
 
 def hc_data_available() -> bool:
-    """HC18 真实数据集是否就绪（否则 HC 端点回退自包含合成数据）。"""
+    """HC18 真实数据集是否就绪。"""
     return _available("fetal_hc")
 
 

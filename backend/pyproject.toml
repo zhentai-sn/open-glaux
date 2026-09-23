@@ -33,6 +33,11 @@ dependencies = [
 # 经 app/config.py 挂到 sys.path 接入（不改其打包），主进程只用其纯计算部分。
 
 [project.optional-dependencies]
+# SDD 10 D-19/D-23：video 模态的解复用与逐帧解码（PyAV 自带 FFmpeg 动态库）。可选：缺库时
+# VideoSource.probe 为 False，video 模态不可用，其余模态不受影响。
+video = [
+    "av>=14.0",
+]
 dev = [
     "ruff>=0.4",
     "httpx>=0.27",

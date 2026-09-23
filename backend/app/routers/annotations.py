@@ -1,6 +1,7 @@
 """统一标注 REST（SDD 04 §8.2/§7.3/§13）——``/annotations`` CRUD + base_seq + on_commit。
 
-- 几何**范围**校验在此（dims 知识在数据层，不在存储层）：坐标越出图像 dims → 422；
+- 几何**范围**校验在此（dims 知识在数据层，不在存储层）：目标经 ``resolve_object`` 解析，
+  未知对象或坐标越出图像 dims → 422；
 - ``on_commit`` 钩子（注册表声明，如 WSI bbox → run_task）在创建成功后派发：
   钩子失败**不回滚标注**（已 201），响应附 ``hook_error``（SDD 04 §7.3）；
   钩子成功时响应附 ``hook_result``（TaskOutput dict），前端经既有回流通道呈现。
@@ -60,57 +61,27 @@ class AnnotationPatch(BaseModel):
     )
 
 
-# --- dims 解析（范围校验用；未知对象 → None → 跳过校验） -----------------------
+# --- dims 解析（范围校验用） ---------------------------------------------------
 
 
-def _dims_for(image_id: str) -> tuple[int, int] | None:
-    """某对象的像素尺寸 (width, height)：WSI level-0 / CT 单层 / US tiff；不认识 → None。"""
-    # 通用图像两类前缀：natural_*（SDD 07 内置白名单）与 nat-*（SDD 08 导入源）。
-    # 两者都必须走真实尺寸校验——漏掉 nat- 会让上传图掉进下面的 best-effort 分支（dims=None →
-    # 跳过范围校验），于是越界 bbox 被静默接受，正是 SDD 07 §7.11 禁止的降级。
-    if image_id.startswith(("natural_", "nat-")):
-        try:
-            from .. import dataset_natural
+def _dims_for(image_id: str) -> tuple[int, int]:
+    """某对象的像素尺寸 (width, height)，取自 ``ObjectMeta.axes`` 的 x / y 轴（SDD 10 §13）。
 
-            return dataset_natural.image_size(image_id)
-        except FileNotFoundError as exc:
-            raise AnnotationError("INVALID_GEOMETRY", f"通用图像不存在或损坏：{image_id}") from exc
+    经 ``resolve_object`` 解析，不按 id 前缀猜。未知或读不出的对象不得作为标注目标
+    （SDD 07 §7 规则 11：不降级到 best-effort 校验）→ ``INVALID_GEOMETRY``（422）。
+    """
+    from .. import datasource_registry as reg
+
     try:
-        from .. import dataset_wsi
-
-        if dataset_wsi.is_wsi(image_id):
-            return dataset_wsi.dims(image_id)
-    except Exception:  # noqa: BLE001 - 数据层不可用即跳过校验
-        pass
-    try:
-        from .. import dataset_ct
-
-        if dataset_ct.is_ct(image_id):
-            _z, y, x = dataset_ct.shape(image_id)
-            return (x, y)
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        # glob 的 pattern 由 image_id 拼成——形如 "/api/image/x" 的越界值会让 Path.glob
-        # 抛 NotImplementedError（绝对模式不支持），整个包起来，未知对象一律走 best-effort。
-        for p in config.IMAGES_DIR.glob(f"{image_id}.tif*"):
-            try:
-                from PIL import Image
-
-                with Image.open(p) as im:
-                    return im.size  # (width, height)
-            except Exception:  # noqa: BLE001
-                pass
-    except Exception:  # noqa: BLE001 - 非法 id 不该 500，交给结构校验/best-effort
-        return None
-    return None
+        ref = reg.resolve_object(image_id)
+        obj = ref.source.meta(ref.datasource, image_id)
+    except (LookupError, FileNotFoundError, ValueError, OSError) as exc:
+        raise AnnotationError("INVALID_GEOMETRY", f"对象不存在或无法读取：{image_id}") from exc
+    return obj.axis("x").size, obj.axis("y").size  # type: ignore[union-attr]
 
 
 def _check_within_dims(image_id: str, prim: dict) -> None:
-    dims = _dims_for(image_id)
-    if dims is None:
-        return  # 未知对象 → best-effort 不拦（结构校验已在 store）
-    w, h = dims
+    w, h = _dims_for(image_id)
     kind = prim["kind"]
     if kind == "bbox":
         ok = 0 <= prim["x0"] < prim["x1"] <= w and 0 <= prim["y0"] < prim["y1"] <= h
@@ -128,19 +99,18 @@ def _check_within_dims(image_id: str, prim: dict) -> None:
 
 
 def _plugin_for(image_id: str):
-    """对象 id → 任务插件（决定 on_commit 声明）；不认识 → None。"""
+    """对象 id → 任务插件（决定 on_commit 声明）；不认识或该模态无任务 → None。"""
     try:
-        from glaux_core.tasks import REGISTRY, TaskType
+        from glaux_core.tasks import REGISTRY
     except Exception:  # noqa: BLE001 - science-core 不可用
         return None
-    try:
-        from .. import dataset_wsi
+    from .. import datasource_registry as reg
 
-        if dataset_wsi.is_wsi(image_id):
-            return REGISTRY[TaskType.NUCLEI_DETECTION]
-    except Exception:  # noqa: BLE001
-        pass
-    return None
+    try:
+        modality = reg.resolve_object(image_id).modality
+    except LookupError:
+        return None
+    return next((p for p in REGISTRY.values() if p.modality == modality), None)
 
 
 def _dispatch_on_commit(ann: dict) -> tuple[dict | None, str | None]:

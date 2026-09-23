@@ -263,13 +263,9 @@ def test_task_run_hard_rejects_without_calibration():
 
 
 # --- 回归：SDD 10 收敛前的已知缺陷（xfail(strict)，对应波次转绿即须摘标记） ----------
+# 「未知 id → 404」已在 W1 转绿（resolve_object，无 mock 回退，D-17）。
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="turns green in W1 (resolve_object, no mock fallback, SDD 10 D-17)；"
-    "现状无 CUBS 数据时 /image/{任意 id} 回落 mock 合成 PNG 返回 200",
-)
 def test_image_unknown_ct_id_404_without_cubs_data(tmp_path, monkeypatch):
     """未知 CT id 必须 404，不能在无 CUBS 数据时被 mock 合成颈动脉图吞掉（DEBT-02/DEBT-28）。
 

@@ -1,11 +1,12 @@
 """后端契约端点——真实接入（science-core / caroSegDeep）。
 
-真实资产不可用时优雅回退 mock（见 mock.py），使无数据环境/CI 也能起。
+数据轴走 ``SOURCES`` + ``resolve_object``（SDD 10）：无数据的模态返回空列表，未知 id 一律 404，
+不回落到合成图；合成数据只作为开发者模式下显式注册的数据源出现（D-17）。
 - /tasks        → 任务注册表（多模态前端的单一真相源）
 - /task/run     → 统一驱动：取数 → 测量 → TaskOutput（多模态通吃；也是 run_task 工具的执行面）
 - /task/measure → 由编辑后的图元重测（泛型替代旧 /measure + /hc/measure）
-- /images       → dataset.list_ids（tech_401–500 演示队列）
-- /image        → 真实 tiff→PNG（PIL；主进程无 TF）
+- /images       → ``SOURCES[modality]`` 列出全部 active 源的对象（ObjectMeta）
+- /image        → ``resolve_object`` → ``Source.frame``（缺省索引的一帧）
 - /models       → 真实方法注册表（caroSegDeep + 参考方法 + HC）
 - /volume/*、/wsi/* → CT / 病理查看器数据面（labelmap、mask-edit、tile、verify）
 只保留前端或 agent-runtime 实际调用的端点；孤儿端点已于 2026-08-16 清理。
@@ -19,25 +20,28 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
-from .. import config, dataset_natural, mock
+from .. import config, mock
 from .. import datasource_registry as dsreg
 from ..schemas import (
     Capability,
     DatasourceImportRequest,
     DataSourceInfo,
     ImageMeta,
+    Index,
     Modality,
     ModelInfo,
+    ObjectMeta,
     TaskMeasureRequest,
     TaskSpec,
 )
+from ..sources import SOURCES
 
 log = logging.getLogger("glaux.api")
 router = APIRouter()
 
 # 内核是否可 import（纯 numpy/PIL）；数据端点再叠加 data_available()。
 try:
-    from .. import dataset, dataset_ct, hc_dataset, kernel, segment_ts
+    from .. import dataset_ct, kernel, segment_ts
 
     KERNEL_OK = True
 except Exception as exc:  # pragma: no cover - 缺 science-core 时的降级
@@ -85,7 +89,7 @@ def _has_data() -> bool:
 @router.get("/datasources", response_model=list[DataSourceInfo], tags=["dataset"])
 def datasources() -> list[DataSourceInfo]:
     """已注册数据源清单（builtin / imported）——前端「数据源」视图 + 市场数据集卡的真相源。"""
-    return [DataSourceInfo(**s.to_dict()) for s in dsreg.list_all()]
+    return [DataSourceInfo(**s.info()) for s in dsreg.list_all()]
 
 
 @router.post("/datasources", response_model=DataSourceInfo, tags=["dataset"])
@@ -106,7 +110,7 @@ def datasources_import(req: DatasourceImportRequest) -> DataSourceInfo:
         )
     except dsreg.ImportError_ as e:
         raise HTTPException(422, str(e)) from e
-    return DataSourceInfo(**src.to_dict())
+    return DataSourceInfo(**src.info())
 
 
 @router.post("/datasources/samples", response_model=list[DataSourceInfo], tags=["dataset"])
@@ -115,7 +119,7 @@ def datasources_load_samples() -> list[DataSourceInfo]:
 
     幂等；内置根都没数据时返回空数组而非报错——没有示例是正常状态。
     """
-    return [DataSourceInfo(**s.to_dict()) for s in dsreg.register_builtin_samples()]
+    return [DataSourceInfo(**s.info()) for s in dsreg.register_builtin_samples()]
 
 
 @router.delete("/datasources/{source_id}", tags=["dataset"])
@@ -127,32 +131,32 @@ def datasources_remove(source_id: str) -> dict:
     return {"ok": True, "removed": source_id}
 
 
-@router.get("/images", response_model=list[ImageMeta], tags=["dataset"])
-def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[ImageMeta]:
-    if modality == "natural_image":
-        return [ImageMeta(**dataset_natural.image_meta(i)) for i in dataset_natural.list_ids()]
-    if modality == "fetal_hc":
-        if not KERNEL_OK:
-            raise HTTPException(503, "HC 模态需 science-core（未装配）")
-        return [ImageMeta(**hc_dataset.image_meta(i)) for i in hc_dataset.list_ids()]
-    if modality == "ct_abdomen":  # P6
-        if not KERNEL_OK:
-            raise HTTPException(503, "CT 模态需 science-core（未装配）")
-        return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
-    if modality == "pathology":  # P7
-        _wsi_ready()
-        return [ImageMeta(**dataset_wsi.image_meta(i)) for i in dataset_wsi.list_ids()]
-    if not _has_data():
-        return mock.dataset()
-    return [ImageMeta(**dataset.image_meta(i)) for i in dataset.list_ids()]
+@router.get("/images", response_model=list[ObjectMeta], tags=["dataset"])
+def images(job: str | None = None, modality: Modality = "carotid_imt") -> list[ObjectMeta]:
+    """某模态全部 active 源的对象；同 id 多源时首个源胜出（与 resolve_object 一致）。"""
+    return _objects_of(modality)
+
+
+def _objects_of(modality: str) -> list[ObjectMeta]:
+    src = SOURCES.get(modality)
+    if src is None:  # 模态合法但其数据模块未装配（缺依赖）→ 空列表，不是错误
+        return []
+    out: list[ObjectMeta] = []
+    seen: set[str] = set()
+    for ds in dsreg.active_sources(modality):
+        for oid in src.list_ids(ds):
+            if oid not in seen:
+                seen.add(oid)
+                out.append(src.meta(ds, oid))
+    return out
 
 
 @router.get("/volumes", response_model=list[ImageMeta], tags=["dataset"])
 def volumes() -> list[ImageMeta]:
-    """P6：CT 体积列表——与 /images?modality=ct_abdomen 同源；分端点便于前端 discovery。"""
+    """P6：CT 体积列表——与 /images?modality=ct_abdomen 同源（alias，W7 删）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    return [ImageMeta(**dataset_ct.image_meta(i)) for i in dataset_ct.list_ids()]
+    return _objects_of("ct_abdomen")
 
 
 @router.get("/volume/{volume_id}", tags=["dataset"])
@@ -301,9 +305,9 @@ def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
 
 @router.get("/slides", response_model=list[ImageMeta], tags=["dataset"])
 def slides() -> list[ImageMeta]:
-    """P7：WSI slide 列表——与 /images?modality=pathology 同源；分端点便于前端 discovery。"""
+    """P7：WSI slide 列表——与 /images?modality=pathology 同源（alias，W7 删）。"""
     _wsi_ready()
-    return [ImageMeta(**dataset_wsi.image_meta(i)) for i in dataset_wsi.list_ids()]
+    return _objects_of("pathology")
 
 
 @router.get("/wsi/{slide_id}/tile/{level}/{col}/{row}", tags=["dataset"])
@@ -363,23 +367,23 @@ def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
 
 @router.get("/image/{image_id}", tags=["dataset"])
 def image(image_id: str) -> Response:
-    # 通用图像必须在 mock 回退前按固定前缀截住：未知 ID 也应 404，不能被 mock 合成图吞掉，
-    # 否则伪造 ID 会看似成功且 Agent 实际分割的是另一张图。
-    # 两类前缀：natural_*（SDD 07 内置白名单）与 nat-*（SDD 08 导入源，服务端派生 ID）。
-    if image_id.startswith(("natural_", "nat-")):
-        try:
-            data, media = dataset_natural.image_bytes(image_id)
-            return Response(content=data, media_type=media)
-        except FileNotFoundError as e:
-            raise HTTPException(404, f"图像不存在：{image_id}") from e
-    if KERNEL_OK and hc_dataset.is_hc(image_id):  # 合成 HC 图（无需外部数据）
-        return Response(content=hc_dataset.image_png(image_id), media_type="image/png")
-    if not _has_data():
-        return Response(content=mock.synthetic_png(image_id), media_type="image/png")
+    """通用图像的既有直取面（SDD 10 §5.3 有意保留）：缺省索引的一帧，原样字节优先。
+
+    未知 id 一律 404，不被合成图吞掉——伪造 id 看似成功会让 Agent 分割的是另一张图（D-17）。
+    """
     try:
-        return Response(content=dataset.image_png(image_id), media_type="image/png")
+        ref = dsreg.resolve_object(image_id)
+    except LookupError as e:
+        raise HTTPException(404, f"图像不存在：{image_id}") from e
+    try:
+        data, media, _frame = ref.source.frame(ref.datasource, image_id, Index())
     except FileNotFoundError as e:
         raise HTTPException(404, f"图像不存在：{image_id}") from e
+    except NotImplementedError as e:  # 该几何族在本面尚无单帧表征（slide 需 level）
+        raise HTTPException(422, f"该对象没有此表征：{e}") from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return Response(content=data, media_type=media)
 
 
 @router.get("/tasks", tags=["tasks"])

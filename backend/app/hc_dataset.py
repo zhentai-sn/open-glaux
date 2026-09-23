@@ -62,3 +62,91 @@ def gt_hc_mm(image_id: str) -> float:
 def detect(image_id: str, roi: tuple[int, int] | None = None):
     """真椭圆检测（缓存优先 + 隔离子进程）或合成检测——返回 (points, Ellipse, model_version)。"""
     return _route(image_id).detect(image_id, roi)
+
+
+# --- SDD 10 数据轴：胎儿头围 Source ---------------------------------------------------
+# hc_real / hc_synth 各是一个 DataSource：hc18（真实，内置示例）与 synthetic-hc（开发者模式显式
+# 注册，D-17）。上面按「真实优先」路由的函数仍供 kernel 使用，W2 随 DETECTORS 收口。
+
+from pathlib import Path  # noqa: E402
+
+from PIL import Image  # noqa: E402
+
+from .datasource_registry import DataSource  # noqa: E402
+from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
+from .sources.base import SourceBase, resources_for  # noqa: E402
+
+SYNTHETIC_ID = "synthetic-hc"
+
+
+class HcSource(SourceBase):
+    modality = MODALITY
+    kind = "image"
+    label = "Fetal head ultrasound"
+    caches = (hc_real._ds,)
+
+    def probe(self, root: Path) -> bool:
+        return (root / "training_set/training_set").is_dir() and (
+            root / "training_set_pixel_size_and_HC.csv"
+        ).is_file()
+
+    def builtin_sample(self) -> DataSource:
+        return DataSource(
+            id="hc18",
+            name="HC18 · fetal head US",
+            modality=self.modality,
+            root=config.HC18_ROOT,
+            origin="builtin",
+            calibration={"pixel_size": "per-image csv"},
+        )
+
+    def synthetic_sample(self) -> DataSource:
+        return DataSource(
+            id=SYNTHETIC_ID,
+            name="Synthetic · fetal head US",
+            modality=self.modality,
+            root=Path("synthetic"),
+            origin="builtin",
+            calibration={"pixel_size": "synthetic"},
+        )
+
+    @staticmethod
+    def _backend(source: DataSource):
+        return hc_synth if source.synthetic else hc_real
+
+    def list_ids(self, source: DataSource) -> list[str]:
+        return self._backend(source).list_ids()
+
+    def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
+        backend = self._backend(source)
+        rec = backend.image_meta(object_id)
+        w, h = backend.image_size(object_id)
+        cf = rec["cf"]
+        return ObjectMeta(
+            id=object_id,
+            kind=self.kind,
+            modality=self.modality,
+            source_id=source.id,
+            axes=[Axis(name="x", size=w, spacing=cf, unit="mm"),
+                  Axis(name="y", size=h, spacing=cf, unit="mm")],
+            calibration=Calibration(
+                kind="mm_per_px",
+                value=cf,
+                source="synthetic" if source.synthetic else "hc18_csv",
+            ),
+            resources=resources_for(object_id),
+            methods=rec["methods"],
+            meta={"center": rec["center"]},
+        )
+
+    def encoded(self, source, object_id, index):
+        return self._backend(source).image_png(object_id), "image/png"
+
+    def render(self, source, object_id, index, window):
+        import io
+
+        data, _ = self.encoded(source, object_id, index)
+        return Image.open(io.BytesIO(data)).convert("L")
+
+
+SOURCE = HcSource()

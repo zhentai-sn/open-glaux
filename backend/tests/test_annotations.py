@@ -9,20 +9,36 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app import config
+from app import config, upload_store
+from app import datasource_registry as reg
 from app.main import app
 from app.routers import annotations as ann_router
 
 client = TestClient(app)
 
+#: 标注目标：每条用例在 tmp 下导入一张 800×600 的通用图像（与环境里有无真实数据集无关）。
+#: 标注目标必须是 resolve_object 认得的对象（SDD 10 §6.5、SDD 07 §7 规则 11）。
+TARGET = ""
+
 
 @pytest.fixture(autouse=True)
 def _annotations_root(tmp_path, monkeypatch):
-    """每个用例独立 ANNOTATIONS_ROOT（Atlas 测试范式）。"""
+    """每个用例独立 ANNOTATIONS_ROOT（Atlas 测试范式）+ 一个已知的标注目标。"""
+    global TARGET
     monkeypatch.setattr(config, "ANNOTATIONS_ROOT", tmp_path / "ann")
+    monkeypatch.setenv("GLAUX_DATASETS_ROOT", str(tmp_path / "ds"))
+    monkeypatch.setenv("GLAUX_SOURCES_FILE", str(tmp_path / "ds" / "sources.json"))
+    folder = tmp_path / "ds" / "targets"
+    folder.mkdir(parents=True)
+    Image.new("RGB", (800, 600), 0).save(folder / "target.png")
+    reg.init()
+    src = reg.register_folder(folder, "natural_image")
+    TARGET = upload_store.image_id(src.id, "target.png")
     ann_router._stores.clear()
     yield
     ann_router._stores.clear()
+    reg._SOURCES.clear()
+    reg.invalidate_index()
 
 
 def _png_b64() -> str:
@@ -36,7 +52,7 @@ def _png_b64() -> str:
 
 def test_bbox_crud_roundtrip():
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 10, "y0": 20, "x1": 110, "y1": 90},
         "label": "斑块",
     })
@@ -46,7 +62,7 @@ def test_bbox_crud_roundtrip():
     assert ann["primitive"]["x1"] == 110.0
 
     # 列表读回
-    r = client.get("/annotations", params={"image_id": "tech_401"})
+    r = client.get("/annotations", params={"image_id": TARGET})
     assert len(r.json()["annotations"]) == 1
 
     # 更新（base_seq 匹配）→ seq 递增
@@ -61,7 +77,7 @@ def test_bbox_crud_roundtrip():
     # 删除（base_seq 匹配）→ 204；再读 404
     r = client.delete(f"/annotations/{ann['id']}", params={"base_seq": 2})
     assert r.status_code == 204
-    assert client.get("/annotations", params={"image_id": "tech_401"}).json()["annotations"] == []
+    assert client.get("/annotations", params={"image_id": TARGET}).json()["annotations"] == []
 
 
 def test_z_filter_for_ct_slices():
@@ -82,7 +98,7 @@ def test_z_filter_for_ct_slices():
 
 def test_stale_base_seq_conflicts():
     ann = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
     }).json()["annotation"]
 
@@ -93,7 +109,7 @@ def test_stale_base_seq_conflicts():
     assert r.status_code == 409
 
     # 冲突不落写：原值仍在
-    got = client.get("/annotations", params={"image_id": "tech_401"}).json()["annotations"][0]
+    got = client.get("/annotations", params={"image_id": TARGET}).json()["annotations"][0]
     assert got["seq"] == 1
 
 
@@ -108,25 +124,25 @@ def test_patch_missing_annotation_404():
 def test_invalid_geometry_rejected():
     # bbox 退化/反向
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 10, "y0": 1, "x1": 10, "y1": 9},
     })
     assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
     # polygon 不闭合
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "polyline", "closed": False, "points": [[0, 0], [1, 0], [1, 1]]},
     })
     assert r.status_code == 422
     # polygon 点数不足
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "polyline", "points": [[0, 0], [1, 1]]},
     })
     assert r.status_code == 422
     # 未知 kind
     r = client.post("/annotations", json={
-        "image_id": "tech_401", "primitive": {"kind": "point"},
+        "image_id": TARGET, "primitive": {"kind": "point"},
     })
     assert r.status_code == 422
 
@@ -134,13 +150,13 @@ def test_invalid_geometry_rejected():
 def test_out_of_dims_rejected(monkeypatch):
     monkeypatch.setattr(ann_router, "_dims_for", lambda _id: (100, 100))
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 200, "y1": 9},
     })
     assert r.status_code == 422 and "dims" in r.json()["detail"]
     # polygon 越界同样拦
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "polyline", "points": [[0, 0], [500, 0], [1, 1]]},
     })
     assert r.status_code == 422
@@ -151,7 +167,7 @@ def test_out_of_dims_rejected(monkeypatch):
 
 def test_polygon_roundtrip():
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "polyline", "points": [[0, 0], [10, 0], [10, 10], [0, 10]]},
     })
     assert r.status_code == 201, r.text
@@ -161,7 +177,7 @@ def test_polygon_roundtrip():
 
 def test_mask_persist_and_cleanup():
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "mask"},
         "mask_png_b64": _png_b64(),
     })
@@ -171,7 +187,7 @@ def test_mask_persist_and_cleanup():
     assert mask_path.is_file()
     # 缺 png → 422
     r2 = client.post("/annotations", json={
-        "image_id": "tech_401", "primitive": {"kind": "mask"},
+        "image_id": TARGET, "primitive": {"kind": "mask"},
     })
     assert r2.status_code == 422
     # 删除连带删文件
@@ -182,7 +198,7 @@ def test_mask_persist_and_cleanup():
 def test_mask_png_download():
     """GET /annotations/{id}/mask：reload 叠色渲染端点；非 mask → 404。"""
     r = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "mask"},
         "mask_png_b64": _png_b64(),
     })
@@ -194,7 +210,7 @@ def test_mask_png_download():
     assert m.content[:4] == b"\x89PNG"
     # 非 mask 标注 → 404；不存在 → 404
     b = client.post("/annotations", json={
-        "image_id": "tech_401",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
     })
     assert client.get(f"/annotations/{b.json()['annotation']['id']}/mask").status_code == 404
@@ -264,7 +280,7 @@ def test_create_with_url_like_image_id_does_not_500():
 def test_create_suggested_by_agent():
     """agent 产出一律 status=suggested + source=agent，REST 层须透传到 store。"""
     r = client.post("/annotations", json={
-        "image_id": "img_sugg_1",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 10, "y0": 10, "x1": 40, "y1": 40},
         "label": "left kidney",
         "status": "suggested",
@@ -279,7 +295,7 @@ def test_create_suggested_by_agent():
 def test_create_defaults_stay_manual_draft():
     """不传时保持既有默认，人工标注路径零行为变化。"""
     r = client.post("/annotations", json={
-        "image_id": "img_sugg_2",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
     })
     ann = r.json()["annotation"]
@@ -288,7 +304,7 @@ def test_create_defaults_stay_manual_draft():
 
 def test_illegal_status_rejected():
     r = client.post("/annotations", json={
-        "image_id": "img_sugg_3",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 9, "y1": 9},
         "status": "totally-made-up",
     })
@@ -298,7 +314,7 @@ def test_illegal_status_rejected():
 def test_confirm_suggested_annotation():
     """人工确认：suggested → confirmed，seq 递增。"""
     created = client.post("/annotations", json={
-        "image_id": "img_confirm",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 5, "y0": 5, "x1": 25, "y1": 25},
         "status": "suggested",
         "source": "agent",
@@ -317,7 +333,7 @@ def test_confirm_suggested_annotation():
 
 def test_reject_suggested_annotation():
     created = client.post("/annotations", json={
-        "image_id": "img_reject",
+        "image_id": TARGET,
         "primitive": {"kind": "bbox", "x0": 5, "y0": 5, "x1": 25, "y1": 25},
         "status": "suggested",
         "source": "agent",

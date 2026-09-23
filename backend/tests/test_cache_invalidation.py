@@ -6,12 +6,11 @@
 
 from __future__ import annotations
 
-import sys
-
 import pytest
 
-from app import caches, config, dataset
+from app import config, dataset
 from app import datasource_registry as reg
+from app.sources import SOURCES
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +45,7 @@ def test_cache_masks_disk_change_until_invalidated():
     _add_image("tech_402")
     assert dataset.list_ids() == ["tech_401"]  # 仍是旧值：缓存生效中
 
-    caches.clear_dataset_caches()
+    reg._invalidate_dataset_caches()
     assert dataset.list_ids() == ["tech_401", "tech_402"]
 
 
@@ -82,21 +81,28 @@ def test_load_samples_invalidates(monkeypatch):
     assert dataset.list_ids() == ["tech_401"]
 
     _add_image("tech_402")
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m == "carotid_imt")
+    for modality, src in SOURCES.items():
+        monkeypatch.setattr(src, "probe", lambda root, m=modality: m == "carotid_imt")
     reg.register_builtin_samples()
 
     assert dataset.list_ids() == ["tech_401", "tech_402"]
 
 
-def test_clear_is_safe_when_optional_modules_missing(monkeypatch):
-    """缺 openslide / nibabel 的环境里，清缓存不该抛异常（否则一次导入就 500）。
+def test_invalidate_is_idempotent_and_isolated(monkeypatch):
+    """每个 Source 的 invalidate 可重复调用；一个 Source 失效失败不拖垮其余（SDD 10 §10）。
 
-    模拟的是「可选依赖的模块导入不进来」这一环境事实，不碰 caches 的内部登记表——
-    失效入口改由 SOURCES 驱动后本用例仍然成立。
+    缺 openslide / nibabel 的环境里对应 Source 根本不会登记（见 app/sources），故这里模拟的是
+    「已登记的某个 Source 失效时抛异常」这一更一般的情形。
     """
     assert dataset.list_ids() == []  # 先把空清单缓存住
     _add_image("tech_401")
-    for name in ("app.dataset_wsi", "app.dataset_ct"):
-        monkeypatch.setitem(sys.modules, name, None)  # None → 再次 import 抛 ImportError
-    caches.clear_dataset_caches()  # 不抛
-    assert dataset.list_ids() == ["tech_401"]  # 且其余模块的缓存照常失效
+    for src in SOURCES.values():  # 对从未建立缓存的 Source 调用也不抛
+        src.invalidate()
+        src.invalidate()
+
+    def boom():
+        raise RuntimeError("cache backend gone")
+
+    monkeypatch.setattr(SOURCES["pathology"], "invalidate", boom)
+    reg._invalidate_dataset_caches()  # 不抛
+    assert dataset.list_ids() == ["tech_401"]  # 且其余 Source 的缓存照常失效

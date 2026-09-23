@@ -62,9 +62,12 @@ def test_dev_mode_on_seeds_at_most_one_builtin_per_modality():
     """开发者模式：内置源的模态都已注册、每个模态至多一个，既有五个模态各有一个。
 
     「至多」而非「恰好」：SDD 10 的 builtin_sample() 可返回 None，新模态可以没有演示源。
+    开发者模式的合成源（synthetic-us / synthetic-hc）另计，见 test_sources.py。
     """
     reg.init()
-    builtin_modalities = [s.modality for s in reg.list_all() if s.origin == "builtin"]
+    builtin_modalities = [
+        s.modality for s in reg.list_all() if s.origin == "builtin" and not s.synthetic
+    ]
     assert len(builtin_modalities) == len(set(builtin_modalities))
     assert set(builtin_modalities) <= set(reg.MODALITIES)
     assert KNOWN_MODALITIES <= set(builtin_modalities)
@@ -82,9 +85,9 @@ def test_dev_mode_falsy_values(monkeypatch, val):
     assert reg.dev_mode() is False
 
 
-def test_builtin_status_reflects_probe(monkeypatch):
-    """内置源状态由 config.root_has_data 探针定：数据在 → active，不在 → empty。"""
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m == "pathology")
+def test_builtin_status_reflects_probe(monkeypatch, probe_only):
+    """内置源状态由 Source.probe 探针定：数据在 → active，不在 → empty。"""
+    probe_only(lambda m: m == "pathology")
     reg.init()
     by_id = {s.id: s for s in reg.list_all()}
     assert by_id["wsi-demo"].status == "active"
@@ -100,14 +103,14 @@ def test_sources_for_modality():
     assert len(wsi) == 1 and wsi[0].id == "wsi-demo"
 
 
-def test_resolve_root_returns_active(monkeypatch):
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m == "pathology")
+def test_resolve_root_returns_active(monkeypatch, probe_only):
+    probe_only(lambda m: m == "pathology")
     reg.init()
     assert reg.resolve_root("pathology") == config.WSI_ROOT
 
 
-def test_resolve_root_none_when_no_active(monkeypatch):
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m != "ct_abdomen")
+def test_resolve_root_none_when_no_active(monkeypatch, probe_only):
+    probe_only(lambda m: m != "ct_abdomen")
     reg.init()
     assert reg.resolve_root("ct_abdomen") is None
 
@@ -145,8 +148,8 @@ def test_every_modality_empty_folder_is_empty(tmp_path, modality):
     assert reg.register_folder(d, modality, calibration={"hint": "explicit"}).status == "empty"
 
 
-def test_register_folder_with_calibration_active(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: False)  # 内置全 empty
+def test_register_folder_with_calibration_active(tmp_path, monkeypatch, probe_only):
+    probe_only(lambda m: False)  # 内置全 empty
     reg.init()
     d = _make_folder(tmp_path)
     src = reg.register_folder(d, "pathology", calibration={"mpp": [0.5, 0.5]})

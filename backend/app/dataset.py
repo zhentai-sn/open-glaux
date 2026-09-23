@@ -112,3 +112,94 @@ def boundaries_as_points(image_id: str, method: str) -> tuple[list, list]:
         [[float(x), float(y)] for x, y in zip(li.x, li.y)],
         [[float(x), float(y)] for x, y in zip(ma.x, ma.y)],
     )
+
+
+# --- SDD 10 数据轴：颈动脉超声 Source ------------------------------------------------
+# 上面的函数体零改；Source 只把它们装进协议。合成队列（mock）作为开发者模式下显式注册的
+# synthetic-us 数据源出现（D-17），不再是任何端点的隐式回退。
+
+from pathlib import Path  # noqa: E402
+
+from . import mock  # noqa: E402
+from .datasource_registry import DataSource  # noqa: E402
+from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
+from .sources.base import SourceBase, resources_for  # noqa: E402
+
+SYNTHETIC_ID = "synthetic-us"
+
+
+class CarotidSource(SourceBase):
+    modality = "carotid_imt"
+    kind = "image"
+    label = "Carotid ultrasound"
+    caches = (list_ids,)
+
+    def probe(self, root: Path) -> bool:
+        return (
+            (root / "images").is_dir()
+            and (root / "CF").is_dir()
+            and (root / "LIMA-Profiles").is_dir()
+        )
+
+    def builtin_sample(self) -> DataSource:
+        return DataSource(
+            id="cubs-tech",
+            name="CUBS-tech · carotid US",
+            modality=self.modality,
+            root=config.DATA_ROOT,
+            origin="builtin",
+            calibration={"cf": "per-image CF.txt"},
+        )
+
+    def synthetic_sample(self) -> DataSource:
+        return DataSource(
+            id=SYNTHETIC_ID,
+            name="Synthetic · carotid US",
+            modality=self.modality,
+            root=Path("synthetic"),
+            origin="builtin",
+            calibration={"cf": "synthetic"},
+        )
+
+    def list_ids(self, source: DataSource) -> list[str]:
+        if source.synthetic:
+            return [rec["id"] for rec in mock.dataset()]
+        return list_ids()
+
+    def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
+        if source.synthetic:
+            rec = next((r for r in mock.dataset() if r["id"] == object_id), None)
+            if rec is None:
+                raise FileNotFoundError(f"合成颈动脉图不存在：{object_id}")
+            (w, h), cal_source = (mock.W, mock.H), "synthetic"
+        else:
+            rec = image_meta(object_id)
+            (w, h), cal_source = image_size(object_id), "cubs_cf"
+        cf = rec["cf"]
+        unit = "mm" if cf else "px"
+        return ObjectMeta(
+            id=object_id,
+            kind=self.kind,
+            modality=self.modality,
+            source_id=source.id,
+            axes=[Axis(name="x", size=w, spacing=cf, unit=unit),
+                  Axis(name="y", size=h, spacing=cf, unit=unit)],
+            calibration=(
+                Calibration(kind="mm_per_px", value=cf, source=cal_source) if cf else None
+            ),
+            resources=resources_for(object_id),
+            methods=rec["methods"],
+            meta={"center": rec["center"]},
+        )
+
+    def encoded(self, source, object_id, index):
+        if source.synthetic:
+            return mock.synthetic_png(object_id), "image/png"
+        return image_png(object_id), "image/png"
+
+    def render(self, source, object_id, index, window):
+        data, _ = self.encoded(source, object_id, index)
+        return Image.open(io.BytesIO(data)).convert("L")
+
+
+SOURCE = CarotidSource()

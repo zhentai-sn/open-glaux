@@ -255,3 +255,91 @@ def guarded_patch_labelmap(
         )
         _edit_seq[key] = cur + 1
         return new_path, arr, cur + 1
+
+
+# --- SDD 10 数据轴：CT Source -------------------------------------------------------
+# 上面的函数体零改。标定探测由 datasource_detect 迁入 detect_calibration。
+
+from pathlib import Path  # noqa: E402
+
+from PIL import Image  # noqa: E402
+
+from .datasource_registry import DataSource  # noqa: E402
+from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
+from .sources.base import SourceBase, resources_for  # noqa: E402
+
+
+class CtSource(SourceBase):
+    modality = "ct_abdomen"
+    kind = "volume"
+    label = "Abdominal CT"
+    supports_window = True
+    default_window = (400.0, 40.0)  # 腹部软组织窗 (ww, wl)
+    caches = (_load_nifti,)
+
+    def probe(self, root: Path) -> bool:
+        # 注：Path("ct_001.nii.gz").suffix == ".gz"（非 ".nii.gz"），用 name.endswith 判复合后缀。
+        return root.is_dir() and any(
+            p.name.endswith((".nii", ".nii.gz")) for p in root.glob("ct_*")
+        )
+
+    def builtin_sample(self) -> DataSource:
+        from . import config
+
+        return DataSource(
+            id="ct-demo",
+            name="CT abdomen · demo",
+            modality=self.modality,
+            root=config.CT_ROOT,
+            origin="builtin",
+            calibration={"voxel_mm": "nifti header"},
+        )
+
+    def list_ids(self, source: DataSource) -> list[str]:
+        return list_ids()
+
+    def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
+        rec = image_meta(object_id)
+        sx, sy, sz = rec["voxel_spacing_mm"]
+        # nibabel 体素轴序 (X, Y, Z)；轴状位切片 PNG 宽 = X、高 = Y（见 patch_labelmap）。
+        nx, ny, nz = shape(object_id)
+        return ObjectMeta(
+            id=object_id,
+            kind=self.kind,
+            modality=self.modality,
+            source_id=source.id,
+            axes=[Axis(name="x", size=nx, spacing=sx, unit="mm"),
+                  Axis(name="y", size=ny, spacing=sy, unit="mm"),
+                  Axis(name="z", size=nz, spacing=sz, unit="mm")],
+            calibration=Calibration(kind="voxel_mm", value=[sx, sy, sz], source="nifti_header"),
+            resources=resources_for(object_id, raw=True),
+            methods=rec["methods"],
+            meta={"center": rec["center"]},
+        )
+
+    def render(self, source, object_id, index, window):
+        ww, wl = window or self.default_window
+        sl = np.asarray(_load_nifti(object_id).dataobj[:, :, index.z], dtype=np.float32)
+        lo = wl - ww / 2
+        gray = np.clip((sl - lo) / ww * 255.0, 0, 255).astype(np.uint8)
+        return Image.fromarray(gray.T, mode="L")  # (X, Y) → 行 = Y、列 = X
+
+    def raw(self, source, object_id):
+        return Path(nifti_path(object_id)), "application/octet-stream"
+
+    def detect_calibration(self, root: Path) -> dict:
+        """读该文件夹第一例 CT NIfTI 的 voxel spacing → {"voxel_mm": [sx, sy, sz]}。读不出 → {}。"""
+        vols = sorted(p for p in root.glob("ct_*.nii.gz"))
+        if not vols:
+            return {}
+        try:
+            img = nib.load(str(vols[0]))
+            sx, sy, sz = (float(v) for v in img.header.get_zooms()[:3])
+        except (KeyError, TypeError, ValueError, OSError, IndexError):
+            return {}
+        if sx > 0 and sy > 0 and sz > 0:
+            return {"voxel_mm": [sx, sy, sz]}
+        return {}
+
+
+SOURCE = CtSource()

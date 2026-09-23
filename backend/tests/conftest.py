@@ -25,11 +25,13 @@ os.environ.setdefault("GLAUX_DEV_MODE", "1")
 # 于是 `from app import dataset` 会在 dataset.py 的 `import glaux_core` 处直接炸。
 # 这一行就是那次装配；不要因为「看起来没用到」而删掉或让 linter 合并顺序。
 from app import config as _config  # noqa: F401  isort:skip
-from app import dataset, dataset_ct, dataset_wsi, hc_real, hc_synth
+from app import dataset, dataset_ct, dataset_video, dataset_wsi, hc_real, hc_synth
+from app import datasource_registry as reg
 
 _CACHED_MODULES: tuple[ModuleType, ...] = (
     dataset,
     dataset_ct,
+    dataset_video,
     dataset_wsi,
     hc_real,
     hc_synth,
@@ -42,6 +44,23 @@ _CACHE_TYPE = type(lru_cache(maxsize=1)(lambda: None))
 def _clear_data_caches():
     for module in _CACHED_MODULES:
         for obj in vars(module).values():
-            if isinstance(obj, _CACHE_TYPE):
+            if isinstance(obj, _CACHE_TYPE) and obj is not dataset_video.av_available:
                 obj.cache_clear()
+    # id → ObjectRef 索引同理：用例常 monkeypatch 数据根，索引不得跨用例沿用（SDD 10 §11.2）
+    reg.invalidate_index()
     yield
+
+
+@pytest.fixture
+def probe_only(monkeypatch):
+    """让 ``SOURCES[*].probe`` 只对给定模态为真——内置源「有无数据」的打桩点（SDD 10 §4.1）。
+
+    用法：``probe_only(lambda m: m == "pathology")``。
+    """
+    from app.sources import SOURCES
+
+    def _set(pred):
+        for modality, src in SOURCES.items():
+            monkeypatch.setattr(src, "probe", lambda root, m=modality: bool(pred(m)))
+
+    return _set

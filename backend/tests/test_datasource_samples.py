@@ -41,9 +41,9 @@ def test_dev_mode_default_is_off(monkeypatch):
     assert [s for s in reg.list_all() if s.origin == "builtin"] == []
 
 
-def test_load_samples_opens_only_roots_with_data(monkeypatch):
+def test_load_samples_opens_only_roots_with_data(monkeypatch, probe_only):
     # 只让 pathology 的根「有数据」，其余示例不该被打开
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m == "pathology")
+    probe_only(lambda m: m == "pathology")
     r = client.post("/datasources/samples")
     assert r.status_code == 200
     ids = [s["id"] for s in r.json()]
@@ -51,12 +51,12 @@ def test_load_samples_opens_only_roots_with_data(monkeypatch):
     assert [s["id"] for s in client.get("/datasources").json()] == ["wsi-demo"]
 
 
-def test_load_samples_opens_every_builtin_with_data(monkeypatch):
+def test_load_samples_opens_every_builtin_with_data(monkeypatch, probe_only):
     """所有内置根都有数据 → 打开的恰是全部内置源：模态已注册、每模态至多一个、全部 active。
 
     按注册表迭代而不写死个数，新增模态的演示源自动纳入。
     """
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: True)
+    probe_only(lambda m: True)
     opened = client.post("/datasources/samples").json()
     modalities = [s["modality"] for s in opened]
     assert opened and all(s["origin"] == "builtin" and s["status"] == "active" for s in opened)
@@ -65,10 +65,8 @@ def test_load_samples_opens_every_builtin_with_data(monkeypatch):
     assert {s["id"] for s in client.get("/datasources").json()} == {s["id"] for s in opened}
 
 
-def test_load_samples_is_idempotent(monkeypatch):
-    monkeypatch.setattr(
-        config, "root_has_data", lambda m, root: m in ("pathology", "natural_image")
-    )
+def test_load_samples_is_idempotent(monkeypatch, probe_only):
+    probe_only(lambda m: m in ("pathology", "natural_image"))
     first = client.post("/datasources/samples").json()
     before = client.get("/datasources").json()
     second = client.post("/datasources/samples").json()
@@ -77,18 +75,18 @@ def test_load_samples_is_idempotent(monkeypatch):
     assert before == after  # 不新增、不重复（§10）
 
 
-def test_load_samples_empty_when_no_data(monkeypatch):
+def test_load_samples_empty_when_no_data(monkeypatch, probe_only):
     """内置根都没数据 → 200 + 空数组，不抛异常（§13：没有示例是正常状态）。"""
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: False)
+    probe_only(lambda m: False)
     r = client.post("/datasources/samples")
     assert r.status_code == 200
     assert r.json() == []
     assert client.get("/datasources").json() == []
 
 
-def test_samples_persist_across_init(monkeypatch, tmp_path):
+def test_samples_persist_across_init(monkeypatch, tmp_path, probe_only):
     """打开的示例落盘为 id 集合，重启（init）后仍在；root 仍是 config 实时值。"""
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: m == "pathology")
+    probe_only(lambda m: m == "pathology")
     client.post("/datasources/samples")
     assert (tmp_path / "sources.json").is_file()
 
@@ -98,9 +96,9 @@ def test_samples_persist_across_init(monkeypatch, tmp_path):
     assert live[0].root == config.WSI_ROOT  # 实时读 config，不是落盘快照
 
 
-def test_old_sources_json_without_samples_key_still_loads(tmp_path, monkeypatch):
+def test_old_sources_json_without_samples_key_still_loads(tmp_path, monkeypatch, probe_only):
     """只增不改：旧清单没有 samples 键，回读后照常给出导入源，示例集合为空。"""
-    monkeypatch.setattr(config, "root_has_data", lambda m, root: True)
+    probe_only(lambda m: True)
     folder = tmp_path / "some-imported"
     folder.mkdir()
     (tmp_path / "sources.json").write_text(

@@ -53,11 +53,15 @@ def _run_live(volume_id: str, method: str, timeout: float) -> str:
 
     返回子进程 stderr 尾部（供上层在未产出时塞进异常，避免 503 变不可诊断黑盒）。
     """
+    from . import dataset_ct  # 延迟导入：dataset_ct 模块级 import 本模块
+
     config.TS_CACHE.mkdir(parents=True, exist_ok=True)
-    in_path = config.CT_ROOT / f"{volume_id}.nii.gz"
+    # 走注册表生效根（与 /volume 取数同一路径），经 /datasources 导入的 CT 源才找得到输入
+    try:
+        in_path = dataset_ct.nifti_path(volume_id)
+    except FileNotFoundError as e:
+        raise TsSegmentUnavailable(str(e)) from e
     out_path = _labelmap_path(volume_id, method)
-    if not in_path.is_file():
-        raise TsSegmentUnavailable(f"CT 体积不存在：{in_path}")
     cmd = [
         str(config.TS_PYTHON),
         str(config.TS_DRIVER),

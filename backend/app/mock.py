@@ -1,4 +1,7 @@
-"""M0 mock 数据——形状即最终契约，M1 换实现不换形状。
+"""颈动脉超声的合成数据——开发者模式下显式注册的 ``synthetic-us`` 数据源（SDD 10 D-17）。
+
+不再作任何端点的隐式回退：只在 ``GLAUX_DEV_MODE`` 为真、且没有其他 active 的颈动脉源时，
+由 :class:`app.dataset.CarotidSource` 经 ``synthetic-us`` 列出与取图。
 
 数值取自 2026-07-06 真数据端到端验证（见 eval/README）：IMT 0.918mm、vs A1 |bias| 66.6µm、
 CF 0.0559 mm/px。绝不用凭空假数字冒充测量结果（见设计稿 §8）。
@@ -11,7 +14,7 @@ import math
 import struct
 import zlib
 
-from .schemas import ImageMeta, ModelInfo
+from .schemas import ModelInfo
 
 # --- 数据集（mock CUBS-tech 切片） -------------------------------------------
 
@@ -24,14 +27,19 @@ N_COLUMNS = 598
 _METHODS = ["Manual-A1", "Manual-A2", "GT-FAMUS", "Computerized-caroSegDeep"]
 
 
-def dataset(n: int = 40) -> list[ImageMeta]:
+#: 合成图尺寸（与 :func:`synthetic_png` 缺省一致）。
+W, H = 700, 470
+
+
+def dataset(n: int = 40) -> list[dict]:
+    """合成队列：``{id, center, cf, methods}``，与 :func:`app.dataset.image_meta` 同形。"""
     return [
-        ImageMeta(
-            id=f"tech_{436 + i}",
-            center="CUBS-tech",
-            cf=round(CF_CANONICAL + math.sin(i) * 0.0004, 4),
-            methods=_METHODS,
-        )
+        {
+            "id": f"tech_{436 + i}",
+            "center": "CUBS-tech",
+            "cf": round(CF_CANONICAL + math.sin(i) * 0.0004, 4),
+            "methods": list(_METHODS),
+        }
         for i in range(n)
     ]
 
@@ -91,7 +99,7 @@ def segment_boundaries(roi: tuple[int, int] | None = None) -> tuple[list, list]:
     return _boundary("li", x0, x1), _boundary("ma", x0, x1)
 
 
-def synthetic_png(image_id: str, w: int = 700, h: int = 470) -> bytes:
+def synthetic_png(image_id: str, w: int = W, h: int = H) -> bytes:
     """纯 stdlib 生成的合成灰度 B-mode PNG（示意渲染 · 非真实患者数据）。
 
     M1 会替换为真实 tiff→PNG；此处让 `/image/{id}` 在 mock 阶段也返回真正的 image/png，

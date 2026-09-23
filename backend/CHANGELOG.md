@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- 数据轴注册表 `SOURCES`（`app/sources/`，SDD 10 W1）：一个模态一个 `Source`，`MODALITIES = tuple(SOURCES)`；`resolve_object` 为对象 id 的唯一解析入口。
+- `ObjectMeta`：`GET /images` 元素新增 `kind`、`source_id`、`display_name`、`axes`、`calibration`、`resources`、`streams`、`meta`；旧字段 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` / `center` 由 `SourceBase` 回填，取值不变。
+- `GET /datasources` 元素新增 `kind`、`label`、`label_key`、`importable`。
+- `video` 模态数据轴：mp4 / webm 的上传与文件夹导入、帧率探测、音轨声明（`streams[]` + `resources.audio`，不提供取流）、`GET /image/{vid}` 取第 0 帧。依赖 PyAV，作为可选 extra `video`。
+- 开发者模式下显式注册的合成源 `synthetic-us`、`synthetic-hc`，仅在同模态无其他 active 源时为 active。
+
+### Changed
+
+- 未知对象 id：`GET /image/{id}` 一律 404，不再在无 CUBS 数据时返回 mock 合成图；`GET /images` 在无数据时返回空数组，不再返回 mock 列表（病理原为 503）。
+- `GET /image/{id}` 对 CT 返回第 0 层轴状位 PNG（原为 404），对 slide 返回 422（需 level，W2 落地）。
+- `POST /annotations` 的目标经 `resolve_object` 解析：未知对象一律 422，不再跳过范围校验。
+- `POST /uploads/images` 的模态由后缀与魔数推断，不再固定为 `natural_image`。
+
+### Fixed
+
+- CT 标注的范围校验此前把 NIfTI 形状 (X, Y, Z) 当作 (Z, Y, X) 解包，宽度取成了 Z；现取 `axes` 的 x / y。
+- TotalSegmentator 现算的输入路径改走注册表生效根（`dataset_ct.nifti_path`），经 `/datasources` 导入的 CT 源缓存未命中时不再去 `data/ct` 找文件。
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

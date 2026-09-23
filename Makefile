@@ -21,7 +21,7 @@ agent-runtime:
 install: install-backend install-frontend install-agent-runtime
 
 install-backend:
-	cd backend && uv venv --python 3.12 && uv pip install -e ".[dev]"
+	cd backend && uv venv --python 3.12 && uv pip install -e ".[dev,video]"
 
 install-frontend:
 	cd frontend && npm install

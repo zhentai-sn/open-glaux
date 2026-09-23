@@ -167,3 +167,105 @@ def image_meta(slide_id: str) -> dict:
         "mpp_um": mpp_um,
         "dims": [w, h],
     }
+
+
+# --- SDD 10 数据轴：病理 WSI Source -------------------------------------------------
+# 上面的函数体零改。openslide 缺失时 probe 为 False（可选依赖缺失是状态，不是错误）。
+# slide 的取帧（level + roi 下的 read_region）随 W2 的 /objects/{id}/frame 落地。
+
+from pathlib import Path  # noqa: E402
+
+from .datasource_registry import DataSource  # noqa: E402
+from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
+from .sources.base import SourceBase, resources_for  # noqa: E402
+
+
+def _openslide_ok() -> bool:
+    try:
+        import openslide  # noqa: F401
+    except Exception:  # noqa: BLE001 - 缺库或缺 libopenslide
+        return False
+    return True
+
+
+class WsiSource(SourceBase):
+    modality = "pathology"
+    kind = "slide"
+    label = "Pathology WSI"
+    caches = (_open, _deepzoom)
+
+    def probe(self, root: Path) -> bool:
+        return (
+            _openslide_ok()
+            and root.is_dir()
+            and any(p.suffix.lower() in config._WSI_SUFFIXES for p in root.glob("slide_*"))
+        )
+
+    def builtin_sample(self) -> DataSource:
+        return DataSource(
+            id="wsi-demo",
+            name="WSI pathology · demo",
+            modality=self.modality,
+            root=config.WSI_ROOT,
+            origin="builtin",
+            calibration={"mpp": "openslide props"},
+        )
+
+    def list_ids(self, source: DataSource) -> list[str]:
+        return list_ids()
+
+    def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
+        rec = image_meta(object_id)
+        w, h = rec["dims"]
+        mpp_um = rec["mpp_um"]
+        slide = _open(object_id)
+        spacing = (mpp_um[0], mpp_um[1]) if mpp_um else (None, None)
+        unit = "um" if mpp_um else "px"
+        return ObjectMeta(
+            id=object_id,
+            kind=self.kind,
+            modality=self.modality,
+            source_id=source.id,
+            axes=[Axis(name="x", size=w, spacing=spacing[0], unit=unit),
+                  Axis(name="y", size=h, spacing=spacing[1], unit=unit),
+                  Axis(name="level", size=int(slide.level_count), unit="factor")],
+            calibration=(
+                Calibration(kind="mpp_um", value=list(mpp_um), source="openslide_props")
+                if mpp_um
+                else None
+            ),
+            resources=resources_for(object_id, tiles=True),
+            methods=rec["methods"],
+            meta={
+                "center": rec["center"],
+                "level_downsamples": [float(d) for d in slide.level_downsamples],
+            },
+        )
+
+    def tile(self, source, object_id, level, col, row):
+        return tile(object_id, level, col, row)
+
+    def detect_calibration(self, root: Path) -> dict:
+        """读该文件夹第一张 slide 的 OpenSlide mpp → {"mpp": [mx, my]}。读不出 → {}。"""
+        if not _openslide_ok():
+            return {}
+        import openslide
+
+        slides = sorted(
+            p for p in root.glob("slide_*") if p.suffix.lower() in config._WSI_SUFFIXES
+        )
+        if not slides:
+            return {}
+        try:
+            s = openslide.OpenSlide(str(slides[0]))
+            mx = float(s.properties[openslide.PROPERTY_NAME_MPP_X])
+            my = float(s.properties[openslide.PROPERTY_NAME_MPP_Y])
+            s.close()
+        except (KeyError, TypeError, ValueError, OSError):
+            return {}
+        if mx > 0 and my > 0:
+            return {"mpp": [mx, my]}
+        return {}
+
+
+SOURCE = WsiSource()

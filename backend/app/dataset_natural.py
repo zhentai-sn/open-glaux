@@ -133,3 +133,86 @@ def image_size(image_id: str) -> tuple[int, int]:
     """返回 (width, height)，供统一 Annotation 越界校验。"""
     path, _ = _find(image_id)
     return _probe(path)
+
+
+# --- SDD 10 数据轴：通用图像 Source -------------------------------------------------
+# 上面的函数体零改；list_ids 按数据源分列（上面的 list_ids 是全部 active 源的合并视图）。
+
+from .datasource_registry import DataSource  # noqa: E402
+from .schemas import Axis, ObjectMeta  # noqa: E402
+from .sources.base import SourceBase, resources_for  # noqa: E402
+
+
+class NaturalSource(SourceBase):
+    modality = MODALITY
+    kind = "image"
+    label = "Natural images"
+    formats = ((".jpg", _JPEG_MAGIC, 0), (".jpeg", _JPEG_MAGIC, 0), (".png", _PNG_MAGIC, 0))
+    calibration_required = False
+
+    def probe(self, root: Path) -> bool:
+        # 通用图像无命名约定（用户上传的什么名字都有），故判后缀而非前缀。
+        return root.is_dir() and any(
+            upload_store.is_supported_file(p, MODALITY) for p in root.iterdir()
+        )
+
+    def builtin_sample(self) -> DataSource:
+        # SDD 08 D-4：SDD 07 的 4 张演示照片与其余示例同进同退——否则「空态」永远不为空。
+        # 标定为空是常态（通用图像无标定），不代表 needs_calibration。
+        return DataSource(
+            id="natural-demo",
+            name="Natural images · demo",
+            modality=self.modality,
+            root=config.NATURAL_ROOT,
+            origin="builtin",
+            calibration={},
+        )
+
+    def list_ids(self, source: DataSource) -> list[str]:
+        root = Path(source.root)
+        if not root.is_dir():
+            return []
+        if _is_builtin_demo(source):
+            entries = [(image_id, root / name) for image_id, name in ASSETS.items()]
+        else:
+            entries = [
+                (upload_store.image_id(source.id, p.name), p)
+                for p in sorted(root.iterdir(), key=lambda p: p.name)
+                if upload_store.is_supported_file(p, MODALITY)
+            ]
+        out: list[str] = []
+        for image_id, path in entries:
+            try:
+                _probe(path)
+            except FileNotFoundError:
+                continue
+            out.append(image_id)
+        return out
+
+    def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
+        rec = image_meta(object_id)
+        w, h = image_size(object_id)
+        return ObjectMeta(
+            id=object_id,
+            kind=self.kind,
+            modality=self.modality,
+            source_id=source.id,
+            axes=[Axis(name="x", size=w), Axis(name="y", size=h)],
+            resources=resources_for(object_id),
+            methods=rec["methods"],
+            meta={"center": rec["center"]},
+        )
+
+    def encoded(self, source, object_id, index):
+        return image_bytes(object_id)
+
+    def render(self, source, object_id, index, window):
+        path, _ = _find(object_id)
+        with Image.open(path) as im:
+            return im.convert("RGB")
+
+    def derive_id(self, source: DataSource, rel_name: str) -> str:
+        return upload_store.image_id(source.id, rel_name)
+
+
+SOURCE = NaturalSource()
