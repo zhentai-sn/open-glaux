@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TaskView } from "../api/types";
+import { objectMeta, taskFields } from "../test/fixtures";
 
 const IMT_TASK: TaskView = {
   task: "far_wall_cca_imt",
@@ -15,6 +16,7 @@ const IMT_TASK: TaskView = {
   overlays: [],
   capabilities: ["bbox", "polygon", "brush"],
   on_commit: null,
+  ...taskFields("carotid_imt"),
 };
 
 async function fresh() {
@@ -193,7 +195,7 @@ describe("toViewerContext", () => {
     const s = session.getState();
     s.setTasks([IMT_TASK]);
     s.setActiveImage("tech_401");
-    s.setImageMeta({ id: "tech_401", center: "c", cf: 0.06, methods: [], modality: "carotid_imt" });
+    s.setImageMeta(objectMeta({ id: "tech_401", center: "c", cf: 0.06, modality: "carotid_imt" }));
     expect(conv.toViewerContext()).toEqual({
       modality: "carotid_imt",
       task: "far_wall_cca_imt",
@@ -224,13 +226,9 @@ describe("toViewerContext", () => {
     s.setTasks([IMT_TASK]);
     s.setModality("natural_image");
     s.setActiveImage("natural_cat");
-    s.setImageMeta({
-      id: "natural_cat",
-      center: "Natural images",
-      cf: null,
-      methods: [],
-      modality: "natural_image",
-    });
+    s.setImageMeta(
+      objectMeta({ id: "natural_cat", center: "Natural images", modality: "natural_image" }),
+    );
     expect(conv.toViewerContext()).toEqual({
       modality: "natural_image",
       image_id: "natural_cat",

@@ -5,11 +5,13 @@ import type {
   AnnotationInput,
   Capability,
   DataSource,
+  EditRequest,
   ImageMeta,
   Measure,
   MeasurementResult,
   Modality,
   ModelInfo,
+  ObjectMeta,
   Primitive,
   TaskOutput,
   TaskSpec,
@@ -107,6 +109,16 @@ async function del(path: string): Promise<void> {
 export const api = {
   // 意图解析（/interpret）与连接探测（/intent/vlm/*）已退役：NL 走 agent-runtime 会话，
   // 智能体经 run_task 工具调 /task/run；连接测试见 agentRuntimeApi.testConnection / listModels。
+
+  /** SDD 10：某模态的对象列表（数据轴入口 GET /images?modality= 不变，元素为 ObjectMeta）。 */
+  objects: (modality: Modality) =>
+    get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
+  /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */
+  objectEdits: (id: string, req: EditRequest) =>
+    post<{ metrics: Record<string, Measure>; labelmap_ref: string; seq: number }>(
+      `/objects/${encodeURIComponent(id)}/edits`,
+      req,
+    ),
 
   images: (modality: Modality = "carotid_imt") =>
     get<ImageMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),

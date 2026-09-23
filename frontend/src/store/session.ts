@@ -5,11 +5,15 @@ import type {
   Annotation,
   Capability,
   DataSource,
+  Focus,
   ImageMeta,
+  Index,
   Measure,
   Modality,
   ModelInfo,
+  ObjectMeta,
   Primitive,
+  Region,
   TaskView,
   VlmModelInfo,
   VlmProvider,
@@ -240,12 +244,15 @@ interface SessionState {
   volumes: ImageMeta[]; // P6：CT 体积列表
   slides: ImageMeta[]; // P7：WSI slide 列表
   imageMeta: ImageMeta | null; // 当前图元数据（cf/methods 或 voxel_spacing_mm）
+  // SDD 10 §9.1：唯一观测焦点 + 按模态分组的对象表（缺键 = 未加载，空数组 = 已加载为空）。
+  focus: Focus | null;
+  objects: Record<string, ObjectMeta[]>;
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
   source: Source; // 当前叠加来源（agent 模型产出 / human 人工修正）
   modelVersion: string; // 当前结果的模型版本（供卡片/输出栏展示）
   loading: boolean; // 分割/测量进行中
-  coords: { x: number; y: number }; // 画布光标坐标（状态栏读出）
+  coords: { x: number; y: number } & Index; // 画布光标坐标 + 当前索引（状态栏读出）
 
   // VLM 连接（智能体连接配置）
   connection: Connection; // VLM 连接（provider/端点/密钥/模型）——localStorage 持久化
@@ -285,12 +292,17 @@ interface SessionState {
   setVolumes: (m: ImageMeta[]) => void; // P6
   setSlides: (m: ImageMeta[]) => void; // P7
   setImageMeta: (m: ImageMeta | null) => void;
+  /** 焦点的唯一写入口（§7 规则 4）：setFocus 整体替换，setIndex / setRegion 只改一维。 */
+  setFocus: (f: Focus | null) => void;
+  setIndex: (p: Index) => void;
+  setRegion: (r: Region | null) => void;
+  setObjects: (modality: string, list: ObjectMeta[]) => void;
   setMetrics: (m: Record<string, Measure> | null) => void;
   setPrimitives: (p: Primitive[]) => void;
   setSource: (s: Source) => void;
   setModelVersion: (v: string) => void;
   setLoading: (v: boolean) => void;
-  setCoords: (x: number, y: number) => void;
+  setCoords: (x: number, y: number, index?: Index) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
   setComposerAttachments: (v: Attachment[]) => void;
@@ -303,6 +315,43 @@ interface SessionState {
 
 let _id = 0;
 const nextId = () => ++_id;
+
+/** 过渡期：focus → 旧四槽（第三拍删除）。 */
+function legacySlots(f: Focus | null) {
+  const id = f?.object_id ?? null;
+  const box = f?.region?.kind === "box" ? f.region : null;
+  return {
+    activeImage: f && f.kind === "image" ? id : null,
+    activeVolume: f && f.kind === "volume" ? id : null,
+    activeSlide: f && f.kind === "slide" ? id : null,
+    wsiRoi: box ? ([box.x0, box.y0, box.x1, box.y1] as [number, number, number, number]) : null,
+  };
+}
+
+/** 过渡期：旧 setActiveX → focus（第三拍删除）。 */
+function legacyFocus(s: { focus: Focus | null }, id: string | null, kind: Focus["kind"]) {
+  if (id) return { focus: { object_id: id, kind, index: {}, region: null } as Focus };
+  return s.focus?.kind === kind ? { focus: null } : {};
+}
+
+/** 某模态已加载的对象列表；缺省取当前模态。未加载 → 空数组。 */
+export function objectsOf(
+  s: Pick<SessionState, "objects" | "modality">,
+  modality: string | null = s.modality,
+): ObjectMeta[] {
+  return modality ? (s.objects[modality] ?? []) : [];
+}
+
+/** 焦点对象的元数据——组件需要对象信息时一律经此反查，不在 store 里另存一份（§7 规则 4）。 */
+export function activeObject(s: Pick<SessionState, "objects" | "modality" | "focus">): ObjectMeta | null {
+  const f = s.focus;
+  if (!f) return null;
+  for (const list of Object.values(s.objects)) {
+    const hit = list.find((o) => o.id === f.object_id);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 export const useSession = create<SessionState>((set) => ({
   uiMode: loadUiMode(),
@@ -332,6 +381,8 @@ export const useSession = create<SessionState>((set) => ({
   volumes: [],
   slides: [],
   imageMeta: null,
+  focus: null,
+  objects: {},
   metrics: null,
   primitives: [],
   source: "agent",
@@ -390,10 +441,20 @@ export const useSession = create<SessionState>((set) => ({
     set((s) => ({ annotations: s.annotations.filter((x) => x.id !== id) })),
   setTasks: (t) => set({ tasks: t }),
   setModality: (m) => set({ modality: m }),
-  setActiveImage: (id) => set({ activeImage: id }),
-  setActiveVolume: (id) => set({ activeVolume: id }),
-  setActiveSlide: (id) => set({ activeSlide: id }),
-  setWsiRoi: (roi) => set({ wsiRoi: roi }),
+  // 过渡期：旧四槽与 focus 双向同步，旧 setter 在第三拍删除。
+  setActiveImage: (id) => set((s) => ({ activeImage: id, ...legacyFocus(s, id, "image") })),
+  setActiveVolume: (id) => set((s) => ({ activeVolume: id, ...legacyFocus(s, id, "volume") })),
+  setActiveSlide: (id) => set((s) => ({ activeSlide: id, ...legacyFocus(s, id, "slide") })),
+  setWsiRoi: (roi) =>
+    set((s) => ({
+      wsiRoi: roi,
+      focus: s.focus
+        ? {
+            ...s.focus,
+            region: roi ? { kind: "box", x0: roi[0], y0: roi[1], x1: roi[2], y1: roi[3] } : null,
+          }
+        : null,
+    })),
   setModels: (m) => set({ models: m, activeModel: m.find((x) => x.active)?.id ?? "caroSegDeep" }),
   setCapabilities: (c) => set({ capabilities: c }),
   setDatasources: (d) => set({ datasources: d }),
@@ -412,12 +473,21 @@ export const useSession = create<SessionState>((set) => ({
   setVolumes: (m) => set({ volumes: m }),
   setSlides: (m) => set({ slides: m }),
   setImageMeta: (m) => set({ imageMeta: m }),
+  setFocus: (f) => set(() => ({ focus: f, ...legacySlots(f) })),
+  setIndex: (p) => set((s) => (s.focus ? { focus: { ...s.focus, index: { ...s.focus.index, ...p } } } : {})),
+  setRegion: (r) =>
+    set((s) =>
+      s.focus
+        ? { focus: { ...s.focus, region: r }, wsiRoi: r?.kind === "box" ? [r.x0, r.y0, r.x1, r.y1] : null }
+        : {},
+    ),
+  setObjects: (modality, list) => set((s) => ({ objects: { ...s.objects, [modality]: list } })),
   setMetrics: (m) => set({ metrics: m }),
   setPrimitives: (p) => set({ primitives: p }),
   setSource: (v) => set({ source: v }),
   setModelVersion: (v) => set({ modelVersion: v }),
   setLoading: (v) => set({ loading: v }),
-  setCoords: (x, y) => set({ coords: { x, y } }),
+  setCoords: (x, y, index) => set({ coords: { x, y, ...(index ?? {}) } }),
   setConnection: (patch) =>
     set((s) => {
       const next = { ...s.connection, ...patch };

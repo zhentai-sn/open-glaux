@@ -6,6 +6,7 @@
 // mouseDrag/mouseUp 全部早退——工具静默失效，界面上表现为「按钮点得亮，图上没反应」。
 // 下面第一条用例直接断言方法名，让这个坑不能再悄悄回来。
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { objectMeta, taskFields } from "../test/fixtures";
 
 import type { Types as ToolTypes } from "@cornerstonejs/tools";
 
@@ -50,6 +51,7 @@ function task(): TaskView {
     overlays: [{ role: "LI", color: "#4FB0FF", editable: true }],
     capabilities: ["bbox", "polygon", "brush", "wall"],
     on_commit: null,
+    ...taskFields("carotid_imt"),
   };
 }
 
@@ -70,7 +72,9 @@ beforeEach(() => {
     modality: "carotid_imt",
     tasks: [task()],
     primitives: [{ kind: "polyline", id: "li", role: "LI", closed: false, points: WALL_POINTS.map((p) => [...p]) }],
-    imageMeta: { id: "tech_401", center: "tech", cf: 0.05, methods: ["caroSegDeep"], modality: "carotid_imt" },
+    imageMeta: objectMeta({
+      id: "tech_401", center: "tech", cf: 0.05, methods: ["caroSegDeep"], modality: "carotid_imt",
+    }),
   });
 });
 

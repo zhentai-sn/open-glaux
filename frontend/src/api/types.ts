@@ -3,28 +3,103 @@
 export type TaskType = "far_wall_cca_imt" | "fetal_hc" | "totalseg_liver_kidney" | "nuclei_detection";
 export type Modality = "carotid_imt" | "fetal_hc" | "ct_abdomen" | "pathology" | "natural_image";
 
-export interface TaskSpec {
-  task: TaskType;
-  image_id?: string | null;
-  cubs_cf?: number | null;
-  roi?: [number, number] | null;
-  /** P7 WSI：框选 ROI (x0, y0, x1, y1) level-0 px（核检测按 ROI 推理，整片不可行）。 */
-  roi_box?: [number, number, number, number] | null;
-  method?: string | null;
+// --- 视觉对象（SDD 10 §9.1）——镜像 backend schemas.ObjectMeta 等 ---------------------
+
+/** kind = 几何族（引擎/解码/校验的分派键）。modality = 数据集路由键。二者不互换（D-3）。 */
+export type ObjectKind = "image" | "volume" | "slide" | "video";
+export type AxisName = "x" | "y" | "z" | "t" | "level";
+export interface Axis {
+  name: AxisName;
+  size: number;
+  spacing?: number | null;
+  unit?: string;
 }
 
-export interface ImageMeta {
+/** 开放集：前端按已知 kind 渲染，未知 kind 只显示 source（D-16）。 */
+export interface Calibration {
+  kind: "mm_per_px" | "voxel_mm" | "mpp_um" | "time_base" | (string & {});
+  value: unknown;
+  source: string;
+  provenance?: Record<string, unknown>;
+}
+
+/** 与 axes 正交的附加流声明（D-23）。SDD 11 冻结观测形状前不得消费（§7 规则 22）。 */
+export interface Stream {
+  kind: "audio" | (string & {});
+  sample_rate?: number | null;
+  channels?: number | null;
+  duration_ms?: number | null;
+  codec?: string | null;
+}
+
+export interface ObjectMeta {
   id: string;
-  center: string;
-  cf: number | null;
-  methods: string[];
+  kind: ObjectKind;
   modality: Modality;
-  /** P6：CT 模态用 voxel_spacing_mm 替代 cubs_cf；(sx, sy, sz) mm。 */
+  source_id: string;
+  display_name: string;
+  axes: Axis[];
+  calibration: Calibration | null;
+  /** 后端下发的 URL 模板；前端不拼路径（§7 规则 3）。 */
+  resources: { frame: string; raw?: string; tiles?: string; audio?: string };
+  streams: Stream[];
+  methods: string[];
+  meta: Record<string, unknown>;
+  /** 过渡一版（W7 删）：由后端从 axes / calibration 回填；新代码不得读取（§7 规则 8）。 */
+  center?: string;
+  cf?: number | null;
   voxel_spacing_mm?: [number, number, number] | null;
-  /** P7：WSI 模态用 mpp（(mpp_x, mpp_y) µm/px）。 */
   mpp_um?: [number, number] | null;
-  /** P7：WSI level-0 尺寸 (width, height) px（OSD tileSource 用）。 */
   dims?: [number, number] | null;
+}
+/** 过渡别名一版（W7 删）。 */
+export type ImageMeta = ObjectMeta;
+
+export interface Index {
+  z?: number | null;
+  t?: number | null;
+  level?: number | null;
+}
+export type Region =
+  | { kind: "box"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "column_window"; x0: number; x1: number }
+  | { kind: "slice"; z: number }
+  | { kind: "frame_range"; t0: number; t1: number; seed?: { t: number; box: [number, number, number, number] } };
+/** 当前观测焦点——前端 store 唯一写入，runtime 只读（D-4）。 */
+export interface Focus {
+  object_id: string;
+  kind: ObjectKind;
+  index: Index;
+  region: Region | null;
+}
+export interface ReferenceFrame {
+  object_id: string;
+  index: Index;
+  origin: [number, number];
+  scale: number;
+  width: number;
+  height: number;
+}
+
+export interface TaskSpec {
+  task: TaskType;
+  /** 字段名保留，语义为对象 id（D-8）。 */
+  image_id?: string | null;
+  method?: string | null;
+  calibration?: Calibration | null;
+  region?: Region | null;
+  /** 过渡一版（W7 删）：后端映射为 calibration / region。 */
+  cubs_cf?: number | null;
+  roi?: [number, number] | null;
+  roi_box?: [number, number, number, number] | null;
+}
+
+/** `/objects/{id}/edits` 请求体（SDD 10 §5.2）。 */
+export interface EditRequest {
+  task: TaskType;
+  method: string;
+  base_seq: number;
+  ops: { index: Index; class_id: number; mode: "paint" | "erase"; mask_png: string }[];
 }
 
 export interface ModelInfo {
@@ -66,6 +141,13 @@ export interface DataSource {
   origin: DataSourceOrigin;
   calibration: Record<string, unknown>;
   status: DataSourceStatus;
+  /** SDD 10 §9.3：几何族、标签（label_key 优先 → label → modality 原文）、可上传后缀。 */
+  kind: ObjectKind;
+  label: string;
+  label_key: string;
+  importable: string[];
+  /** SDD 10 §9.4：无 TaskPlugin 模态的能力位默认集；有任务的模态为空（以 TaskView 为准）。 */
+  default_capabilities: string[];
 }
 
 // --- 浏览器图像上传（SDD 08 §9.2） ------------------------------------------
@@ -114,7 +196,8 @@ export interface Measure {
   label_zh: string;
 }
 
-export interface Calibration {
+/** 任务产物里的标定结果（镜像 calibration_to_dict），与对象的 ``Calibration`` 不同物。 */
+export interface CalibrationResult {
   cf: number;
   source: string;
   provenance: Record<string, unknown>;
@@ -160,14 +243,14 @@ export interface TaskOutput {
   task: TaskType;
   metrics: Record<string, Measure>;
   primitives: Primitive[];
-  calibration: Calibration;
+  calibration: CalibrationResult;
   provenance: Record<string, unknown>;
 }
 
 /** 拖动重测结果（POST /task/measure）。 */
 export interface MeasurementResult {
   metrics: Record<string, Measure>;
-  calibration: Calibration;
+  calibration: CalibrationResult;
   overlays: Primitive[];
 }
 
@@ -210,6 +293,11 @@ export interface TaskView {
   capabilities: string[];
   /** SDD 04：标注落库后的任务联动钩子（如 WSI bbox → run_task）；无则 null。 */
   on_commit?: Record<string, { action: string }> | null;
+  /** SDD 10：任务接受的几何族（run_task 门控，D-13）。 */
+  object_kinds: ObjectKind[];
+  /** SDD 10：打开对象时的触发策略；无 TaskView 的模态按 manual（D-18）。 */
+  trigger: "on_open" | "on_region" | "manual";
+  classes?: ClassSpec[];
 }
 
 // --- 统一标注（SDD 04）——/annotations 契约，镜像后端 routers/annotations ------

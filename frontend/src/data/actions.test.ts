@@ -2,16 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api/client";
 import type { ImageMeta } from "../api/types";
+import { objectMeta } from "../test/fixtures";
 import { TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
 import { selectNaturalImage } from "./actions";
 
-const CAT: ImageMeta = {
+const CAT: ImageMeta = objectMeta({
   id: "natural_cat",
   center: "Natural images",
-  cf: null,
-  methods: [],
   modality: "natural_image",
-};
+});
 
 describe("selectNaturalImage", () => {
   beforeEach(() => {

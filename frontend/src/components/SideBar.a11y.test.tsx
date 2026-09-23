@@ -1,6 +1,7 @@
 // 文件树键盘可达（SDD feats/05 §15 / G10）：目录行由 div 语义化为 button，带 aria-expanded，可 Tab 聚焦。
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { dsFields } from "../test/fixtures";
 
 import { ExplorerView } from "./SideBar";
 import { I18nProvider } from "../i18n";
@@ -26,6 +27,7 @@ describe("SideBar 文件树可达性", () => {
           origin: "builtin",
           calibration: {},
           status: "active",
+          ...dsFields("carotid_imt"),
         },
       ],
     });

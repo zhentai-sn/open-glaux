@@ -8,6 +8,7 @@ import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import { TOOL_OPTIONS_DEFAULTS, useSession, type Tool } from "../store/session";
 import type { TaskView } from "../api/types";
+import { taskFields } from "../test/fixtures";
 
 const UNIFIED_TOOLS = [
   { id: "cursor", glyph: "▸", label: { en: "Select / Pan", zh: "选择 / 平移" } },
@@ -31,6 +32,7 @@ function makeTask(modality: TaskView["modality"], capabilities: string[]): TaskV
     overlays: [],
     capabilities,
     on_commit: null,
+    ...taskFields(modality),
   };
 }
 

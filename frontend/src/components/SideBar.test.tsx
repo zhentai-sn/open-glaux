@@ -7,6 +7,7 @@ import type { DataSource, ImageMeta, Modality } from "../api/types";
 import { I18nProvider } from "../i18n";
 import { useSession } from "../store/session";
 import { RECENT_KEY } from "../data/recent";
+import { dsFields, objectMeta } from "../test/fixtures";
 
 // 数据端点全部打桩：空态的核心断言就是「这些一个都没被调到」。
 // vi.mock 会被提升到文件顶部，故桩必须放进 vi.hoisted，否则工厂里读到的是未初始化的 TDZ 变量。
@@ -36,15 +37,10 @@ const ds = (id: string, modality: Modality, status: DataSource["status"] = "acti
   origin: "imported",
   calibration: {},
   status,
+  ...dsFields(modality),
 });
 
-const img = (id: string, modality: Modality): ImageMeta => ({
-  id,
-  center: "c",
-  cf: null,
-  methods: [],
-  modality,
-});
+const img = (id: string, modality: Modality): ImageMeta => objectMeta({ id, center: "c", modality });
 
 function ui() {
   return render(

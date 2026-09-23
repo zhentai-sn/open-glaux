@@ -2,6 +2,7 @@
 // 用今天的四槽字段与逐模态 select 动作写；W3 收成 `focus` + `openObject` 时只改
 // currentObjectId() 的取值方式，断言语义不动。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { objectMeta, taskFields } from "../test/fixtures";
 
 import { api } from "../api/client";
 import type { ImageMeta, ModelInfo, Modality, TaskOutput, TaskView } from "../api/types";
@@ -28,7 +29,7 @@ function currentObjectId(s: S = useSession.getState()): string | null {
 const INITIAL = useSession.getState();
 
 function meta(id: string, modality: Modality): ImageMeta {
-  return { id, center: "test", cf: modality === "carotid_imt" ? 0.06 : null, methods: [], modality };
+  return objectMeta({ id, center: "test", cf: modality === "carotid_imt" ? 0.06 : null, modality });
 }
 
 function task(t: TaskView["task"], modality: Modality, viewer: string): TaskView {
@@ -44,6 +45,7 @@ function task(t: TaskView["task"], modality: Modality, viewer: string): TaskView
     overlays: [],
     capabilities: [],
     on_commit: null,
+    ...taskFields(modality),
   };
 }
 
