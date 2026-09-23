@@ -13,16 +13,27 @@ P6 扩展：CT 模态走 ``voxel_spacing``——``value`` 是 ``(sx, sy, sz)`` m
 P7 扩展：病理 WSI 模态走 ``mpp``（microns per pixel）——``value`` 是 ``(mpp_x, mpp_y)``
 µm/px tuple，由 OpenSlide ``openslide.mpp-x/y`` 属性解析。读不出/非正 → 硬拒绝。
 与 US 的 cf (mm/px) 不可互换：WSI 密度是 count / (ROI 面积 mm²)，面积用 mpp 换算。
+
+SDD 10 扩展：视频模态走 ``time_base``——:func:`resolve_video_calibration` 由容器 fps 构造。
+
+派发入口（SDD 10 §7 规则 7、D-16）：对象标定一律经 :func:`calibration_from_dict` 构造、
+经 :func:`resolve_calibration_for` 派发。``Calibration.kind`` 是开放集，已知值
+``mm_per_px`` / ``voxel_mm`` / ``mpp_um`` / ``time_base``；未知 kind、缺 kind 或 value 形状
+非法一律 :class:`HardReject` 并记 warning 日志，绝不回落为默认标定。
 """
 
 from __future__ import annotations
 
+import logging
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
+from typing import Any, Union
 
 from glaux_core.errors import HardReject
+
+_log = logging.getLogger("glaux.calibration")
 
 
 class CFSource(str, Enum):
@@ -32,6 +43,7 @@ class CFSource(str, Enum):
     MANUAL_CLICK = "manual_click"
     VOXEL_SPACING = "voxel_spacing"  # P6：CT 体素物理尺寸（mm/voxel，3 元 tuple）
     MPP = "mpp"  # P7：WSI 像素物理尺寸（µm/px，2 元 tuple (mpp_x, mpp_y)）
+    TIME_BASE = "time_base"  # SDD 10：视频时间基（value=fps，float）
 
 
 @dataclass(frozen=True)
@@ -135,3 +147,87 @@ def resolve_wsi_calibration(mpp_xy: tuple[float, float]) -> CalibrationResult:
         value=(mx, my),
         provenance={"mpp_xy_um": [mx, my], "source": "openslide.mpp"},
     )
+
+
+def resolve_video_calibration(fps: float, time_base: Any = None) -> CalibrationResult:
+    """视频标定：fps 必正、必有；读不出（None/非数/非正）走 :class:`HardReject`。
+
+    ``time_base`` 为容器时间基（如 ``"1/30000"``），原样记入 provenance，不参与计算。
+    """
+    try:
+        fps_f = float(fps)
+    except (TypeError, ValueError):
+        raise HardReject(f"视频 fps 非数：{fps!r}") from None
+    if not (fps_f > 0) or math.isinf(fps_f):
+        raise HardReject(f"视频 fps 非正/非有限：{fps!r}")
+    return CalibrationResult(
+        source=CFSource.TIME_BASE,
+        value=fps_f,
+        provenance={"fps": fps, "time_base": time_base, "source": "container"},
+    )
+
+
+def _reject(kind: Any, source: Any, reason: str) -> HardReject:
+    _log.warning("calibration rejected: kind=%r source=%r reason=%s", kind, source, reason)
+    return HardReject(f"标定无法解析（kind={kind!r}, source={source!r}）：{reason}")
+
+
+def _positive_number(v: Any) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    return f if f > 0 and not math.isinf(f) else None
+
+
+def calibration_from_dict(d: Mapping[str, Any]) -> CalibrationResult:
+    """``Calibration`` dict（``{kind, value, source?, provenance?}``）→ :class:`CalibrationResult`。
+
+    按 ``kind`` 派发（开放集，D-16）：``mm_per_px`` → CUBS 同形（cf=value）；``voxel_mm`` →
+    :func:`resolve_ct_calibration`；``mpp_um`` → :func:`resolve_wsi_calibration`；``time_base``
+    （value 为 ``{fps, time_base?}``）→ :func:`resolve_video_calibration`。未知/缺失 kind 或
+    value 形状非法 → :class:`HardReject`（并记 warning 日志，含 kind 与 source）。
+    """
+    if not isinstance(d, Mapping):
+        raise _reject(None, None, f"标定不是 mapping：{type(d).__name__}")
+    kind = d.get("kind")
+    source = d.get("source")
+    value = d.get("value")
+    try:
+        if kind == "mm_per_px":
+            cf = _positive_number(value)
+            if cf is None:
+                raise HardReject(f"mm_per_px 须为正数：{value!r}")
+            return CalibrationResult(
+                source=CFSource.CUBS, cf=cf, value=cf,
+                provenance={"cf": value, "source": source},
+            )
+        if kind == "voxel_mm":
+            if isinstance(value, (str, bytes, Mapping)) or not hasattr(value, "__len__"):
+                raise HardReject(f"voxel_mm 须为 3 元序列：{value!r}")
+            return resolve_ct_calibration(tuple(value))  # type: ignore[arg-type]
+        if kind == "mpp_um":
+            if isinstance(value, (str, bytes, Mapping)) or not hasattr(value, "__len__"):
+                raise HardReject(f"mpp_um 须为 2 元序列：{value!r}")
+            return resolve_wsi_calibration(tuple(value))  # type: ignore[arg-type]
+        if kind == "time_base":
+            if not isinstance(value, Mapping) or "fps" not in value:
+                raise HardReject(f"time_base 须为含 fps 的 mapping：{value!r}")
+            return resolve_video_calibration(value["fps"], value.get("time_base"))
+    except HardReject as e:
+        raise _reject(kind, source, str(e)) from e
+    except (TypeError, ValueError) as e:
+        raise _reject(kind, source, f"value 形状非法：{value!r}（{e}）") from e
+    raise _reject(kind, source, "未知或缺失的标定 kind")
+
+
+def resolve_calibration_for(obj: Any) -> CalibrationResult:
+    """对象（``ObjectMeta`` 或带 ``calibration`` 属性者）或 ``Calibration`` 本身 → 标定结果。
+
+    ``calibration`` 为 ``None`` → :class:`HardReject`；pydantic 模型先 ``model_dump()``。
+    """
+    cal = getattr(obj, "calibration", obj)
+    if cal is None:
+        raise HardReject("对象无标定（calibration=None）——拒绝输出无标定测量")
+    if hasattr(cal, "model_dump"):
+        cal = cal.model_dump()
+    return calibration_from_dict(cal)

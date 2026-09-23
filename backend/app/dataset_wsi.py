@@ -171,13 +171,16 @@ def image_meta(slide_id: str) -> dict:
 
 # --- SDD 10 数据轴：病理 WSI Source -------------------------------------------------
 # 上面的函数体零改。openslide 缺失时 probe 为 False（可选依赖缺失是状态，不是错误）。
-# slide 的取帧（level + roi 下的 read_region）随 W2 的 /objects/{id}/frame 落地。
+# slide 取帧按 OpenSlide level（强制）+ level-0 roi 读块（SDD 10 §5.2）。
 
 from pathlib import Path  # noqa: E402
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, Calibration, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, resources_for  # noqa: E402
+from .sources.base import FrameTooLarge, SourceBase, resources_for  # noqa: E402
+
+#: 单次取帧在目标 level 上读出的像素上限（与 SDD 10 §5.2 的 64 Mpx 同值）。
+MAX_READ_PX = 64_000_000
 
 
 def _openslide_ok() -> bool:
@@ -209,6 +212,9 @@ class WsiSource(SourceBase):
             root=config.WSI_ROOT,
             origin="builtin",
             calibration={"mpp": "openslide props"},
+            provider="OpenSlide",
+            license="CC BY",
+            desc="H&E 全切片 demo · MPP 标定",
         )
 
     def list_ids(self, source: DataSource) -> list[str]:
@@ -244,6 +250,37 @@ class WsiSource(SourceBase):
 
     def tile(self, source, object_id, level, col, row):
         return tile(object_id, level, col, row)
+
+    def frame(self, source, object_id, index, *, roi=None, size=None, window=None):
+        """OpenSlide ``level``（强制）上读 ``roi``（level-0 px，缺省整片）→ PNG + ReferenceFrame。
+
+        ``scale`` = 对象（level-0）坐标 → 返回图像素：1/downsample × 缩放。读出像素数超过
+        :data:`MAX_READ_PX` 时 ``ValueError``（端点在此之前按 roi 面积给 413）。
+        """
+        from .schemas import ReferenceFrame
+        from .sources.base import _png
+
+        obj = self.meta(source, object_id)
+        index = self.default_index(obj, index)
+        w, h = obj.axis("x").size, obj.axis("y").size
+        x0, y0, x1, y1 = (0, 0, w, h) if roi is None else (roi.x0, roi.y0, roi.x1, roi.y1)
+        if roi is not None and (roi.kind != "box" or not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h)):
+            raise ValueError(f"roi 越界或非 box：({x0},{y0},{x1},{y1})，slide {w}×{h}")
+        down = float(_open(object_id).level_downsamples[index.level])
+        rw, rh = max(1, round((x1 - x0) / down)), max(1, round((y1 - y0) / down))
+        if rw * rh > MAX_READ_PX:
+            raise FrameTooLarge(f"level {index.level} 下读出 {rw}×{rh} 像素，超过上限")
+        # OpenSlide read_region：位置是 level-0 坐标，尺寸是目标 level 的像素数
+        img = _open(object_id).read_region((int(x0), int(y0)), int(index.level), (rw, rh))
+        img = img.convert("RGB")
+        scale = 1.0 / down
+        if size is not None and max(img.size) > size:
+            k = size / max(img.size)
+            img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))))
+            scale *= k
+        ref = ReferenceFrame(object_id=object_id, index=index, origin=(float(x0), float(y0)),
+                             scale=scale, width=img.width, height=img.height)
+        return _png(img), "image/png", ref
 
     def detect_calibration(self, root: Path) -> dict:
         """读该文件夹第一张 slide 的 OpenSlide mpp → {"mpp": [mx, my]}。读不出 → {}。"""

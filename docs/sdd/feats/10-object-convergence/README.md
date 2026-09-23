@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0 已准出；W1 代码与门禁完成、待维护者审阅（门禁结果与待决偏差见执行记录 W1 节） |
+| 当前阶段 | 契约冻结；W0、W1 已准出；W2 代码与门禁完成、待维护者审阅（见执行记录 W2 节） |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -84,13 +84,13 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
-| `SOURCES[modality].probe(root)` | 一个数据根目录 `Path` | 取代 `backend/app/config.py:119` `root_has_data` 的模态 if 阶梯；返回 `False` 即该源在 `GET /datasources` 标 unavailable，不得抛异常 |
+| `SOURCES[modality].probe(root)` | 一个数据根目录 `Path` | 取代 `backend/app/config.py:119` `root_has_data` 的模态 if 阶梯；返回 `False` 即该源在 `GET /datasources` 不为 `active`（内置示例源为 `empty`），不得抛异常 |
 | `SOURCES[modality].list_ids(source)` | 一个 `DataSource` | 返回该源下全部对象 id；同时是 `resolve_object` 索引的构建输入（见 §4.2） |
 | `SOURCES[modality].formats` | 无 | `tuple[tuple[str, bytes, int], ...]`，即 `(后缀, 魔数, offset)`；是 `backend/app/upload_store.py:20` `_MAGIC` 与 `GET /datasources` 的 `importable` 的唯一来源，取代 `backend/app/routers/uploads.py` 固定模态 `natural_image` 的写法 |
 | `SOURCES[modality].detect_calibration(root)` | 数据根目录 | 取代 `backend/app/datasource_detect.py:56-61` 的 `pathology`／`ct_abdomen` 两条模态 if；探测不出返回 `{}`，落为 `status=needs_calibration`，不得出假值 |
 | `SOURCES[modality].builtin_sample()` | 无 | 返回 `DataSource \| None`，取代 `backend/app/datasource_registry.py:92` `_builtin_specs` 的硬编码列表；provider／license 在此提供 |
 | `SOURCES[modality].invalidate()` | 无 | 取代 `backend/app/caches.py` 的 `_CACHED` 模块级缓存；数据源注册／删除时逐 Source 调用 |
-| `dev_mode()` 下显式注册 | 环境开关，见 `backend/app/datasource_registry.py:68` | 合成源 `synthetic-us`、`synthetic-hc` 只在 `dev_mode()` 为真时进入 `SOURCES`；非开发态无数据即空态，不存在 mock 隐式回退 |
+| `SOURCES[modality].synthetic_sample()` | 无；仅 `dev_mode()` 为真时调用，见 `backend/app/datasource_registry.py` | 合成源 `synthetic-us`、`synthetic-hc` 是由对应模态的 `Source` 提供的 `DataSource`，只在开发者模式列出，且仅当同模态没有其他 `active` 源时为 `active`（合成颈动脉 id 与 CUBS 真实 id 同形，二者同时 `active` 会违反 §10 的 `resolve_object` 恒等）；非开发态无数据即空态，不存在 mock 隐式回退 |
 
 浏览器上传与服务端目录导入是同一张表的两个入口：`POST /uploads/images` 的落盘目标必在导入白名单根之下，模态由 `formats` 与 `probe` 推断而非客户端指定；`POST /datasources` 的 `modality` 必须命中 `SOURCES` 键，否则 422。
 
@@ -418,7 +418,7 @@ flowchart LR
 
 | 表 | 键 | 定义处 | 唯一写入者 | 职责 |
 | --- | --- | --- | --- | --- |
-| `SOURCES` | `modality` | `backend/app/sources/__init__.py`（新建） | 各 `dataset_*.py` 模块末尾的 `Source` 实现，导入时注册 | 数据轴：`probe` / `list_ids` / `is_mine` / `meta` / `frame` / `raw` / `tile` / `detect_calibration` / `builtin_sample` / `invalidate`；`MODALITIES = tuple(SOURCES)` |
+| `SOURCES` | `modality` | `backend/app/sources/__init__.py`（新建） | 各数据模块末尾定义 `SOURCE = <XxxSource>()`，由 `sources/__init__.py` 的 `_MODULES` 按序登记（一模态一行，顺序即 `MODALITIES` 顺序），首次访问时惰性构建 | 数据轴：`probe` / `list_ids` / `is_mine` / `meta` / `frame` / `raw` / `tile` / `detect_calibration` / `builtin_sample` / `invalidate`；`MODALITIES = tuple(SOURCES)` |
 | `DETECTORS` | `adapter_kind` | `backend/app/detectors/__init__.py`（新建） | 四个 `Detector` 实现（由 `kernel.py` 的四支分支拆出） | 动作轴：`available` / `methods` / `detect` / `reference` / `apply_edit` / `verify` |
 | `REGISTRY` | `task` | `science-core/glaux_core/tasks.py:188` | `tasks.py` 内的字面注册行 | 任务能力单一事实源，本 SDD 只为 `TaskPlugin` 追加 `object_kinds`/`trigger`/`classes` 并扩 `capabilities` 开放集，不迁移、不拆包 |
 
@@ -636,7 +636,12 @@ class Source(Protocol):
     def invalidate(self) -> None: ...                       # 取代 caches._CACHED
 
 class SourceBase:
-    """缺省实现基类：meta() 后统一从 axes/calibration 回填过渡期旧字段——服务端只有一套真相（D-10）。"""
+    """缺省实现基类：meta() 后统一从 axes/calibration 回填过渡期旧字段——服务端只有一套真相（D-10）。
+
+    Protocol 之外的挂点（不改 Protocol 签名）：describe()（子类给长期字段）、synthetic_sample()
+    （开发者模式合成源）、derive_id(source, rel_name)（上传回执 id）、locate(object_id)（is_mine 兜底
+    取数据源）、encoded()/render()（取帧快路径与解码）、calibration_required、supports_window /
+    default_window、label（label_key 由 modality 派生）。"""
 
 SOURCES: dict[str, Source] = {}                        # datasource_registry.MODALITIES = tuple(SOURCES)
 
@@ -856,7 +861,7 @@ stateDiagram-v2
 | `remove`（同文件 `:344`） | 失效并重建 | 被移除源的 id 从索引消失，其后解析走 404 而非兜底命中。 |
 | `Source.invalidate()` | 失效 | 数据缓存与索引一并作废；重建在下次解析时发生。 |
 
-索引未命中时按 D-7 遍历 `SOURCES[*].is_mine` 兜底；兜底仍未命中即 `LookupError`，不得回落到任何合成源（D-17）。`synthetic-us` / `synthetic-hc` 只在 `dev_mode()` 下作为正常 Source 注册，其对象与真实对象走同一条解析路径。
+索引未命中时按 D-7 遍历 `SOURCES[*].is_mine` 兜底；兜底仍未命中即 `LookupError`，不得回落到任何合成源（D-17）。`synthetic-us` / `synthetic-hc` 只在 `dev_mode()` 下作为 `DataSource` 列出，且与同模态的其他 `active` 源互斥（见 §4.1），其对象与真实对象走同一条解析路径。
 
 ### 11.3 过渡物生命周期
 
@@ -866,6 +871,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `ObjectMeta` 的 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` | W1 | `SourceBase` 从 `axes` / `calibration` 回填；前端 lint 禁读 | W7 |
 | `ImageMeta`（TS 与 Python 别名） | W1 | 指向 `ObjectMeta` | W7 |
+| `ObjectMeta.center` 顶层字段与 `methods` 的字符串数组形状 | W1 | `center` 由 `SourceBase` 从 `meta.center` 回填；`methods` 暂为方法名数组（前端直读二者） | W3（前端改读 `meta` 与 `methods[].role` 时同提交切换） |
 | `TaskSpec` 的 `cubs_cf` / `roi` / `roi_box` | W1 | `_legacy` validator 映射为 `calibration` / `region` | W7 |
 | 端点 alias（`/volumes`、`/slides`、`/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{slide_id}/tile/{level}/{col}/{row}`） | W2 | 内部转调 `/objects/*`，双通 | W7 |
 | `ViewerContext` 的 `image_id` / `modality` / `cubs_cf` / `roi_box` | W5 | `object` / `focus` 优先，旧字段仅在缺失时映射并 warn | W7 |
@@ -881,7 +887,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - **旧字段映射必须 warn 且可计数**：`parseViewer`（`agent-runtime/src/transport/routes.ts:325`）在 `object` / `focus` 缺失而回落到 `image_id` / `modality` / `cubs_cf` / `roi_box` 时，每次输出一条 warn 并累加计数；后端 `TaskSpec._legacy` 命中 `cubs_cf` / `roi` / `roi_box` 时同样 warn。计数为 0 是 W7 的准入条件，故计数必须可在一次完整回归后读出。
 - **`Calibration` 开放集的未知 `kind` 不静默**：`calibration_from_dict` 遇未知 `kind` 抛 `HardReject`（D-16），不得回落为默认标定；该路径必须留日志，说明收到的 `kind` 与 `source`。
 - **索引兜底留痕**：`resolve_object` 走 `is_mine` 兜底命中时记一条 info 级日志（含 `object_id` 与命中的 `source`）。兜底命中率异常升高意味着索引重建时机有缺口。
-- **可选依赖缺失是状态不是错误**：`VideoSource` 在 PyAV 缺失时 `probe` 返回 `False`，在 `GET /datasources` 标 `unavailable`，只记一条启动期 info，不在每次请求时刷日志。
+- **可选依赖缺失是状态不是错误**：`VideoSource` 在 PyAV 缺失时 `probe` 返回 `False`，`GET /datasources` 中该源不为 `active`，只记一条启动期 info，不在每次请求时刷日志。
 - **门禁检查落在 CI 而非运行时**：`scripts/ci/check-modality-literals.sh` 统计 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）的模态字面量比较命中数，W0 起只打印基线，W7 转阻断并纳入 `make test` 前置。模态字面量不做运行时检测。
 - **过程证据不进活文档**：grep 基线数、新旧 meta 逐字段 diff、git diff 零改清单、手工回归签字表一律写入执行记录 record（见 §0）。本 SDD 正文只保留最新结论。
 
@@ -903,8 +909,8 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 | `Detector` 不可用（模型层/可选依赖未装配） | `RuntimeError` | 503 | Notice「该能力未装配」，工具按钮不置灰而是不出现 | `run_task` 公共前缀②拦截；`Detector.available()` 为假即不下发该能力位 |
 | `region.kind` 不在 `Detector.accepted_regions` 中 | `ValueError` | 422 | Notice 指明该任务接受的选区类型 | `run_task` 公共前缀③拦截；已画出的选区保留 |
 | 未知 `Calibration.kind` | `HardReject` | 422 | Notice「标定类型无法识别」，不显示任何测量数值 | `calibration_from_dict` 抛出（D-16），**不得回落为默认标定或输出近似值** |
-| `Source.probe` 未命中（源目录无该模态数据） | — | — | 该模态不出现在切换器、`/datasources` 标 `unavailable`、ImportPanel 无该项 | 数据源层状态而非请求错误；不产生 4xx |
-| 可选依赖缺失（如 PyAV 未装） | — | — | 同上，`/datasources` 标 `unavailable` | 惰性 import 失败即 `probe` 返 `False`，不影响其他模态 |
+| `Source.probe` 未命中（源目录无该模态数据） | — | — | 该模态不出现在切换器、`/datasources` 中该源不为 `active`、ImportPanel 无该项 | 数据源层状态而非请求错误；不产生 4xx |
+| 可选依赖缺失（如 PyAV 未装） | — | — | 同上，`/datasources` 中该源不为 `active` | 惰性 import 失败即 `probe` 返 `False`，不影响其他模态 |
 | 编辑并发冲突（`base_seq` 不符） | `CONFLICT` | 409 | 「内容已被更新，请重试」 | `POST /objects/{id}/edits` 整请求拒绝且不产生写；前端丢弃乐观草稿并重拉 |
 | `Focus.kind` 与所指对象的 `ObjectMeta.kind` 不一致 | — | — | 无用户可见差异 | 以 `ObjectMeta.kind` 为准重建 `Focus` 并记一条 warn；不得按 `Focus.kind` 选引擎 |
 | 新旧字段同时出现（`object`/`focus` 与 `image_id`/`roi_box` 并存） | — | — | 无用户可见差异 | **新字段优先，旧字段整体忽略**；`parseViewer` 仅在新字段缺失时映射旧字段并 warn（D-9）。两者不做逐字段合并，避免半新半旧的混合焦点 |
@@ -930,7 +936,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - **[07-natural-image-sam-demo](../07-natural-image-sam-demo/README.md)**（`implemented`，**本 SDD 为上游**）：`natural_image` 由「特例模态」改述为「无 `TaskView` 的模态」，走 §13 的显式 no-task 契约与通用空态，能力位默认集见 §9.4；`SegmentationClient` 改为 `SegmenterPort` 的首个实现。逐条对照：其 §1 冻结的 Viewer Context 契约改指向本 SDD §9.1 的五字段 `ViewerContext`；§5.3／§9.3 的 `naturalImages`／`activeImage` 随 §9.1 的 `objects` + `focus` 作废；§7 规则 3「选择自然图像必须清空 `activeVolume`／`activeSlide`／ROI」由 §11.1 的「切对象即重置」取代；§7 规则 6 的 `raster_2d` 兜底由 D-11 的「`ENGINES` 缺键渲染空态」取代。
 - **[08-data-import-first-explorer](../08-data-import-first-explorer/README.md)**（`implemented`，**互为边界，本 SDD 为响应体上游**）：数据轴入口 `GET /images?modality=`、`GET /datasources`、`POST /datasources/samples` 的**路径与查询参数不变**，`/objects/{id}/*` 挂在其数据轴之下；其 §1 的「冻结」需改写为「路径与查询参数冻结，响应体按 SDD 10 演进」，并新增「SOURCES 与 DataSource 的关系」小节。其 D-1 的「标签仍取自 `/tasks`」与 §7 规则 1、规则 3 由本 SDD §9.3 的 `label_key` → `label` → `modality` 顺序取代（D-22）；其 §2 与 §7 规则 9 的 mock 回退承诺由 D-17 取代，须在同提交删除，原「503 语义」按本 SDD §13 的「`Source.probe` 未命中不产生 4xx」重述；其 §9.4 的 `glaux.recent.v1` 与 `RecentItem` 结构由本 SDD §9.5 的 v2 单向迁移取代（新增必填 `kind`，`modality` 放宽为 `string`）。以上四处须在同提交修订。`DataSource` 增 `kind` / `label` / `label_key` / `importable`；ImportPanel 的 `accept` 由 `/datasources` 的 `importable` 下发而非前端白名单；上传模态由 `Source.formats` 推断；mock 与 hc_synth 改 `dev_mode()` 下显式注册。`dev_mode()`、`resolve_root`、`register_folder` 的白名单、确定性 id 与 `sources.json` 三项不动。
 - **[09-chat-distribution](../09-chat-distribution/README.md)**（`implemented`，**本 SDD 为上游，且是每波的回归约束**）：chat 发行包镜像内无 Python 后端，`useConversation` 中 `CHAT_EDITION ? undefined : toViewerContext()` 的短路是唯一保护。凡触碰 `toViewerContext`、示例卡或观测通道的改动，准出都必须包含 `frontend/src/chatEdition.test.tsx` 与 `agent-runtime/tests/integration/chat-edition.test.ts` 两份用例绿灯，并断言 chat 模式下不挂载需要 `focus` 的工具、不发起 `fetchObservation`。
-- **[公共规范 01 · 多组件版本与发布治理](../../01-version-release-governance.md)**（`implemented`，**本 SDD 为下游**）：新增 backend 可选依赖 `av`（PyAV）须同提交更新 `scripts/version_matrix.py` 并通过 `make test-version`；chat 镜像、桌面壳与 agent-runtime 是三个独立发布物，过渡物删除的时点受其版本关系约束（见 §11.3 的 W7 前置）。
+- **[公共规范 01 · 多组件版本与发布治理](../../01-version-release-governance.md)**（`implemented`，**本 SDD 为下游**）：新增 backend 可选依赖 `av`（PyAV，extra `video`）须同提交更新 `backend/uv.lock` 并通过 `make test-version`（`scripts/version_matrix.py` 只校验版本事实源与锁文件中的项目版本镜像，不感知依赖，无需修改）；chat 镜像、桌面壳与 agent-runtime 是三个独立发布物，过渡物删除的时点受其版本关系约束（见 §11.3 的 W7 前置）。
 
 - **SDD 11「视频理解 harness」**（未建，**本 SDD 为上游**）：以本 SDD 的 `ObjectMeta.streams[]`、`resources.audio`、`Focus.index.t`、`ReferenceFrame` 与 `fetchObservation` 为底座，冻结视频观测的形状——时间以秒寻址、长视频的分层导航、音画按时间区间同步交付、模型时序发现的记录原语。本 SDD 不反向依赖它；在它 `ready` 之前，`resources.audio` 不得被消费（§7 规则 22）。起草时点建议在 W2 之后，届时 `GET /objects/{id}/frame` 与 `X-Glaux-Frame` 已可运行，观测通道可实测而非纸面推演。
 
@@ -946,7 +952,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 #### A. ObjectMeta（元数据单一形状）
 
-- [ ] 过渡期（W1～W7）：`GET /images?modality=ct_abdomen` 返回的首个元素的键集合等于 `ObjectMeta` 的字段集合（`id, kind, modality, source_id, display_name, axes, calibration, resources, methods, meta` 加四个过渡字段 `cf, voxel_spacing_mm, mpp_um, dims`），无其它额外顶层字段。
+- [ ] 过渡期（W1～W7）：`GET /images?modality=ct_abdomen` 返回的首个元素的键集合等于 `ObjectMeta` 的字段集合（`id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta` 加过渡字段 `center, cf, voxel_spacing_mm, mpp_um, dims`；`center` 于 W3 删除），无其它额外顶层字段。
 - [ ] 同一对象经 `GET /images?modality=` 与 `GET /objects/{id}` 返回的公共字段逐字段相等（同一构造路径，非两处各算一份）。
 - [ ] 过渡期快照测试：`SourceBase` 回填的 `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 与收敛前各模块直出值逐字段 diff 为空（含舍入与轴序）。diff 不空按缺陷处理，不得改期望值。
 - [ ] `ObjectMeta.axes` 对四种 `kind` 均非空，且 `axes[].name` 取自 `x/y/z/t/level`、`size > 0`；`meta.center` 缺失时任何消费方不抛异常。
@@ -1017,7 +1023,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 #### J. 根本目标：第七个模态不必改核心
 
-- [ ] **新增一个 Source 的改动文件数不超过 3**：新建 `backend/app/dataset_<modality>.py`（Source 实现加注册）、`backend/pyproject.toml`（仅当引入新依赖）、`scripts/version_matrix.py`（同上）。以 `backend/app/dataset_video.py` 为实测样本，`git diff --name-only` 的结果不含 `datasource_registry.py`、`config.py`、`caches.py`、`annotations/*`、`upload_store.py`、`routers/*`、`kernel.py`、`schemas.py`。
+- [ ] **新增一个 Source 的核心改动只有一行登记**：新建 `backend/app/dataset_<modality>.py`（Source 实现）、`backend/app/sources/__init__.py` 的 `_MODULES` 加一行，另加依赖文件 `backend/pyproject.toml` 与 `backend/uv.lock`（仅当引入新依赖）；`Modality` 放宽为 `str` 之前另需在 `schemas.py` 的 Literal 追加一值。以 `backend/app/dataset_video.py` 为实测样本，其余改动不含 `datasource_registry.py`、`config.py`、`caches.py`、`annotations/*`、`upload_store.py`、`routers/*`、`kernel.py`、`schemas.py`。
 - [ ] **前端零专属代码**：新模态在模态切换器出现、可打开、可滚动索引、可画标注，`git diff --name-only frontend/src` 除注册表一行（`ENGINES`/`PAINTERS`/`CHROME_SEGMENTS`，视是否需要新几何族）外无改动；`kind` 已有引擎时该行也不需要。
 - [ ] **删源用例（D-14）**：从 `SOURCES` 删除任一 Source 后，三端均可启动、`make test` 中与该模态无关的用例全绿，且该模态同时从 `GET /datasources`、`GET /images?modality=`、模态切换器、上传魔数表四处消失，无残留分支。
 - [ ] **字面量门禁**：`check-modality-literals.sh` 在 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）上命中数为 0；W7 后该脚本为阻断式并纳入 `make test` 前置。

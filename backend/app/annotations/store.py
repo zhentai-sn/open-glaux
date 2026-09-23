@@ -1,7 +1,11 @@
 """统一标注存储（SDD 04 §8/§9/§10）——stdlib sqlite3 单文件 + mask PNG 外挂。
 
 设计不变量：
-- 表结构严格对齐 SDD 04 §9.1（CHECK 约束 + ``(image_id, z)`` 索引）；
+- 表结构严格对齐 SDD 04 §9.1（CHECK 约束 + ``(image_id, z)`` 索引）；CHECK 取值由
+  ``_KINDS``/``_STATUSES``/``_SOURCES`` 生成，不另写一份；
+- 库结构版本记在 ``PRAGMA user_version``（当前 ``SCHEMA_VERSION = 1``），打开时单事务升级
+  （SDD 10 §9.5）；``z`` 列存对象的当前第三轴取值（volume=z / video=t / slide=level），
+  轴名由对象 kind 决定，存储层不知道 kind；
 - ``base_seq`` 乐观并发：update/delete 携带的 ``base_seq`` 与当前 ``seq`` 不等 → ``CONFLICT``；
 - mask 标注的栅格数据不进表：base64 PNG 落 ``masks/<id>.png``，表内存 ``mask_ref``；
   删标注连带删文件；
@@ -22,30 +26,54 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-_KINDS = ("bbox", "polyline", "mask")
+_KINDS = ("bbox", "polyline", "mask", "point")
 _STATUSES = ("draft", "confirmed", "suggested", "rejected")
 _SOURCES = ("manual", "model", "agent")
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS annotations (
+#: 库结构版本（``PRAGMA user_version``）。0 = 无版本标记的首版库（kind 三值 CHECK）；
+#: 1 = SDD 10 §9.5（kind CHECK 与 ``_KINDS`` 同步，``z`` 列语义为当前第三轴取值）。
+SCHEMA_VERSION = 1
+
+
+def _in_list(values: tuple[str, ...]) -> str:
+    return ",".join(f"'{v}'" for v in values)
+
+
+def _table_ddl(name: str) -> str:
+    """建表 DDL——CHECK 取值由常量生成，常量是唯一事实源。"""
+    return f"""CREATE TABLE {name} (
     id             TEXT PRIMARY KEY,
     image_id       TEXT NOT NULL,
     z              INTEGER,
-    kind           TEXT NOT NULL CHECK(kind IN ('bbox','polyline','mask')),
+    kind           TEXT NOT NULL CHECK(kind IN ({_in_list(_KINDS)})),
     primitive_json TEXT NOT NULL,
     label          TEXT NOT NULL DEFAULT '',
     class_id       INTEGER,
     status         TEXT NOT NULL DEFAULT 'draft'
-                   CHECK(status IN ('draft','confirmed','suggested','rejected')),
+                   CHECK(status IN ({_in_list(_STATUSES)})),
     source         TEXT NOT NULL DEFAULT 'manual'
-                   CHECK(source IN ('manual','model','agent')),
+                   CHECK(source IN ({_in_list(_SOURCES)})),
     seq            INTEGER NOT NULL DEFAULT 1,
     mask_ref       TEXT,
     created_at     TEXT NOT NULL,
     updated_at     TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_annotations_image ON annotations(image_id, z);
-"""
+)"""
+
+
+_COLUMNS = (
+    "id, image_id, z, kind, primitive_json, label, class_id, "
+    "status, source, seq, mask_ref, created_at, updated_at"
+)
+_INDEXES = ("CREATE INDEX idx_annotations_image ON annotations(image_id, z)",)
+
+#: v0 → v1 的语句序列（单事务内顺序执行；任何一步失败整体回滚）。
+_MIGRATE_V0_V1: tuple[str, ...] = (
+    _table_ddl("annotations_v1"),
+    f"INSERT INTO annotations_v1 ({_COLUMNS}) SELECT {_COLUMNS} FROM annotations",
+    "DROP TABLE annotations",
+    "ALTER TABLE annotations_v1 RENAME TO annotations",
+    *_INDEXES,
+)
 
 
 class AnnotationError(Exception):
@@ -85,6 +113,12 @@ def validate_primitive(kind: str, primitive: dict) -> dict:
                 "INVALID_GEOMETRY", "标注多边形须闭合（closed=true）；开放折线归任务管线"
             )
         return {"kind": "polyline", "closed": True, "points": pts}
+    if kind == "point":
+        try:
+            x, y = float(primitive["x"]), float(primitive["y"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise AnnotationError("INVALID_GEOMETRY", f"point 需 x/y 数值字段：{e}") from e
+        return {"kind": "point", "x": x, "y": y}
     # mask：几何在 PNG 里，primitive 只带 ref（由 store 落盘后填）
     return {"kind": "mask"}
 
@@ -99,8 +133,11 @@ class AnnotationStore:
         self.masks.mkdir(exist_ok=True)
         self._conn = sqlite3.connect(self.root / "annotations.sqlite", check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        try:
+            _ensure_schema(self._conn)
+        except Exception:
+            self._conn.close()
+            raise
 
     # --- 读 ---------------------------------------------------------------
 
@@ -110,16 +147,25 @@ class AnnotationStore:
         ).fetchone()
         return _row_to_dict(row) if row else None
 
-    def list(self, image_id: str, z: int | None = None) -> list[dict]:
-        if z is None:
-            rows = self._conn.execute(
-                "SELECT * FROM annotations WHERE image_id = ? ORDER BY created_at", (image_id,)
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                "SELECT * FROM annotations WHERE image_id = ? AND z = ? ORDER BY created_at",
-                (image_id, z),
-            ).fetchall()
+    def list(
+        self,
+        image_id: str,
+        z: int | None = None,
+        *,
+        z_from: int | None = None,
+        z_to: int | None = None,
+    ) -> list[dict]:
+        """某对象的标注；``z`` 精确匹配，``z_from``/``z_to`` 为闭区间（均作用于第三轴列）。
+
+        区间过滤排除 ``z IS NULL`` 的行（未绑定索引的标注不属于任何层/帧）。
+        """
+        sql = "SELECT * FROM annotations WHERE image_id = ?"
+        args: list = [image_id]
+        for op, value in (("=", z), (">=", z_from), ("<=", z_to)):
+            if value is not None:
+                sql += f" AND z {op} ?"
+                args.append(value)
+        rows = self._conn.execute(sql + " ORDER BY created_at", args).fetchall()
         return [_row_to_dict(r) for r in rows]
 
     # --- 写 ---------------------------------------------------------------
@@ -241,6 +287,43 @@ class AnnotationStore:
         rel = f"masks/{annotation_id}.png"
         (self.root / rel).write_bytes(data)
         return rel
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    """按 ``PRAGMA user_version`` 建库或升级（SDD 10 §9.5）；已是当前版本则不做任何事。
+
+    升级在单个显式事务内完成（建新表 → 拷数据 → 删旧表 → 改名 → 重建索引 → 置版本号），
+    任一步失败整体回滚并抛出：拒绝启动，原库保持原样，不做部分迁移。
+    """
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version == SCHEMA_VERSION:
+        return
+    if version > SCHEMA_VERSION:
+        raise RuntimeError(
+            f"标注库版本 {version} 高于本程序支持的 {SCHEMA_VERSION}——拒绝以旧程序打开新库"
+        )
+    has_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'annotations'"
+    ).fetchone()
+    if has_table:
+        steps: tuple[str, ...] = _MIGRATE_V0_V1
+    else:
+        steps = (_table_ddl("annotations"), *_INDEXES)
+    # 显式事务：sqlite3 模块的隐式事务不包 DDL，这里接管事务边界。
+    saved = conn.isolation_level
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for stmt in steps:
+                conn.execute(stmt)
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.isolation_level = saved
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:

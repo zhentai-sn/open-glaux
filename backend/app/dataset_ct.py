@@ -293,6 +293,9 @@ class CtSource(SourceBase):
             root=config.CT_ROOT,
             origin="builtin",
             calibration={"voxel_mm": "nifti header"},
+            provider="wasserth · TotalSegmentator",
+            license="Apache-2.0",
+            desc="腹部 CT NIfTI demo · voxel 标定",
         )
 
     def list_ids(self, source: DataSource) -> list[str]:

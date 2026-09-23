@@ -172,5 +172,5 @@ def test_task_run_nuclei_wrong_slide_id(monkeypatch):
         "roi_box": [0, 0, 100, 100], "method": "stardist_he",
     }
     r = client.post("/task/run", json=body)
-    assert r.status_code == 422
-    assert "WSI" in r.text or "slide" in r.text
+    assert r.status_code == 404  # 未知对象 id 一律 404（SDD 10 §13），不进检测
+    assert "nonexist" in r.text

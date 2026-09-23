@@ -14,12 +14,14 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | --- | --- | --- |
 | `GET /health` | — | 存活探测 |
 | `GET /tasks` | `glaux_core.tasks.REGISTRY` → `plugin_to_view` | 多模态前端的单一真相源 |
-| `POST /task/run` | `kernel.run_task`（取数 → 分割/检测 → 测量 → TaskOutput） | 前端选图/重跑 + agent-runtime `run_task` 工具的执行面 |
-| `POST /task/measure` | `kernel.measure_task`（注册表 `measure` 原语） | 人工修正后由图元重测 |
+| `POST /task/run` | `kernel.run_task`（公共前缀 → `DETECTORS[adapter_kind].detect` → 测量 → TaskOutput） | 前端选图/重跑 + agent-runtime `run_task` 工具的执行面；未知对象 404、几何族/选区/标定不符 422、检测不可用 503 |
+| `POST /task/measure` | `kernel.measure_task`（注册表 `measure` 原语） | 人工修正后由图元重测；标定收 `Calibration`（`cf` 为过渡字段） |
 | `GET /images` `GET /volumes` `GET /slides` | `SOURCES[modality]`（`app/sources/`） | 数据发现；元素为 `ObjectMeta`（SDD 10 §5.1） |
 | `GET /image/{id}` | `resolve_object` → `Source.frame` | 缺省索引的一帧；未知 id 404，slide 需 level 故 422 |
-| `GET /volume/{id}` `GET /volume/{id}/labelmap` `POST /volume/{id}/mask-edit` | `dataset_ct` / `segment_ts` | CT：NIfTI 流 + labelmap + 画笔编辑回流 |
-| `GET /wsi/{id}/tile/…` `GET /wsi/{id}/verify` | `dataset_wsi` / `segment_wsi` | 病理：DeepZoom 瓦片 + 复现验证 |
+| `GET /objects/{id}` `…/frame` `…/raw` `…/tiles/{l}/{c}/{r}` `POST …/edits` | `routers/objects.py` | 对象表征面（SDD 10 §5.2）：元数据、带 `X-Glaux-Frame` 的单帧、原始字节、瓦片、掩膜编辑 |
+| `GET /volume/{id}` `POST /volume/{id}/mask-edit` `GET /wsi/{id}/tile/…` | `routers/objects.py` 的 alias | 旧路径，与 `/objects/*` 字节等价，W7 删 |
+| `GET /volume/{id}/labelmap` | `segment_ts` | 任务结果字节面，有意保留 |
+| `GET /wsi/{id}/verify` | `Detector.verify`（`detectors/wsi.py`） | 病理复现验证，有意保留 |
 | `GET /models` `GET /capabilities` | 注册表 | 插件市场 / 能力清单 |
 | `GET/POST /datasources` `DELETE /datasources/{id}` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源 |
 | `POST /uploads/images` | `routers/uploads.py` | 浏览器上传（SDD 08）；模态由 `SOURCES[*].formats` 推断：图像 → `natural_image`，mp4 / webm → `video` |

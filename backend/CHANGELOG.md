@@ -11,6 +11,11 @@
 - `GET /datasources` 元素新增 `kind`、`label`、`label_key`、`importable`。
 - `video` 模态数据轴：mp4 / webm 的上传与文件夹导入、帧率探测、音轨声明（`streams[]` + `resources.audio`，不提供取流）、`GET /image/{vid}` 取第 0 帧。依赖 PyAV，作为可选 extra `video`。
 - 开发者模式下显式注册的合成源 `synthetic-us`、`synthetic-hc`，仅在同模态无其他 active 源时为 active。
+- 动作轴注册表 `DETECTORS`（`app/detectors/`，SDD 10 W2）：四个几何族各一个 `Detector`；`POST /task/run` 的公共前缀（解析对象、`object_kinds` 门控、可用性、选区类型、标定）只在 `kernel.run_task` 出现一次。
+- `/objects` 表征面：`GET /objects/{id}`、`GET /objects/{id}/frame`（`X-Glaux-Frame` 响应头，slide 取帧按 level + level-0 roi）、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`（`base_seq` 乐观并发）。
+- `TaskSpec` 新增 `calibration` 与 `region`；`POST /task/measure` 收 `calibration`（CT 的 voxel 标定重测可用）。
+- `GET /tasks` 每行新增 `object_kinds`、`trigger`、`classes`；CT 行能力位增 `voi`、`z_scroll`，WSI 行增 `verify`。
+- 标注：`AnnotationIn.index`（`z` 为一版别名）、`GET /annotations` 的 `index_from` / `index_to`、kind 增 `point`（仅存储）；标注库带 `PRAGMA user_version` 迁移（0 → 1）。
 
 ### Changed
 
@@ -18,6 +23,11 @@
 - `GET /image/{id}` 对 CT 返回第 0 层轴状位 PNG（原为 404），对 slide 返回 422（需 level，W2 落地）。
 - `POST /annotations` 的目标经 `resolve_object` 解析：未知对象一律 422，不再跳过范围校验。
 - `POST /uploads/images` 的模态由后缀与魔数推断，不再固定为 `natural_image`。
+- `Modality` / `TaskType` 由固定枚举放宽为字符串，取值由 `SOURCES` / 任务注册表校验；未注册模态 422。
+- `POST /task/run`：未知对象 404（原先按任务不同为 422 或返回合成结果）；未知标定 kind 422（原 503）；无 CUBS 数据时不再返回 mock 合成边界。
+- `GET /models` 由各 `Detector.methods()` 汇总，无数据时不再回退 mock 模型表。
+- `/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{id}/tile/…` 改为 `/objects/*` 的 alias（字节等价）；`/wsi/{id}/verify` 内部改调 `Detector.verify`。
+- 标注的第三轴索引（`z` / `index`）按对象的轴范围校验，越界 422。
 
 ### Fixed
 

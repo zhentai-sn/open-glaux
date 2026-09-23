@@ -7,7 +7,6 @@ import importlib.util
 import sys
 from importlib.metadata import version
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app import __version__, config
@@ -207,7 +206,7 @@ def test_hc_task_measure_roundtrips_from_run_primitives():
 
 def test_task_run_rejects_non_hc_id():
     """HC 任务喂颈动脉图 id → 硬拒绝（422，不在错模态上瞎跑）。"""
-    r = client.post("/task/run", json={"task": "fetal_hc", "image_id": "tech_401"})
+    r = client.post("/task/run", json={"task": "fetal_hc", "image_id": _a_demo_id()})
     assert r.status_code == 422
 
 
@@ -263,7 +262,7 @@ def test_task_run_hard_rejects_without_calibration():
 
 
 # --- 回归：SDD 10 收敛前的已知缺陷（xfail(strict)，对应波次转绿即须摘标记） ----------
-# 「未知 id → 404」已在 W1 转绿（resolve_object，无 mock 回退，D-17）。
+# 「未知 id → 404」于 W1、「/task/measure 携 voxel 标定」于 W2 转绿，标记均已删。
 
 
 def test_image_unknown_ct_id_404_without_cubs_data(tmp_path, monkeypatch):
@@ -315,11 +314,6 @@ def test_task_run_ct_returns_voxel_calibration(tmp_path, monkeypatch):
     assert out["metrics"]["liver_volume_mm3"]["value"] == 8 * 0.5 * 0.5 * 2.0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="turns green in W2 (calibration dispatch, SDD 10 D-16)；"
-    "现状 TaskMeasureRequest 只收 cf: float，缺 cf 即 422",
-)
 def test_task_measure_ct_with_voxel_calibration(tmp_path, monkeypatch):
     """/task/measure 携 voxel 标定重测 CT 体掩膜应成功，且与 /task/run 同值（SDD 10 §15.1 C）。"""
     _seed_ct(tmp_path, monkeypatch)

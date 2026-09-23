@@ -26,8 +26,8 @@ status: implemented
 | --- | --- |
 | agent 自然语言 → 建议态标注的产出流（`locate_roi` / `segment_region` / `propose_annotation`、SAM API、权限门控） | [SDD 02 · 智能体图像标注](../02-agent-image-annotation/README.md)（`implemented`）；其建议态（`suggested`）经人工确认转为 `confirmed` 后，即本 SDD 的正式标注实体 |
 | 任务模型结果的生成与测量（`/task/run`、`/task/measure`、Detection 管线） | 任务注册表现有契约，本 SDD 零改动 |
-| CT labelmap 编辑端点本身（`POST /volume/{id}/mask-edit` + base_seq） | 既有闭环保留，本 SDD 只换前端交互层 |
-| 点标注（point）手动编辑、WSI brush、3D 跨切片传播、标注导出（COCO/LabelMe）、多人协作审阅 | 非目标（脑暴 §10） |
+| CT labelmap 编辑端点本身（`POST /objects/{id}/edits` + base_seq，旧路径 `POST /volume/{id}/mask-edit` 为其 alias） | 归 SDD 10，本 SDD 只换前端交互层 |
+| 点标注（point）手动编辑、WSI brush、3D 跨切片传播、标注导出（COCO/LabelMe）、多人协作审阅 | 非目标（脑暴 §10）；`point` 只作为存储取值开放（§9.1），不提供人工工具、不设能力位 |
 | 标注与 Atlas 的联动（已验证标注沉淀为案例） | 远期；本期仅以 `source` / `status` 字段留接缝 |
 
 ## 3. 当前阶段目标
@@ -44,7 +44,7 @@ status: implemented
 | 输入 | 必填 | 说明 |
 | --- | --- | --- |
 | 用户画布交互 | 是 | CS3D 工具事件（raster_2d / volume_3d）或 Annotorious 事件（wsi）产出的几何 |
-| 当前对象上下文 | 是 | `image_id`（超声图 / volume / slide id）+ 可选 `z`（CT 逐切片） |
+| 当前对象上下文 | 是 | `image_id`（经 `resolve_object` 可解析的对象 id）+ 可选 `index`（第三轴索引，`volume`=z / `video`=t / `slide`=level；`z` 为一版 API 别名） |
 | 注册表 | 是 | `GET /tasks` 下发的引擎能力位与 `on_commit` 钩子声明 |
 | `base_seq` | 更新/删除必填 | 乐观并发序号，取最近一次成功响应的 `seq` |
 
@@ -107,7 +107,7 @@ flowchart LR
 | --- | --- | --- |
 | IMT `editli/editma` 高斯手柄 | CS3D 自定义 BaseTool（D-12/D-17） | 拖手柄形变壁线不变；入口是独立的 `wall` 按钮（不再占用 `polygon`） |
 | WSI `roi` 框选 | 通用 `bbox` | 框落库为标注 + `on_commit` 触发核检测（双语义） |
-| CT 私有画笔 | 通用 `brush`（CS3D） | 提交仍走 `POST /volume/{id}/mask-edit`（§7.4） |
+| CT 私有画笔 | 通用 `brush`（CS3D） | 提交走任务结果编辑端点（§7.4） |
 
 ## 7. 核心规则
 
@@ -128,12 +128,17 @@ flowchart LR
 
 ### 7.3 on_commit 钩子
 
-- 声明于 `TaskPlugin`（如 WSI：`on_commit={"bbox": {"action": "run_task"}}`），后端在标注创建成功后派发，复用 `_detect_for_spec`；
+- 声明于 `TaskPlugin`（如 WSI：`on_commit={"bbox": {"action": "run_task"}}`），后端在标注创建成功后派发，复用 `kernel.run_task`（含 SDD 10 的公共前缀）；
 - 钩子失败不影响标注落库（标注已 201），失败走 Notice 提示（§13）。
 
 ### 7.4 CT brush 例外
 
-`volume_3d` 下 brush 编辑 labelmap 的提交端点仍是既有 `POST /volume/{id}/mask-edit`（base_seq 范式），**不走** `/annotations`——labelmap 是任务结果而非标注。`/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。画笔宿主实施期为 overlay 自持笔迹缓冲（D-15）。
+画笔写契约由 [SDD 10](../10-object-convergence/README.md) 承载（其 §7 规则 17、D-6），本节只引用。
+
+- CT labelmap 是任务结果而非标注，画笔编辑**不走** `/annotations`，走任务结果编辑端点 `POST /objects/{id}/edits`（`EditRequest{task, method, base_seq, ops}`，`base_seq` 乐观并发，冲突 409），由 `Detector.apply_edit` 派发并按注册表重测。
+- 旧端点 `POST /volume/{id}/mask-edit` 是其 alias（同一实现、同一响应），前端在 SDD 10 W4 切到新端点前仍调用它，W7 删除。
+- 前端两条提交路径经注入的 `MaskSink` 区分：`annotationMaskSink`（2D 画笔 → `/annotations` kind=mask）与 `editMaskSink`（任务结果编辑 → `/objects/{id}/edits`），二者不合并；`task` / `method` 取自当前 `TaskView`，不写常量。
+- `/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。画笔宿主实施期为 overlay 自持笔迹缓冲（D-15）。
 
 ## 8. 涉及对象
 
@@ -176,8 +181,8 @@ erDiagram
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `id` | TEXT | 否 | — | PK | — | 标注唯一 id（uuid4） | 服务端生成 |
 | `image_id` | TEXT | 否 | — | 逻辑关联至数据源对象 | `idx_annotations_image(image_id, z)` | 挂靠对象（图/卷/切片 id） | 前端上下文 |
-| `z` | INTEGER | 是 | NULL | — | 同上 | CT 逐切片层号；2D/WSI 为 NULL | 前端上下文 |
-| `kind` | TEXT | 否 | — | CHECK(kind IN ('bbox','polyline','mask')) | — | 原语判别 | payload |
+| `z` | INTEGER | 是 | NULL | — | 同上 | 对象当前第三轴取值：`volume`=z / `video`=t / `slide`=level；未绑定索引（含全部 2D 对象）为 NULL | `index` 或别名 `z` |
+| `kind` | TEXT | 否 | — | CHECK(kind IN ('bbox','polyline','mask','point'))，取值由 `store.py` 的 `_KINDS` 生成 | — | 原语判别；`point` 仅为 `point_set` 原语与 agent 产出预留 | payload |
 | `primitive_json` | TEXT | 否 | — | — | — | 几何原语 JSON（§9.2） | payload |
 | `label` | TEXT | 否 | `''` | — | — | 语义标签（双语取 i18n 键或自由文本） | 用户 |
 | `class_id` | INTEGER | 是 | NULL | — | — | 可选类别（颜色走 ClassSpec） | 用户 |
@@ -188,16 +193,32 @@ erDiagram
 | `created_at` | TEXT | 否 | — | — | — | ISO8601 | 服务端 |
 | `updated_at` | TEXT | 否 | — | — | — | ISO8601 | 服务端 |
 
-迁移策略：首版建表即最终结构（无既有数据）；后续变更走显式 migration 函数。mask 文件存 `<ANNOTATIONS_ROOT>/masks/<id>.png`，删除标注时同步删文件。
+`status` / `source` 的 CHECK 同样由 `_STATUSES` / `_SOURCES` 生成，DDL 不另写取值。
+
+库结构版本：`PRAGMA user_version = 1`（`store.py` 的 `SCHEMA_VERSION`）。打开库时按版本处理：
+
+| `user_version` | 处理 |
+| --- | --- |
+| 无 `annotations` 表 | 按当前结构建表与索引，置 `1` |
+| `0`（kind 三值 CHECK 的首版库） | 单个事务内：建新表 → `INSERT INTO ... SELECT` 搬全部行 → 删旧表 → 新表改名 → 重建 `idx_annotations_image` → 置 `1`；不新增列、不回填 `z` |
+| `1` | 不做任何事 |
+| 大于 `1` | 拒绝打开 |
+
+迁移任一步失败整体回滚并抛错，服务拒绝启动，原库保持 `user_version = 0` 与原数据，不做部分迁移（SDD 10 §9.5、§13）。
+
+mask 文件存 `<ANNOTATIONS_ROOT>/masks/<id>.png`，删除标注时同步删文件。
 
 ### 9.2 `Annotation` JSON 契约（前后端镜像）
 
 ```
 {
-  id, image_id, z?,
+  id, image_id,
+  index: {z} | {t} | {level} | {},   // 响应必带；请求可选
+  z?,                                // index 的 API 别名，W7 删
   primitive: {kind:"bbox", x0,y0,x1,y1}
            | {kind:"polyline", closed:true, points:[[x,y],...], role}
-           | {kind:"mask", ref},
+           | {kind:"mask", ref}
+           | {kind:"point", x, y},     // 仅存储域，无人工工具
   label, class_id?,
   status: "draft"|"confirmed"|"suggested"|"rejected",
   source: "manual"|"model"|"agent",
@@ -206,6 +227,16 @@ erDiagram
 ```
 
 `bbox` 原语同步加入 science-core `contracts.py` 的 Primitive 联合与 `primitive_to_dict`。
+
+`index` 与 `z` 的规则（`POST /annotations`）：
+
+- `index` 至多一个轴非空；`index` 与 `z` 同传时取值须相等；违反任一条 → 422 `INVALID_GEOMETRY`；
+- 只传 `z` 时按对象的第三轴解释（`volume`=z / `video`=t / `slide`=level）；
+- 存储列 `z` 取 `index` 的唯一非空值，否则取 `z`；两者皆空则为 NULL，不做索引校验；
+- 非空时经 `resolve_object` + `ObjectMeta.check_index` 校验：越界或对象无此轴（如 2D 对象传 `z`）→ 422 `INVALID_GEOMETRY`；
+- 响应的 `z` 为存储列原值；`index` 以对象第三轴命名该值，列为 NULL 时为 `{}`；对象已无法解析时回落为 `{z: v}`。
+
+`GET /annotations` 的过滤参数：`z`（第三轴精确匹配）、`index_from` / `index_to`（闭区间，整数 ≥ 0，可单独使用，`index_from > index_to` → 422）。区间过滤在 SQL 中执行，不返回 `z` 为 NULL 的行。
 
 ## 10. 幂等规则
 
@@ -245,6 +276,8 @@ stateDiagram-v2
 | 标注不存在 | `NOT_FOUND` | 404 | Notice 提示并刷新列表 | 前端移除本地副本 |
 | 并发冲突 | `CONFLICT` | 409 | "标注已被更新，请重试" | 丢弃本次编辑，重拉最新 |
 | 几何非法（越界/点数不足/自交多边形面积为零） | `INVALID_GEOMETRY` | 422 | Notice 指明原因 | 前端移除草稿 |
+| `index` 非法（越界、对象无此轴、多轴、与 `z` 不一致） | `INVALID_GEOMETRY` | 422 | Notice 指明轴名与合法范围 | 前端移除草稿 |
+| 标注库迁移失败 | — | 服务不启动 | 后端启动报错 | 事务回滚，原库保持 `user_version = 0`（§9.1） |
 | on_commit 钩子失败 | — | 标注仍 201 | Notice：标注已保存，检测未触发 | 用户可 reset 或重新框选 |
 | 网络失败 | — | — | Notice + 回滚 | editSeqRef 守卫，不静默 |
 

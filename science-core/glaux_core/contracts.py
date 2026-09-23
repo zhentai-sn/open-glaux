@@ -21,13 +21,20 @@
   表 + 每点 class_id + 可选 ``roi``（框选区域，算密度用）。前端按 class 上色画质心；
   kernel 数点算计数/密度。
 
-未来模态（Keypoints / 视频帧掩膜）按需在此追加一个 dataclass +
-在 :func:`primitive_to_dict` 补一条分支，上层无需改动。
+**帧/层绑定**（SDD 10）：每个原语带可选 ``at``——一个 ``Index`` dict（``{"t": 10}`` /
+``{"z": 3}`` / ``{"level": 0}``），语义由对象 kind 决定（video=t / volume=z / slide=level）。
+``None`` 表示不绑定索引（与 2D 现状兼容），序列化时省略该键。视频帧级几何复用既有原语 +
+``at``，不另立逐帧类型；新几何形状（如 Keypoints）才需在此追加 dataclass 并在
+:func:`primitive_to_dict` / :func:`primitive_from_dict` 补分支，上层无需改动。
+
+:class:`Detection` 的 ``region`` 是 SDD 10 ``Region`` 判别联合的 dict 形态（``{"kind": "box",
+"x0", "y0", "x1", "y1"}`` / ``{"kind": "column_window", "x0", "x1"}`` …），取代 ``roi_used``；
+``roi_used`` 过渡期保留一版（取值与字段名不变）。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Union
 
 from glaux_core.calibration.calibration import CalibrationResult
@@ -52,6 +59,7 @@ class Polyline:
     role: str
     points: tuple[Point, ...]
     closed: bool = False
+    at: dict | None = None  # SDD 10：Index（{"t": 10} / {"z": 3}），None=不绑定
 
     @classmethod
     def from_boundary(cls, b: Boundary, role: str | None = None) -> "Polyline":
@@ -76,6 +84,7 @@ class EllipseShape:
     b: float
     theta: float
     role: str = "ellipse"
+    at: dict | None = None  # SDD 10：Index，None=不绑定
 
     @classmethod
     def from_ellipse(cls, e: Ellipse, id: str = "ellipse", role: str = "ellipse") -> "EllipseShape":
@@ -96,6 +105,7 @@ class Mask:
     id: str
     ref: str  # 不透明引用（png 路径 / rle id …）
     role: str = "mask"
+    at: dict | None = None  # SDD 10：Index，None=不绑定
 
 
 @dataclass(frozen=True)
@@ -112,6 +122,7 @@ class Bbox:
     x1: float
     y1: float
     role: str = "bbox"
+    at: dict | None = None  # SDD 10：Index，None=不绑定
 
     def __post_init__(self) -> None:
         if self.x1 <= self.x0 or self.y1 <= self.y0:
@@ -150,6 +161,7 @@ class VolumeMask:
     raw_ref: str | None = None
     path: str | None = None
     raw_path: str | None = None
+    at: dict | None = None  # SDD 10：Index，None=不绑定
 
 
 @dataclass(frozen=True)
@@ -169,6 +181,7 @@ class PointSet:
     classes: tuple[ClassSpec, ...]
     roi: tuple[float, float, float, float] | None = None
     role: str = "nuclei"
+    at: dict | None = None  # SDD 10：Index，None=不绑定
 
     def __post_init__(self) -> None:
         if len(self.points) != len(self.point_class_ids):
@@ -196,12 +209,17 @@ class Measure:
 
 @dataclass(frozen=True)
 class Detection:
-    """适配器的统一输出：一组几何原语 + 模型版本 + 所用 ROI。"""
+    """适配器的统一输出：一组几何原语 + 模型版本 + 所用 ROI / Region。
+
+    ``region``（SDD 10）：``Region`` dict（``{"kind": "box"|"column_window"|...}``），取代
+    ``roi_used``；``roi_used`` 过渡期保留一版（取值与字段名不变，第 7 波删）。
+    """
 
     primitives: tuple[Primitive, ...]
     model_version: str
     roi_used: tuple[int, int] | None = None
     meta: dict = field(default_factory=dict)
+    region: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -228,7 +246,14 @@ class TaskOutput:
 
 
 def primitive_to_dict(p: Primitive) -> dict:
-    """一个几何原语 → 带 ``kind`` 判别的 JSON-native dict。"""
+    """一个几何原语 → 带 ``kind`` 判别的 JSON-native dict。``at`` 仅在非 None 时输出。"""
+    d = _primitive_body_to_dict(p)
+    if p.at is not None:
+        d["at"] = dict(p.at)
+    return d
+
+
+def _primitive_body_to_dict(p: Primitive) -> dict:
     if isinstance(p, Polyline):
         return {"kind": "polyline", "id": p.id, "role": p.role,
                 "points": p.as_points(), "closed": p.closed}
@@ -298,6 +323,7 @@ def detection_to_dict(d: Detection) -> dict:
         "model_version": d.model_version,
         "roi_used": list(d.roi_used) if d.roi_used is not None else None,
         "meta": dict(d.meta),
+        "region": dict(d.region) if d.region is not None else None,
     }
 
 
@@ -311,7 +337,18 @@ def measurement_to_dict(m: Measurement) -> dict:
 
 
 def primitive_from_dict(d: dict) -> Primitive:
-    """带 ``kind`` 判别的 dict → 几何原语（``POST /task/measure`` 反序列化前端编辑后的图元）。"""
+    """带 ``kind`` 判别的 dict → 几何原语（``POST /task/measure`` 反序列化前端编辑后的图元）。
+
+    ``at``（SDD 10 Index）存在时一并读回；缺省为 None。
+    """
+    p = _primitive_body_from_dict(d)
+    at = d.get("at")
+    if at is not None:
+        p = replace(p, at=dict(at))
+    return p
+
+
+def _primitive_body_from_dict(d: dict) -> Primitive:
     kind = d.get("kind")
     if kind == "polyline":
         return Polyline(

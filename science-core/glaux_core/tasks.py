@@ -118,6 +118,15 @@ class TaskPlugin:
     SDD 04：``tools`` 改用统一工具集合（cursor/bbox/polygon/brush/reset）；新增
     ``capabilities``（引擎能力位：该任务可用的通用标注工具）与 ``on_commit``
     （标注落库后的任务联动钩子，如 WSI bbox → run_task）。
+
+    SDD 10：
+    - ``object_kinds``：该任务可作用的对象几何族（ObjectKind：``image``/``volume``/``slide``/
+      ``video``）；``run_task`` 用它门控，不做 modality 相等比较（D-13）。
+    - ``trigger``：``on_open``（打开对象即跑）/ ``on_region``（框选后跑）/ ``manual``。
+    - ``classes``：任务产出的类别表（与 overlays 同步）。
+    - ``capabilities``：开放集字符串（``bbox``/``polygon``/``brush``/``wall``/``voi``/
+      ``z_scroll``/``timeline``/``verify``），驱动前端工具过滤。
+    - ``viewer``：**deprecated**，保留一版；前端不再读取（D-11），查看器由对象 kind 决定。
     """
 
     task: TaskType
@@ -129,11 +138,14 @@ class TaskPlugin:
     default_method: str  # 缺省适配器名
     measure: Callable[[Detection, CalibrationResult], Measurement]
     metrics: tuple[MetricDef, ...]  # 面板度量字段（顺序即展示序）
-    viewer: str  # 前端查看器引擎提示："raster_2d" | "volume_3d" | "wsi" | "video"
+    viewer: str  # deprecated（SDD 10 D-11，保留一版）："raster_2d" | "volume_3d" | "wsi" | "video"
     tools: tuple[ToolDef, ...]
     overlays: tuple[OverlaySpec, ...]
-    capabilities: tuple[str, ...] = ()  # SDD 04：引擎能力位（"bbox"/"polygon"/"brush"/"wall"），wsi 无 brush
+    capabilities: tuple[str, ...] = ()  # 开放集能力位（SDD 04/10），见类 docstring
     on_commit: dict | None = None  # SDD 04：标注落库后钩子，如 {"bbox": {"action": "run_task"}}
+    object_kinds: tuple[str, ...] = ()  # SDD 10：ObjectKind（image|volume|slide|video）
+    trigger: str = "manual"  # SDD 10：on_open | on_region | manual
+    classes: tuple[ClassSpec, ...] = ()  # SDD 10：任务类别表
 
 
 # --- 测量原语（Detection → Measurement），每任务一个 ------------------------
@@ -183,6 +195,26 @@ def measure_hc(det: Detection, cal: CalibrationResult) -> Measurement:
     )
 
 
+# P6：CT 肝+双肾的 ClassSpec 表（REGISTRY 行 classes 引用；后端 build VolumeMask 用）。
+LIVER_KIDNEY_CLASSES: tuple[ClassSpec, ...] = (
+    ClassSpec(class_id=1, role="liver", label_zh="肝", label_en="Liver",
+              color="#FF8A5B", measurable=True),
+    ClassSpec(class_id=2, role="lk", label_zh="左肾", label_en="L kidney",
+              color="#4FB0FF", measurable=True),
+    ClassSpec(class_id=3, role="rk", label_zh="右肾", label_en="R kidney",
+              color="#4FB0FF", measurable=True),
+)
+
+
+# P7：病理 WSI 核检测的 ClassSpec 表（与 NUCLEI_DETECTION 行 overlays 同步；后端 build PointSet 用）。
+# v0 用 StarDist-HE（类别无关）→ 单类 nucleus；升级 HoVerNet-PanNuke（5 类）时在此扩表 +
+# 同步 overlays（neoplastic/inflammatory/connective/dead/epithelial），measure_nuclei 无需改。
+NUCLEI_CLASSES: tuple[ClassSpec, ...] = (
+    ClassSpec(class_id=1, role="nucleus", label_zh="细胞核", label_en="Nucleus",
+              color="#7BE0AD", measurable=True),
+)
+
+
 # --- 任务注册表——新增模态在此登记一行 --------------------------------------
 
 REGISTRY: dict[TaskType, TaskPlugin] = {
@@ -219,6 +251,8 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         # "wall" 是 IMT 专属能力位：壁线形变手柄自成一个工具，不再占用 polygon。
         # polygon 在所有模态一律是自由多边形（落 /annotations），语义不因模态而变。
         capabilities=("bbox", "polygon", "brush", "wall"),
+        object_kinds=("image",),
+        trigger="on_open",
     ),
     TaskType.FETAL_HC: TaskPlugin(
         task=TaskType.FETAL_HC,
@@ -250,6 +284,8 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("skull", "#C39BFF", editable=False),
         ),
         capabilities=("bbox", "polygon", "brush"),
+        object_kinds=("image",),
+        trigger="on_open",
     ),
     # P6 楔子：CT 肝+双肾分割（3 类）。几何族 "volume" 走 VolumeMask Primitive；后端
     # _detect_for_spec 新加 "volume" 分支派发到 segment_ts.subprocess。viewer 走
@@ -287,7 +323,10 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             OverlaySpec("lk", "#4FB0FF", editable=True),
             OverlaySpec("rk", "#4FB0FF", editable=True),
         ),
-        capabilities=("bbox", "polygon", "brush"),
+        capabilities=("bbox", "polygon", "brush", "voi", "z_scroll"),
+        object_kinds=("volume",),
+        trigger="on_open",
+        classes=LIVER_KIDNEY_CLASSES,
     ),
     # P7 楔子：病理 WSI 细胞核检测 + 计数/密度。几何族 "wsi" 走 PointSet Primitive；后端
     # _detect_for_spec 新加 "wsi" 分支派发到 segment_wsi.subprocess（ROI 抽块 + 质心去重）。
@@ -319,8 +358,11 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         overlays=(
             OverlaySpec("nucleus", "#7BE0AD", editable=False),
         ),
-        capabilities=("bbox", "polygon"),  # brush 无服务端落点，禁用（SDD 04 §7.1）
+        capabilities=("bbox", "polygon", "verify"),  # brush 无服务端落点，禁用（SDD 04 §7.1）
         on_commit={"bbox": {"action": "run_task"}},  # bbox 落库后触发核检测（SDD 04 §7.3）
+        object_kinds=("slide",),
+        trigger="on_region",
+        classes=NUCLEI_CLASSES,
     ),
 }
 
@@ -334,26 +376,6 @@ def task_for_signals(text: str) -> TaskType | None:
     return None
 
 
-# P6：CT 肝+双肾的 ClassSpec 表（与 TaskPlugin.REGISTRY 行同步；后端 build VolumeMask 用）。
-LIVER_KIDNEY_CLASSES: tuple[ClassSpec, ...] = (
-    ClassSpec(class_id=1, role="liver", label_zh="肝", label_en="Liver",
-              color="#FF8A5B", measurable=True),
-    ClassSpec(class_id=2, role="lk", label_zh="左肾", label_en="L kidney",
-              color="#4FB0FF", measurable=True),
-    ClassSpec(class_id=3, role="rk", label_zh="右肾", label_en="R kidney",
-              color="#4FB0FF", measurable=True),
-)
-
-
-# P7：病理 WSI 核检测的 ClassSpec 表（与 NUCLEI_DETECTION 行 overlays 同步；后端 build PointSet 用）。
-# v0 用 StarDist-HE（类别无关）→ 单类 nucleus；升级 HoVerNet-PanNuke（5 类）时在此扩表 +
-# 同步 overlays（neoplastic/inflammatory/connective/dead/epithelial），measure_nuclei 无需改。
-NUCLEI_CLASSES: tuple[ClassSpec, ...] = (
-    ClassSpec(class_id=1, role="nucleus", label_zh="细胞核", label_en="Nucleus",
-              color="#7BE0AD", measurable=True),
-)
-
-
 def plugin_to_view(plugin: TaskPlugin) -> dict:
     """任务插件 → JSON-native 视图（供后端 ``GET /tasks`` 下发前端；不含 measure 可调用）。"""
     return {
@@ -362,7 +384,7 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
         "modality": plugin.modality,
         "label": {"en": plugin.label_en, "zh": plugin.label_zh},
         "default_method": plugin.default_method,
-        "viewer": plugin.viewer,
+        "viewer": plugin.viewer,  # deprecated（D-11），保留一版
         "metrics": [
             {"key": m.key, "unit": m.unit, "label": {"en": m.label_en, "zh": m.label_zh}}
             for m in plugin.metrics
@@ -376,4 +398,12 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
         ],
         "capabilities": list(plugin.capabilities),
         "on_commit": plugin.on_commit,
+        "object_kinds": list(plugin.object_kinds),
+        "trigger": plugin.trigger,
+        "classes": [
+            {"class_id": c.class_id, "role": c.role,
+             "label": {"en": c.label_en, "zh": c.label_zh},
+             "color": c.color, "measurable": c.measurable}
+            for c in plugin.classes
+        ],
     }

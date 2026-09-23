@@ -208,3 +208,20 @@ def test_missing_pyav_is_a_state_not_an_error(videos, monkeypatch):
     reg.invalidate_index()
     assert client.get(f"/image/{videos['silent']}").status_code == 404
     assert client.get("/images", params={"modality": "natural_image"}).status_code == 200
+
+
+def test_objects_frame_video_reference_frame(videos):
+    """§15.1 E：video 在 t=10 下取帧，X-Glaux-Frame 的 index.t 为 10；raw 经 /objects 下发。"""
+    import json
+
+    oid = videos["with_audio"]
+    r = client.get(f"/objects/{oid}/frame", params={"t": 10, "roi": "16,8,48,40"})
+    assert r.status_code == 200, r.text
+    f = json.loads(r.headers["X-Glaux-Frame"])
+    assert f["index"]["t"] == 10 and (f["width"], f["height"]) == (32, 32)
+    assert f["scale"] == 1.0 and f["origin"] == [16.0, 8.0]
+    assert client.get(f"/objects/{oid}/frame", params={"t": N_FRAMES}).status_code == 422
+    assert client.get(f"/objects/{oid}/frame", params={"z": 0}).status_code == 422
+    raw = client.get(f"/objects/{oid}/raw")
+    assert raw.status_code == 200 and raw.headers["content-type"] == "video/mp4"
+    assert raw.content[4:8] == b"ftyp"

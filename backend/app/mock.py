@@ -14,8 +14,6 @@ import math
 import struct
 import zlib
 
-from .schemas import ModelInfo
-
 # --- 数据集（mock CUBS-tech 切片） -------------------------------------------
 
 CF_CANONICAL = 0.0559
@@ -41,42 +39,6 @@ def dataset(n: int = 40) -> list[dict]:
             "methods": list(_METHODS),
         }
         for i in range(n)
-    ]
-
-
-# --- 模型（扩展=适配器） -----------------------------------------------------
-
-
-def models() -> list[ModelInfo]:
-    return [
-        ModelInfo(
-            id="caroSegDeep",
-            pub="nl3769 · Dilated U-Net",
-            desc="CUBS CREATIS baseline · Keras/TF 2.4.1 · far-wall + IMC",
-            active=True,
-            backend="isolated:uv/py3.8/TF2.4",
-        ),
-        ModelInfo(
-            id="Computerized-CNR_IT",
-            pub="CNR Pisa",
-            desc="First-order absolute moment edge operator",
-            active=False,
-            backend="reference",
-        ),
-        ModelInfo(
-            id="POLITO_UNET",
-            pub="Politecnico di Torino",
-            desc="U-Net segmentation of the IMC",
-            active=False,
-            backend="reference",
-        ),
-        ModelInfo(
-            id="ConstantStub",
-            pub="glaux · testing",
-            desc="Deterministic stub adapter for pipeline tests",
-            active=False,
-            backend="in_process",
-        ),
     ]
 
 

@@ -98,6 +98,9 @@ class HcSource(SourceBase):
             root=config.HC18_ROOT,
             origin="builtin",
             calibration={"pixel_size": "per-image csv"},
+            provider="Grand Challenge",
+            license="CC BY-NC-SA",
+            desc="999 张真实胎儿颅脑超声 + 椭圆真值",
         )
 
     def synthetic_sample(self) -> DataSource:

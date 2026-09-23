@@ -27,6 +27,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..datasource_registry import DataSource
 
 
+class FrameTooLarge(ValueError):
+    """取帧读出的像素超过上限（``/objects/{id}/frame`` 映射 413）。"""
+
+
 class Source(Protocol):
     """数据轴协议。方法签名以 SDD 10 §9.2 为准，实现方不得增删必选参数。"""
 

@@ -20,12 +20,14 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
-from .. import config, mock
+from .. import config
 from .. import datasource_registry as dsreg
 from ..schemas import (
     Capability,
     DatasourceImportRequest,
     DataSourceInfo,
+    EditOp,
+    EditRequest,
     ImageMeta,
     Index,
     Modality,
@@ -35,6 +37,7 @@ from ..schemas import (
     TaskSpec,
 )
 from ..sources import SOURCES
+from . import objects
 
 log = logging.getLogger("glaux.api")
 router = APIRouter()
@@ -72,10 +75,6 @@ def _wsi_ready() -> None:
         raise HTTPException(503, "WSI 模态需 openslide（未装配）")
     if not config.wsi_data_available():
         raise HTTPException(503, f"WSI 数据未就绪：{config.WSI_ROOT} 无 slide_*")
-
-
-def _has_data() -> bool:
-    return KERNEL_OK and config.data_available()
 
 
 # 意图层已退役（2026-08-16，见 docs/designs/2026-08-16-001-retire-orchestration）：
@@ -161,18 +160,11 @@ def volumes() -> list[ImageMeta]:
 
 @router.get("/volume/{volume_id}", tags=["dataset"])
 def volume_stream(volume_id: str) -> Response:
-    """P6：流式返回 CT 原始 NIfTI 字节（前端 CS3D DICOM image loader 走 wadouri:）。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):  # 白名单守卫（同兄弟端点）——防路径穿越 + 错模态
+    """CT 原始 NIfTI 字节——``GET /objects/{id}/raw`` 的 alias（字节等价，W7 删）。"""
+    ref, _ = objects.resolve(volume_id)
+    if ref.kind != "volume":  # 白名单守卫——防错模态（id 不参与路径拼接）
         raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    try:
-        path = dataset_ct.nifti_path(volume_id)
-    except FileNotFoundError as e:
-        raise HTTPException(404, str(e)) from e
-    # 流式给前端；二进制 NIfTI 字节
-    with open(path, "rb") as f:
-        data = f.read()
+    data, _mime = objects.raw_bytes(volume_id)
     return Response(
         content=data,
         media_type="application/octet-stream",
@@ -184,10 +176,11 @@ def volume_stream(volume_id: str) -> Response:
 def volume_labelmap(
     volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2"
 ) -> Response:
-    """P6：流式返回 labelmap NIfTI 字节（缓存命中直返；未命中 → 404 提示先跑 /task/run）。"""
+    """任务结果字节面（SDD 10 §5.3 有意保留）：labelmap NIfTI；未命中 → 404 提示先跑 /task/run。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):
+    ref, _ = objects.resolve(volume_id)
+    if ref.kind != "volume":
         raise HTTPException(404, f"非 CT volume id：{volume_id}")
     labelmap_path = segment_ts.labelmap_path(volume_id, method)
     if not Path(labelmap_path).is_file():
@@ -212,7 +205,7 @@ def volume_labelmap(
 # /volume/{id}/raw 与 /volume/{id}/segment 已删（2026-08-16，前端从未调用；分割统一走 /task/run）。
 
 
-# --- P6 U4：画笔编辑 ---------------------------------------------------------
+# --- P6 U4：画笔编辑（alias → POST /objects/{id}/edits，W7 删） -----------------------
 
 from pydantic import BaseModel, Field  # noqa: E402  (local import; pydantic 已在 schemas 顶部)
 
@@ -226,7 +219,7 @@ class VolumeMaskEditSliceIn(BaseModel):
 
 
 class VolumeMaskEditRequest(BaseModel):
-    task: Literal["totalseg_liver_kidney"] = "totalseg_liver_kidney"
+    task: str = "totalseg_liver_kidney"
     slices: list[VolumeMaskEditSliceIn] = Field(default_factory=list)
     method: str = "totalsegmentator_v2"
     # 乐观并发：客户端上次见到的编辑序号；落后于服务端 → 409（被他人超越）。
@@ -236,64 +229,21 @@ class VolumeMaskEditRequest(BaseModel):
 
 @router.post("/volume/{volume_id}/mask-edit", tags=["dataset"])
 def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
-    """P6 U4：画笔编辑回流——patch labelmap + 重 measure + 返回新 metrics。"""
-    from glaux_core.calibration.calibration import resolve_ct_calibration
-    from glaux_core.contracts import VolumeMask
-    from glaux_core.measurement.ct import measure_liver_kidney as _measure_lk
-    from glaux_core.tasks import LIVER_KIDNEY_CLASSES
-    from glaux_core.tasks import REGISTRY as _REG
-    from glaux_core.tasks import TaskType as _TT
-
+    """画笔编辑回流——``POST /objects/{id}/edits`` 的 alias（同一实现，W7 删）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    if not dataset_ct.is_ct(volume_id):
+    ref, _ = objects.resolve(volume_id)
+    if ref.kind != "volume":
         raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    try:
-        new_path, new_arr, new_seq = dataset_ct.guarded_patch_labelmap(
-            volume_id,
-            [s.model_dump() for s in req.slices],
-            base_seq=req.base_seq,
-            method=req.method,
-        )
-    except dataset_ct.StaleEditError as e:
-        # 并发编辑被超越——409 Conflict，回带服务端当前 seq 供客户端重取重试
-        raise HTTPException(409, str(e)) from e
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
-    except FileNotFoundError as e:
-        raise HTTPException(404, f"labelmap 缓存未命中：{req.method}——先调 /segment") from e
-    # 重 measure：走 plugin.measure 与 run_task 同形
-    try:
-        plugin = _REG[_TT(req.task)]
-    except KeyError as e:
-        raise HTTPException(400, f"未知 task：{req.task}") from e
-    if plugin.adapter_kind != "volume":
-        raise HTTPException(400, f"task {req.task} 非 volume 任务")
-    cal = resolve_ct_calibration(dataset_ct.vox_spacing_mm(volume_id))
-    # raw_ref 留 None——画笔编辑只改 labelmap（count）不改 CT 强度（HU），HU mean 不重算；
-    # 若未来要重算，需 measure 层支持 URL fetch 或后端在调 measure 前把 raw 落盘。
-    vol_prim = VolumeMask(
-        id=f"{volume_id}_labelmap",
-        ref=f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
-        classes=LIVER_KIDNEY_CLASSES,
-        raw_ref=None,
-        path=new_path,
+    ops = [
+        EditOp(index=Index(z=s.z), class_id=s.class_id, mode=s.mode, mask_png=s.mask_png_ref)
+        for s in req.slices
+    ]
+    # 旧契约的 base_seq 可为 None（不做乐观并发校验），故绕过 EditRequest 的必填校验构造
+    edit = EditRequest.model_construct(
+        task=req.task, method=req.method, base_seq=req.base_seq, ops=ops
     )
-    from glaux_core.contracts import Detection
-
-    det = Detection(primitives=(vol_prim,), model_version="human@edit")
-    meas = _measure_lk(det, cal)
-    # 序列化（与 run_task 同形，measurement_to_dict）
-    from glaux_core.contracts import measurement_to_dict
-
-    metrics_dict = measurement_to_dict(meas)["metrics"]
-    return {
-        "metrics": metrics_dict,
-        "labelmap_ref": f"/api/volume/{volume_id}/labelmap?task={req.task}&method={req.method}",
-        "new_labelmap_path": new_path,
-        "model_version": "human@edit",
-        "seq": new_seq,  # 客户端下次编辑回传作 base_seq（乐观并发）
-    }
+    return objects.apply_edit(volume_id, edit)
 
 
 # /volume/{id}/verify（P6 复现 Dice）已删（2026-08-16，前端从未接线）；Dice 逻辑仍在
@@ -312,15 +262,12 @@ def slides() -> list[ImageMeta]:
 
 @router.get("/wsi/{slide_id}/tile/{level}/{col}/{row}", tags=["dataset"])
 def wsi_tile(slide_id: str, level: int, col: int, row: int) -> Response:
-    """P7：DeepZoom 瓦片 JPEG（缓存优先）。坐标是 DeepZoom (level, col, row)。"""
+    """DeepZoom 瓦片 JPEG——``GET /objects/{id}/tiles/…`` 的 alias（字节等价，W7 删）。"""
     _wsi_ready()
-    if not dataset_wsi.is_wsi(slide_id):
+    ref, _ = objects.resolve(slide_id)
+    if ref.kind != "slide":
         raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    try:
-        data = dataset_wsi.tile(slide_id, level, col, row)
-    except ValueError as e:
-        raise HTTPException(404, str(e)) from e
-    return Response(content=data, media_type="image/jpeg")
+    return Response(content=objects.tile_bytes(slide_id, level, col, row), media_type="image/jpeg")
 
 
 # /wsi/{id}/dzi、/thumbnail、/region 已删（2026-08-16，前端从未调用；
@@ -329,7 +276,7 @@ def wsi_tile(slide_id: str, level: int, col: int, row: int) -> Response:
 
 @router.get("/wsi/{slide_id}/verify", tags=["dataset"])
 def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
-    """P7 U5：与 ship 的 reference 检测（模型自身在 canonical demo ROI 的输出）算质心匹配 F1。
+    """与 ship 的 reference 检测算质心匹配 F1（SDD 10 §5.3 有意保留；实现在 ``Detector.verify``）。
 
     **非真 GT 比较**——reference 是模型自身在固定 ROI 的检测；F1 衡量「管线能否复现自身
     ROI 检测」（确定性 + 缓存 → 期望 ≈1.0），不代表临床正确性。缺 reference → 422。
@@ -337,32 +284,17 @@ def wsi_verify(slide_id: str, method: str = "stardist_he") -> dict:
     _wsi_ready()
     if not KERNEL_OK:
         raise HTTPException(503, "WSI 验证需 science-core（未装配）")
-    if not dataset_wsi.is_wsi(slide_id):
+    from ..detectors import DETECTORS
+
+    ref, obj = objects.resolve(slide_id)
+    if ref.kind != "slide":
         raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    import json as _json
-
-    ref_path = config.WSI_ROOT / f"{slide_id}_ref_nuclei.json"
-    if not ref_path.is_file():
-        raise HTTPException(
-            422,
-            f"reproducibility reference 缺失：{ref_path}——按 data/wsi/README 手工 ship "
-            f"模型在 canonical ROI 的检测作 reference；本接口非真 GT 比较",
-        )
-    ref = _json.loads(ref_path.read_text())
-    roi = tuple(int(v) for v in ref["roi"])
-    # 在 reference 的 ROI 上重跑检测（缓存命中即秒回）
     try:
-        pred_path, _mv = segment_wsi.segment(slide_id, roi, method)
-    except Exception as e:  # 隔离环境不可用 / 子进程失败
-        raise HTTPException(503, f"核检测不可用：{e}") from e
-    pred = segment_wsi.load_nuclei(pred_path)
-    from glaux_core.verification.nuclei import nuclei_reproducibility
-
-    res = nuclei_reproducibility(pred.get("points", []), ref.get("points", []), dist_thresh=8.0)
-    res["roi"] = list(roi)
-    res["method"] = method
-    res["note"] = "reproducibility vs ship reference（模型自身 canonical ROI 检测，非真 GT）"
-    return res
+        return DETECTORS["wsi"].verify(ref, obj, None, method=method)
+    except FileNotFoundError as e:
+        raise HTTPException(422, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)) from e
 
 
 @router.get("/image/{image_id}", tags=["dataset"])
@@ -408,11 +340,15 @@ def task_run(spec: TaskSpec) -> dict:
     """
     if not KERNEL_OK:
         raise HTTPException(503, "统一驱动需 science-core（未装配）")
+    from glaux_core.errors import HardReject
+
     try:
         return kernel.run_task(spec)
-    except ValueError as e:  # 缺标定 / 缺 image_id / 测量前置不满足 → 硬拒绝
+    except LookupError as e:  # 未知对象 id（SDD 10 §13）
+        raise HTTPException(404, str(e)) from e
+    except (ValueError, HardReject) as e:  # 几何族/选区/标定不符 → 硬拒绝
         raise HTTPException(422, str(e)) from e
-    except Exception as e:  # 分割/检测不可用（子进程/隔离环境/缓存缺失）
+    except Exception as e:  # 检测不可用（未装配 / 子进程 / 隔离环境 / 缓存缺失）
         raise HTTPException(503, f"检测/运行不可用：{e}") from e
 
 
@@ -421,16 +357,19 @@ def task_measure(req: TaskMeasureRequest) -> dict:
     """统一测量：由前端编辑后的图元重测（泛型替代 /measure + /hc/measure）。"""
     if not KERNEL_OK:
         raise HTTPException(503, "统一测量需 science-core（未装配）")
+    from glaux_core.errors import HardReject
+
     try:
-        return kernel.measure_task(req.task, req.primitives, req.cf)
-    except ValueError as e:
+        return kernel.measure_task(req.task, req.primitives, req.calibration)
+    except (ValueError, KeyError, HardReject, RuntimeError) as e:  # 图元或标定不满足测量前置
         raise HTTPException(422, str(e)) from e
 
 
 @router.get("/models", response_model=list[ModelInfo], tags=["models"])
 def models() -> list[ModelInfo]:
-    if not _has_data():
-        return mock.models()
+    """方法清单：按注册表顺序汇总各 ``Detector.methods()``（SDD 10 §15.1 G）。"""
+    if not KERNEL_OK:
+        raise HTTPException(503, "模型清单需 science-core（未装配）")
     return kernel.models()
 
 

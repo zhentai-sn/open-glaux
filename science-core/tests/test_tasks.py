@@ -150,7 +150,8 @@ def test_plugin_to_view_totalseg_liver_kidney():
     }
     assert {m["key"] for m in view["metrics"]} == expected_keys
     assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "brush", "reset"}
-    assert view["capabilities"] == ["bbox", "polygon", "brush"]
+    # SDD 10：CT 追加 voi / z_scroll 能力位
+    assert view["capabilities"] == ["bbox", "polygon", "brush", "voi", "z_scroll"]
     assert view["on_commit"] is None
     roles = {o["role"] for o in view["overlays"]}
     assert roles == {"liver", "lk", "rk"}
@@ -181,7 +182,8 @@ def test_plugin_to_view_nuclei_detection():
     }
     assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "reset"}
     # SDD 04：wsi 无 brush 能力位；bbox 落库后触发核检测
-    assert view["capabilities"] == ["bbox", "polygon"]
+    # SDD 10：WSI 追加 verify 能力位
+    assert view["capabilities"] == ["bbox", "polygon", "verify"]
     assert view["on_commit"] == {"bbox": {"action": "run_task"}}
     assert {o["role"] for o in view["overlays"]} == {"nucleus"}
     assert view["overlays"][0]["editable"] is False  # v0 无核编辑

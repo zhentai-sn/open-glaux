@@ -140,9 +140,14 @@ def test_invalid_geometry_rejected():
         "primitive": {"kind": "polyline", "points": [[0, 0], [1, 1]]},
     })
     assert r.status_code == 422
-    # 未知 kind
+    # point 缺坐标
     r = client.post("/annotations", json={
         "image_id": TARGET, "primitive": {"kind": "point"},
+    })
+    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+    # 未知 kind
+    r = client.post("/annotations", json={
+        "image_id": TARGET, "primitive": {"kind": "track"},
     })
     assert r.status_code == 422
 
@@ -411,3 +416,137 @@ def test_plain_edit_does_not_refire_on_commit(monkeypatch):
         json={"base_seq": created["seq"], "label": "改个名"},
     )
     assert calls == []
+
+
+# --- 第三轴索引（SDD 10 §9.3 / §15.1 E）----------------------------------------
+
+_BOX = {"kind": "bbox", "x0": 1, "y0": 1, "x1": 5, "y1": 5}
+
+
+def _create(**body):
+    return client.post("/annotations", json={"primitive": _BOX, **body})
+
+
+def test_index_z_on_volume_roundtrip():
+    """ct_001（122×101×112）：index.z 落存储列 z，响应同时带 z 与 index。"""
+    r = _create(image_id="ct_001", index={"z": 7})
+    assert r.status_code == 201, r.text
+    ann = r.json()["annotation"]
+    assert ann["z"] == 7 and ann["index"] == {"z": 7}
+    got = client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"]
+    assert [(a["z"], a["index"]) for a in got] == [(7, {"z": 7})]
+
+
+def test_z_alias_equivalent_to_index():
+    a = _create(image_id="ct_001", z=4).json()["annotation"]
+    b = _create(image_id="ct_001", index={"z": 4}).json()["annotation"]
+    c = _create(image_id="ct_001", index={"z": 4}, z=4)
+    assert c.status_code == 201, c.text
+    assert a["index"] == b["index"] == c.json()["annotation"]["index"] == {"z": 4}
+    assert a["z"] == b["z"] == 4
+
+
+def test_conflicting_alias_rejected():
+    r = _create(image_id="ct_001", index={"z": 4}, z=5)
+    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+    assert client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"] == []
+
+
+def test_index_with_two_axes_rejected():
+    r = _create(image_id="ct_001", index={"z": 1, "t": 1})
+    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("body", [{"index": {"z": 112}}, {"z": 112}, {"index": {"z": -1}}])
+def test_out_of_range_index_rejected(body):
+    r = _create(image_id="ct_001", **body)
+    assert r.status_code == 422, r.text
+
+
+def test_wrong_axis_for_kind_rejected():
+    """volume 没有 t 轴：check_index 拒绝，不静默忽略。"""
+    r = _create(image_id="ct_001", index={"t": 0})
+    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("body", [{"index": {"z": 0}}, {"z": 0}])
+def test_index_on_2d_object_rejected(body):
+    r = _create(image_id=TARGET, **body)
+    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+
+
+def test_2d_object_without_index_keeps_null():
+    r = _create(image_id=TARGET, index={})
+    assert r.status_code == 201, r.text
+    ann = r.json()["annotation"]
+    assert ann["z"] is None and ann["index"] == {}
+
+
+def test_slide_level_index_and_alias():
+    """slide_001 只有 level 0：index.level 与 z 别名都按 level 轴校验，响应 index 用 level 命名。"""
+    r = _create(image_id="slide_001", index={"level": 0})
+    assert r.status_code == 201, r.text
+    ann = r.json()["annotation"]
+    assert ann["z"] == 0 and ann["index"] == {"level": 0}
+    assert _create(image_id="slide_001", z=0).json()["annotation"]["index"] == {"level": 0}
+    assert _create(image_id="slide_001", index={"level": 1}).status_code == 422
+    assert _create(image_id="slide_001", z=1).status_code == 422
+
+
+def test_index_range_filter():
+    for z in (2, 5, 8, 11):
+        assert _create(image_id="ct_001", index={"z": z}).status_code == 201
+    assert _create(image_id="ct_001").status_code == 201  # 不绑定层：不进任何区间
+
+    def zs(**params):
+        rows = client.get(
+            "/annotations", params={"image_id": "ct_001", **params}
+        ).json()["annotations"]
+        return sorted(a["z"] for a in rows if a["z"] is not None), len(rows)
+
+    assert zs(index_from=5, index_to=8) == ([5, 8], 2)  # 闭区间
+    assert zs(index_from=6) == ([8, 11], 2)
+    assert zs(index_to=2) == ([2], 1)
+    assert zs(index_from=3, index_to=4) == ([], 0)
+    assert zs(z=5, index_from=0, index_to=20) == ([5], 1)
+    assert zs() == ([2, 5, 8, 11], 5)
+    r = client.get("/annotations", params={"image_id": "ct_001", "index_from": 9, "index_to": 3})
+    assert r.status_code == 422
+
+
+def test_index_range_filter_runs_in_sql(monkeypatch):
+    """区间过滤下推到 store（SQL），router 不做 Python 侧二次过滤。"""
+    seen = {}
+    store = ann_router.get_store()
+    orig = store.list
+
+    def spy(image_id, z=None, **kw):
+        seen.update(kw)
+        return orig(image_id, z, **kw)
+
+    monkeypatch.setattr(store, "list", spy)
+    client.get("/annotations", params={"image_id": "ct_001", "index_from": 1, "index_to": 3})
+    assert seen == {"z_from": 1, "z_to": 3}
+
+
+def test_unresolvable_object_rows_fall_back_to_z_index():
+    """对象已无法解析时响应 index 按别名语义回落为 {"z": v}；z 为 null 时为 {}。"""
+    store = ann_router.get_store()
+    store.create(image_id="gone_obj", kind="bbox", primitive=_BOX, z=3)
+    store.create(image_id="gone_obj", kind="bbox", primitive=_BOX)
+    rows = client.get("/annotations", params={"image_id": "gone_obj"}).json()["annotations"]
+    assert sorted(map(str, (a["index"] for a in rows))) == ["{'z': 3}", "{}"]
+
+
+def test_point_primitive_roundtrip():
+    """point 只在存储域开放（agent / point_set 预留），无人工工具。"""
+    r = client.post("/annotations", json={
+        "image_id": TARGET, "primitive": {"kind": "point", "x": 10, "y": "20.5"},
+    })
+    assert r.status_code == 201, r.text
+    prim = r.json()["annotation"]["primitive"]
+    assert (prim["kind"], prim["x"], prim["y"]) == ("point", 10.0, 20.5)
+    r = client.post("/annotations", json={
+        "image_id": TARGET, "primitive": {"kind": "point", "x": 900, "y": 1},
+    })
+    assert r.status_code == 422 and "dims" in r.json()["detail"]

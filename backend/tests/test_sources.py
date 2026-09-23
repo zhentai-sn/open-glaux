@@ -47,7 +47,6 @@ def _natural_folder(root, name="pics", size=(320, 200)):
 
 def test_modalities_is_tuple_of_sources():
     assert reg.MODALITIES == tuple(SOURCES)
-    assert set(schemas.Modality.__args__) == set(SOURCES)  # W1：Literal 与 SOURCES 同集
 
 
 @pytest.mark.parametrize("modality", list(SOURCES))
@@ -251,7 +250,7 @@ def test_dropping_a_source_removes_modality_everywhere(dropped, monkeypatch):
     reg.invalidate_index()
     assert dropped not in reg.MODALITIES
     assert dropped not in {s["modality"] for s in client.get("/datasources").json()}
-    assert client.get("/images", params={"modality": dropped}).json() == []
+    assert client.get("/images", params={"modality": dropped}).status_code == 422  # 未注册模态
     assert all(upload_store.modality_of(f"f{ext}") != dropped for ext, _, _ in formats)
     caps = client.get("/capabilities").json()
     dataset_ids = {c["id"] for c in caps if c["kind"] == "dataset"}

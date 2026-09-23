@@ -73,11 +73,16 @@ class DataSource:
     status: str = "active"  # active | needs_calibration | empty | planned
     #: 开发者模式下的合成源（无真实目录，不参与 resolve_root，不落盘）。
     synthetic: bool = False
+    #: 内置示例的出处、许可与描述（能力清单数据集卡用）；导入源为空。不落盘。
+    provider: str = ""
+    license: str = ""
+    desc: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d["root"] = str(self.root)
-        d.pop("synthetic")
+        for k in ("synthetic", "provider", "license", "desc"):
+            d.pop(k)
         return d
 
     def info(self) -> dict:

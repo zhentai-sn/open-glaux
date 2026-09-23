@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import get_args
-
 import pytest
 
 from app import config, schemas
@@ -49,13 +47,14 @@ def test_modalities_contract():
 
 
 def test_modalities_agree_with_api_schema():
-    """注册表与 API 的 Modality 必须同集合，否则一边收、一边拒（422 与 ImportError_ 不一致）。
+    """注册表与 API 的 Modality 同集合：API 只接受 SOURCES 的键（W2 起由注册表校验）。"""
+    from pydantic import TypeAdapter, ValidationError
 
-    SDD 10 规则 10 把 Modality 放宽为 str 之后 get_args 为空，届时集合只由注册表决定。
-    """
-    literal = set(get_args(schemas.Modality))
-    if literal:
-        assert literal == set(reg.MODALITIES)
+    ta = TypeAdapter(schemas.Modality)
+    for m in reg.MODALITIES:
+        assert ta.validate_python(m) == m
+    with pytest.raises(ValidationError):
+        ta.validate_python("mri_brain")
 
 
 def test_dev_mode_on_seeds_at_most_one_builtin_per_modality():

@@ -208,3 +208,77 @@ W3、W5 换取值方式时只改 helper：frontend 的 `currentObjectId()` 改�
 | slide 取帧（level + roi + 64 Mpx 上限）与 `/objects` 端点族 | W2 |
 | `/volumes`、`/slides` 的 503 守卫是否与 `/images` 的空列表语义对齐 | W2 |
 | 前端 ImportPanel 改读 `importable`、模态标签改读 `label_key` → `label` | W3 |
+
+### 7. W1 审阅结论
+
+2026-09-23 维护者指示「继续」，未对 §4 提出异议，按建议处置并回写 SDD 10：P-1（`center` / 字符串 `methods` 列为过渡物，W3 切换；§15.1 A 过渡期键集合补 `center`、`streams`）写入 §11.3 与 §15.1 A；P-2 写入 §9.2 `SourceBase` 草图；P-3 写入 §4.1 与 §11.2；P-4 写入 §8.2 与 §15.1 J；P-5 写入 §14。F-10 按「非 active」改述 §4.1、§12、§13，不新增 `unavailable` 枚举值。
+
+## W2 · 后端动作轴与表征面
+
+执行日期 2026-09-23，基线 HEAD `d6cdbf9`（W1）。状态：代码与门禁完成，待维护者审阅。science-core 与标注库两部分由子智能体并行完成（文件互不相交），其余由主会话完成。
+
+### 1. 准出门禁
+
+| 门禁 | 结果 |
+| --- | --- |
+| `make test`（含 `test-version`） | 绿：agent-runtime 31 文件 / 205；frontend 35 文件 / 210；backend 332；science-core 213；version 5 |
+| `make lint` | 绿 |
+| strict xfail「`/task/measure` 携 voxel 标定成功」 | 转绿，标记已删。仓库内已无 SDD 10 的 strict xfail |
+| 不变量 | `set(REGISTRY.adapter_kind) == set(DETECTORS)`；每个 Detector 具备协议八项；`GET /models` 等于按 REGISTRY 顺序汇总 `Detector.methods()`（`test_objects.py`）。science-core `test_tasks.py` 不能导入后端，DETECTORS 键集合断言放在 backend |
+| 三信封回归 | 通过。以 W1 提交检出的 worktree 为基线，对真实数据逐字节比对：`/task/run` 四任务（IMT、IMT 带列窗、HC、CT、WSI 带 ROI）与 `/task/measure` 的 TaskOutput 完全相同；`Detection.roi_used` 字段名与取值未变；`Detection.region` 只进 `detection_to_dict`，不进 TaskOutput |
+| 端点等价 | `/volume/ct_001` 与 `/objects/ct_001/raw`、`/wsi/slide_001/tile/…` 与 `/objects/slide_001/tiles/…`、`/volumes` / `/slides` 与 `/images?modality=` 字节相同；`/volume/ct_001/mask-edit` 与 `/objects/ct_001/edits` 对同一笔编辑响应相同。另与 W1 基线比对：`/volume/*`、`/wsi/*/tile`、`/wsi/*/verify`、`/image/*`、`/models`、`/capabilities` 字节未变 |
+| `X-Glaux-Frame` 契约 | 四种 kind 各取一帧并断言 `object_id` / `index` / `origin` / `scale` / `width` / `height`：image（roi + size 缩放）、volume（z = 末层）、slide（最粗 level + roi，scale = 1/downsample）、video（t = 10 + roi，`test_video.py`）。slide 缺 level 422；level-0 roi 81 Mpx → 413；size > 4096 → 413 |
+| 标注库迁移用例 | 通过（`test_annotation_store_migration.py` 8 条）：按旧 DDL 手建 v0 库，升级后老数据逐列相同、可写 `point`、索引存在、`user_version = 1`；重开不再迁移；中途失败时原库保持 v0 且可读 |
+| 字面量门禁 | 放宽 `Modality` / `TaskType` 为 `str` 后仍为 backend 0、总数 27 |
+| 前端与 agent-runtime 零改 | 是；两份 chat edition 测试在全量中绿 |
+| 无真实数据环境 | CUBS / HC18 根置空后 backend 332 全绿，W1 的 F-9 随 `models()` 改由 `Detector.methods()` 汇总而消失 |
+
+### 2. 改动清单
+
+| 文件 | 改动 |
+| --- | --- |
+| `backend/app/detectors/`（新） | `base.py`：`Detector` Protocol、`DetectorBase`、`DetectorUnavailable`、`calibration_result`；`wall_pair.py` / `contour.py` / `volume.py` / `wsi.py`：由 `kernel.py` 四分支、`_enrich_gold`、`models()` 四段、`/volume/{id}/mask-edit` 与 `/wsi/{id}/verify` 的实现搬入；`__init__.py`：`DETECTORS` |
+| `backend/app/kernel.py` | `run_task` 只留公共前缀 ①～④ 与信封组装；`measure_task` 收 `Calibration`；`models()` 汇总 `Detector.methods()`；`capabilities()` 的 `_DS_META` 删除，改读 `DataSource.provider/license/desc` |
+| `backend/app/routers/objects.py`（新） | `/objects` 五端点；`resolve` / `raw_bytes` / `tile_bytes` / `apply_edit` 供 alias 复用 |
+| `backend/app/routers/api.py` | `/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{id}/tile` 改 alias；`/volume/{id}/labelmap` 改 `resolve_object`；`/wsi/{id}/verify` 改调 `Detector.verify`；`/task/run` 错误映射（404 / 422 / 503）；`/models` 删 mock 回退 |
+| `backend/app/schemas.py` | `Modality` / `TaskType` 放宽为注册表校验的 `str`；`TaskSpec` 增 `calibration` / `region` 与 `_legacy` 映射（warn + `LEGACY_HITS` 计数）；`TaskMeasureRequest` 收 `calibration`（`cf` 过渡）；`Region` 形状校验；`EditRequest` / `EditOp` |
+| `backend/app/dataset_wsi.py` | `WsiSource.frame`：OpenSlide level（强制）+ level-0 roi 读块；读出像素超 64 Mpx → `FrameTooLarge`（413） |
+| `backend/app/sources/base.py` | `FrameTooLarge` |
+| `backend/app/datasource_registry.py` 与四个数据模块 | `DataSource` 增 `provider` / `license` / `desc`（不落盘），由 `builtin_sample()` 提供 |
+| `backend/app/mock.py` | 删除 `models()` |
+| `backend/app/annotations/store.py`、`routers/annotations.py` | `_KINDS` 增 `point`，CHECK 由常量生成；`PRAGMA user_version` 0 → 1 事务迁移；`AnnotationIn.index`（`z` 别名）；`check_index` 校验第三轴；`GET` 的 `index_from` / `index_to`（SQL 内过滤）；响应行带 `index` |
+| `backend/app/main.py` | 挂载 `objects` 路由 |
+| `science-core/glaux_core/calibration/calibration.py` | `CFSource.TIME_BASE`、`resolve_video_calibration`、`calibration_from_dict`（未知 kind → `HardReject` 并记 warning）、`resolve_calibration_for` |
+| `science-core/glaux_core/contracts.py` | 各 Primitive 增 `at`（为空不序列化）；`Detection.region` |
+| `science-core/glaux_core/tasks.py` | `TaskPlugin` 增 `object_kinds` / `trigger` / `classes`，`viewer` 标 deprecated；CT 行 `classes` + `voi` / `z_scroll`，WSI 行 `on_region` + `classes` + `verify`；`plugin_to_view` 下发三键 |
+| 测试 | 新增 backend `test_objects.py`（28）、`test_annotation_store_migration.py`（8），science-core `test_object_convergence_w2.py`（44）；`test_annotations.py` 增 index 相关用例；`test_video.py` 增 video 取帧；`test_api.py`、`test_wsi_segment.py`、`test_datasource_registry.py`、`test_sources.py` 按 404 / 422 新语义与放宽后的类型更新断言；science-core `test_tasks.py` 两处能力位期望 |
+| 文档 | SDD 04 §2 / §4 / §7.3 / §7.4 / §9 / §13（§7.4 改为引用 SDD 10 的写契约，D-6）；`architecture.zh-CN.md`；`backend/README.md`；`backend/CHANGELOG.md`；SDD 10 §0 与索引状态 |
+
+### 3. 待维护者决定的偏差
+
+| # | 偏差 | 原因 | 建议 |
+| --- | --- | --- | --- |
+| P-6 | `DetectorBase` 在 Protocol 之外多 `enrich(out, ref, obj, spec, cal)` 与 `hydrate(primitives)`；`verify` 多关键字参数 `method` | `reference()` 只能给出参考 Detection，但 IMT 的 vs A1（µm、1 位小数）与 HC 的 vs GT（mm、2 位小数，参考值是标量）口径不同，泛化计算会改变 TaskOutput 字节；`/task/measure` 收到的 VolumeMask 只带 URL，需要补回本地路径才能重测（W0 的 F-2） | §9.2 的 Detector 草图补这两个挂点 |
+| P-7 | 公共前缀④只做「显式 `calibration` 优先、缺省取 `obj.calibration`」并校验，`CalibrationResult` 仍由 Detector 构造；`mm_per_px` 保持收敛前的 `source=cubs`、空 provenance 形状 | 让 TaskOutput 逐字节不变；若直接用 `calibration_from_dict` 的结果，provenance 会多出 `cf` / `source` 两键 | §6.3 的④改述为「解析并校验标定，填入 spec」 |
+| P-8 | §9.4「无 TaskView 模态的能力位默认集经 `GET /capabilities` 下发」未实现 | `GET /capabilities` 是能力市场卡片列表，没有承载「某模态的能力位」的位置；唯一消费方是 W3 的前端工具过滤 | 在 W3 定下发形状（例如 `/datasources` 元素增 `capabilities`，或 `GET /tasks` 之外的只读视图）后实现，§9.4 随之写明载体 |
+| P-9 | `EditRequest.base_seq` 必填，但 alias `/volume/{id}/mask-edit` 的旧契约允许 `null`（不做乐观并发校验），alias 以 `model_construct` 绕过必填校验 | 保持旧端点行为不变 | W7 删 alias 时一并消失，无需改契约 |
+
+### 4. 执行中发现的问题
+
+| # | 问题 | 位置 | 影响 | 处置 |
+| --- | --- | --- | --- | --- |
+| F-13 | 合成颈动脉的 `/task/run` 标定由恒定 `CF_CANONICAL = 0.0559` 改为该合成对象自身的 cf（`0.0559 + 0.0004·sin(i)`） | `detectors/wall_pair.py` | 仅开发者模式无 CUBS 数据时；IMT 数值随 id 小幅变化 | 有意：列表下发的 cf 与任务所用标定一致。真实数据路径 TaskOutput 不变 |
+| F-14 | `/task/run` 对「任务几何族与对象一致但数据集不符」（如 HC 任务 + 颈动脉图，两者都是 image）仍靠 `ContourDetector` 内的 `hc_dataset.is_hc` 拒绝（422） | `detectors/contour.py` | `object_kinds` 门控不足以区分同几何族的不同数据集 | 保留为 Detector 的取数前提（它确实取不到数）；若将来要在前缀里判定，需要任务声明可接受的数据集，属新契约 |
+| F-15 | 未注册模态的 `GET /images?modality=` 由空列表变为 422 | `schemas.Modality` 放宽为注册表校验 | 删源用例中该模态查询返回 422 而非 `[]` | 符合 §13（非法输入 422）；`test_sources.py` 已按此断言 |
+| F-16 | CT 取帧只做轴状位转置，未做放射学方向翻转 | `dataset_ct.CtSource.render` | agent 观测与查看器可能左右 / 上下相反 | W4 查看器合并时与 `VolumeViewer` 实测对齐 |
+| F-17 | `glaux.annotation_proposed` 事件的 `z` → `index`（SDD 10 §12、SDD 02） | agent-runtime | 本波 runtime 零改 | 归 W5（`propose_annotation` 加 `index`） |
+
+### 5. 留给后续波次
+
+| 事项 | 波次 |
+| --- | --- |
+| P-6～P-9 拍板后回写 SDD 10 §6.3 / §9.2 / §9.4 | W2 审阅后 |
+| 前端改读 `resources`、切到 `/objects/*` 与 `MaskSink` | W3、W4 |
+| 能力位默认集的下发载体（P-8） | W3 |
+| `/volumes`、`/slides` 的 503 守卫与 `/images` 空列表语义对齐 | W7 删 alias 时一并处理 |
+| `hc_dataset` 真实优先路由函数仍被 `ContourDetector.detect` 的 `is_hc` 前提使用 | W3 之后，随 HC 数据源多源化 |

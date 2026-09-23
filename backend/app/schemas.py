@@ -7,26 +7,41 @@ M0 阶段路由返回 mock，但形状即最终契约，M1 只换实现不换形
 
 from __future__ import annotations
 
-from typing import Literal
+import logging
+from collections import Counter
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, model_validator
+
+log = logging.getLogger("glaux.legacy")
 
 # --- 规范 -------------------------------------------------------------------
 
-TaskType = Literal["far_wall_cca_imt", "fetal_hc", "totalseg_liver_kidney", "nuclei_detection"]
-# SDD 10 规则 10：先清零模态字面量比较，再把 Modality / TaskType 放宽为 str。W1 只追加 video。
-Modality = Literal["carotid_imt", "fetal_hc", "ct_abdomen", "pathology", "natural_image", "video"]
+# SDD 10 规则 10 / D-14：W1 已把后端的模态字面量比较清零，W2 把 Modality / TaskType 由 Literal
+# 放宽为 str，取值由注册表校验（SOURCES / glaux_core.tasks.REGISTRY），不在此手抄一份。
 
 
-class TaskSpec(BaseModel):
-    """结构化任务规范——内核入口，字段明确可校验，无 NL 歧义。"""
+def _known_modality(v: str) -> str:
+    from .sources import SOURCES  # 延迟导入：SOURCES 会导入各数据模块
 
-    task: TaskType = "far_wall_cca_imt"
-    image_id: str | None = None
-    cubs_cf: float | None = Field(default=None, gt=0, description="标定系数 mm/px，须为正")
-    roi: tuple[int, int] | None = None  # US：列窗 (x0, x1)
-    roi_box: tuple[int, int, int, int] | None = None  # P7 WSI：框选 (x0, y0, x1, y1) level-0 px
-    method: str | None = None
+    if v not in SOURCES:
+        raise ValueError(f"未注册的模态：{v}（须为 {tuple(SOURCES)}）")
+    return v
+
+
+def _known_task(v: str) -> str:
+    from glaux_core.tasks import REGISTRY
+
+    if v not in {t.value for t in REGISTRY}:
+        raise ValueError(f"未注册的任务：{v}")
+    return v
+
+
+Modality = Annotated[str, AfterValidator(_known_modality)]
+TaskType = Annotated[str, AfterValidator(_known_task)]
+
+#: 过渡字段命中计数（SDD 10 §12：W7 的准入条件是一次完整回归后为 0）。
+LEGACY_HITS: Counter[str] = Counter()
 
 
 # --- 测量 -------------------------------------------------------------------
@@ -40,17 +55,6 @@ class IMTResult(BaseModel):
     pdm_mean_mm: float = Field(description="对称 PDM（评测口径）")
     per_column_um: list[float] = Field(default_factory=list)
     n_columns: int = 0
-
-
-class TaskMeasureRequest(BaseModel):
-    """统一测量（多模态）——前端编辑几何后携任务 + 图元 + 标定重测。
-
-    ``primitives`` 为 :func:`glaux_core.contracts.primitive_to_dict` 的形状（带 kind 判别）。
-    """
-
-    task: TaskType
-    primitives: list[dict] = Field(description="编辑后的几何原语 [{kind,...},...]")
-    cf: float = Field(gt=0, description="标定系数 mm/px")
 
 
 # --- 视觉对象（SDD 10 §9.2） ------------------------------------------------
@@ -109,6 +113,22 @@ class Region(BaseModel):
     t0: int | None = None
     t1: int | None = None
     seed: dict | None = None
+
+    @model_validator(mode="after")
+    def _shape(self):
+        need = {
+            "box": ("x0", "y0", "x1", "y1"),
+            "column_window": ("x0", "x1"),
+            "slice": ("z",),
+            "frame_range": ("t0", "t1"),
+        }[self.kind]
+        if any(getattr(self, f) is None for f in need):
+            raise ValueError(f"region {self.kind} 需要 {need}")
+        if self.kind in ("box", "column_window") and not self.x0 < self.x1:
+            raise ValueError("region 须 x0 < x1")
+        if self.kind == "box" and not self.y0 < self.y1:
+            raise ValueError("region 须 y0 < y1")
+        return self
 
 
 class ReferenceFrame(BaseModel):
@@ -169,6 +189,86 @@ class ObjectMeta(BaseModel):
 
 
 ImageMeta = ObjectMeta  # 过渡别名一版（W7 删）
+
+
+# --- 任务与编辑输入（SDD 10 §4.3） --------------------------------------------
+
+
+class TaskSpec(BaseModel):
+    """结构化任务规范——内核入口，字段明确可校验，无 NL 歧义。
+
+    ``image_id`` 字段名保留，语义为对象 id（D-8）。``cubs_cf`` / ``roi`` / ``roi_box`` 为过渡字段，
+    由 ``_legacy`` 单向映射为 ``calibration`` / ``region``（D-9：``roi_box`` 为 (x0, y0, x1, y1)），
+    命中时 warn 并计数，W7 删除。新字段已给出时对应旧字段整体忽略。
+    """
+
+    task: TaskType = "far_wall_cca_imt"
+    image_id: str | None = None
+    method: str | None = None
+    calibration: Calibration | None = None
+    region: Region | None = None
+    # 过渡一版（W7 删）
+    cubs_cf: float | None = Field(default=None, gt=0, description="标定系数 mm/px，须为正")
+    roi: tuple[int, int] | None = None  # 列窗 (x0, x1)
+    roi_box: tuple[int, int, int, int] | None = None  # 框选 (x0, y0, x1, y1) level-0 px
+
+    @model_validator(mode="after")
+    def _legacy(self):
+        if self.cubs_cf is not None and self.calibration is None:
+            LEGACY_HITS["cubs_cf"] += 1
+            log.warning("TaskSpec.cubs_cf 已过渡，映射为 calibration{mm_per_px}")
+            self.calibration = Calibration(kind="mm_per_px", value=self.cubs_cf, source="cubs_cf")
+        if self.region is None and self.roi_box is not None:
+            LEGACY_HITS["roi_box"] += 1
+            log.warning("TaskSpec.roi_box 已过渡，映射为 region{box}")
+            x0, y0, x1, y1 = self.roi_box
+            self.region = Region(kind="box", x0=x0, y0=y0, x1=x1, y1=y1)
+        elif self.region is None and self.roi is not None:
+            LEGACY_HITS["roi"] += 1
+            log.warning("TaskSpec.roi 已过渡，映射为 region{column_window}")
+            self.region = Region(kind="column_window", x0=self.roi[0], x1=self.roi[1])
+        return self
+
+
+class TaskMeasureRequest(BaseModel):
+    """统一测量（多模态）——前端编辑几何后携任务 + 图元 + 标定重测。
+
+    ``primitives`` 为 :func:`glaux_core.contracts.primitive_to_dict` 的形状（带 kind 判别）。
+    标定收 ``Calibration``（开放集，D-16）；``cf`` 为过渡字段，映射为 ``mm_per_px``。
+    """
+
+    task: TaskType
+    primitives: list[dict] = Field(description="编辑后的几何原语 [{kind,...},...]")
+    calibration: Calibration | None = None
+    cf: float | None = Field(default=None, gt=0, description="过渡一版：标定系数 mm/px")
+
+    @model_validator(mode="after")
+    def _legacy(self):
+        if self.calibration is None:
+            if self.cf is None:
+                raise ValueError("需要 calibration（或过渡字段 cf）")
+            LEGACY_HITS["cf"] += 1
+            log.warning("TaskMeasureRequest.cf 已过渡，映射为 calibration{mm_per_px}")
+            self.calibration = Calibration(kind="mm_per_px", value=self.cf, source="cubs_cf")
+        return self
+
+
+class EditOp(BaseModel):
+    """一笔掩膜编辑：``index`` 定位被编辑的切片 / 帧。"""
+
+    index: Index
+    class_id: int
+    mode: Literal["paint", "erase"] = "paint"
+    mask_png: str = Field(description="data:image/png;base64,...")
+
+
+class EditRequest(BaseModel):
+    """``POST /objects/{id}/edits``：``task`` / ``method`` 由前端从 TaskView 取（§7 规则 17）。"""
+
+    task: TaskType
+    method: str
+    base_seq: int = Field(description="乐观并发基线；与服务端序号不符 → 409")
+    ops: list[EditOp] = Field(default_factory=list)
 
 
 # --- 数据源（注册表 · 文件夹导入） ------------------------------------------

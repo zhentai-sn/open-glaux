@@ -149,6 +149,9 @@ class CarotidSource(SourceBase):
             root=config.DATA_ROOT,
             origin="builtin",
             calibration={"cf": "per-image CF.txt"},
+            provider="CREATIS",
+            license="CC BY",
+            desc="颈动脉超声 · LI/MA 专家标注 · CF 标定",
         )
 
     def synthetic_sample(self) -> DataSource:
