@@ -2,6 +2,11 @@ import type { AnnotationPrimitive } from "../api/types";
 
 export const MIN_ROI = 24;
 
+/** 绘制命中半径使用 SVG/视口的 CSS 像素，不随 WSI 缩放改变。 */
+export function withinScreenRadius(a: [number, number], b: [number, number], radius: number): boolean {
+  return Math.hypot(a[0] - b[0], a[1] - b[1]) <= radius;
+}
+
 export function bboxFromPoints(a: [number, number], b: [number, number]): Extract<AnnotationPrimitive, { kind: "bbox" }> {
   return {
     kind: "bbox",

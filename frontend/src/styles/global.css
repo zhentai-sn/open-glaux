@@ -3070,6 +3070,8 @@ body.resizing .focus-rail { transition: none; }
 .pyramid-frame[data-drawing="true"] .pyramid-osd { cursor: crosshair; }
 .pyramid-nuclei-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
 .pyramid-vertex { pointer-events: auto; cursor: move; }
+.pyramid-draft-vertex { pointer-events: auto; }
+.pyramid-close-vertex { cursor: pointer; stroke-width: 2; }
 .pyramid-verify { position: absolute; top: 12px; right: 12px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; background: rgb(20 20 20 / 70%); }
 .pyramid-verify-btn { padding: 3px 8px; border: 0; border-radius: 4px; background: rgb(60 60 70 / 90%); color: #e6eaf0; font-size: 11px; cursor: pointer; }
 .pyramid-verify-btn:disabled { cursor: wait; opacity: .65; }

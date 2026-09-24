@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OpenSeadragon, makeWsiTileSource, makeWsiViewer } from "./openseadragon";
 import { api } from "../api/client";
 import { createAnnotation, loadAnnotations, patchAnnotation } from "../annotation/bridge";
-import { bboxFromPoints, isRoiTooSmall, moveVertex } from "./wsiGeometry";
+import { bboxFromPoints, isRoiTooSmall, moveVertex, withinScreenRadius } from "./wsiGeometry";
 import { axisSize } from "../data/objectInfo";
 import type { ViewerProps } from "./contract";
 import { getT } from "../i18n";
@@ -17,6 +17,8 @@ import type { Annotation, AnnotationPrimitive, ClassSpec, Primitive } from "../a
 // 质心存 level-0 px，overlay 经 imageToViewerElement 跟随（只读展示，非标注）。
 
 const NUCLEUS_R = 2.5; // 质心点半径（CSS px）
+const CLOSE_RADIUS = 12;
+const DUPLICATE_RADIUS = 6;
 
 type PointSetPrim = Extract<Primitive, { kind: "point_set" }>;
 type Shape = Exclude<AnnotationPrimitive, { kind: "mask" }>;
@@ -31,6 +33,7 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
   const drawStart = useRef<[number, number] | null>(null);
   const polygonRef = useRef<[number, number][]>([]);
   const editRef = useRef<EditDraft | null>(null);
+  const editSavingRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [drawBox, setDrawBox] = useState<Shape | null>(null);
   const [polygon, setPolygon] = useState<[number, number][]>([]);
@@ -190,7 +193,7 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
     return [p.x, p.y];
   };
 
-  const commitShape = (primitive: Shape) => {
+  const commitShape = useCallback((primitive: Shape) => {
     if (isRoiTooSmall(primitive)) {
       notify("info", getT()("wsi_roi_too_small"));
       return;
@@ -201,7 +204,7 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
         onRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
       }
     });
-  };
+  }, [notify, objectId, onRegion]);
 
   const onShapeDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (tool !== "bbox") return;
@@ -229,8 +232,10 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
     if (editRef.current) {
       const current = editRef.current;
       editRef.current = null;
-      setEditDraft(null);
+      editSavingRef.current = true;
       void patchAnnotation(current.annotation.id, current.annotation.seq, { primitive: current.primitive }).then((saved) => {
+        editSavingRef.current = false;
+        setEditDraft((draft) => draft?.annotation.id === current.annotation.id ? null : draft);
         if (saved?.primitive.kind === "bbox" && focus.object_id === objectId) {
           const box = saved.primitive;
           onRegion({ kind: "box", x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 });
@@ -246,30 +251,53 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
   };
 
   const onPolygonClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (tool !== "polygon") return;
+    if (tool !== "polygon" || e.detail > 1) return;
     const point = toImage(e);
     if (!point) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const screenPoint: [number, number] = [e.clientX - rect.left, e.clientY - rect.top];
+    const points = polygonRef.current;
+    if (points.length >= 2 && withinScreenRadius(screenPoint, toScreen(...points[0]), CLOSE_RADIUS)) {
+      if (points.length >= 3) finishPolygon();
+      return;
+    }
+    if (points.length && withinScreenRadius(screenPoint, toScreen(...points[points.length - 1]), DUPLICATE_RADIUS)) return;
     polygonRef.current = [...polygonRef.current, point];
     setPolygon(polygonRef.current);
+  };
+
+  const finishPolygon = () => {
+    const points = polygonRef.current;
+    if (points.length < 3) return;
+    polygonRef.current = [];
+    setPolygon([]);
+    commitShape({ kind: "polyline", closed: true, points });
   };
 
   const onPolygonDone = (e: React.MouseEvent<SVGSVGElement>) => {
     if (tool !== "polygon") return;
     e.preventDefault();
-    const points = [...polygonRef.current];
-    if (points.length > 1 && Math.hypot(
-      points[points.length - 1][0] - points[points.length - 2][0],
-      points[points.length - 1][1] - points[points.length - 2][1],
-    ) < 2) {
-      points.pop();
-    }
-    polygonRef.current = [];
-    setPolygon([]);
-    if (points.length >= 3) commitShape({ kind: "polyline", closed: true, points });
+    finishPolygon();
   };
 
+  useEffect(() => {
+    if (tool !== "polygon") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!polygonRef.current.length || (event.key !== "Enter" && event.key !== "Escape")) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"))) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Enter") finishPolygon();
+      else { polygonRef.current = []; setPolygon([]); }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [tool, commitShape]);
+
   const startEdit = (e: React.PointerEvent<SVGElement>, annotation: Annotation, vertex: number) => {
-    if (tool !== "cursor" || annotation.primitive.kind === "mask" || annotation.id.startsWith("tmp-")) return;
+    if (tool !== "cursor" || editSavingRef.current || annotation.primitive.kind === "mask" || annotation.id.startsWith("tmp-")) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const draft = { annotation, vertex, primitive: annotation.primitive };
@@ -354,7 +382,15 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
           return <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="rgba(123,224,173,.12)" stroke="#7be0ad" strokeWidth={2} />;
         })()}
         {polygon.length > 0 && (
-          <polyline points={polygon.map(([x, y]) => toScreen(x, y).join(",")).join(" ")} fill="none" stroke="#7be0ad" strokeWidth={2} />
+          <g className="pyramid-polygon-draft">
+            <polyline points={polygon.map(([x, y]) => toScreen(x, y).join(",")).join(" ")} fill="none" stroke="#7be0ad" strokeWidth={2} />
+            {polygon.map(([x, y], index) => {
+              const [cx, cy] = toScreen(x, y);
+              return <circle key={index} cx={cx} cy={cy} r={index === 0 ? 7 : 5}
+                className={index === 0 && polygon.length >= 3 ? "pyramid-draft-vertex pyramid-close-vertex" : "pyramid-draft-vertex"}
+                fill="#7be0ad" stroke="#111" strokeWidth={1.5} />;
+            })}
+          </g>
         )}
       </svg>
       {/* 复现验证（右上） */}

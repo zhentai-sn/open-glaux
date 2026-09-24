@@ -14,7 +14,7 @@ status: implemented
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 | 承接需求 | [脑暴 20260816-02 · 统一图像标注工具箱](../../../brainstorms/20260816-02-unified-annotation-toolbox.zh-CN.md)（D-1～D-7 已拍板） |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-23 |
+| 最后更新 | 2026-09-24 |
 
 ## 1. 本 SDD 负责什么
 
@@ -100,6 +100,8 @@ flowchart LR
     ST --> API
     DET -->|Detection 回流| ST
 ```
+
+WSI 的 `polygon` 在 SVG 叠加层逐点绘制，已点顶点显示固定屏幕大小的圆形手柄。满三个顶点后点击首点闭合；双击末点或 Enter 也可完成，Escape 取消草稿。闭合命中与重复末点过滤使用屏幕像素距离，持久化几何始终为 level-0 坐标，点列不重复首点。`cursor` 工具拖动已保存顶点时，编辑预览保留至 `PATCH /annotations` 返回；失败恢复旧几何并提示，刷新时从服务端重载。
 
 ### 6.3 任务工具替换映射
 
@@ -298,6 +300,7 @@ stateDiagram-v2
 - [ ] 全部标注工具 UI 走统一工具栏：查看器组件内无内联样式浮动工具条、无硬编码中文工具文案（i18n 双语可切换验证）。
 - [ ] CT 模态 `store.tool === "brush"` 生效（共享工具栏画笔按钮可用），`FrameStackViewer` 的 CT 分支走 `editMaskSink`；StatusBar 工具显示随注册表，`TOOL_LABEL` 硬编码表删除。
 - [ ] WSI 用 bbox 框选：框落库为标注且触发核检测（`on_commit`），检测行为（计数/密度）与旧 ROI 工具一致；框选过小（<24px）仍提示不触发。
+- [ ] WSI 多边形逐点显示圆形顶点，点击首点、双击末点或 Enter 完成后只保存不重复的 level-0 点列；`cursor` 下拖动顶点，保存期间不回跳，刷新后与底图对齐。
 - [ ] IMT 壁线编辑经统一框架完成，`/task/measure` 输出与替换前一致（同一图像同一形变的 IMT_mean 偏差 ≤ 1e-6 mm）。
 - [ ] IMT 模态下 `polygon` 画的是自由多边形并落 `/annotations`；壁线形变在独立的 `wall` 按钮下（D-17），两者互不遮蔽。
 - [ ] `PATCH` 携带过期 `base_seq` 时返回 409 且不落写；前端收到 409 时 Notice 提示并丢弃过期响应，不覆盖最新态。
