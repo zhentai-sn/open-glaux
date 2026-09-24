@@ -102,8 +102,7 @@ export interface AtlasReferencedPayload {
 /** 查看器当前上下文——随 prompt 下发，供 agent-runtime 的 `run_task` 工具缺省取当前图 / 当前任务。 */
 /**
  * 查看器上下文（SDD 10 §9.1）：``{collection, task, method, object, focus}``。
- * ``image_id`` / ``modality`` / ``cubs_cf`` / ``roi_box`` 为过渡字段——runtime 在 W5 改读 object / focus
- * 之前仍只认它们，故前端同时下发，W7 删除。
+ * W5 起前端只下发五字段；runtime 在 W7 前仍兼容旧客户端的扁平字段。
  */
 export interface ViewerContext {
   collection?: string;
@@ -111,11 +110,6 @@ export interface ViewerContext {
   method?: string;
   object?: Pick<ObjectMeta, "id" | "kind" | "axes" | "calibration">;
   focus?: Focus;
-  // 过渡一版（W7 删）
-  image_id?: string;
-  modality?: string;
-  cubs_cf?: number;
-  roi_box?: [number, number, number, number];
 }
 
 /** 用户消息内联图像附件（SDD 00 §4.3 / D-021）；`data` 为不带 `data:` 前缀的 base64。 */

@@ -149,20 +149,20 @@ open-glaux/
 | --- | --- |
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
 | 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；`connection/test\|models`；`atlas/describe` |
-| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`atlas/`、`annotation/`、`security/`、`storage/` |
+| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
 
-工具（`pi/tools/`，chat 模式或 `observe` 权限下一律不挂载）：
+工具由 `pi/harness-registry.ts` 的 `TOOL_PROVIDERS` 装配；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式或 `observe` 权限下一律不挂载：
 
 | 工具 | 作用 | 额外挂载条件 |
 | --- | --- | --- |
 | `run_task` | 调 backend `/task/run` 执行注册表任务，结果写回查看器 | 无；命中任务注册表能力时的调用路径（SDD 02 §7.2），长期保留，不被标注工具取代 |
-| `view_current_image` | 把查看器当前图的像素交给模型 | 连接支持视觉 |
+| `view_current_image` | 把当前焦点帧交给模型 | 有焦点且连接支持视觉 |
 | `consult_atlas` | 只读检索图谱案例，返回图块与摘要 | 连接支持视觉 |
-| `locate_roi` | 按描述定位矩形区域，可带图谱先验 | 连接支持视觉 |
-| `segment_region` | 调外部分割后端取 mask，runtime 侧转像素多边形 | `GLAUX_ANNOT_ALLOW_EGRESS` 且 `GLAUX_SEG_API_TOKEN` 非空 |
-| `propose_annotation` | 写建议态标注（`status=suggested`），等人工确认 | 无 |
+| `locate_roi` | 按描述定位对象像素矩形区域，可带图谱先验 | 有焦点且连接支持视觉 |
+| `segment_region` | 调外部分割后端取 mask，runtime 侧转对象像素多边形 | 有焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且 `GLAUX_SEG_API_TOKEN` 非空 |
+| `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认 | 有焦点 |
 
 ### `backend/` — FastAPI 薄壳
 

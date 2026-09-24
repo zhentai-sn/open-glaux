@@ -11,7 +11,7 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented` |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-09-23 |
+| 最近更新 | 2026-09-24 |
 | 目标阶段 | 第一阶段：自然语言指令驱动的"建议态"标注闭环 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
@@ -67,7 +67,7 @@ status: implemented
 | 输入 | 必填 | 说明 |
 | --- | --- | --- |
 | 自然语言标注指令 | 是 | 会话消息，例如"框出图中最大的低回声区域" |
-| 当前影像上下文 | 是 | 当前视口加载的 image_id / 帧号，由前端随会话上下文提供 |
+| 当前影像上下文 | 是 | 前端随会话提供 `ViewerContext{collection,task,method,object,focus}`；`focus.index` 定位切片或帧 |
 | 权限模式 | 是 | 沿用会话 `permission_mode`（observe/suggest/controlled/autonomous） |
 | 手动粗提示（可选） | 否 | 用户在画布上点一个点/画一个粗框，作为分割 prompt 的替代来源 |
 
@@ -76,7 +76,7 @@ status: implemented
 - 现有 VLM 连接配置（provider、model、base_url、API key），用于视觉粗定位。
 - science-core 分割能力清单（当前：颈动脉超声 contour/carosegdeep 系、胎儿头围等）。
 - SAM 推理 API 连接配置：供应商、endpoint、API key、数据外发开关（见 §7.4）。
-- 前端视口元数据：图像尺寸、像素间距、图像坐标 → cornerstone 世界坐标的变换参数。
+- 对象元数据与焦点：`object.axes`、`object.calibration`、`focus.index`、`focus.region`；帧尺寸与坐标变换由 `X-Glaux-Frame` 给出。
 
 ### 4.3 输入约束
 
@@ -149,28 +149,28 @@ sequenceDiagram
 
 ### 7.1 工具集（第一阶段）
 
-工具的目标图**恒取查看器当前打开的图**（`viewer.image_id`），模型不能指定任意 image_ref——
+标注与观测工具的目标**恒取查看器当前焦点**（`viewer.focus.object_id`），模型不能指定任意 image_ref——
 避免它拿到不属于当前上下文的影像（D-9）。
 
 | 工具 | 入参 | 出参 | 说明 |
 | --- | --- | --- | --- |
-| `locate_roi` | 目标描述, use_atlas, max_results, min_confidence | bbox 列表（图像像素）+ 置信度 + 理由 | 视觉模型 grounding；默认带图谱先验，复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（D-6：**领域结构走这条**） |
-| `segment_region` | 目标描述, max_results, min_confidence | 多边形列表（图像像素）+ 置信度 + 面积 | 走 §7.2 托管分割后端；通用场景的像素级边界 |
-| `propose_annotation` | label, bbox **或** polygon, z, note | annotation_id | 落建议态标注（`status=suggested, source=agent`）；几何二选一，退化几何拒绝 |
+| `locate_roi` | 目标描述, use_atlas, max_results, min_confidence | bbox 列表（对象像素）+ 置信度 + 理由 | 视觉模型 grounding；默认带图谱先验，复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（D-6：**领域结构走这条**） |
+| `segment_region` | 目标描述, max_results, min_confidence | 多边形列表（对象像素）+ 置信度 + 面积 | 走 §7.2 托管分割后端；通用场景的像素级边界 |
+| `propose_annotation` | label, bbox **或** polygon, note | annotation_id、index | `index` 取自 `focus.index`；落建议态标注（`status=suggested, source=agent`） |
 
 模型答**归一化坐标**再由 runtime 乘回像素（D-8）：模型不知道图有多少像素，逼它直接输出
 像素坐标只会得到"1024 猜想"式的幻觉。四值全落在 `[0,1]` 才按归一化解读，否则按像素——
-兼容直接答像素的模型。越界裁回图内，退化框（零宽/零高）丢弃，不把坏几何交给下游。
+兼容直接答像素的模型。以 `X-Glaux-Frame.width/height` 乘回帧像素，再用
+`toObjectCoords` 转成对象像素；`frame.index` 随标注写库。越界裁回图内，退化框丢弃。
 
-工具注册在 agent-runtime 的 harness 创建处——
-[`harness-registry.ts`](../../../../agent-runtime/src/pi/harness-registry.ts) 已有 `toolFactory`
-（2026-08-16 随退役 orchestration P3 引入，`observe` 模式返回空工具集），当前挂着
-[`run_task`](../../../../agent-runtime/src/pi/tools/run-task.ts)（封装 backend `/task/run`）。本 SDD 的三个
-标注工具在同一处登记；`run_task` 保留，是命中任务注册表能力时的调用路径（§7.2 第 1 条）。使用 pi-agent-core 原生 `AgentHarnessTool` 契约。
+工具由 [`harness-registry.ts`](../../../../agent-runtime/src/pi/harness-registry.ts) 的
+`TOOL_PROVIDERS` 登记能力、焦点支持、创建函数与提示片段；`observe` 和 chat 发行包返回空工具集。
+`run_task` 保留为命中任务注册表能力时的调用路径。需要图像字节的工具统一调用
+`fetchObservation(base, focus)`，不各自读取 `/image/{id}`；分割供应商实现 `SegmenterPort.segment`。
 前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool_execution_end`）和
 "⚙ 调用 <tool>"状态行渲染。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
-Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍为当前活动
-对象时应用，用户已切图则丢弃实时写回（持久化记录仍可在重新打开对象时由 `/annotations` 恢复）。
+Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍等于
+`focus.object_id` 时应用，视频还须匹配 `focus.index.t`。用户已切换焦点则丢弃实时写回。
 
 ### 7.2 精度层路由
 
@@ -225,9 +225,9 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 
 | 工具 | 注册条件 | 理由 |
 | --- | --- | --- |
-| `locate_roi` | `connection.vision === true` | 要向模型发图；无视觉的模型收到的图会被 pi-ai 静默换成 "image omitted" 占位（同 SDD 00 D-022） |
-| `segment_region` | `GLAUX_ANNOT_ALLOW_EGRESS` 放行 **且** `GLAUX_SEG_API_TOKEN` 存在 | 图要发往第三方分割服务 |
-| `propose_annotation` | 非 `observe` 即可 | 只写本机 backend，且产出恒为建议态——这是 agent 触碰标注体系的安全出口 |
+| `locate_roi` | 有 `focus` 且 `connection.vision === true` | 要向模型发图；无视觉的模型收到的图会被 pi-ai 静默换成 "image omitted" 占位 |
+| `segment_region` | 有 `focus`、`GLAUX_ANNOT_ALLOW_EGRESS` 放行 **且** `GLAUX_SEG_API_TOKEN` 存在 | 图要发往第三方分割服务 |
+| `propose_annotation` | 有 `focus` 且非 `observe` | 只写本机 backend，且产出恒为建议态 |
 
 ### 7.4 数据外发规则
 
@@ -245,11 +245,13 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 
 | 对象 | 位置 | 说明 |
 | --- | --- | --- |
-| Tool registry 与门控 | `agent-runtime/src/pi/harness-registry.ts` 的 `defaultToolFactory` | 三个标注工具的注册条件（§7.3）+ 系统提示分工 |
-| `locate_roi` | `agent-runtime/src/pi/tools/locate-roi.ts` | grounding + 图谱先验；尺寸从字节头读 |
+| Tool registry 与门控 | `agent-runtime/src/pi/harness-registry.ts` 的 `TOOL_PROVIDERS` | 工具注册条件（§7.3）与提示片段同源 |
+| 观测入口 | `agent-runtime/src/observation/index.ts` 的 `fetchObservation` | `/objects/{id}/frame` + `X-Glaux-Frame`；帧坐标转对象坐标 |
+| `locate_roi` | `agent-runtime/src/pi/tools/locate-roi.ts` | grounding + 图谱先验；尺寸与坐标取自 ReferenceFrame |
 | `segment_region` | `agent-runtime/src/pi/tools/segment-region.ts` | 调分割后端，出多边形 |
 | `propose_annotation` | `agent-runtime/src/pi/tools/propose-annotation.ts` | 写建议态标注 |
 | 分割后端客户端 | `agent-runtime/src/annotation/segmentation-client.ts` | 供应商适配、错误分类、重试 |
+| 分割端口 | `agent-runtime/src/annotation/segmenter-port.ts` | `SegmenterPort.segment` 替换面 |
 | mask → 多边形 | `agent-runtime/src/annotation/mask-to-polygon.ts` | COCO RLE 解码 + 轮廓 + 简化 |
 | 视觉 grounding | `agent-runtime/src/pi/vision.ts` 的 `locateInImage` | 复用 `completeJson`；归一化坐标换算 |
 | 出站守卫（Node） | `agent-runtime/src/security/net-guard.ts`（已有） | 复用，无需新增 |
@@ -270,16 +272,17 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 | `id` | 服务端分配 | 幂等键（§10） |
 | `status` | `suggested` | 人工确认转 `confirmed`，驳回转 `rejected` |
 | `source` | `agent` | **确认后保留不变**——溯源不被抹掉，可审计"哪些标注源于 agent" |
-| `primitive` | `bbox` 或 `polyline(closed)` | **图像像素坐标**（不是世界坐标，见下） |
+| `primitive` | `bbox` 或 `polyline(closed)` | **对象像素坐标**（不是世界坐标，见下） |
 | `label` | agent 给出的语义标签 | |
-| `z` | 体数据切片号；2D/WSI 为 null | |
+| `index` | `focus.index` | 体数据为 `z`、视频为 `t`、切片为 `level`；`z` API 别名在 SDD 10 W7 删除 |
 | `seq` | 服务端分配 | 乐观并发；确认/驳回须带 `base_seq` |
 
 置信度、理由、trace_id 等**不进标注实体**，走工具结果的 `details`（§12）——它们是本次
 产出的元信息，不是标注本身的属性；标注一旦确认就该与人工标注同形。
 
-**坐标职责边界**（Q3 → D-9）：runtime 只讲**图像像素坐标**，像素↔世界坐标的变换全部
-留在前端 `csAnno`。runtime 不碰视口，也不需要前端向它暴露任何视口元数据。
+**坐标职责边界**（Q3 → D-9）：runtime 用 `ReferenceFrame` 将观测帧像素换成对象像素；
+对象像素↔cornerstone 世界坐标的变换留在前端 `csAnno`。runtime 不碰视口变换，
+但需要前端提供 `object` 与 `focus`。
 mask 同理不穿过契约——在 runtime 侧解码简化成多边形，前端只见矢量几何。
 
 ## 10. 幂等规则
@@ -327,7 +330,7 @@ Agent Runtime 的会话视图必须保留 `glaux.annotation_proposed` 与 `glaux
 | --- | --- | --- |
 | `glaux.roi_located` | `locate_roi` | image_id、target、boxes[{box, confidence, why}]、filtered_out、可选 atlas |
 | `glaux.segment_region` | `segment_region` | image_id、target、regions[{label, confidence, bbox, points, area}]、filtered_out |
-| `glaux.annotation_proposed` | `propose_annotation` | annotation_id（**可为 null** 表示本次未提出）、image_id、label、note、reason、primitive、z、seq |
+| `glaux.annotation_proposed` | `propose_annotation` | annotation_id（**可为 null** 表示本次未提出）、image_id、label、note、reason、primitive、index、seq |
 | `glaux.atlas_referenced` | `locate_roi` 的图谱先验步 | 同 SDD 03 §12（复用同一契约与卡片组件） |
 
 失败不另发事件：错误经 `RuntimeError` 走既有工具错误通道，模型收到可读原因后自行纠正
@@ -350,7 +353,7 @@ trace_id；不记录图像内容与 API key。
 | 分割额度耗尽 | `segmentation_quota_exhausted` | "额度不足，请充值" | 不重试（与参数错误区分） |
 | 分割后端超时/5xx | `segmentation_failed` | 可重试提示 | 重试一次后失败 |
 | 未知 mask 编码 | `segmentation_failed` | 提示后端契约变化 | 直接报错，**不静默产出错误几何** |
-| 取图失败 / 尺寸解析不出 | `image_unavailable` | 提示图不可用 | 不猜默认尺寸（尺寸错则整套坐标全错） |
+| 取图失败 / 缺失或非法 `X-Glaux-Frame` | `image_unavailable` | 提示图不可用 | 不猜默认尺寸与坐标系 |
 | 定位输出非法 JSON | `locate_failed` | 提示模型输出异常 | 重试一次后失败 |
 | 建议态写入被拒 | `annotation_rejected` | 提示几何越界等原因 | 后端 422 原因原样回传，模型可改坐标重试 |
 | 出站守卫拒绝 | `EGRESS_BLOCKED` | 提示 endpoint 不在白名单 | 运维处理 |
@@ -425,8 +428,8 @@ trace_id；不记录图像内容与 API key。
 | D-5 | 分割后端选 **Gitee AI（模力方舟）`sam3`** serverless（Q1 收敛） | 阿里云 ModelScope / 视觉智能开放平台、百度智能云、腾讯云 TI；自部署 SAM3 | 唯一实测可用的 SAM3 文本 prompt 分割托管 API：2.0–2.5s、契约清晰、按量计费、零运维。自部署 SAM3 需 10–12GB 显存，本机是 Intel Arc 核显跑不了 CUDA，另一台 4060 Ti 16G 尚未接通 | 2026-08-22 |
 | D-6 | 领域结构定位归 `locate_roi`（视觉 grounding + 图谱先验），`segment_region` 只管通用场景 | 全部走 SAM 分割（D-2 的隐含假设） | 裸 SAM3 医学模态**实测 0 命中**（超声 9 组中英 prompt / CT / WSI 全空，同接口对自然图像置信度 0.94）——开放词表建立在自然图像概念上。这也让图谱先验从"锦上添花"变成刚需 | 2026-08-22 |
 | D-7 | 外发开关用环境变量 `GLAUX_ANNOT_ALLOW_EGRESS`，缺省关闭（Q6 收敛） | 连接配置 UI 里的开关 | pre-alpha 阶段外发是运维决策不是用户偏好；环境变量不会被误点开，也便于在部署层统一管控。UI 开关待安全评审后再议 | 2026-08-22 |
-| D-8 | 模型答**归一化坐标**，runtime 按图像尺寸乘回像素 | 要求模型直接输出像素坐标 | 模型不知道图有多少像素，直接要像素只会得到"1024 猜想"式幻觉；归一化是它唯一有校准感的坐标系。尺寸从 PNG/JPEG 字节头读，不另开 `/meta` 端点 | 2026-08-22 |
-| D-9 | 建议态**不另立实体**，直接用 SDD 04 的 `Annotation`（`status=suggested, source=agent`）；坐标契约恒为图像像素，世界坐标变换留前端（Q2/Q3/Q4 收敛） | 建议态单独一套实体与端点；runtime 做世界坐标变换 | SDD 04 §2 早已留好这条缝；同一实体两套状态词表只会带来同步成本。runtime 碰视口坐标就得知道视口，那是前端的知识。`on_commit` 在建议态不派发、确认时补派，是这条决策的直接推论 | 2026-08-22 |
+| D-8 | 模型答**归一化坐标**，runtime 按 `ReferenceFrame.width/height` 乘回帧像素，再按 `origin/scale` 转对象像素 | 要求模型直接输出像素坐标 | 观测帧可能裁剪或缩放，尺寸与变换以 `X-Glaux-Frame` 为准（SDD 10 §6.4） | 2026-08-22 |
+| D-9 | 建议态**不另立实体**，直接用 SDD 04 的 `Annotation`（`status=suggested, source=agent`）；写库坐标为对象像素，世界坐标变换留前端（Q2/Q3/Q4 收敛） | 建议态单独一套实体与端点；runtime 做世界坐标变换 | runtime 只处理观测帧→对象的 `ReferenceFrame` 变换，不处理视口世界坐标；`on_commit` 在建议态不派发、确认时补派 | 2026-08-22 |
 | D-10 | 分割后端契约以**实测**为准，与其 OpenAPI schema 冲突处按实测实现并在代码注释里记明 | 按 schema 实现，出错再查 | 实测发现两处不符（`prompt` 必传但未声明、`size` 实为 `[w,h]`）。按 schema 写会得到纵向糊成长条的几何，且要到联调才暴露。回归测试用真实响应做 fixture 锁住这两点 | 2026-08-22 |
 | D-11 | 不新增 SSE 事件类型，产出走**工具结果 `details`**；`suggest` 逐次批准用会话内卡片（Q5 收敛） | 新增 `annotation.*` 事件族；弹窗批准 | SDD 03 D-21 已验证 `details` 这条范式：卡片随会话历史天然持久化，不必另建回放通道。弹窗打断阅片节奏，且与既有会话交互不同构 | 2026-08-22 |
 | D-12 | `propose_annotation` 成功后由 `tool_execution_end` 事件直接 upsert 当前 Viewer，快照保留建议 details | 成功后再请求 `/annotations`；轮询；只在切图时恢复 | details 来自 Backend 成功响应，已含 ID/几何/seq；直接写回延迟最低且无额外请求。活动对象守卫防止切图串入，`upsertAnnotation` 保证重复事件幂等，Backend 仍是刷新后的事实源 | 2026-08-26 |
@@ -441,8 +444,8 @@ trace_id；不记录图像内容与 API key。
 - [x] **Q2 mask 传输格式与解码** → **D-10 / §7.2**：`COCO_RLE_base64`；runtime 侧
       解码 → Moore 邻域轮廓跟踪 → Douglas-Peucker 简化，点数上限 256（实测 218/265 点
       简化到 15/16 点，压缩比 14–17×）。纯算法零依赖，TS 侧无 pycocotools。
-- [x] **Q3 坐标转换职责边界** → **D-9**：runtime 只讲图像像素坐标，世界坐标变换全部
-      留前端 `csAnno`；前端**不需要**向 runtime 暴露任何视口元数据。
+- [x] **Q3 坐标转换职责边界** → **D-9 / SDD 10 §6.4**：runtime 把观测帧像素转换为对象像素，
+      前端 `csAnno` 负责对象像素↔世界坐标；前端提供 `object` / `focus`，不提供视口变换矩阵。
 - [x] **Q4 science-core 分割的 REST 契约** → **D-9**：现有 `/task/run` 够用，不新开端点；
       标注落库复用 SDD 04 的 `POST /annotations`（仅在 REST 层暴露 store 早已支持的
       `status`/`source` 两个字段）。

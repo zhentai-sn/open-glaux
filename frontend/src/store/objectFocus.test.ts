@@ -148,24 +148,24 @@ describe("active object ↔ agent context", () => {
 
     await switchModality(p.modality);
     expect(currentObjectId()).toBe(a);
-    expect(toViewerContext().image_id).toBe(a);
-    expect(toViewerContext().modality).toBe(p.modality);
+    expect(toViewerContext().focus?.object_id).toBe(a);
+    expect(toViewerContext().collection).toBe(p.modality);
 
     await p.select(b);
     expect(currentObjectId()).toBe(b);
-    expect(toViewerContext().image_id).toBe(b);
+    expect(toViewerContext().focus?.object_id).toBe(b);
   });
 
   it("跨模态切换后上下文不残留上一模态的对象", async () => {
     await switchModality("ct_abdomen");
-    expect(toViewerContext().image_id).toBe("ct_001");
+    expect(toViewerContext().focus?.object_id).toBe("ct_001");
     await switchModality("pathology");
     expect(currentObjectId()).toBe("slide_001");
-    expect(toViewerContext().image_id).toBe("slide_001");
+    expect(toViewerContext().focus?.object_id).toBe("slide_001");
     await switchModality("carotid_imt");
     expect(currentObjectId()).toBe("tech_401");
-    expect(toViewerContext().image_id).toBe("tech_401");
-    expect(toViewerContext().roi_box).toBeUndefined();
+    expect(toViewerContext().focus?.object_id).toBe("tech_401");
+    expect(toViewerContext().focus?.region).toBeNull();
   });
 });
 

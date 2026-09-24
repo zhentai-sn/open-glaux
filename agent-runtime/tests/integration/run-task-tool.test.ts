@@ -16,7 +16,7 @@ import {
 } from "../helpers/runtime-fixture.js";
 import { boxRegion, targetObjectId, taskSpecOf, viewerOn } from "../helpers/viewer-fixture.js";
 
-const MM_PER_PX = { kind: "mm_per_px", value: 0.06 } as const;
+const MM_PER_PX = { kind: "mm_per_px", value: 0.06, source: "fixture" } as const;
 
 type FetchLike = typeof globalThis.fetch;
 
@@ -80,7 +80,7 @@ describe("run_task tool (unit)", () => {
     expect(text).toContain("caroSegDeep@1");
   });
 
-  it("lets explicit params override the viewer and forwards the box region as corners", async () => {
+  it("显式覆盖对象 id 时不把原焦点的框带给另一个对象", async () => {
     const { fetch, calls } = fetchRecorder(ok);
     const tool = createRunTaskTool({
       fetch,
@@ -92,7 +92,6 @@ describe("run_task tool (unit)", () => {
       task: "nuclei_detection",
       object_id: "slide_002",
       method: "stardist_he",
-      region: boxRegion(10, 20, 300, 400),
     });
   });
 

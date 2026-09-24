@@ -2,7 +2,7 @@
  * `locate_roi` 工具（SDD 02 §6 / §7.2）——视觉模型 grounding，可带图谱先验。
  *
  * 覆盖：归一化坐标换算回像素、越界裁剪与退化框丢弃、0 命中如实告知、
- * 图谱先验接入与不可用时的退化、尺寸解析失败即报错（不猜默认值）、视觉门控。
+ * 图谱先验接入与不可用时的退化、坐标头缺失拒绝观测、视觉门控。
  */
 
 import {
@@ -19,7 +19,6 @@ import type { ModelRuntime } from "../../src/pi/model-runtime.js";
 import {
   createLocateRoiTool,
   LOCATE_ROI_TOOL_NAME,
-  readImageSize,
   type RoiLocatedDetails,
 } from "../../src/pi/tools/locate-roi.js";
 import type { VisionRuntime } from "../../src/pi/vision.js";
@@ -63,7 +62,7 @@ function ex(id: string): AtlasExemplar {
   };
 }
 
-function fakeBackend(opts: { exemplars?: AtlasExemplar[]; image?: Uint8Array | null } = {}) {
+function fakeBackend(opts: { exemplars?: AtlasExemplar[]; image?: Uint8Array | null; frameHeader?: boolean; origin?: [number, number]; scale?: number } = {}) {
   const calls: string[] = [];
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -78,8 +77,9 @@ function fakeBackend(opts: { exemplars?: AtlasExemplar[]; image?: Uint8Array | n
     if (u.pathname === "/atlas/exemplars/referenced") return new Response("{}");
     if (observedObjectId(url) !== undefined) {
       if (opts.image === null) return new Response("nf", { status: 404 });
+      const frame = { object_id: observedObjectId(url), index: {}, origin: opts.origin ?? [0, 0], scale: opts.scale ?? 1, width: WIDTH, height: HEIGHT };
       return new Response(Buffer.from(opts.image ?? pngBytes()), {
-        headers: { "content-type": "image/png" },
+        headers: { "content-type": "image/png", ...(opts.frameHeader === false ? {} : { "x-glaux-frame": JSON.stringify(frame) }) },
       });
     }
     return new Response("nf", { status: 404 });
@@ -117,25 +117,6 @@ function textOf(result: { content: Array<{ type: string; text?: string }> }): st
   return result.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
 
-describe("readImageSize", () => {
-  it("读 PNG 头的宽高", () => {
-    expect(readImageSize(pngBytes(1024, 829))).toEqual({ width: 1024, height: 829 });
-  });
-
-  it("读 JPEG 的 SOF0 宽高", () => {
-    const buf = Buffer.from([
-      0xff, 0xd8, // SOI
-      0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x2c, 0x02, 0x58, // SOF0: h=300, w=600
-      0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
-    ]);
-    expect(readImageSize(new Uint8Array(buf))).toEqual({ width: 600, height: 300 });
-  });
-
-  it("认不出的格式返回 null（调用方据此报错而非猜默认值）", () => {
-    expect(readImageSize(new Uint8Array([1, 2, 3, 4]))).toBeNull();
-  });
-});
-
 describe("locate_roi", () => {
   it("归一化坐标乘回图像像素", async () => {
     const backend = fakeBackend();
@@ -155,6 +136,16 @@ describe("locate_roi", () => {
     expect(details.payload.boxes[0]!.box).toEqual([200, 300, 400, 450]);
     expect(details.payload.boxes[0]!.confidence).toBeCloseTo(0.9);
     expect(details.payload.boxes[0]!.why).toBe("低回声区");
+  });
+
+  it("裁剪缩放后的帧坐标换回对象坐标", async () => {
+    const backend = fakeBackend({ origin: [1000, 2000], scale: 0.5 });
+    const { rt } = visionRuntime([
+      JSON.stringify({ boxes: [{ box: [0.25, 0.5, 0.5, 0.75], confidence: 0.9 }] }),
+    ]);
+    const result = await toolFor(backend.fetch, rt).execute("scaled", { target: "x", use_atlas: false }, undefined, undefined, undefined);
+    expect((result.details as RoiLocatedDetails).payload.boxes[0]!.box).toEqual([1400, 2600, 1800, 2900]);
+    expect(textOf(result)).toContain("object pixels");
   });
 
   it("越界坐标裁回图内，坐标颠倒时归一化", async () => {
@@ -273,7 +264,8 @@ describe("locate_roi", () => {
       fetch: (async (input: string | URL | Request) => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (observedObjectId(url) !== undefined) {
-          return new Response(Buffer.from(pngBytes()), { headers: { "content-type": "image/png" } });
+          const frame = { object_id: observedObjectId(url), index: {}, origin: [0, 0], scale: 1, width: WIDTH, height: HEIGHT };
+          return new Response(Buffer.from(pngBytes()), { headers: { "content-type": "image/png", "x-glaux-frame": JSON.stringify(frame) } });
         }
         return new Response("boom", { status: 500 }); // 图谱全挂
       }) as unknown as typeof fetch,
@@ -306,8 +298,8 @@ describe("locate_roi", () => {
     expect(contexts).toHaveLength(0);
   });
 
-  it("尺寸解析不出时报错——不猜默认尺寸", async () => {
-    const backend = fakeBackend({ image: new Uint8Array([1, 2, 3, 4]) });
+  it("坐标头缺失时报错——不猜默认尺寸", async () => {
+    const backend = fakeBackend({ image: new Uint8Array([1, 2, 3, 4]), frameHeader: false });
     const { rt } = visionRuntime([]);
     await expect(
       toolFor(backend.fetch, rt).execute(
@@ -317,7 +309,7 @@ describe("locate_roi", () => {
         undefined,
         undefined,
       ),
-    ).rejects.toThrow(/尺寸/u);
+    ).rejects.toThrow(/X-Glaux-Frame/u);
   });
 });
 
@@ -327,6 +319,7 @@ describe("locate_roi 门控", () => {
   it("视觉连接才挂（同 consult_atlas）", () => {
     const withVision = defaultToolFactory({
       permissionMode: "controlled",
+      viewer: viewerOn("eye_001"),
       connection: { ...HOSTED, vision: true } as ConnectionInput,
       runtime,
     });
@@ -334,6 +327,7 @@ describe("locate_roi 门控", () => {
 
     const withoutVision = defaultToolFactory({
       permissionMode: "controlled",
+      viewer: viewerOn("eye_001"),
       connection: { ...HOSTED, vision: false } as ConnectionInput,
       runtime,
     });

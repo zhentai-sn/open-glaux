@@ -12,6 +12,12 @@ import {
   type PromptImage,
   type TransportCommand,
   type ViewerContext,
+  type ObjectKind,
+  type Axis,
+  type Calibration,
+  type Focus,
+  type Index,
+  type Region,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import type { CommandService } from "../pi/command-service.js";
@@ -321,12 +327,147 @@ function parseConnection(value: unknown) {
   };
 }
 
-/** 查看器上下文：缺省 undefined；给了必须是对象，字段逐个校验类型，未知字段忽略。 */
+const OBJECT_KINDS = new Set<ObjectKind>(["image", "volume", "slide", "video"]);
+const AXIS_NAMES = new Set(["x", "y", "z", "t", "level"]);
+const INDEX_AXES = ["z", "t", "level"] as const;
+let legacyViewerHits = 0;
+
+/** W7 删除旧字段前的可读计数；完整回归后须为 0。 */
+export function getLegacyViewerHits(): number { return legacyViewerHits; }
+export function resetLegacyViewerHits(): void { legacyViewerHits = 0; }
+
+function invalid(path: string, expected: string): never {
+  throw new RuntimeError("invalid_request", `${path} must be ${expected}.`, 400);
+}
+
+function stringAt(value: unknown, path: string): string {
+  if (typeof value !== "string" || !value) invalid(path, "a non-empty string");
+  return value;
+}
+
+function finiteAt(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) invalid(path, "a finite number");
+  return value;
+}
+
+function kindAt(value: unknown, path: string): ObjectKind {
+  if (typeof value !== "string" || !OBJECT_KINDS.has(value as ObjectKind)) invalid(path, "an ObjectKind");
+  return value as ObjectKind;
+}
+
+function parseIndex(value: unknown): Index {
+  const input = asObject(value);
+  const index: Index = {};
+  for (const axis of INDEX_AXES) {
+    if (input[axis] === undefined || input[axis] === null) continue;
+    const n = finiteAt(input[axis], `viewer.focus.index.${axis}`);
+    if (!Number.isInteger(n) || n < 0) invalid(`viewer.focus.index.${axis}`, "a non-negative integer");
+    index[axis] = n;
+  }
+  if (INDEX_AXES.filter((axis) => index[axis] !== undefined).length > 1) invalid("viewer.focus.index", "at most one axis");
+  return index;
+}
+
+function parseRegion(value: unknown): Region | null {
+  if (value === null) return null;
+  const input = asObject(value);
+  const kind = stringAt(input.kind, "viewer.focus.region.kind");
+  if (kind === "box") {
+    const x0 = finiteAt(input.x0, "viewer.focus.region.x0");
+    const y0 = finiteAt(input.y0, "viewer.focus.region.y0");
+    const x1 = finiteAt(input.x1, "viewer.focus.region.x1");
+    const y1 = finiteAt(input.y1, "viewer.focus.region.y1");
+    if (x0 >= x1 || y0 >= y1) invalid("viewer.focus.region", "an ordered box");
+    return { kind, x0, y0, x1, y1 };
+  }
+  if (kind === "column_window") {
+    const x0 = finiteAt(input.x0, "viewer.focus.region.x0");
+    const x1 = finiteAt(input.x1, "viewer.focus.region.x1");
+    if (x0 >= x1) invalid("viewer.focus.region", "an ordered column window");
+    return { kind, x0, x1 };
+  }
+  if (kind === "slice") {
+    const z = finiteAt(input.z, "viewer.focus.region.z");
+    if (!Number.isInteger(z) || z < 0) invalid("viewer.focus.region.z", "a non-negative integer");
+    return { kind, z };
+  }
+  if (kind === "frame_range") {
+    const t0 = finiteAt(input.t0, "viewer.focus.region.t0");
+    const t1 = finiteAt(input.t1, "viewer.focus.region.t1");
+    if (!Number.isInteger(t0) || !Number.isInteger(t1) || t0 < 0 || t0 >= t1) invalid("viewer.focus.region", "an ordered non-negative frame range");
+    if (input.seed === undefined || input.seed === null) return { kind, t0, t1 };
+    const seed = asObject(input.seed);
+    const t = finiteAt(seed.t, "viewer.focus.region.seed.t");
+    if (!Number.isInteger(t) || t < t0 || t > t1) invalid("viewer.focus.region.seed.t", "an integer within the frame range");
+    if (!Array.isArray(seed.box) || seed.box.length !== 4 || !seed.box.every((n) => typeof n === "number" && Number.isFinite(n))) {
+      invalid("viewer.focus.region.seed.box", "[x0, y0, x1, y1]");
+    }
+    const box = seed.box as [number, number, number, number];
+    if (box[0] >= box[2] || box[1] >= box[3]) invalid("viewer.focus.region.seed.box", "an ordered box");
+    return { kind, t0, t1, seed: { t, box } };
+  }
+  return invalid("viewer.focus.region.kind", "a supported Region kind");
+}
+
+function parseObject(value: unknown): NonNullable<ViewerContext["object"]> {
+  const input = asObject(value);
+  const id = stringAt(input.id, "viewer.object.id");
+  const kind = kindAt(input.kind, "viewer.object.kind");
+  if (!Array.isArray(input.axes) || input.axes.length < 2) invalid("viewer.object.axes", "an Axis array");
+  const axes: Axis[] = input.axes.map((value: unknown, i: number) => {
+    const axis = asObject(value);
+    const name = stringAt(axis.name, `viewer.object.axes[${i}].name`);
+    if (!AXIS_NAMES.has(name)) invalid(`viewer.object.axes[${i}].name`, "an AxisName");
+    const size = finiteAt(axis.size, `viewer.object.axes[${i}].size`);
+    if (!Number.isInteger(size) || size <= 0) invalid(`viewer.object.axes[${i}].size`, "a positive integer");
+    const parsed: Axis = { name: name as Axis["name"], size };
+    if (axis.spacing !== undefined) parsed.spacing = axis.spacing === null ? null : finiteAt(axis.spacing, `viewer.object.axes[${i}].spacing`);
+    if (axis.unit !== undefined) parsed.unit = stringAt(axis.unit, `viewer.object.axes[${i}].unit`);
+    return parsed;
+  });
+  const required = kind === "image" ? ["x", "y"] : kind === "volume" ? ["x", "y", "z"] : kind === "slide" ? ["x", "y", "level"] : ["x", "y", "t"];
+  if (axes.length !== required.length || axes.some((axis, i) => axis.name !== required[i])) invalid("viewer.object.axes", `the ${kind} axis order`);
+  let calibration: Calibration | null = null;
+  if (input.calibration !== null && input.calibration !== undefined) {
+    const c = asObject(input.calibration);
+    calibration = { kind: stringAt(c.kind, "viewer.object.calibration.kind"), value: c.value, source: stringAt(c.source, "viewer.object.calibration.source") };
+    if (c.value === undefined) invalid("viewer.object.calibration.value", "present");
+    if (c.provenance !== undefined) calibration.provenance = asObject(c.provenance);
+  }
+  return { id, kind, axes, calibration };
+}
+
+function parseFocus(value: unknown, object: NonNullable<ViewerContext["object"]>): Focus {
+  const input = asObject(value);
+  const objectId = stringAt(input.object_id, "viewer.focus.object_id");
+  if (objectId !== object.id) invalid("viewer.focus.object_id", "equal to viewer.object.id");
+  let kind = kindAt(input.kind, "viewer.focus.kind");
+  if (kind !== object.kind) {
+    console.warn(`viewer.focus.kind ${kind} 与 object.kind ${object.kind} 不一致，按对象重建`);
+    kind = object.kind;
+  }
+  const index = parseIndex(input.index);
+  const axis = kind === "volume" ? "z" : kind === "slide" ? "level" : kind === "video" ? "t" : null;
+  for (const name of INDEX_AXES) if (index[name] !== undefined && name !== axis) invalid("viewer.focus.index", `the ${kind} axis`);
+  if (axis !== null && index[axis] !== undefined && index[axis]! >= object.axes[2]!.size) invalid(`viewer.focus.index.${axis}`, "within axes bounds");
+  const region = parseRegion(input.region);
+  return { object_id: objectId, kind, index, region };
+}
+
+/** 旧客户端只有扁平字段；W7 删除。kind 推断只在这条过渡路径使用。 */
+function legacyKind(modality: string | undefined, id: string): ObjectKind {
+  if (modality === "ct_abdomen" || id.startsWith("ct_")) return "volume";
+  if (modality === "pathology" || id.startsWith("slide_")) return "slide";
+  if (modality === "video" || id.startsWith("vid-")) return "video";
+  return "image";
+}
+
+/** 查看器上下文：新字段优先；旧字段仅在新字段整体缺失时映射并计数告警。 */
 function parseViewer(value: unknown): ViewerContext | undefined {
   if (value === undefined || value === null) return undefined;
   const v = asObject(value);
   const out: ViewerContext = {};
-  for (const key of ["image_id", "task", "modality", "method"] as const) {
+  for (const key of ["collection", "task", "method"] as const) {
     if (v[key] !== undefined) {
       if (typeof v[key] !== "string") {
         throw new RuntimeError("invalid_request", `viewer.${key} must be a string.`, 400);
@@ -334,22 +475,44 @@ function parseViewer(value: unknown): ViewerContext | undefined {
       out[key] = v[key];
     }
   }
+  if (v.object !== undefined || v.focus !== undefined) {
+    if (v.object === undefined || v.focus === undefined) invalid("viewer.object/focus", "provided together");
+    out.object = parseObject(v.object);
+    out.focus = parseFocus(v.focus, out.object);
+    return out; // 旧字段整体忽略，连错误形状也不读取
+  }
+  if (v.image_id === undefined && v.modality === undefined && v.cubs_cf === undefined && v.roi_box === undefined) return out;
+  for (const key of ["image_id", "modality"] as const) {
+    if (v[key] !== undefined && typeof v[key] !== "string") {
+      throw new RuntimeError("invalid_request", `viewer.${key} must be a string.`, 400);
+    }
+  }
   if (v.cubs_cf !== undefined) {
     if (typeof v.cubs_cf !== "number" || !Number.isFinite(v.cubs_cf)) {
       throw new RuntimeError("invalid_request", "viewer.cubs_cf must be a number.", 400);
     }
-    out.cubs_cf = v.cubs_cf;
   }
+  let box: [number, number, number, number] | undefined;
   if (v.roi_box !== undefined) {
-    const box = v.roi_box;
+    const candidate = v.roi_box;
     if (
-      !Array.isArray(box) ||
-      box.length !== 4 ||
-      !box.every((n) => typeof n === "number" && Number.isFinite(n))
+      !Array.isArray(candidate) ||
+      candidate.length !== 4 ||
+      !candidate.every((n) => typeof n === "number" && Number.isFinite(n))
     ) {
       throw new RuntimeError("invalid_request", "viewer.roi_box must be [x0, y0, x1, y1].", 400);
     }
-    out.roi_box = box as [number, number, number, number];
+    box = candidate as [number, number, number, number];
+  }
+  legacyViewerHits += 1;
+  console.warn(`旧 ViewerContext 字段已映射为 object/focus（累计 ${legacyViewerHits} 次）`);
+  if (out.collection === undefined && typeof v.modality === "string") out.collection = v.modality;
+  if (typeof v.image_id === "string" && v.image_id) {
+    const kind = legacyKind(v.modality as string | undefined, v.image_id);
+    const axis = kind === "volume" ? "z" : kind === "slide" ? "level" : kind === "video" ? "t" : null;
+    const index = axis ? { [axis]: 0 } : {};
+    out.object = { id: v.image_id, kind, axes: [], calibration: v.cubs_cf === undefined ? null : { kind: "mm_per_px", value: v.cubs_cf, source: "legacy_viewer", provenance: {} } };
+    out.focus = { object_id: v.image_id, kind, index, region: box ? { kind: "box", x0: box[0], y0: box[1], x1: box[2], y1: box[3] } : null };
   }
   return out;
 }

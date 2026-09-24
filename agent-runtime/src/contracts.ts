@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { HarnessTool, HarnessToolContext } from "./pi/harness-registry.js";
 
 export const SESSION_STATUSES = ["active", "archived"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
@@ -87,15 +88,39 @@ export interface AtlasReferencedPayload {
   snapshots: { exemplar_id: string; caption: string; tags: string[] }[];
 }
 
-/**
- * 前端查看器当前上下文——随 prompt 命令下发，供领域工具（`run_task`）默认取"当前打开的图 / 当前任务"。
- * SDD 02 §4.2「当前影像上下文由前端随会话上下文提供」的首次接线；字段全部可选。
- */
+/** SDD 10 §9.1：runtime 对 backend / frontend 的视觉对象契约镜像。 */
+export type ObjectKind = "image" | "volume" | "slide" | "video";
+export type AxisName = "x" | "y" | "z" | "t" | "level";
+export interface Axis { name: AxisName; size: number; spacing?: number | null; unit?: string }
+export interface Calibration { kind: string; value: unknown; source: string; provenance?: Record<string, unknown> }
+export interface ObjectContext { id: string; kind: ObjectKind; axes: Axis[]; calibration: Calibration | null }
+export interface Index { z?: number | null; t?: number | null; level?: number | null }
+export type Region =
+  | { kind: "box"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "column_window"; x0: number; x1: number }
+  | { kind: "slice"; z: number }
+  | { kind: "frame_range"; t0: number; t1: number; seed?: { t: number; box: [number, number, number, number] } };
+export interface Focus { object_id: string; kind: ObjectKind; index: Index; region: Region | null }
+export interface ReferenceFrame { object_id: string; index: Index; origin: [number, number]; scale: number; width: number; height: number }
+export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame }
+export interface ToolProvider {
+  name: string;
+  requires: { vision?: boolean; egress?: boolean; runtime?: boolean };
+  supports(focus: Focus | undefined): boolean;
+  create(context: HarnessToolContext): HarnessTool;
+  promptFragment(context: HarnessToolContext): string;
+}
+
+/** 前端随 prompt 下发的当前观测焦点；四个旧字段只作 W5～W6 过渡输入。 */
 export interface ViewerContext {
-  image_id?: string;
+  collection?: string;
   task?: string;
-  modality?: string;
   method?: string;
+  object?: ObjectContext;
+  focus?: Focus;
+  // W7 删除：parseViewer 只在 object/focus 缺失时映射
+  image_id?: string;
+  modality?: string;
   cubs_cf?: number;
   roi_box?: [number, number, number, number];
 }

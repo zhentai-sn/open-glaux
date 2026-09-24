@@ -77,7 +77,8 @@ function fakeBackend(
       if (options.imageStatus && options.imageStatus !== 200) {
         return new Response("nf", { status: options.imageStatus });
       }
-      return new Response(Buffer.from(TARGET_BYTES), { headers: { "content-type": "image/png" } });
+      const frame = { object_id: observedObjectId(url), index: {}, origin: [0, 0], scale: 1, width: 64, height: 48 };
+      return new Response(Buffer.from(TARGET_BYTES), { headers: { "content-type": "image/png", "x-glaux-frame": JSON.stringify(frame) } });
     }
     return new Response("nf", { status: 404 });
   }) as unknown as typeof fetch;

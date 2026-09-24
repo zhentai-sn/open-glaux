@@ -56,7 +56,7 @@ ollama serve                 # 默认 http://localhost:11434
 1. provider = **OpenAI 兼容** → 点 **快填 · Ollama**（自动填 `http://localhost:11434/v1`）；密钥留空。
 2. **测试连接** → `已连接 · 200 · N 模型`。
 3. **拉取模型** → 视觉判定额外查 Ollama `/api/show` 的 `capabilities`：含 `vision` → 👁。选一个模型。
-4. 在对话里下指令（如「测这张颈动脉远壁 IMT」）→ 智能体调用已挂载的领域工具（`run_task`、`locate_roi` 等）跑当前任务，结果回到查看器。工具只在完整版且权限模式不是 `observe` 时挂载。
+4. 在对话里下指令（如「测这张颈动脉远壁 IMT」）→ 智能体调用已挂载的领域工具（`run_task`、`locate_roi` 等）跑当前任务，结果回到查看器。工具只在完整版且权限模式不是 `observe` 时挂载；看图、定位、分割和提出标注还需要已打开的对象焦点。
 
 > **LM Studio** 同理：快填 · LM Studio（`http://localhost:1234/v1`），起本地服务并加载模型即可。
 

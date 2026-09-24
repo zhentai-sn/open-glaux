@@ -8,13 +8,12 @@
  * - 工具产出或写库请求指向哪个对象（`targetObjectId`）；
  * - `run_task` 发出的任务请求的语义投影（`taskSpecOf`）。
  *
- * W5 把 `ViewerContext` 收敛为 `{collection, task, method, object, focus}`、取图改走
- * `GET /objects/{id}/frame` 时，只改本文件的取值方式，不改各测试的断言语义。
+ * W5 后 `ViewerContext` 为五字段，取图走 `GET /objects/{id}/frame`。
  */
 
 import { crc32, deflateSync } from "node:zlib";
 
-import type { ViewerContext } from "../../src/contracts.js";
+import type { Axis, Index, ObjectKind, ViewerContext } from "../../src/contracts.js";
 
 /** 各类对象的夹具 id；前缀与 backend 现行的 ID 判别约定一致（`ct_` / `slide_` / `vid-`）。 */
 export const FIXTURE_OBJECT_IDS = {
@@ -33,7 +32,7 @@ export interface BoxRegion {
   y1: number;
 }
 
-/** SDD 10 §9.1 `Calibration` 的平面标定子集（过渡期唯一能经 ViewerContext 下发的一种）。 */
+/** 测试夹具所需的平面标定子集。 */
 export interface PlanarCalibration {
   kind: "mm_per_px";
   value: number;
@@ -46,22 +45,26 @@ export interface ViewerSpec {
   method?: string;
   calibration?: PlanarCalibration;
   region?: BoxRegion;
+  kind?: ObjectKind;
+  index?: Index;
 }
 
 /**
  * 构造「查看器当前打开对象 `objectId`」的上下文。
- * 现映射到过渡字段；W5 改为产出 `object` + `focus`。
+ * W5 起产出五字段上下文；真实对象几何由测试夹具按 id 提供。
  */
 export function viewerOn(objectId: string, spec: ViewerSpec = {}): ViewerContext {
-  const viewer: ViewerContext = { image_id: objectId };
-  if (spec.collection !== undefined) viewer.modality = spec.collection;
+  const kind = spec.kind ?? (objectId === FIXTURE_OBJECT_IDS.ct ? "volume" : objectId === FIXTURE_OBJECT_IDS.slide ? "slide" : objectId === FIXTURE_OBJECT_IDS.video ? "video" : "image");
+  const third: Axis["name"] | null = kind === "volume" ? "z" : kind === "slide" ? "level" : kind === "video" ? "t" : null;
+  const axes: Axis[] = [{ name: "x", size: 64 }, { name: "y", size: 48 }];
+  if (third) axes.push({ name: third, size: 100 });
+  const viewer: ViewerContext = {
+    object: { id: objectId, kind, axes, calibration: spec.calibration ? { ...spec.calibration, source: "fixture" } : null },
+    focus: { object_id: objectId, kind, index: spec.index ?? (third ? { [third]: 0 } : {}), region: spec.region ?? null },
+  };
+  if (spec.collection !== undefined) viewer.collection = spec.collection;
   if (spec.task !== undefined) viewer.task = spec.task;
   if (spec.method !== undefined) viewer.method = spec.method;
-  if (spec.calibration) viewer.cubs_cf = spec.calibration.value;
-  if (spec.region) {
-    const { x0, y0, x1, y1 } = spec.region;
-    viewer.roi_box = [x0, y0, x1, y1];
-  }
   return viewer;
 }
 
@@ -72,7 +75,7 @@ export function boxRegion(x0: number, y0: number, x1: number, y1: number): BoxRe
 
 /**
  * 一次 fetch 若是「取某对象的观测图」，返回该对象 id；否则 `undefined`。
- * 现认 `GET /image/{id}`；W5 改认 `GET /objects/{id}/frame`。
+ * 只认 `GET /objects/{id}/frame`。
  */
 export function observedObjectId(url: string): string | undefined {
   let pathname: string;
@@ -81,7 +84,7 @@ export function observedObjectId(url: string): string | undefined {
   } catch {
     return undefined;
   }
-  const match = /^\/image\/([^/]+)$/u.exec(pathname);
+  const match = /^\/objects\/([^/]+)\/frame$/u.exec(pathname);
   return match ? decodeURIComponent(match[1]!) : undefined;
 }
 
@@ -95,17 +98,12 @@ export function targetObjectId(record: unknown): string | undefined {
 /**
  * `run_task` 发往 `/task/run` 的请求体的语义投影：对象、任务、方法、标定、区域。
  * 未识别的字段原样保留在投影里，因此 `toEqual` 仍能发现多出来的字段。
- * 现从过渡字段 `image_id` / `cubs_cf` / `roi_box` 读取；W5 改读 `calibration` / `region`。
+ * W5 请求只含 `calibration` / `region`；线上 id 字段仍叫 `image_id`。
  */
 export function taskSpecOf(body: unknown): Record<string, unknown> {
-  const { image_id, cubs_cf, roi_box, ...rest } = (body ?? {}) as Record<string, unknown>;
+  const { image_id, ...rest } = (body ?? {}) as Record<string, unknown>;
   const out: Record<string, unknown> = { ...rest };
   if (image_id !== undefined) out.object_id = image_id;
-  if (cubs_cf !== undefined) out.calibration = { kind: "mm_per_px", value: cubs_cf };
-  if (roi_box !== undefined) {
-    const [x0, y0, x1, y1] = roi_box as number[];
-    out.region = { kind: "box", x0, y0, x1, y1 };
-  }
   return out;
 }
 

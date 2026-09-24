@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { Annotation } from "../../api/types";
+import type { Annotation, Index } from "../../api/types";
 import { resolveSuggestion } from "../../annotation/bridge";
 import { useI18n } from "../../i18n";
 import type { I18nKey } from "../../i18n/en";
@@ -24,7 +24,7 @@ export interface AnnotationProposedPayload {
   label: string;
   note?: string;
   reason?: string;
-  z?: number | null;
+  index?: Index;
   seq?: number;
 }
 
@@ -44,7 +44,7 @@ export function parseAnnotationProposed(value: unknown): AnnotationProposedPaylo
     label: p.label,
     ...(typeof p.note === "string" ? { note: p.note } : {}),
     ...(typeof p.reason === "string" ? { reason: p.reason } : {}),
-    ...(typeof p.z === "number" ? { z: p.z } : {}),
+    ...(p.index && typeof p.index === "object" && !Array.isArray(p.index) ? { index: p.index as Index } : {}),
     ...(typeof p.seq === "number" ? { seq: p.seq } : {}),
   };
 }

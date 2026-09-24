@@ -24,7 +24,7 @@ import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 import { AtlasClient, backendBaseUrl, egressFor } from "../../atlas/client.js";
 import { selectExemplars } from "../../atlas/select.js";
 import type { AtlasReferencedPayload, ConnectionInput, ViewerContext } from "../../contracts.js";
-import { RuntimeError } from "../../errors.js";
+import { fetchObservation, toObjectCoords } from "../../observation/index.js";
 import { locateInImage, type ImageInput, type LocatedBox, type VisionRuntime } from "../vision.js";
 
 export const LOCATE_ROI_TOOL_NAME = "locate_roi";
@@ -79,70 +79,6 @@ export interface LocateRoiToolOptions {
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_MIN_CONFIDENCE = 0.2;
 
-interface FetchedImage extends ImageInput {
-  /** 取图后恒有值（响应头缺失时退到 image/png），故收窄为必填。 */
-  mimeType: string;
-  width: number;
-  height: number;
-}
-
-/**
- * 取查看器当前图，尺寸直接从字节里读。
- *
- * 尺寸是归一化坐标乘回像素的分母，错了整套坐标全错——所以宁可失败也不猜默认值。
- * 不另开 `/meta` 端点：backend 的 `/image/{id}` 恒返回 PNG，头部就有尺寸，
- * 少一次往返，也不依赖 backend 是否"认识"该对象（其 dims 解析对未知对象返回 None）。
- */
-async function fetchImage(
-  doFetch: typeof globalThis.fetch,
-  base: string,
-  imageId: string,
-  signal: AbortSignal,
-): Promise<FetchedImage> {
-  const res = await doFetch(`${base}/image/${encodeURIComponent(imageId)}`, { signal });
-  if (!res.ok) {
-    throw new RuntimeError("image_unavailable", `取图失败：HTTP ${res.status}（image_id=${imageId}）`, 502);
-  }
-  const mimeType = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  const dims = readImageSize(bytes);
-  if (!dims) {
-    throw new RuntimeError(
-      "image_unavailable",
-      `无法解析图像尺寸（image_id=${imageId}，${mimeType}）——归一化坐标无从换算`,
-      502,
-    );
-  }
-  return { data: Buffer.from(bytes).toString("base64"), mimeType, ...dims };
-}
-
-/** 从 PNG / JPEG 字节头读 (width, height)；无法识别返回 null。 */
-export function readImageSize(bytes: Uint8Array): { width: number; height: number } | null {
-  // PNG：8 字节签名 + IHDR（长度 4 + 类型 4），宽高是紧随其后的两个大端 uint32
-  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    return { width: view.getUint32(16), height: view.getUint32(20) };
-  }
-  // JPEG：扫段找 SOF0..SOF15（跳过 SOF4/SOF8/SOF12 这三个非帧标记）
-  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-    let p = 2;
-    while (p + 9 < bytes.length) {
-      if (bytes[p] !== 0xff) {
-        p += 1;
-        continue;
-      }
-      const marker = bytes[p + 1]!;
-      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-        const height = (bytes[p + 5]! << 8) | bytes[p + 6]!;
-        const width = (bytes[p + 7]! << 8) | bytes[p + 8]!;
-        return width > 0 && height > 0 ? { width, height } : null;
-      }
-      p += 2 + ((bytes[p + 2]! << 8) | bytes[p + 3]!);
-    }
-  }
-  return null;
-}
-
 export function createLocateRoiTool(
   options: LocateRoiToolOptions,
 ): AgentHarnessTool<undefined, typeof LocateRoiParams, RoiLocatedDetails> {
@@ -170,8 +106,8 @@ export function createLocateRoiTool(
       const combined = signal ? AbortSignal.any([signal, abort]) : abort;
 
       const target = params.target.trim();
-      const imageId = viewer.image_id;
-      if (!imageId) {
+      const focus = viewer.focus;
+      if (!focus) {
         return {
           content: [
             {
@@ -185,8 +121,10 @@ export function createLocateRoiTool(
           },
         };
       }
+      const imageId = focus.object_id;
 
-      const image = await fetchImage(doFetch, base, imageId, combined);
+      const observation = await fetchObservation(base, focus, { signal: combined, fetch: doFetch });
+      const image: ImageInput & { mimeType: string } = { data: Buffer.from(observation.bytes).toString("base64"), mimeType: observation.mime };
 
       // 第一步（可选）：翻图谱取先验。检索失败不该让定位落空——没有先验也能定位。
       let atlas: AtlasReferencedPayload | undefined;
@@ -222,15 +160,18 @@ export function createLocateRoiTool(
       const found = await locateInImage(options.runtime, {
         image: { data: image.data, mimeType: image.mimeType },
         target,
-        width: image.width,
-        height: image.height,
+        width: observation.frame.width,
+        height: observation.frame.height,
         ...(references.length ? { references } : {}),
         signal: combined,
       });
 
       const minConfidence = params.min_confidence ?? DEFAULT_MIN_CONFIDENCE;
       const maxResults = params.max_results ?? DEFAULT_MAX_RESULTS;
-      const boxes = found.filter((b) => b.confidence >= minConfidence).slice(0, maxResults);
+      const boxes = found.filter((b) => b.confidence >= minConfidence).slice(0, maxResults).map((b) => {
+        const r = toObjectCoords(b.box, observation.frame);
+        return { ...b, box: [r.x0, r.y0, r.x1, r.y1] as [number, number, number, number] };
+      });
 
       const details: RoiLocatedDetails = {
         kind: ROI_LOCATED_DETAILS_KIND,
@@ -269,8 +210,8 @@ export function createLocateRoiTool(
           {
             type: "text",
             text:
-              `Located "${target}" in ${imageId} (${image.width}×${image.height} px): ${boxes.length} region(s), ` +
-              `most confident first. Coordinates are image pixels [x0, y0, x1, y1].\n${lines.join("\n")}\n` +
+              `Located "${target}" in ${imageId} (${observation.frame.width}×${observation.frame.height} frame px): ${boxes.length} region(s), ` +
+              `most confident first. Coordinates are object pixels [x0, y0, x1, y1].\n${lines.join("\n")}\n` +
               (references.length ? `Informed by ${references.length} atlas reference case(s). ` : "") +
               (details.payload.filtered_out
                 ? `(${details.payload.filtered_out} low-confidence box(es) omitted.) `

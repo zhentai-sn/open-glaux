@@ -5,7 +5,7 @@
  * 图谱因此没有任何生产调用点（03 §15 已如实记为未达成）。D-21 改由本只读工具做宿主：
  * 检索链路（`selectExemplars`）原样复用，`locate_roi` 落地后把同一函数并进去即可，本工具可留可退。
  *
- * - 目标图取查看器当前打开的图（backend `GET /image/{id}`）；没开图时退化为纯文字检索，
+ * - 目标图经 `fetchObservation` 取查看器焦点帧；没开图时退化为纯文字检索，
  *   跳过 VLM 挑选步（`selectExemplars` 的 `target` 缺省路径）。
  * - 外发档位由 `egressFor(connection)` 判定：只有本机模型（base_url 解析为回环）才带上 local-only 案例。
  * - 结果 = 选中案例的**图像块 + 文字摘要**交给模型，`details` 走 `glaux.atlas_referenced`，
@@ -28,6 +28,7 @@ import type {
   ViewerContext,
 } from "../../contracts.js";
 import type { VisionRuntime } from "../vision.js";
+import { fetchObservation } from "../../observation/index.js";
 
 export const CONSULT_ATLAS_TOOL_NAME = "consult_atlas";
 export const ATLAS_REFERENCED_DETAILS_KIND = "glaux.atlas_referenced";
@@ -93,14 +94,12 @@ function describe(e: SelectedExemplar): string {
 async function fetchTarget(
   doFetch: typeof globalThis.fetch,
   base: string,
-  imageId: string,
+  focus: NonNullable<ViewerContext["focus"]>,
   signal: AbortSignal,
 ): Promise<{ data: string; mimeType: string } | undefined> {
   try {
-    const res = await doFetch(`${base}/image/${encodeURIComponent(imageId)}`, { signal });
-    if (!res.ok) return undefined;
-    const mimeType = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
-    return { data: Buffer.from(await res.arrayBuffer()).toString("base64"), mimeType };
+    const observation = await fetchObservation(base, focus, { signal, fetch: doFetch });
+    return { data: Buffer.from(observation.bytes).toString("base64"), mimeType: observation.mime };
   } catch {
     return undefined;
   }
@@ -133,8 +132,8 @@ export function createConsultAtlasTool(
       const traceId = randomUUID();
       const k = params.k ?? 3;
       const egress = await egressFor(options.connection);
-      const target = viewer.image_id
-        ? await fetchTarget(doFetch, base, viewer.image_id, combined)
+      const target = viewer.focus
+        ? await fetchTarget(doFetch, base, viewer.focus, combined)
         : undefined;
 
       const tags = (params.tags ?? []).map((t) => t.trim()).filter(Boolean);

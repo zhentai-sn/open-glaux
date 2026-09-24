@@ -27,13 +27,14 @@ const fixture = readFileSync(
 );
 
 /** backend 取图 + 分割后端两段都拦下：前者返回图字节，后者返回真实分割响应。 */
-function fakeFetch(segmentBody: string = fixture): typeof fetch {
+function fakeFetch(segmentBody: string = fixture, frameOverrides: Record<string, unknown> = {}): typeof fetch {
   return vi.fn(async (url: unknown) => {
     const href = String(url);
     if (observedObjectId(href) !== undefined) {
+      const frame = { object_id: observedObjectId(href), index: {}, origin: [0, 0], scale: 1, width: 64, height: 48, ...frameOverrides };
       return new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
-        headers: { "content-type": "image/png" },
+        headers: { "content-type": "image/png", "x-glaux-frame": JSON.stringify(frame) },
       });
     }
     return new Response(segmentBody, {
@@ -74,7 +75,7 @@ describe("segment_region 工具", () => {
     expect(doFetch).not.toHaveBeenCalled();
   });
 
-  it("产出图像像素坐标的多边形，按面积从大到小", async () => {
+  it("产出对象像素坐标的多边形，按面积从大到小", async () => {
     const result = await toolWith().execute(
       "call-2",
       { target: "eye" },
@@ -98,6 +99,21 @@ describe("segment_region 工具", () => {
     }
   });
 
+  it("裁剪缩放后的候选框、多边形与面积均转为对象像素", async () => {
+    const raw = { label: "eye", confidence: 0.9, bbox: [10, 20, 30, 40] as [number, number, number, number], points: [[10, 20], [30, 20], [30, 40]] as Array<[number, number]>, area: 400 };
+    const tool = createSegmentRegionTool({
+      viewer: viewerOn("eye_001"),
+      client: { segment: async () => [raw] },
+      fetch: fakeFetch(fixture, { origin: [1000, 2000], scale: 0.5 }),
+    });
+    const result = await tool.execute("scaled", { target: "eye" }, undefined, undefined, undefined);
+    expect((result.details as SegmentRegionDetails).payload.regions[0]).toMatchObject({
+      bbox: [1020, 2040, 1060, 2080],
+      points: [[1020, 2040], [1060, 2040], [1060, 2080]],
+      area: 1600,
+    });
+  });
+
   it("文字结果点明这是候选而非已成标注", async () => {
     const result = await toolWith().execute(
       "call-3",
@@ -108,7 +124,7 @@ describe("segment_region 工具", () => {
     );
     const text = textOf(result);
     expect(text).toMatch(/candidates, not annotations yet/u);
-    expect(text).toMatch(/image pixels/u);
+    expect(text).toMatch(/object pixels/u);
     expect(text).toMatch(/confidence 0\.9/u);
   });
 
@@ -186,7 +202,7 @@ describe("segment_region 门控（SDD 02 §7.4）", () => {
   it("两个条件都满足才注册", () => {
     vi.stubEnv("GLAUX_ANNOT_ALLOW_EGRESS", "1");
     vi.stubEnv("GLAUX_SEG_API_TOKEN", "test-token");
-    const tools = defaultToolFactory({ permissionMode: "suggest", connection });
+    const tools = defaultToolFactory({ permissionMode: "suggest", connection, viewer: viewerOn("eye_001") });
     expect(tools.map((t) => t.name)).toContain(SEGMENT_REGION_TOOL_NAME);
     vi.unstubAllEnvs();
   });

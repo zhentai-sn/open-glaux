@@ -31,7 +31,7 @@ function fakeBackend(captured: Captured[], overrides: Record<string, unknown> = 
           id: "ann_001",
           image_id: body.image_id,
           primitive: body.primitive,
-          z: body.z ?? null,
+          index: body.index ?? {},
           seq: 1,
           status: body.status,
           source: body.source,
@@ -203,30 +203,30 @@ describe("propose_annotation", () => {
     ).rejects.toThrow(/越出图像范围/u);
   });
 
-  it("z 透传给体数据切片", async () => {
+  it("焦点 index.z 透传给体数据切片", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: viewerOn("vol_1"),
+      viewer: viewerOn("vol_1", { kind: "volume", index: { z: 42 } }),
       fetch: fakeBackend(captured),
     });
     await tool.execute(
       "c10",
-      { label: "liver", bbox: [1, 1, 9, 9], z: 42 },
+      { label: "liver", bbox: [1, 1, 9, 9] },
       undefined,
       undefined,
       undefined,
     );
-    expect(captured[0]!.body.z).toBe(42);
+    expect(captured[0]!.body.index).toEqual({ z: 42 });
   });
 });
 
 describe("propose_annotation 注册规则", () => {
   const connection = { provider: "openai", vision: false } as ConnectionInput;
 
-  it("非 observe 模式恒挂——无外发门控（只写本机 backend）", () => {
+  it("有焦点且非 observe 模式时注册——无外发门控（只写本机 backend）", () => {
     vi.stubEnv("GLAUX_ANNOT_ALLOW_EGRESS", "");
     vi.stubEnv("GLAUX_SEG_API_TOKEN", "");
-    const tools = defaultToolFactory({ permissionMode: "suggest", connection });
+    const tools = defaultToolFactory({ permissionMode: "suggest", connection, viewer: viewerOn("img_1") });
     expect(tools.map((t) => t.name)).toContain(PROPOSE_ANNOTATION_TOOL_NAME);
     vi.unstubAllEnvs();
   });

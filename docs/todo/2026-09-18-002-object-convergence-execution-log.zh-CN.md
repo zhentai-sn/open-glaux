@@ -437,3 +437,17 @@ W4 真实浏览器走查待维护者签字。自动化 smoke 只验接线，不�
 维护者随后确认 WSI 多边形刷新回显正常，ROI 3 签字通过；指出超声与 WSI 同名工具手势不一致。按维护者确认的[跨模态逐点设计](../plans/2026-09-24-cross-modal-polygon-interaction-design.md)，image / volume 的 polygon 改用 CS3D 直线顶点工具，沿现有 annotation bridge 存取点列；超声与 CT 的真实浏览器走查仍待签字。
 
 维护者 2026-09-24 决定暂不继续逐项手工走查，待 SDD 10 开发完成后统一验收。W4 自动化门禁与代码已完成，未签手工项保持原状态，不视为通过；按 SDD 10 §3 的依赖进入 W5 开发。
+
+## W5 · 智能体上下文、观测与工具注册
+
+维护者确认按 [W5 设计记录](../plans/2026-09-24-object-agent-w5-design.md) 实施；W4 未签的真实浏览器走查递延到 SDD 10 最终统一验收。
+
+| 交付 | 证据 |
+| --- | --- |
+| `ViewerContext` 五字段 | 前端 `toViewerContext` 只下发 `collection/task/method/object/focus`；runtime 新字段优先并校验对象、轴、索引与区域，旧扁平字段仅在新字段缺失时映射，计数并告警。CT 层号、视频帧范围与 seed、冲突优先级和非法输入均有契约测试。 |
+| 唯一观测入口 | `fetchObservation` 从 `/objects/{id}/frame` 获取图像字节与 `X-Glaux-Frame`，按帧头校验对象、索引、尺寸与缩放；看图、定位、分割和图谱目标图统一经过该入口。CT `z`、WSI `level+ROI`、视频 `t`、裁剪缩放后的框/多边形/面积换算均有测试。 |
+| 工具注册与写回 | 六个现有工具统一登记在 `TOOL_PROVIDERS`；无焦点不挂图像工具，保留 chat/observe、vision、分割外发与 token 门控。`run_task` 下发新标定/区域，`propose_annotation` 从 `focus.index` 写库；前端按焦点对象和视频帧守护建议态回流。`SegmenterPort` 本波只有 `segment`。 |
+
+自动化结果：版本矩阵 5/5；agent-runtime 32 文件、218/218（顺序执行及最后补充的 WSI 浮点 ROI 定向测试）；frontend 42 文件、241/241；backend 333/333；science-core 214/214；backend ruff、frontend lint、runtime typecheck 与两端 production build 通过。chat 发行包的两份定向测试包含在 runtime/frontend 全量结果中，`docker/Dockerfile` 的 `agent`、`web` 两个目标镜像均构建成功。并行跑 runtime/frontend 时，既有 `session-lifecycle.test.ts` 的 5 秒超时偶发触发；runtime 独占执行全绿，全量用例未出现功能失败。
+
+受限沙箱中 `uv` 缓存只读，`make test`/`make lint` 在进入 backend 时停止；现有虚拟环境的 backend 测试在正常本机执行环境 333/333，science-core 与各端 lint 分别通过。W5 代码门禁依据分项执行结果判定，未签人工项保持待验收。

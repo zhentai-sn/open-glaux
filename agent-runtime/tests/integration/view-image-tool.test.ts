@@ -2,7 +2,7 @@
  * `view_current_image` 工具——把查看器当前图的像素交给模型。
  *
  * 覆盖：正常取图返回 image 块、没开图时只回文字不回图、后端 404 报错、
- * 超大图拒发但如实说明、尺寸不可解析仍照发、目录标签措辞、视觉门控与 observe 模式。
+ * 超大图拒发但如实说明、坐标头缺失拒发、目录标签措辞、视觉门控与 observe 模式。
  */
 
 import { describe, expect, it } from "vitest";
@@ -31,15 +31,23 @@ function pngBytes(width = WIDTH, height = HEIGHT, pad = 0): Uint8Array {
   return new Uint8Array(buf);
 }
 
-function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string } = {}) {
+function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string; frameHeader?: boolean } = {}) {
   const calls: string[] = [];
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     calls.push(url);
     if (observedObjectId(url) === undefined) return new Response("nf", { status: 404 });
     if (opts.image === null) return new Response("nf", { status: 404 });
+    const id = observedObjectId(url)!;
+    const u = new URL(url);
+    const index: Record<string, number> = {};
+    for (const axis of ["z", "t", "level"]) {
+      const value = u.searchParams.get(axis);
+      if (value !== null) index[axis] = Number(value);
+    }
+    const header = { object_id: id, index, origin: [0, 0], scale: 1, width: WIDTH, height: HEIGHT };
     return new Response(Buffer.from(opts.image ?? pngBytes()), {
-      headers: { "content-type": opts.contentType ?? "image/png" },
+      headers: { "content-type": opts.contentType ?? "image/png", ...(opts.frameHeader === false ? {} : { "x-glaux-frame": JSON.stringify(header) }) },
     });
   }) as unknown as typeof fetch;
   return { fetch: fetchImpl, calls };
@@ -129,18 +137,12 @@ describe("view_current_image", () => {
     expect((result.details as ImageViewedDetails).payload.bytes).toBe(0);
   });
 
-  it("尺寸解析不出来照样把图发出去（看图不需要知道像素数）", async () => {
+  it("坐标头缺失时拒发，防止模型拿到无法定位的图", async () => {
     const tool = createViewCurrentImageTool({
-      fetch: fakeBackend({ image: new Uint8Array([1, 2, 3, 4]), contentType: "image/webp" }).fetch,
+      fetch: fakeBackend({ image: new Uint8Array([1, 2, 3, 4]), frameHeader: false }).fetch,
       viewer: viewerOn("odd"),
     });
-    const result = await tool.execute("call_1", {}, undefined, undefined, undefined);
-
-    expect(imagesOf(result)).toHaveLength(1);
-    expect(imagesOf(result)[0]?.mimeType).toBe("image/webp");
-    const payload = (result.details as ImageViewedDetails).payload;
-    expect(payload.width).toBeNull();
-    expect(payload.height).toBeNull();
+    await expect(tool.execute("call_1", {}, undefined, undefined, undefined)).rejects.toMatchObject({ code: "image_unavailable" });
   });
 });
 
@@ -151,6 +153,7 @@ describe("view_current_image 门控", () => {
     expect(
       defaultToolFactory({
         permissionMode: "controlled",
+        viewer: viewerOn("tech_0450"),
         connection: { ...HOSTED, vision: true } as ConnectionInput,
         runtime,
       }).map((t) => t.name),
@@ -159,10 +162,19 @@ describe("view_current_image 门控", () => {
     expect(
       defaultToolFactory({
         permissionMode: "controlled",
+        viewer: viewerOn("tech_0450"),
         connection: { ...HOSTED, vision: false } as ConnectionInput,
         runtime,
       }).map((t) => t.name),
     ).not.toContain(VIEW_CURRENT_IMAGE_TOOL_NAME);
+  });
+
+  it("未选对象时不挂需要 focus 的工具", () => {
+    expect(defaultToolFactory({
+      permissionMode: "controlled",
+      connection: { ...HOSTED, vision: true } as ConnectionInput,
+      runtime,
+    }).map((t) => t.name)).not.toContain(VIEW_CURRENT_IMAGE_TOOL_NAME);
   });
 
   it("observe 模式不挂", () => {

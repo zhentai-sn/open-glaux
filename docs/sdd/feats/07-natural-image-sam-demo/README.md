@@ -13,7 +13,7 @@ status: implemented
 | 当前阶段 | 代码与真实 SAM 两图外发验证完成，待建议态标注 UI 验收 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-23 |
+| 最后更新 | 2026-09-24 |
 
 ## 1. 本 SDD 负责什么
 
@@ -33,7 +33,7 @@ status: implemented
 ## 3. 当前阶段目标
 
 - 加载示例数据（或 `GLAUX_DEV_MODE=1`）后，文件栏展示 4 张真实照片。
-- 选择照片后由现有 2D 查看器加载，Agent Runtime 可经 `/image/{id}` 取得同一字节。
+- 选择照片后由 `FrameStackViewer` 加载，Agent Runtime 经 `fetchObservation` 取得当前焦点帧。
 - Viewer Context 以 `object` / `focus` 描述当前照片（`collection=natural_image`），且不携带医学任务、模型或标定。
 - 使用现有 SAM 配置完成至少两张照片的端到端手工走查。
 
@@ -55,7 +55,7 @@ status: implemented
 ### 4.2 调用输入
 
 - 前端初始化：`GET /images?modality=natural_image`。
-- 查看器取图：`GET /image/{image_id}`。
+- 查看器与智能体取帧：`GET /objects/{image_id}/frame`，返回 `X-Glaux-Frame`。
 - 会话上下文：当前焦点对象 `focus.object_id`。
 - SAM 调用输入与外发权限：完全沿用 SDD 02 §4、§7.2、§7.4。
 
@@ -89,14 +89,14 @@ status: implemented
 
 ### 5.2 图片响应
 
-`GET /image/natural_cat` 等返回对应 JPEG 字节与 `image/jpeg`；未知或伪造 ID 返回 404。
+`GET /objects/natural_cat/frame` 等返回图像字节与 `X-Glaux-Frame`；未知或伪造 ID 返回 404。原 `/image/{id}` 仅为 W7 前的过渡 alias。
 
 ### 5.3 前端与 Agent 输出
 
 - 示例数据加载后，文件栏「对象」目录出现这 4 张照片的叶子项。
 - 选择后 `openObject(id)` 设焦点 `focus = { object_id, kind: "image", index: {}, region: null }`；Viewer 按 `kind=image` 挂载 2D 查看器显示照片。
 - 标题、HUD、状态栏与 Focus 顶栏不得显示医学任务、`CF` 或医学活动模型；模态切换器与 Focus 顶栏的模态标签同源，取 `/datasources` 的 `label_key`（`modality.natural_image`）→ `label` → modality 原文（SDD 10 D-22），显示为「通用图像 / General images」。
-- Viewer Context 为 `{ collection: "natural_image", object: { id, kind: "image", axes, calibration: null }, focus }`，另带过渡字段 `modality: "natural_image"` 与 `image_id`（runtime 改读 `object` / `focus` 后删除，SDD 10 §11.3）；不含 `task`、`method`、`cubs_cf`、`roi_box`。
+- Viewer Context 为 `{ collection: "natural_image", object: { id, kind: "image", axes, calibration: null }, focus }`；前端不再下发旧字段，也不携带 `task`、`method`。
 - SAM 多边形与建议态标注输出沿用 SDD 02 §5、§12。
 
 ## 6. 核心流程
@@ -114,11 +114,11 @@ sequenceDiagram
     F->>F: 用户选择 natural_cat
     F->>F: openObject(natural_cat) 设 focus
     F->>V: kind=image → 2D 查看器
-    V->>B: GET /image/natural_cat
-    B-->>V: image/jpeg
+    V->>B: GET /objects/natural_cat/frame
+    B-->>V: image bytes + X-Glaux-Frame
     F->>A: prompt + {collection, object, focus}
-    A->>B: segment_region 取当前图
-    B-->>A: image/jpeg
+    A->>B: fetchObservation(focus)
+    B-->>A: image bytes + X-Glaux-Frame
     A->>S: image + 英文目标提示词
     S-->>A: mask + confidence
     A-->>F: 像素坐标多边形候选
@@ -145,11 +145,11 @@ sequenceDiagram
 | `data/natural/` | 固定照片与许可清单 |
 | Backend `Modality` / `ObjectMeta` | 暴露 `natural_image` 元数据契约 |
 | Backend `/images` | 发现固定自然照片 |
-| Backend `/image/{id}` | 按白名单安全返回照片，并向统一标注层提供像素尺寸 |
+| Backend `/objects/{id}/frame` | 安全返回照片与 `X-Glaux-Frame`；旧 `/image/{id}` 为过渡 alias |
 | Frontend Session Store | `objects["natural_image"]` 保存自然图像对象表，`focus` 指向当前照片；对象元数据经 `activeObject(s)` 派生 |
 | Frontend Explorer | 示例数据加载后在「对象」目录渲染自然图像叶子，点击调 `openObject` |
 | Frontend Viewer Context | 向 Agent Runtime 发无医学任务的当前图上下文 |
-| `segment_region` | 沿用现有 SAM 取图和分割链路，不改契约 |
+| `segment_region` | 经 `fetchObservation` 取帧，`SegmenterPort.segment` 分割并将几何换回对象像素 |
 
 ## 9. 数据或字段要求
 
@@ -235,7 +235,7 @@ stateDiagram-v2
 - [x] 加载示例数据（或 `GLAUX_DEV_MODE=1`）后文件栏显示这 4 张照片；未加载时不显示。
 - [x] 选择任一自然照片后挂载 2D Viewer，显示正确照片且 `modality=natural_image`。
 - [x] 选择自然照片不调用 `/task/run`，并以新焦点替换旧焦点、清空此前医学 metrics/primitives。
-- [x] 自然图像 Viewer Context 为 `collection` + `object` + `focus`（另带过渡字段 `modality`、`image_id`），不含医学 `task`、`method`、`cubs_cf`、`roi_box`。
+- [x] 自然图像 Viewer Context 为 `collection` + `object` + `focus`，不含医学 `task`、`method` 或旧扁平字段。
 - [x] Workbench 与 Focus 中自然图像显示双语模态标签，且不显示 `CF`、医学任务名或医学活动模型。
 - [x] 在外发开关和 token 已配置时，至少两张照片可通过英文名词提示获得 `segment_region` 多边形候选。
 - [ ] 至少一个 SAM 候选可经 `propose_annotation` 显示为建议态，并可人工确认或驳回。
@@ -254,7 +254,7 @@ stateDiagram-v2
 
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
-| D-1 | 使用独立 `natural_image` 数据集合 | 混入 CUBS/HC；仅前端静态资源 | 避免错误医学上下文，并保持前端与 Agent Runtime 共用 `/image/{id}` | 2026-08-25 |
+| D-1 | 使用独立 `natural_image` 数据集合 | 混入 CUBS/HC；仅前端静态资源 | 避免错误医学上下文，并让前端与 Agent Runtime 共用 `/objects/{id}/frame` | 2026-08-25 |
 | D-2 | 不新增自然图像 TaskPlugin | 增加空任务或 SAM 任务 | SAM 需要用户文本目标，不是 science-core 校准测量任务 | 2026-08-25 |
 | D-3 | 文件栏常驻自然图像目录（已由 SDD 08 D-4 取代：示例数据需显式加载） | 只在单独模态页显示 | 用户可从任意医学场景快速切入 SAM 测试，且无需伪造任务切换项 | 2026-08-25 |
 | D-4 | 资产选 Wikimedia Commons 的 CC0/Public Domain 照片 | Unsplash/Pexels；软件包测试图 | 逐张许可页稳定、来源与作者可审计、允许仓库再分发 | 2026-08-25 |

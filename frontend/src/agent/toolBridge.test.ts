@@ -64,7 +64,7 @@ const PROPOSED_DETAILS = {
     image_id: "natural_cat",
     label: "小猫",
     primitive: { kind: "bbox", x0: 221, y0: 220, x1: 1279, y1: 2777 },
-    z: null,
+    index: {},
     seq: 1,
   },
 };
@@ -107,6 +107,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
       {
         id: "ann-cat-1",
         image_id: "natural_cat",
+        index: {},
         label: "小猫",
         primitive: { kind: "bbox", x0: 221, y0: 220, x1: 1279, y1: 2777 },
         z: null,
@@ -167,6 +168,21 @@ describe("toolBridge.applyToolExecutionEvent", () => {
     expect(session.getState().annotations).toEqual([]);
   });
 
+  it("video 帧切换后不把旧帧建议写入当前查看器", async () => {
+    const { session, bridge } = await fresh();
+    focusOn(session, "vid-001", "video");
+    session.getState().setIndex({ t: 11 });
+    const details = {
+      ...PROPOSED_DETAILS,
+      payload: { ...PROPOSED_DETAILS.payload, image_id: "vid-001", index: { t: 10 } },
+    };
+    expect(bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" }))).toBe(false);
+    expect(session.getState().annotations).toEqual([]);
+    session.getState().setIndex({ t: 10 });
+    expect(bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" }))).toBe(true);
+    expect(session.getState().annotations[0]?.index).toEqual({ t: 10 });
+  });
+
   it("applies a closed polygon proposal without retaining untrusted extra fields", async () => {
     const { session, bridge } = await fresh();
     focusOn(session, "natural_cat");
@@ -198,7 +214,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
 describe("toViewerContext", () => {
   beforeEach(() => localStorage.clear());
 
-  it("reports object, focus, task, method and the transitional cf for raster modalities", async () => {
+  it("只发送 collection、task、method、object、focus 五字段", async () => {
     const { session, conv } = await fresh();
     const s = session.getState();
     s.setTasks([IMT_TASK]);
@@ -209,13 +225,10 @@ describe("toViewerContext", () => {
     focusOn(session, "tech_401");
     expect(conv.toViewerContext()).toEqual({
       collection: "carotid_imt",
-      modality: "carotid_imt",
       task: "far_wall_cca_imt",
       method: "caroSegDeep",
       object: { id: "tech_401", kind: "image", axes: obj.axes, calibration: obj.calibration },
       focus: { object_id: "tech_401", kind: "image", index: {}, region: null },
-      image_id: "tech_401",
-      cubs_cf: 0.06,
     });
   });
 
@@ -231,12 +244,11 @@ describe("toViewerContext", () => {
     s.setRegion({ kind: "box", x0: 1, y0: 2, x1: 3, y1: 4 });
     expect(conv.toViewerContext()).toMatchObject({
       collection: "pathology",
-      image_id: "slide_001",
+      object: { id: "slide_001" },
       focus: { region: { kind: "box", x0: 1, y0: 2, x1: 3, y1: 4 } },
-      roi_box: [1, 2, 3, 4],
     });
     s.setFocus(null);
-    expect(conv.toViewerContext().image_id).toBeUndefined();
+    expect(conv.toViewerContext().focus).toBeUndefined();
     expect(conv.toViewerContext().object).toBeUndefined();
   });
 
@@ -250,10 +262,8 @@ describe("toViewerContext", () => {
     focusOn(session, "natural_cat");
     expect(conv.toViewerContext()).toEqual({
       collection: "natural_image",
-      modality: "natural_image",
       object: { id: "natural_cat", kind: "image", axes: obj.axes, calibration: null },
       focus: { object_id: "natural_cat", kind: "image", index: {}, region: null },
-      image_id: "natural_cat",
     });
   });
 });

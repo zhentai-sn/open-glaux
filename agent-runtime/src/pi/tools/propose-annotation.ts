@@ -9,15 +9,15 @@
  * 让它显式再调一次本工具，等于强制它对每条标注做一次独立表态，也给了
  * `permission_mode` 一个天然的门控点（`suggest` 下逐条批准即卡在这里）。
  *
- * 坐标契约（SDD 02 Q3）：入参恒为**图像像素坐标**，与 `segment_region` 出参同一坐标系；
- * 像素↔世界坐标的变换全部留在前端 `csAnno`，runtime 不碰视口。
+ * 坐标契约（SDD 10 §6.4）：入参为对象像素坐标，与 `segment_region` 出参同一坐标系；
+ * 第三轴由 ViewerContext.focus.index 给出，不让模型猜 z / t / level。
  */
 
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
-import type { ViewerContext } from "../../contracts.js";
+import type { Index, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
 
 export const PROPOSE_ANNOTATION_TOOL_NAME = "propose_annotation";
@@ -33,21 +33,15 @@ const ProposeAnnotationParams = Type.Object({
   bbox: Type.Optional(
     Type.Tuple([Type.Number(), Type.Number(), Type.Number(), Type.Number()], {
       description:
-        "Rectangle as [x0, y0, x1, y1] in image pixels. Provide either bbox or polygon, not both.",
+        "Rectangle as [x0, y0, x1, y1] in object pixels. Provide either bbox or polygon, not both.",
     }),
   ),
   polygon: Type.Optional(
     Type.Array(Point, {
       minItems: 3,
       description:
-        "Closed outline as [[x, y], ...] in image pixels — typically taken verbatim from segment_region. " +
+        "Closed outline as [[x, y], ...] in object pixels — typically taken verbatim from segment_region. " +
         "Provide either bbox or polygon, not both.",
-    }),
-  ),
-  z: Type.Optional(
-    Type.Integer({
-      minimum: 0,
-      description: "Slice index for volume data; omit for 2D images and slides.",
     }),
   ),
   note: Type.Optional(
@@ -73,7 +67,7 @@ export interface AnnotationProposedDetails {
     reason?: string;
     /** 与落库一致的几何，供前端立刻渲染建议态而不必回查。 */
     primitive?: Record<string, unknown>;
-    z?: number | null;
+    index?: Index;
     seq?: number;
   };
 }
@@ -104,7 +98,7 @@ interface CreatedAnnotation {
   id: string;
   image_id: string;
   primitive: Record<string, unknown>;
-  z: number | null;
+  index?: Index;
   seq: number;
   status: string;
   source: string;
@@ -124,15 +118,15 @@ export function createProposeAnnotationTool(
     description:
       "Propose one annotation on the image currently open in the viewer. It appears as a suggestion for the user " +
       "to confirm or reject — it never becomes a confirmed annotation on its own, and confirming is the user's call, " +
-      "not yours. Give coordinates in image pixels, normally taken straight from segment_region; propose one region " +
+      "not yours. Give coordinates in object pixels, normally taken straight from segment_region; propose one region " +
       "per call, and only those you actually judge correct.",
     parameters: ProposeAnnotationParams,
     async execute(_toolCallId, params, signal) {
       const abort = AbortSignal.timeout(timeoutMs);
       const combined = signal ? AbortSignal.any([signal, abort]) : abort;
 
-      const imageId = viewer.image_id;
-      if (!imageId) {
+      const focus = viewer.focus;
+      if (!focus) {
         return notProposed(
           "",
           params.label,
@@ -140,6 +134,7 @@ export function createProposeAnnotationTool(
           "No image is open in the viewer, so there is nothing to annotate.",
         );
       }
+      const imageId = focus.object_id;
 
       const hasBbox = Array.isArray(params.bbox);
       const hasPolygon = Array.isArray(params.polygon) && params.polygon.length >= 3;
@@ -151,7 +146,7 @@ export function createProposeAnnotationTool(
           hasBbox ? "ambiguous_geometry" : "missing_geometry",
           hasBbox
             ? "Give either bbox or polygon, not both. Call again with just one."
-            : "This needs a geometry: either bbox [x0, y0, x1, y1] or a polygon of at least 3 points, in image pixels.",
+            : "This needs a geometry: either bbox [x0, y0, x1, y1] or a polygon of at least 3 points, in object pixels.",
         );
       }
 
@@ -172,7 +167,7 @@ export function createProposeAnnotationTool(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           image_id: imageId,
-          ...(params.z !== undefined ? { z: params.z } : {}),
+          ...(Object.values(focus.index).some((value) => value !== null && value !== undefined) ? { index: focus.index } : {}),
           primitive,
           label: params.label,
           status: "suggested",
@@ -199,7 +194,7 @@ export function createProposeAnnotationTool(
           label: params.label,
           ...(params.note?.trim() ? { note: params.note.trim() } : {}),
           primitive: created.primitive,
-          z: created.z,
+          index: created.index ?? focus.index,
           seq: created.seq,
         },
       };

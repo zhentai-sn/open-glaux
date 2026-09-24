@@ -6,7 +6,7 @@
  * 再由 `propose_annotation` 写进前端标注层等人工确认。本工具自身不落库、不改前端状态。
  *
  * 边界（与相邻工具的分工）：
- * - 目标图恒取查看器当前打开的图（`viewer.image_id`），模型不能指定任意图——
+ * - 目标图恒取查看器当前焦点（`viewer.focus`），模型不能指定任意图——
  *   避免它拿到不属于当前上下文的影像；没开图直接告知模型，不猜。
  * - 只做"描述 → 几何"。**不**判断该不该标、**不**写标注，那是 `propose_annotation`。
  * - 精度层路由（SDD 02 §7.2）：science-core 已覆盖的任务走 `run_task`，本工具是
@@ -22,9 +22,10 @@ import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { SegmentationClient, type SegmentResult } from "../../annotation/segmentation-client.js";
+import type { SegmenterPort } from "../../annotation/segmenter-port.js";
 import { backendBaseUrl } from "../../atlas/client.js";
 import type { ViewerContext } from "../../contracts.js";
-import { RuntimeError } from "../../errors.js";
+import { fetchObservation, toObjectCoords, toObjectPoint } from "../../observation/index.js";
 
 export const SEGMENT_REGION_TOOL_NAME = "segment_region";
 export const SEGMENT_REGION_DETAILS_KIND = "glaux.segment_region";
@@ -76,7 +77,7 @@ export interface SegmentRegionDetails {
 
 export interface SegmentRegionToolOptions {
   viewer?: ViewerContext;
-  client?: SegmentationClient;
+  client?: SegmenterPort;
   backendBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
@@ -90,21 +91,6 @@ const DEFAULT_MIN_CONFIDENCE = 0.3;
 export function segmentationEgressAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env.GLAUX_ANNOT_ALLOW_EGRESS?.trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
-}
-
-async function fetchImageBytes(
-  doFetch: typeof globalThis.fetch,
-  base: string,
-  imageId: string,
-  signal: AbortSignal,
-): Promise<{ bytes: Uint8Array; filename: string }> {
-  const res = await doFetch(`${base}/image/${encodeURIComponent(imageId)}`, { signal });
-  if (!res.ok) {
-    throw new RuntimeError("image_unavailable", `取图失败：HTTP ${res.status}（image_id=${imageId}）`, 502);
-  }
-  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() ?? "image/png";
-  const ext = mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png";
-  return { bytes: new Uint8Array(await res.arrayBuffer()), filename: `${imageId}.${ext}` };
 }
 
 function summarize(region: SegmentedRegion, index: number): string {
@@ -124,7 +110,7 @@ export function createSegmentRegionTool(
   const timeoutMs = options.timeoutMs ?? 60_000;
   // 客户端惰性构造：缺 token 时构造即抛，不该在建会话时炸掉整个工具集
   let client = options.client;
-  const clientOf = (): SegmentationClient => {
+  const clientOf = (): SegmenterPort => {
     client ??= new SegmentationClient(
       { fetch: doFetch, ...(options.timeoutMs ? { timeoutMs } : {}) },
       options.env ?? process.env,
@@ -147,8 +133,8 @@ export function createSegmentRegionTool(
       const combined = signal ? AbortSignal.any([signal, abort]) : abort;
 
       const target = params.target.trim();
-      const imageId = viewer.image_id;
-      if (!imageId) {
+      const focus = viewer.focus;
+      if (!focus) {
         return {
           content: [
             {
@@ -163,11 +149,14 @@ export function createSegmentRegionTool(
           },
         };
       }
+      const imageId = focus.object_id;
 
       const maxResults = params.max_results ?? DEFAULT_MAX_RESULTS;
       const minConfidence = params.min_confidence ?? DEFAULT_MIN_CONFIDENCE;
 
-      const { bytes, filename } = await fetchImageBytes(doFetch, base, imageId, combined);
+      const observation = await fetchObservation(base, focus, { signal: combined, fetch: doFetch });
+      const { bytes } = observation;
+      const filename = `${imageId}.${observation.mime === "image/jpeg" ? "jpg" : "png"}`;
       const raw: SegmentResult[] = await clientOf().segment({
         image: bytes,
         filename,
@@ -179,13 +168,16 @@ export function createSegmentRegionTool(
         .filter((r) => r.confidence >= minConfidence)
         .sort((a, b) => b.area - a.area)
         .slice(0, maxResults);
-      const regions: SegmentedRegion[] = kept.map((r) => ({
-        label: r.label,
-        confidence: r.confidence,
-        bbox: r.bbox,
-        points: r.points,
-        area: r.area,
-      }));
+      const regions: SegmentedRegion[] = kept.map((r) => {
+        const box = toObjectCoords(r.bbox, observation.frame);
+        return {
+          label: r.label,
+          confidence: r.confidence,
+          bbox: [box.x0, box.y0, box.x1, box.y1],
+          points: r.points.map((point) => toObjectPoint(point, observation.frame)),
+          area: r.area / (observation.frame.scale ** 2),
+        };
+      });
 
       const details: SegmentRegionDetails = {
         kind: SEGMENT_REGION_DETAILS_KIND,
@@ -216,7 +208,7 @@ export function createSegmentRegionTool(
             type: "text",
             text:
               `Segmented "${target}" in ${imageId}: ${regions.length} region(s), largest first. ` +
-              `Coordinates are image pixels.\n${lines.join("\n")}\n` +
+              `Coordinates are object pixels.\n${lines.join("\n")}\n` +
               (details.payload.filtered_out
                 ? `(${details.payload.filtered_out} lower-confidence region(s) omitted.)\n`
                 : "") +

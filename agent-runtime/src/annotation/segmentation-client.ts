@@ -21,6 +21,7 @@
  */
 
 import { RuntimeError } from "../errors.js";
+import type { SegmenterPort } from "./segmenter-port.js";
 import { maskToPolygon, type Point2, type RleMask } from "./mask-to-polygon.js";
 
 export interface SegmentationClientOptions {
@@ -71,7 +72,7 @@ export function segApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env.GLAUX_SEG_API_URL?.trim() || "https://ai.gitee.com/v1";
 }
 
-export class SegmentationClient {
+export class SegmentationClient implements SegmenterPort {
   private readonly baseUrl: string;
   private readonly token: string;
   private readonly model: string;

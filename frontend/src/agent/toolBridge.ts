@@ -2,7 +2,7 @@
 // agent-runtime 的领域工具把结构化结果放进 tool_execution_end.result.details；这里按工具名
 // 分派并写回 session store。`run_task` 回流 Detection，`propose_annotation` 回流统一 Annotation。
 // 只在结果对应的 image_id 仍是当前打开的图时应用——用户中途切图不被旧结果覆盖。
-import type { Annotation, AnnotationPrimitive, Measure, Primitive } from "../api/types";
+import type { Annotation, AnnotationPrimitive, Index, Measure, Primitive } from "../api/types";
 import { useSession } from "../store/session";
 
 export const TASK_OUTPUT_DETAILS_KIND = "glaux.task_output";
@@ -32,6 +32,18 @@ function asTaskOutputDetails(value: unknown): TaskOutputDetails | null {
 
 function finite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function asIndex(value: unknown): Index | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  const index: Index = {};
+  for (const key of ["z", "t", "level"] as const) {
+    if (v[key] === undefined || v[key] === null) continue;
+    if (!Number.isInteger(v[key]) || (v[key] as number) < 0) return null;
+    index[key] = v[key] as number;
+  }
+  return Object.keys(index).length <= 1 ? index : null;
 }
 
 /** Runtime details 是跨进程输入；只接收 propose_annotation 实际可能产出的两种矢量几何。 */
@@ -67,13 +79,18 @@ function asProposedAnnotation(value: unknown): Annotation | null {
   if (typeof payload.image_id !== "string" || !payload.image_id) return null;
   if (typeof payload.label !== "string") return null;
   if (!Number.isInteger(payload.seq) || (payload.seq as number) < 1) return null;
-  if (payload.z != null && (!Number.isInteger(payload.z) || (payload.z as number) < 0)) return null;
+  // 历史会话的 details 可能缺 index 或只带 z；新 runtime 一律发送 index。
+  const index = payload.index === undefined
+    ? (payload.z === undefined || payload.z === null ? {} : Number.isInteger(payload.z) && (payload.z as number) >= 0 ? { z: payload.z as number } : null)
+    : asIndex(payload.index);
+  if (!index) return null;
   const primitive = asAnnotationPrimitive(payload.primitive);
   if (!primitive) return null;
   return {
     id: payload.annotation_id,
     image_id: payload.image_id,
-    z: payload.z == null ? null : (payload.z as number),
+    index,
+    z: index.z ?? null,
     primitive,
     label: payload.label,
     class_id: null,
@@ -105,6 +122,7 @@ export function applyToolExecutionEvent(event: unknown): boolean {
     const annotation = asProposedAnnotation(e.result?.details);
     if (!annotation || focusedId() !== annotation.image_id) return false;
     const session = useSession.getState();
+    if (session.focus?.kind === "video" && annotation.index?.t !== session.focus.index.t) return false;
     const existing = session.annotations.find((item) => item.id === annotation.id);
     // SSE 重复送达不得把已经确认/驳回、seq 更高的状态退回 suggested。
     if (!existing || existing.seq < annotation.seq) session.upsertAnnotation(annotation);

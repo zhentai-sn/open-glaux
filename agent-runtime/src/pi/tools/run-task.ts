@@ -97,8 +97,8 @@ export function createRunTaskTool(
   const viewer = options.viewer ?? {};
   const timeoutMs = options.timeoutMs ?? 120_000; // 分割子进程可能较慢
 
-  const contextLine = viewer.image_id
-    ? ` The viewer currently shows image "${viewer.image_id}"${viewer.task ? ` with task "${viewer.task}"` : ""}.`
+  const contextLine = viewer.focus
+    ? ` The viewer currently shows object "${viewer.focus.object_id}"${viewer.task ? ` with task "${viewer.task}"` : ""}.`
     : " No image is currently open in the viewer.";
 
   return {
@@ -110,7 +110,7 @@ export function createRunTaskTool(
       contextLine,
     parameters: RunTaskParams,
     async execute(_toolCallId, params, signal) {
-      const imageId = params.image_id?.trim() || viewer.image_id;
+      const imageId = params.image_id?.trim() || viewer.focus?.object_id;
       const task = params.task?.trim() || viewer.task;
       if (!imageId) {
         throw new Error(
@@ -125,8 +125,10 @@ export function createRunTaskTool(
       const body: Record<string, unknown> = { task, image_id: imageId };
       const method = params.method?.trim() || viewer.method;
       if (method) body.method = method;
-      if (viewer.cubs_cf !== undefined) body.cubs_cf = viewer.cubs_cf;
-      if (viewer.roi_box) body.roi_box = viewer.roi_box;
+      if (imageId === viewer.focus?.object_id) {
+        if (viewer.object?.calibration) body.calibration = viewer.object.calibration;
+        if (viewer.focus.region) body.region = viewer.focus.region;
+      }
 
       const abort = AbortSignal.timeout(timeoutMs);
       const combined = signal ? AbortSignal.any([signal, abort]) : abort;

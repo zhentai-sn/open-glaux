@@ -1,7 +1,6 @@
 import { CHAT_EDITION } from "../edition";
 import { useAgentSessions } from "../store/agentSessions";
 import { taskViewFor } from "../data/actions";
-import { mmPerPx } from "../data/objectInfo";
 import { activeObject, useSession, type Connection } from "../store/session";
 import type {
   ConnectionInput,
@@ -20,7 +19,6 @@ export function toViewerContext(): ViewerContext {
   const out: ViewerContext = {};
   if (s.modality) {
     out.collection = s.modality;
-    out.modality = s.modality; // 过渡字段
   }
   const obj = activeObject(s);
   const tv = taskViewFor(s, obj) ?? (obj ? undefined : s.tasks.find((t) => t.modality === s.modality));
@@ -31,13 +29,6 @@ export function toViewerContext(): ViewerContext {
   if (!obj || !s.focus) return out;
   out.object = { id: obj.id, kind: obj.kind, axes: obj.axes, calibration: obj.calibration };
   out.focus = s.focus;
-  // 过渡字段：runtime 在 W5 改读 object / focus 前只认这几个
-  out.image_id = obj.id;
-  const cf = tv ? mmPerPx(obj) : null;
-  if (cf != null) out.cubs_cf = cf;
-  // 过渡字段只随任务上下文下发：无 TaskView 的对象（通用图像、视频）不带医学标定或 ROI（SDD 07）
-  const r = tv ? s.focus.region : null;
-  if (r?.kind === "box") out.roi_box = [r.x0, r.y0, r.x1, r.y1];
   return out;
 }
 

@@ -78,7 +78,7 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - `suggest` / `controlled` / `autonomous`：挂领域工具；逐次批准门控（`beforeToolCall`）尚未落地，`propose_annotation` 的产出恒为建议态，须人工确认。
 - 对话预览版（chat）不挂领域工具，与 `observe` 同效。
 
-完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉）、`segment_region`（要求 `GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`。挂载条件见 `agent-runtime/src/pi/harness-registry.ts`。
+完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`（需焦点）。工具经 `TOOL_PROVIDERS` 装配；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
 
 ## 5. 会话管理
 

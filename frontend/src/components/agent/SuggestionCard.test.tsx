@@ -53,9 +53,9 @@ describe("parseAnnotationProposed", () => {
   it("解析工具结果 details", () => {
     const p = parseAnnotationProposed({
       kind: "glaux.annotation_proposed",
-      payload: { annotation_id: "a1", image_id: "i1", label: "x", note: "因为形态符合" },
+      payload: { annotation_id: "a1", image_id: "i1", label: "x", note: "因为形态符合", index: { z: 42 } },
     });
-    expect(p).toMatchObject({ annotation_id: "a1", label: "x", note: "因为形态符合" });
+    expect(p).toMatchObject({ annotation_id: "a1", label: "x", note: "因为形态符合", index: { z: 42 } });
   });
 
   it("annotation_id 为 null（本次未提出）仍可解析，带 reason", () => {

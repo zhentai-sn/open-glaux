@@ -316,6 +316,7 @@ export type AnnotationPrimitive =
 export interface Annotation {
   id: string;
   image_id: string;
+  index?: Index;
   z?: number | null;
   primitive: AnnotationPrimitive;
   label: string;
