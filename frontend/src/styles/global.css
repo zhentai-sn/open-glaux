@@ -1443,6 +1443,10 @@ canvas {
 .agent-error button {
   color: inherit;
 }
+.agent-error .agent-video-config {
+  flex: none;
+  text-decoration: underline;
+}
 .conversation-stream {
   gap: 14px;
 }

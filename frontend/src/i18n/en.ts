@@ -29,6 +29,7 @@ export const en = {
   cfg_media_none: "Disabled",
   cfg_media_qwen: "Qwen3.8-Omni-Flash",
   agent_video_unsupported: "This connection does not support joint audio-video Q&A. Ordinary chat remains available.",
+  agent_video_adapter_required: "The Omni model is selected, but its audio-video adapter is off. Select Qwen3.8-Omni-Flash in connection settings and ask again.",
   cfg_quickfill: "Quick fill",
   cfg_base_url_ph: "http://localhost:11434/v1",
   cfg_model_ph: "Fetch models then pick, or type a model id",

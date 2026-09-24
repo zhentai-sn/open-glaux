@@ -128,6 +128,9 @@ export function AgentConversation() {
   );
   const connection = useSession((state) => state.connection);
   const videoFocused = useSession((state) => state.focus?.kind === "video");
+  const videoConnectionReady = connection.provider === "openai_compatible"
+    && connection.model === "qwen3.8-omni-flash"
+    && connection.mediaAdapter === "qwen-omni";
   const setPreview = useSession((state) => state.setImagePreview);
   const { send, regenerate, abort } = useConversation();
   const [configOpen, setConfigOpen] = useState(false);
@@ -282,9 +285,13 @@ export function AgentConversation() {
         </div>
       )}
 
-      {!CHAT_EDITION && videoFocused && connection.mediaAdapter !== "qwen-omni" && (
+      {!CHAT_EDITION && videoFocused && !videoConnectionReady && (
         <div className="agent-error" role="status">
-          {t("agent_video_unsupported")}
+          <span>{t(connection.provider === "openai_compatible" && connection.model === "qwen3.8-omni-flash"
+            ? "agent_video_adapter_required" : "agent_video_unsupported")}</span>
+          <button className="agent-video-config" type="button" onClick={() => setConfigOpen(true)}>
+            {t("cfg_title")}
+          </button>
         </div>
       )}
 

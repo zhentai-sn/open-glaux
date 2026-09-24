@@ -28,6 +28,7 @@ export const zh: Record<I18nKey, string> = {
   cfg_media_none: "不启用",
   cfg_media_qwen: "Qwen3.8-Omni-Flash",
   agent_video_unsupported: "该连接不支持音画联合问答；可继续普通对话。",
+  agent_video_adapter_required: "已选择 Omni 型号，但尚未启用音画适配器。请在连接设置中选择 Qwen3.8-Omni-Flash 后重新提问。",
   cfg_quickfill: "快填",
   cfg_base_url_ph: "http://localhost:11434/v1",
   cfg_model_ph: "先「拉取模型」再选，或手输模型名",
