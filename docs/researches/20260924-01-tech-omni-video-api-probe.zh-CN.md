@@ -19,9 +19,11 @@ status: draft
 | 本地视频发送 | `video_url.url` 为 `data:;base64,...`；编码后的 Base64 字符串小于 10 MB | `video_url.url` 为 `data:video/mp4;base64,...`；编码后的 Base64 字符串不超过 50 MB |
 | MP4 | 官方列为支持格式 | 官方列为支持格式 |
 | 音轨 | 官方说明视频文件可含音频 | 官方说明视频 token 同时包含画面和音频部分 |
-| 其他请求差异 | API 地址按地域和 workspace 配置 | `fps`、`media_resolution` 可作为视频内容块参数 |
+| 抽帧参数 | `video_url.fps` 可选，默认 2.0，范围 `[0.1, 10]`；影响模型看到的时间密度 | `fps` 可选，默认 2，范围 `[0.1, 10]`；另有 `media_resolution` |
+| 思考力度 | 默认 `xhigh`；Chat Completions 顶层 `reasoning_effort` 可设为 `none`、`low`、`medium`、`xhigh` 等 | 待真实接口核对 |
+| 其他请求差异 | API 地址按地域和 workspace 配置 | `media_resolution` 可作为视频内容块参数 |
 
-依据：[Alibaba Cloud Qwen-Omni 调用指南](https://www.alibabacloud.com/help/en/model-studio/qwen-omni)、[小米 MiMo 视频理解指南](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/multimodal-understanding/video-understanding)。上述限制为 2026-09-24 的文档值，真实接口响应和本机连接仍须实测。两家共同的私有短片段传输预算受 Qwen 的 Base64 限制约束；不能把两家的请求体视为逐字段相同。
+依据：用户提供的[百炼中文文档](https://docs.bailian.console.aliyun.com/zh/model-studio/qwen-omni)、可访问的同标题[阿里云帮助中心页面](https://help.aliyun.com/zh/model-studio/qwen-omni)及[OpenAI 兼容 Chat 参数说明](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)，以及[小米 MiMo 视频理解指南](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/multimodal-understanding/video-understanding)。上述限制为 2026-09-24 的文档值，真实接口响应和本机连接仍须实测。两家共同的私有短片段传输预算受 Qwen 的 Base64 限制约束；不能把两家的请求体视为逐字段相同。
 
 ## 本地测试样本
 
@@ -52,5 +54,7 @@ status: draft
 MiMo 已依据官方请求形状在本机完成 Base64 负载构造检查：样本编码后 27,212 bytes，使用 `data:video/mp4;base64,`、`video_url`、`fps=2` 和 `media_resolution=default`。用户目前只提供 Qwen 凭据，因此 MiMo 真实调用未执行，不能计为通过。
 
 无答案样本揭示了提示与验证边界。沿用前两次的用户问题，Qwen 在静音视频上捏造“黑色画面、9～10 秒”，而该视频只有 9 秒且无蜂鸣；HTTP 200 不能视为答案通过。加入系统约束“先核验用户问题预设的声音是否存在、引用必须在 0～9 秒内、听不到就拒答”后，同一静音样本回答“未听到蜂鸣声，无法确定对应画面颜色与起止时间”。两个摘要分别在 `/tmp/glaux-sdd11-qwen-silent-result.json` 和 `/tmp/glaux-sdd11-qwen-silent-guarded-result.json`。单次提示修正不能证明稳定拒答；至少需要结构性的时间边界校验，以及覆盖更多无答案问法的评测。
+
+按百炼中文文档补测 `reasoning_effort=low`：带证据约束的移声正例回答“绿色，约 6～9 秒”（2.45 秒、输出 126 tokens）；同约束的静音反例回答未听到蜂鸣（3.52 秒、输出 226 tokens）。同一静音反例在未显式设置思考力度时耗时 5.78 秒、输出 474 tokens。样本太少，且正例与此前默认档的提示不完全相同，不足以宣称总体延迟或准确率优势。低档工具循环的第二次请求在建立网络连接时超时，未得到模型响应；不能将该传输失败算作模型推理超时。对应摘要在 `/tmp/glaux-sdd11-qwen-green-low-result.json` 与 `/tmp/glaux-sdd11-qwen-silent-low-result.json`。
 
 这三段合成样本仍不能代表真实视频的一般问答准确率或引用精度。MiMo 的真实调用，以及两家的长短区间、工具调用稳定性和人工标注集仍待补。调用日志不得保存 API Key 或 Base64 视频正文。
