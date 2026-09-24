@@ -88,7 +88,7 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
   拦截并提示，runtime 侧同样校验并返回 `invalid_request`。
 - 文本与附件至少有其一非空；纯附件消息合法（用户贴图后直接发送，等同"看这张图"）。
 - 图像附件仅限静态图像，不接受视频、PDF 或任意文件——领域影像（CT/WSI）仍走查看器上下文
-  与 `run_task`，不经此通道（D-021 理由 ③）。
+  与 `run_task`，不经此通道（D-021 理由 ③）。full edition 的 Composer 文件选择入口还可按 [SDD 11](../11-video-understanding-harness/README.md) 上传视频并绑定当前问题；视频不进入本图像附件通道。
 - 同一 Pi Session 同一时刻至多有一个非 `idle` 的 `AgentHarness` 操作。
 - 归档会话只读；恢复为 `active` 后方可继续发送。
 - API Key 只能存在于请求处理所需的内存中，禁止写入 SQLite、事件、错误详情和应用日志。

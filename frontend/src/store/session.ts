@@ -33,6 +33,12 @@ export interface Connection {
   lastTest?: { ok: boolean; at: string; reason?: string };
 }
 
+/** Composer 里待发送的问题所绑定的视频对象；源文件由上传数据源保存。 */
+export interface ComposerVideo {
+  objectId: string;
+  name: string;
+}
+
 /** 探不到上游元数据时的兜底（2026-08-19 决议，SDD 00 §4）——预填而非静默代入，用户可改。 */
 export const DEFAULT_CONTEXT_WINDOW = 128_000;
 export const DEFAULT_MAX_TOKENS = 8_192;
@@ -253,6 +259,8 @@ interface SessionState {
   notices: Notice[]; // 提示队列：逐条呈现，不互相顶掉（医学失败提示不静默丢失，信任可见 G5）
   composerDraft: string; // Composer 未发送草稿——升入 store 使模式切换重挂载不丢（SDD feats/01 §8/§15）
   composerAttachments: Attachment[]; // 未发送的图像附件，与草稿同理不因重挂载丢失（SDD 00 D-021）
+  composerVideo: ComposerVideo | null; // 待发送视频引用；不在 prompt 中内联媒体字节（SDD 11）
+  composerVideoUploading: boolean; // 导入中禁发，模式切换不丢上传状态
   shortcutSheetOpen: boolean; // 快捷键速查面板开合（SDD feats/05 §9）——瞬态，不持久化
   imagePreview: { src: string; alt: string } | null; // 点击放大的图像（附件缩略图 / 消息图）——瞬态
 
@@ -289,6 +297,8 @@ interface SessionState {
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
   setComposerAttachments: (v: Attachment[]) => void;
+  setComposerVideo: (v: ComposerVideo | null) => void;
+  setComposerVideoUploading: (v: boolean) => void;
   setImagePreview: (v: { src: string; alt: string } | null) => void;
   toggleShortcutSheet: () => void;
   setShortcutSheet: (v: boolean) => void;
@@ -353,6 +363,8 @@ export const useSession = create<SessionState>((set) => ({
   notices: [],
   composerDraft: "",
   composerAttachments: [],
+  composerVideo: null,
+  composerVideoUploading: false,
   shortcutSheetOpen: false,
   imagePreview: null,
 
@@ -441,6 +453,8 @@ export const useSession = create<SessionState>((set) => ({
     }),
   setComposerDraft: (v) => set({ composerDraft: v }),
   setComposerAttachments: (v) => set({ composerAttachments: v }),
+  setComposerVideo: (v) => set({ composerVideo: v }),
+  setComposerVideoUploading: (v) => set({ composerVideoUploading: v }),
   setImagePreview: (v) => set({ imagePreview: v }),
   toggleShortcutSheet: () => set((s) => ({ shortcutSheetOpen: !s.shortcutSheetOpen })),
   setShortcutSheet: (v) => set({ shortcutSheetOpen: v }),

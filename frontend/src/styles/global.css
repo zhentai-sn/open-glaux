@@ -1708,6 +1708,31 @@ canvas {
   padding: 0;
   list-style: none;
 }
+.composer-video {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.composer-video span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-video button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  color: inherit;
+}
 .composer-attachments li {
   position: relative;
   width: 52px;
