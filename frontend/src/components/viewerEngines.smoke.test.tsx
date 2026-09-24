@@ -16,7 +16,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Annotation, Focus, ObjectMeta, Primitive, TaskView } from "../api/types";
-import { objectMeta, taskFields } from "../test/fixtures";
+import { dsFields, objectMeta, taskFields } from "../test/fixtures";
 import { I18nProvider } from "../i18n";
 
 // --- 替身注册表（vi.mock 工厂提升到文件顶，只能经 vi.hoisted 共享状态）-------------
@@ -210,11 +210,12 @@ function stubBackend() {
       let json: unknown = {};
       if (method === "GET" && url.startsWith("/api/annotations")) json = { annotations: [] };
       else if (method === "POST" && url === "/api/annotations") {
-        const input = body as { image_id: string; z?: number | null; primitive: Annotation["primitive"] };
+        const input = body as { image_id: string; z?: number | null; index?: Annotation["index"]; primitive: Annotation["primitive"] };
         const annotation: Annotation = {
           id: `srv-${++srvId}`,
           image_id: input.image_id,
-          z: input.z ?? null,
+          index: input.index ?? {},
+          z: input.index?.z ?? input.z ?? null,
           primitive: input.primitive,
           label: "",
           class_id: null,
@@ -410,7 +411,7 @@ describe("FrameStackViewer（volume）接线冒烟", () => {
     expect(h.toolGroups.get("glaux-tg-vol")?.viewports).toEqual([
       { viewportId: "glaux-stack-vol", renderingEngineId: "glaux-re-vol" },
     ]);
-    await waitFor(() => expect(calls.some((c) => c.url === `/api/annotations?image_id=ct_1&z=${LABEL_Z}`)).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.url === `/api/annotations?image_id=ct_1&index_from=${LABEL_Z}&index_to=${LABEL_Z}`)).toBe(true));
   });
 
   it("labelmap 在挂载前已有时，初始层定位不会被体数据加载覆盖（F-3）", async () => {
@@ -434,7 +435,7 @@ describe("FrameStackViewer（volume）接线冒烟", () => {
     completePolygon(`${BASE}#z=${LABEL_Z}`, "cs-ct-1");
     await waitFor(() => expect(posts((u) => u === "/api/annotations")).toHaveLength(1));
     const body = posts((u) => u === "/api/annotations")[0].body!;
-    expect(body).toMatchObject({ image_id: "ct_1", z: LABEL_Z, primitive: { kind: "polyline", closed: true } });
+    expect(body).toMatchObject({ image_id: "ct_1", index: { z: LABEL_Z }, primitive: { kind: "polyline", closed: true } });
 
     // 别的层的完成事件不落当前层
     completePolygon(`${BASE}#z=0`, "cs-ct-2");
@@ -461,5 +462,72 @@ describe("FrameStackViewer（volume）接线冒烟", () => {
     });
     await waitFor(() => expect(invalidateNiftiVolume).toHaveBeenCalledWith(LABEL_REF));
     expect(posts((u) => u === "/api/annotations")).toHaveLength(0);
+  });
+});
+
+// --- video：同一 StackViewport，以 t 为第三轴，无 TaskView ----------------------
+
+describe("FrameStackViewer（video）接线冒烟", () => {
+  const oid = "vid-1";
+  const frameId = (t: number) => `web:/api/objects/${oid}/frame?t=${t}&size=4096`;
+
+  async function mountVideo() {
+    const object = objectMeta({ id: oid, modality: "video", calibration: { kind: "time_base", value: { fps: 25 }, source: "container" } });
+    useSession.setState({
+      modality: "video",
+      tasks: [],
+      datasources: [{ id: object.source_id, name: "Video", modality: "video", root: "", origin: "imported", calibration: {}, status: "active", ...dsFields("video"), default_capabilities: ["bbox", "polygon", "timeline", "brush"] }],
+    });
+    focusOn(object);
+    act(() => useSession.getState().setIndex({ t: 0 }));
+    const rendered = render(<I18nProvider><Viewer /></I18nProvider>);
+    const viewport = () => engine("glaux-re").viewports.get("glaux-stack");
+    await waitFor(() => expect(viewport()?.setStack).toHaveBeenCalled());
+    return { ...rendered, viewport: viewport()! };
+  }
+
+  it("复用帧栈并按 t 切帧，只加载当前帧标注", async () => {
+    const { viewport } = await mountVideo();
+    expect(viewport.setStack).toHaveBeenCalledWith(Array.from({ length: 12 }, (_, t) => frameId(t)), 0);
+    act(() => useSession.getState().setIndex({ t: 3 }));
+    await waitFor(() => expect(viewport.setImageIdIndex).toHaveBeenLastCalledWith(3));
+    await waitFor(() => expect(calls.some((call) => call.url === `/api/annotations?image_id=${oid}&index_from=3&index_to=3`)).toBe(true));
+    expect(useSession.getState().coords.t).toBe(3);
+  });
+
+  it("当前帧多边形与画笔均按 index.t 写库，切帧不显示旧标注", async () => {
+    const { container, viewport } = await mountVideo();
+    act(() => useSession.getState().setIndex({ t: 3 }));
+    await waitFor(() => expect(viewport.setImageIdIndex).toHaveBeenLastCalledWith(3));
+    act(() => useSession.getState().setTool("polygon"));
+    completePolygon(frameId(3), "cs-video-3");
+    await waitFor(() => expect(posts((url) => url === "/api/annotations")).toHaveLength(1));
+    expect(posts((url) => url === "/api/annotations")[0].body).toMatchObject({ image_id: oid, index: { t: 3 }, primitive: { kind: "polyline" } });
+
+    act(() => useSession.getState().setIndex({ t: 4 }));
+    await waitFor(() => expect(viewport.setImageIdIndex).toHaveBeenLastCalledWith(4));
+    await waitFor(() => expect(useSession.getState().annotations).toEqual([]));
+
+    act(() => {
+      useSession.getState().setToolOptions({ brush: { mode: "paint", radius: 2 } });
+      useSession.getState().setTool("brush");
+    });
+    brushStroke(container);
+    await waitFor(() => expect(posts((url) => url === "/api/annotations")).toHaveLength(2));
+    expect(posts((url) => url === "/api/annotations")[1].body).toMatchObject({ image_id: oid, index: { t: 4 }, primitive: { kind: "mask" } });
+    expect(posts((url) => url.endsWith("/edits"))).toHaveLength(0);
+  });
+
+  it("同一 Viewer 从视频切到 CT 时重建 CS3D 引擎并加载体数据", async () => {
+    await mountVideo();
+    const ct = objectMeta({ id: "ct_2", modality: "ct_abdomen", resources: { frame: "/objects/ct_2/frame", raw: "/objects/ct_2/raw" } });
+    act(() => useSession.setState({
+      modality: "ct_abdomen",
+      tasks: [task("ct_abdomen", "volume_3d")],
+      objects: { ct_abdomen: [ct] },
+      focus: { object_id: ct.id, kind: ct.kind, index: { z: 0 }, region: null },
+    }));
+    await waitFor(() => expect(engine("glaux-re-vol").viewports.get("glaux-stack-vol")?.setStack).toHaveBeenCalled());
+    expect(engine("glaux-re").destroyed).toBe(true);
   });
 });

@@ -7,6 +7,7 @@ import type {
   Capability,
   DataSource,
   EditRequest,
+  Index,
   Measure,
   MeasurementResult,
   Modality,
@@ -197,11 +198,13 @@ export const api = {
 
   // --- 统一标注（SDD 04）——bbox/polygon/brush 产物的持久化面 -----------------
   annotations: {
-    /** 列出某对象（可选 z 层）的全部标注。 */
-    list: (imageId: string, z?: number | null) =>
-      get<{ annotations: Annotation[] }>(
-        `/annotations?image_id=${encodeURIComponent(imageId)}${z != null ? `&z=${z}` : ""}`,
-      ),
+    /** 列出某对象（可选第三轴索引）的当前帧标注。 */
+    list: (imageId: string, index?: Index) => {
+      const at = index?.z ?? index?.t ?? index?.level;
+      return get<{ annotations: Annotation[] }>(
+        `/annotations?image_id=${encodeURIComponent(imageId)}${at != null ? `&index_from=${at}&index_to=${at}` : ""}`,
+      );
+    },
     /** 创建标注；on_commit 钩子产物在 hook_result/hook_error。 */
     create: (input: AnnotationInput) => post<AnnotationCreated>("/annotations", input),
     /** 更新几何/标签/状态（base_seq 乐观并发；过期 → 409）。 */

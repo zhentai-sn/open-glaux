@@ -451,3 +451,15 @@ W4 真实浏览器走查待维护者签字。自动化 smoke 只验接线，不�
 自动化结果：版本矩阵 5/5；agent-runtime 32 文件、218/218（顺序执行及最后补充的 WSI 浮点 ROI 定向测试）；frontend 42 文件、241/241；backend 333/333；science-core 214/214；backend ruff、frontend lint、runtime typecheck 与两端 production build 通过。chat 发行包的两份定向测试包含在 runtime/frontend 全量结果中，`docker/Dockerfile` 的 `agent`、`web` 两个目标镜像均构建成功。并行跑 runtime/frontend 时，既有 `session-lifecycle.test.ts` 的 5 秒超时偶发触发；runtime 独占执行全绿，全量用例未出现功能失败。
 
 受限沙箱中 `uv` 缓存只读，`make test`/`make lint` 在进入 backend 时停止；现有虚拟环境的 backend 测试在正常本机执行环境 333/333，science-core 与各端 lint 分别通过。W5 代码门禁依据分项执行结果判定，未签人工项保持待验收。
+
+## W6 · 视频逐帧表征（代码与自动化门禁完成）
+
+维护者确认按 [W6 设计记录](../plans/2026-09-24-video-w6-design.md) 复用 `FrameStackViewer` 的 `z/t` 多帧路径；播放与跟踪不在本波范围。真实浏览器走查按维护者决定递延至 SDD 10 最终统一验收。
+
+| 链路 | 自动化证据 |
+| --- | --- |
+| 看 | `ENGINES.video` 接入 `FrameStackViewer`；`FrameSource` 从对象 `resources.frame` 生成 `t=N` 图像 id，CS3D 建栈前为各帧登记尺寸；焦点 `index.t` 控制切帧和角标。前端 smoke 覆盖 12 帧栈、从 0 切到 3、只查询第 3 帧的标注，以及同一 Viewer 从视频切到 CT 时引擎重建。 |
+| 标 | `timeline` 能力位在 Workbench / Focus 走同一 `CHROME_SEGMENTS` 与 `FrameAxis`；CS3D bbox/polygon、画笔经 `annotationBridge`/`annotationMaskSink` 写当前 `{t}`，`GET /annotations?index_from=N&index_to=N` 按帧回显。切帧过滤旧几何和 mask、清画笔缓冲，迟到响应由现有序号守卫丢弃。前端 smoke 覆盖帧 3 多边形、帧 4 画笔与跨帧隔离；后端合成 mp4 REST 测试覆盖 bbox/mask 落库及重开后分帧查询。 |
+| agent 观测 | W5 `fetchObservation` 在 `t=10` 取 `/objects/{id}/frame?t=10`；`view_current_image` 告诉模型当前帧号，`propose_annotation` 将 `focus.index.t` 写入建议态并回显。对应 runtime 集成测试通过。 |
+
+门禁：版本矩阵 5/5；frontend 42 文件、245/245，lint 与 production build 绿；agent-runtime 32 文件、220/220，lint 与 build 绿；backend 334/334、ruff 绿；science-core 214/214；`check-modality-literals.sh --strict` 的 frontend/backend 比较命中均为 0；chat 两份定向测试通过，`docker/Dockerfile` 的 agent/web 两目标镜像构建通过。受限沙箱内 `uv` 缓存只读，backend 测试沿用正常本机执行方式。视频真实浏览器逐帧看图、绘制、刷新与 agent 交互尚未签字，W6 只记代码和自动化门禁完成；W4 未签项目同留最终统一验收。

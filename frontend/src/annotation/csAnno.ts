@@ -14,7 +14,7 @@ import {
 } from "@cornerstonejs/tools";
 
 import { createAnnotation, patchAnnotation, removeAnnotation } from "./bridge";
-import type { Annotation, AnnotationPrimitive } from "../api/types";
+import type { Annotation, AnnotationPrimitive, Index } from "../api/types";
 import { IDENTITY_PIXEL_MAP, type PixelMap } from "../viewer/pixelMap";
 
 type CsAnn = ToolTypes.Annotation;
@@ -230,7 +230,7 @@ export interface CsAnnoBridgeOpts {
   getImageId: () => string | null;
   pixelMap?: () => PixelMap;
   /** 落库目标：由查看器按 focus.object_id + 当前索引给出，不从 imageId 字符串反推（SDD 10 §8.3）。 */
-  toTarget: (imageId: string) => { image_id: string; z?: number | null };
+  toTarget: (imageId: string) => { image_id: string; index?: Index };
 }
 
 /**

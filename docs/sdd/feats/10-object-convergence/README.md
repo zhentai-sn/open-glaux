@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0～W3 已准出；W4 代码与自动化门禁完成，未签真实浏览器走查递延至最终统一验收；W5 上下文、观测与工具注册已接线并通过自动化门禁，见执行记录；下一波 W6 依赖 W4、W5 |
+| 当前阶段 | 契约冻结；W0～W3 已准出；W4、W5、W6 代码与自动化门禁完成，未签真实浏览器走查递延至最终统一验收；W7 过渡物清除待实施，见执行记录 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -591,7 +591,7 @@ export type Painter = (ctx: CanvasRenderingContext2D, p: Primitive, proj: (x: nu
 export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView | null; capabilities: string[]; source: FrameSource; axis: FrameAxis; voi: { ww: number; wl: number } | null;
   primitives: Primitive[]; annotations: Annotation[]; tool: string; toolOptions: ToolOptions; maskSink: MaskSink; painters: Record<string, Painter>;
   onCoords(c: SessionState["coords"]): void; onRegion(region: Region): void; notify(tone: "info" | "crit", message: string): void }
-export const ENGINES: Partial<Record<ObjectKind, ComponentType<ViewerProps>>> = { image: FrameStackViewer, volume: FrameStackViewer, slide: PyramidViewer }; // video 在 W6 接入同一 FrameStackViewer
+export const ENGINES: Partial<Record<ObjectKind, ComponentType<ViewerProps>>> = { image: FrameStackViewer, volume: FrameStackViewer, video: FrameStackViewer, slide: PyramidViewer };
 export const axisFor = (o: ObjectMeta): "z" | "t" | null => o.axes.find(a => a.name === "z" || a.name === "t")?.name ?? null;
 export const PAINTERS: Record<string, Painter>;
 export const CHROME_SEGMENTS: { cap: string; Seg: ComponentType }[];              // voi→VoiSeg, timeline→TimelineSeg, brush→BrushSeg

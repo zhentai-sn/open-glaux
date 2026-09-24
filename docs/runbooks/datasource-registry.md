@@ -94,8 +94,8 @@ curl -s -X DELETE localhost:8000/datasources/imported-xxxx   # 删除（builtin 
 ## 范围
 
 - **完整可用**：浏览器上传通用图像（JPEG / PNG）；WSI + CT 文件夹导入端到端（列表 / 浏览 / 跑任务 / 删除）。
-- **数据轴可用**：video 的上传 / 文件夹导入、列表（`GET /images?modality=video`，含音轨声明 `streams[]`）、
-  `GET /image/{vid}` 取第 0 帧。查看器与观测通道在 SDD 10 W4～W6。PyAV 是可选依赖：
+- **视频逐帧可用**：video 的上传 / 文件夹导入、列表（`GET /images?modality=video`，含音轨声明 `streams[]`）、
+  `GET /objects/{id}/frame?t=N` 取帧；前端按 `timeline` 能力位显示时间轴，可在当前帧画 bbox / polygon / 画笔，标注以 `index.t` 落库并按帧回显；agent 从同一焦点帧取观测。PyAV 是可选依赖：
   `uv pip install -e ".[video]"`（`make install-backend` 已含），缺库时 video 模态不可用、其余模态不受影响。
 - **暂 config-rooted**：carotid（CUBS 需 images+CF+LIMA-Profiles 三子目录）、HC（真/合成路由）——
   仅作内置示例源出现，导入后续（见计划 §2）。

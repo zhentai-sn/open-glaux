@@ -49,3 +49,21 @@ export type ViewerEngine = ComponentType<ViewerProps>;
 export function axisFor(object: ObjectMeta): "z" | "t" | null {
   return object.axes.find((axis) => axis.name === "z" || axis.name === "t")?.name as "z" | "t" | undefined ?? null;
 }
+
+/** 唯一的 z/t 索引投影；查看器与两种外壳的时间轴共用。 */
+export function frameAxisFor(object: ObjectMeta | null, focus: Focus | null, setIndex: (patch: Index) => void): FrameAxis {
+  if (!object || !focus) return { kind: "none" };
+  const name = axisFor(object);
+  if (!name) return { kind: "none" };
+  const axis = object.axes.find((entry) => entry.name === name)!;
+  const fps = name === "t" && axis.unit === "ms" && axis.spacing && axis.spacing > 0
+    ? 1000 / axis.spacing
+    : undefined;
+  return {
+    kind: name,
+    index: focus.index[name] ?? 0,
+    count: axis.size,
+    ...(fps ? { fps } : {}),
+    onIndex: (index) => setIndex({ [name]: Math.max(0, Math.min(axis.size - 1, Math.round(index))) }),
+  };
+}

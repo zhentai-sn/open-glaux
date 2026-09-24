@@ -6,15 +6,17 @@
 
 from __future__ import annotations
 
+import base64
 import io
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app import dataset_video, datasource_detect, upload_store
+from app import config, dataset_video, datasource_detect, upload_store
 from app import datasource_registry as reg
 from app.main import app
+from app.routers import annotations as ann_router
 from app.schemas import Index, ObjectMeta, Region
 from app.sources import SOURCES
 
@@ -225,3 +227,34 @@ def test_objects_frame_video_reference_frame(videos):
     raw = client.get(f"/objects/{oid}/raw")
     assert raw.status_code == 200 and raw.headers["content-type"] == "video/mp4"
     assert raw.content[4:8] == b"ftyp"
+
+
+def test_video_annotations_are_scoped_to_frame_and_survive_reopen(videos, tmp_path, monkeypatch):
+    """W6：bbox 与画笔 mask 均落在 index.t，刷新后只回显所属帧。"""
+    monkeypatch.setattr(config, "ANNOTATIONS_ROOT", tmp_path / "ann")
+    ann_router._stores.clear()
+    oid = videos["silent"]
+    bbox = {"kind": "bbox", "x0": 2, "y0": 3, "x1": 20, "y1": 24}
+    for t in (3, 4):
+        response = client.post("/annotations", json={
+            "image_id": oid, "index": {"t": t}, "primitive": bbox,
+        })
+        assert response.status_code == 201, response.text
+        assert response.json()["annotation"]["index"] == {"t": t}
+    mask_bytes = io.BytesIO()
+    Image.new("L", (W, H), 0).save(mask_bytes, format="PNG")
+    response = client.post("/annotations", json={
+        "image_id": oid, "index": {"t": 3}, "primitive": {"kind": "mask"},
+        "mask_png_b64": base64.b64encode(mask_bytes.getvalue()).decode(),
+    })
+    assert response.status_code == 201, response.text
+    assert response.json()["annotation"]["index"] == {"t": 3}
+    ann_router._stores.clear()  # 模拟刷新重开
+    frame3 = client.get("/annotations", params={"image_id": oid, "index_from": 3, "index_to": 3})
+    frame4 = client.get("/annotations", params={"image_id": oid, "index_from": 4, "index_to": 4})
+    assert frame3.status_code == frame4.status_code == 200
+    assert len(frame3.json()["annotations"]) == 2
+    assert {a["primitive"]["kind"] for a in frame3.json()["annotations"]} == {"bbox", "mask"}
+    assert len(frame4.json()["annotations"]) == 1
+    assert all(a["index"] == {"t": 3} for a in frame3.json()["annotations"])
+    ann_router._stores.clear()

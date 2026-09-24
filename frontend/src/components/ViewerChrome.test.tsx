@@ -1,5 +1,5 @@
 // ViewerChrome 测试（SDD 04 T8）——引擎能力位过滤 + i18n 键齐备。
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ViewerChrome } from "./ViewerChrome";
@@ -62,6 +62,22 @@ beforeEach(() => {
 // 按钮内容 = lucide 图标（SDD 06）+ .tip 文案（注册表 label，SDD 04）；
 // 断言走文案，不再断言 glyph 字符——字符渲染已随 SDD 06 退役。
 describe("引擎能力位过滤", () => {
+  it("视频时间轴只在能力位声明时出现，并写入焦点 t", () => {
+    const object = objectMeta({ id: "vid-1", modality: "video", axes: [{ name: "x", size: 64 }, { name: "y", size: 48 }, { name: "t", size: 12, spacing: 40, unit: "ms" }] });
+    const source = { id: object.source_id, name: "Video", modality: "video", root: "", origin: "imported" as const, calibration: {}, status: "active" as const, ...dsFields("video") };
+    useSession.setState({ modality: "video", tasks: [], objects: { video: [object] }, focus: { object_id: object.id, kind: "video", index: { t: 0 }, region: null }, datasources: [{ ...source, default_capabilities: ["bbox", "polygon", "timeline", "brush"] }] });
+    const view = render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
+    const slider = screen.getByRole("slider", { name: "Timeline" });
+    fireEvent.change(slider, { target: { value: "7" } });
+    expect(useSession.getState().focus?.index.t).toBe(7);
+    expect(screen.getByText("Frame 8/12")).toBeTruthy();
+    view.unmount();
+
+    useSession.setState({ datasources: [{ ...source, default_capabilities: ["bbox", "polygon", "brush"] }] });
+    render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
+    expect(screen.queryByRole("slider", { name: "Timeline" })).toBeNull();
+  });
+
   it("无 TaskView 时显示数据源默认标注工具", () => {
     const object = objectMeta({ id: "natural-1", modality: "natural_image" });
     useSession.setState({

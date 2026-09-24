@@ -103,6 +103,8 @@ export const en = {
   chrome_brush_paint: "Paint",
   chrome_brush_erase: "Erase",
   chrome_brush_radius: "Radius",
+  chrome_timeline: "Timeline",
+  chrome_frame: "Frame",
   chrome_preset_abd: "Abdomen",
   chrome_preset_med: "Mediastinum",
   chrome_preset_lung: "Lung",

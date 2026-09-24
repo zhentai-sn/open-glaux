@@ -3,11 +3,13 @@ import type { ComponentType } from "react";
 import type { ClassSpec } from "../api/types";
 import { useI18n } from "../i18n";
 import type { ToolOptions } from "../store/session";
+import type { FrameAxis } from "./contract";
 
 export interface ChromeSegmentProps {
   tool: string;
   options: ToolOptions;
   classes: ClassSpec[];
+  axis: FrameAxis;
   setOptions(patch: Partial<{ brush: Partial<ToolOptions["brush"]>; voi: Partial<ToolOptions["voi"]> }>): void;
 }
 
@@ -61,8 +63,27 @@ function VoiSeg({ options, setOptions }: ChromeSegmentProps) {
   );
 }
 
+function TimelineSeg({ axis }: ChromeSegmentProps) {
+  const { t } = useI18n();
+  if (axis.kind !== "t") return null;
+  const count = Math.max(1, axis.count);
+  const index = Math.max(0, Math.min(count - 1, axis.index));
+  return (
+    <div className="chrome-seg" data-testid="timeline-seg">
+      <label className="chrome-range">
+        {t("chrome_timeline")}
+        <input type="range" min={0} max={count - 1} value={index} aria-label={t("chrome_timeline")}
+          onChange={(event) => axis.onIndex(Number(event.target.value))} />
+      </label>
+      <span className="mono">{t("chrome_frame")} {index + 1}/{count}</span>
+      {axis.fps && <span className="mono">{(index / axis.fps).toFixed(2)} s</span>}
+    </div>
+  );
+}
+
 /** 能力位驱动的选项段注册面。新能力只需登记组件，不修改外壳条件分支。 */
 export const CHROME_SEGMENTS: Array<{ cap: string; visible: (tool: string) => boolean; Seg: ComponentType<ChromeSegmentProps> }> = [
   { cap: "brush", visible: (tool) => tool === "brush", Seg: BrushSeg },
   { cap: "voi", visible: () => true, Seg: VoiSeg },
+  { cap: "timeline", visible: () => true, Seg: TimelineSeg },
 ];

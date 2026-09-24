@@ -15,6 +15,11 @@ import {
 // 图像尺寸缓存——元数据 provider 在像素模块里要用；组件在 setStack 前预取，规避先后次序问题。
 const dimCache = new Map<string, { rows: number; columns: number }>();
 
+/** 同一帧栈尺寸由对象 axes 约束；在 setStack 前为各帧登记尺寸，避免未解码帧按 1×1 建几何。 */
+export function primeFrameDims(imageIds: string[], dims: { rows: number; columns: number }): void {
+  for (const imageId of imageIds) if (imageId.startsWith("web:")) dimCache.set(imageId, dims);
+}
+
 /** 预取 PNG 尺寸并填缓存（在 setStack 前调用，保证元数据有 rows/columns）。 */
 export function preloadDims(imageId: string): Promise<{ rows: number; columns: number }> {
   const cached = dimCache.get(imageId);

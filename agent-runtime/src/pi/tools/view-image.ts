@@ -123,13 +123,15 @@ export function createViewCurrentImageTool(
         viewer.collection ? `collection=${viewer.collection}` : "",
         viewer.method ? `method=${viewer.method}` : "",
       ].filter(Boolean);
+      const frameIndex = Object.entries(frame.index).filter(([, value]) => value != null)
+        .map(([axis, value]) => `${axis}=${value}`).join(", ");
 
       return {
         content: [
           {
             type: "text",
             text:
-              `This is ${imageId} (${frame.width}×${frame.height} px), ` +
+              `This is ${imageId}${frameIndex ? ` at ${frameIndex}` : ""} (${frame.width}×${frame.height} px), ` +
               "exactly what the user has open in the viewer." +
               (labels.length
                 ? ` The dataset files it under ${labels.join(", ")} — that is a catalogue label, not an observation.` +

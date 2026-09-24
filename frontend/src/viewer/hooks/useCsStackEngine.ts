@@ -23,6 +23,7 @@ export function useCsStackEngine(options: StackEngineOptions) {
   const { renderingEngineId, viewportId, toolGroupId, nifti } = options;
 
   useEffect(() => {
+    setReady(false);
     let disposed = false;
     let detach: (() => void) | null = null;
     (async () => {

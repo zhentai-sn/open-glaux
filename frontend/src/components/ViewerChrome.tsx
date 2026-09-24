@@ -2,8 +2,9 @@
 import { useMemo } from "react";
 
 import { useI18n } from "../i18n";
-import { useSession, type Tool } from "../store/session";
+import { activeObject, useSession, type Tool } from "../store/session";
 import { CHROME_SEGMENTS } from "../viewer/chromeSegments";
+import { frameAxisFor } from "../viewer/contract";
 import { useTaskTools } from "../viewer/useTaskTools";
 import type { ClassSpec, Primitive } from "../api/types";
 import { Icon } from "./Icon";
@@ -18,12 +19,16 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
   const options = useSession((s) => s.toolOptions);
   const setOptions = useSession((s) => s.setToolOptions);
   const primitives = useSession((s) => s.primitives);
+  const object = useSession((s) => activeObject(s));
+  const focus = useSession((s) => s.focus);
+  const setIndex = useSession((s) => s.setIndex);
   const { capabilities, tools } = useTaskTools();
   const classes = useMemo<ClassSpec[]>(() => {
     const volume = primitives.find((p): p is VolMaskPrim => p.kind === "volume_mask");
     return volume?.classes ?? [];
   }, [primitives]);
   const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
+  const axis = frameAxisFor(object, focus, setIndex);
   const hintKey = TOOL_HINT[tool] ?? null;
 
   return (
@@ -39,7 +44,7 @@ export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
       {(hintKey || segments.length > 0) && (
         <div className="chrome-options">
           {hintKey && <span className="chrome-hint">{t(hintKey)}</span>}
-          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} />)}
+          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} axis={axis} />)}
         </div>
       )}
     </>

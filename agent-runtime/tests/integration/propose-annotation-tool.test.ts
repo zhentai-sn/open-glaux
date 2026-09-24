@@ -218,6 +218,17 @@ describe("propose_annotation", () => {
     );
     expect(captured[0]!.body.index).toEqual({ z: 42 });
   });
+
+  it("焦点 index.t 透传给视频帧，并在建议结果中回显", async () => {
+    const captured: Captured[] = [];
+    const tool = createProposeAnnotationTool({
+      viewer: viewerOn("vid-0001", { kind: "video", index: { t: 10 } }),
+      fetch: fakeBackend(captured),
+    });
+    const result = await tool.execute("video-10", { label: "object", bbox: [1, 1, 9, 9] }, undefined, undefined, undefined);
+    expect(captured[0]!.body.index).toEqual({ t: 10 });
+    expect((result.details as AnnotationProposedDetails).payload.index).toEqual({ t: 10 });
+  });
 });
 
 describe("propose_annotation 注册规则", () => {

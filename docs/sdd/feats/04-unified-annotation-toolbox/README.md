@@ -87,7 +87,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph FE[前端]
-        TG[CS3D ToolGroup] -->|raster_2d / volume_3d| CB[annotationBridge]
+        TG[CS3D ToolGroup] -->|image / volume / video| CB[annotationBridge]
         AN[OpenSeadragon 原生叠加层] -->|slide, Annotation 几何| CB
         CB --> ST[(session store)]
         ST --> Chrome[ViewerChrome 统一工具栏]
@@ -101,7 +101,7 @@ flowchart LR
     DET -->|Detection 回流| ST
 ```
 
-三个引擎的 `polygon` 都是逐点点击、显示圆形顶点，至少三个顶点后点击首点闭合。`FrameStackViewer` 的 image / volume 分支使用 CS3D `SplineROITool` 的 `LINEAR` 类型，保存 `data.handles.points` 中的控制点，不保存插值轮廓；已存标注从同一点列重建。WSI 使用 SVG 叠加层，双击末点或 Enter 也可完成，Escape 取消草稿；闭合命中与重复末点过滤使用屏幕像素距离，持久化几何始终为 level-0 坐标，点列不重复首点。`cursor` 工具拖动 WSI 已保存顶点时，编辑预览保留至 `PATCH /annotations` 返回；失败恢复旧几何并提示，刷新时从服务端重载。
+两个引擎的 `polygon` 都是逐点点击、显示圆形顶点，至少三个顶点后点击首点闭合。`FrameStackViewer` 的 image / volume / video 路径使用 CS3D `SplineROITool` 的 `LINEAR` 类型，保存 `data.handles.points` 中的控制点，不保存插值轮廓；已存标注从同一点列重建。volume 与 video 的标注带当前 `index.z` / `index.t`，`GET /annotations` 用 `index_from=index_to` 只加载当前层或帧。视频画笔经 `annotationMaskSink` 按 `index.t` 落库，任务绑定的 CT 画笔仍经 `editMaskSink`。WSI 使用 SVG 叠加层，双击末点或 Enter 也可完成，Escape 取消草稿；闭合命中与重复末点过滤使用屏幕像素距离，持久化几何始终为 level-0 坐标，点列不重复首点。`cursor` 工具拖动 WSI 已保存顶点时，编辑预览保留至 `PATCH /annotations` 返回；失败恢复旧几何并提示，刷新时从服务端重载。
 
 ### 6.3 任务工具替换映射
 
@@ -296,7 +296,7 @@ stateDiagram-v2
 
 ## 15. 验收标准
 
-- [ ] 三个引擎上 bbox / polygon（`volume_3d` 另含 brush）可绘制、可编辑（移动/缩放/顶点增删），刷新页面后标注仍在（读自 `GET /annotations`）。
+- [ ] image、volume、video、slide 四类对象上 bbox / polygon 可绘制、可编辑（移动/缩放/顶点增删），刷新页面后标注仍在（读自 `GET /annotations`）；video 与 volume 的标注只在所属帧或层显示，video 画笔写 `index.t`。
 - [ ] 全部标注工具 UI 走统一工具栏：查看器组件内无内联样式浮动工具条、无硬编码中文工具文案（i18n 双语可切换验证）。
 - [ ] CT 模态 `store.tool === "brush"` 生效（共享工具栏画笔按钮可用），`FrameStackViewer` 的 CT 分支走 `editMaskSink`；StatusBar 工具显示随注册表，`TOOL_LABEL` 硬编码表删除。
 - [ ] WSI 用 bbox 框选：框落库为标注且触发核检测（`on_commit`），检测行为（计数/密度）与旧 ROI 工具一致；框选过小（<24px）仍提示不触发。

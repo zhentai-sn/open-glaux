@@ -166,6 +166,9 @@ function systemPromptFor(
   const head = SYSTEM_PROMPT + TOOL_PROVIDERS.filter((provider) => mounted.has(provider.name)).map((provider) => provider.promptFragment(context)).join("");
   if (!viewer?.focus) return `${head} No image is currently open in the viewer.`;
   const parts = [`object_id=${viewer.focus.object_id}`, `kind=${viewer.object?.kind ?? viewer.focus.kind}`];
+  const index = Object.entries(viewer.focus.index).filter(([, value]) => value != null)
+    .map(([axis, value]) => `${axis}:${value}`).join(",");
+  if (index) parts.push(`index={${index}}`);
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.collection) parts.push(`collection=${viewer.collection}`);
   if (viewer.method) parts.push(`method=${viewer.method}`);

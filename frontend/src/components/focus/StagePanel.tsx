@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { activeObject, useSession, type Tool } from "../../store/session";
 import { useTaskTools } from "../../viewer/useTaskTools";
 import { CHROME_SEGMENTS } from "../../viewer/chromeSegments";
+import { frameAxisFor } from "../../viewer/contract";
 import type { ClassSpec, Primitive } from "../../api/types";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
@@ -32,9 +33,12 @@ export function StagePanel() {
   const options = useSession((s) => s.toolOptions);
   const setOptions = useSession((s) => s.setToolOptions);
   const primitives = useSession((s) => s.primitives);
+  const focus = useSession((s) => s.focus);
+  const setIndex = useSession((s) => s.setIndex);
   const volume = primitives.find((p): p is Extract<Primitive, { kind: "volume_mask" }> => p.kind === "volume_mask");
   const classes: ClassSpec[] = volume?.classes ?? [];
   const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
+  const axis = frameAxisFor(obj, focus, setIndex);
 
   // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {
@@ -80,7 +84,7 @@ export function StagePanel() {
         ))}
         {hintKey && <span className="focus-stage-hint">{t(hintKey)}</span>}
         {segments.length > 0 && <div className="focus-stage-options">
-          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} />)}
+          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} axis={axis} />)}
         </div>}
         <span className="focus-stage-grow" />
         {loading && <span className="focus-stage-busy"><Icon icon={ICONS.spinner} size="sm" className="spin" /> {t("running")}</span>}
@@ -106,7 +110,7 @@ export function StagePanel() {
         <span className="focus-stage-meta mono">
           {image ?? "—"}
           {cf != null && ` · CF ${cf} mm/px`}
-          {` · x ${coords.x} y ${coords.y}`}
+          {` · x ${coords.x} y ${coords.y}`}{coords.t != null && ` t ${coords.t}`}
           {modelVersion && ` · ${modelVersion}`}
         </span>
       </div>

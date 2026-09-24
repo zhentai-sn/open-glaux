@@ -103,6 +103,18 @@ describe("view_current_image", () => {
     expect(text).toMatch(/not an observation/u);
   });
 
+  it("视频在 t=10 时取同一帧，并把帧号告诉模型", async () => {
+    const backend = fakeBackend();
+    const tool = createViewCurrentImageTool({
+      fetch: backend.fetch,
+      viewer: viewerOn("vid-0001", { kind: "video", index: { t: 10 } }),
+    });
+    const result = await tool.execute("video-10", {}, undefined, undefined, undefined);
+    expect(imagesOf(result)).toHaveLength(1);
+    expect(backend.calls[0]).toContain("/objects/vid-0001/frame?t=10");
+    expect(textOf(result)).toContain("at t=10");
+  });
+
   it("没开图：只回文字，不回图，也不打后端", async () => {
     const backend = fakeBackend();
     const tool = createViewCurrentImageTool({ fetch: backend.fetch, viewer: {} });

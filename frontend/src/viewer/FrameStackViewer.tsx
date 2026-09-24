@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { csUtils, type Types } from "./cornerstone";
+import { csUtils, primeFrameDims, type Types } from "./cornerstone";
 import { activateTool } from "./csTools";
 import { ImtWallHandleTool } from "./imtWallTool";
 import { drawPrimitives } from "./overlay/painters";
@@ -17,7 +17,7 @@ import type { ClassSpec, Primitive, TaskOverlaySpec } from "../api/types";
 import { mmPerPx } from "../data/objectInfo";
 import type { ViewerProps } from "./contract";
 
-// image / volume 共用的 CS3D StackViewport 引擎（SDD 10 W4）。
+// image / volume / video 共用的 CS3D StackViewport 引擎（SDD 10 W4～W6）。
 // 交互全部走统一框架：相机（Pan/Zoom）与自由标注（bbox/polygon 绘制+顶点编辑）由
 // @cornerstonejs/tools 承担；IMT 壁线形变是自定义 BaseTool（ImtWallHandleTool，D-12），
 // 提交仍走 /task/measure（D-14：任务绑定几何，口径不变）。
@@ -44,6 +44,7 @@ function hexToRgb(hex: string): [number, number, number] {
 
 export function FrameStackViewer({ object, focus, source, task: taskView, capabilities, primitives, annotations, tool, toolOptions, maskSink, axis, voi, painters, onCoords }: ViewerProps) {
   const isVolume = object.kind === "volume";
+  const isStack = axis.kind !== "none";
   const RE_ID = isVolume ? "glaux-re-vol" : "glaux-re";
   const VP_ID = isVolume ? "glaux-stack-vol" : "glaux-stack";
   const TG_ID = isVolume ? "glaux-tg-vol" : "glaux-tg-raster2d";
@@ -58,7 +59,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     nifti: isVolume,
     getImageId: () => imageIdRef.current,
     pixelMap: () => pixelMapRef.current,
-    toTarget: () => ({ image_id: object.id, ...(isVolume ? { z: focus.index.z ?? null } : {}) }),
+    toTarget: () => ({ image_id: object.id, index: focus.index }),
   });
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const work = useRef<Primitive[]>([]);
@@ -67,7 +68,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
   const brushing = useRef(false);
   const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
   const labelVolRef = useRef<LabelVol | null>(null);
-  const [numSlices, setNumSlices] = useState(0);
+  const [numFrames, setNumFrames] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const objectId = object.id;
@@ -76,13 +77,20 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
   axisRef.current = axis;
   const setIndex = useCallback((index: number) => {
     const current = axisRef.current;
-    if (current.kind === "z") current.onIndex(index);
+    if (current.kind !== "none") current.onIndex(index);
   }, []);
   const overlays = taskView?.overlays ?? EMPTY_OVERLAYS;
   const volPrim = useMemo<VolPrim | null>(() => primitives.find((p): p is VolPrim => p.kind === "volume_mask") ?? null, [primitives]);
   const classes = volPrim?.classes ?? null;
   const classById = useMemo(() => new Map<number, ClassSpec>((classes ?? []).map((item) => [item.class_id, item])), [classes]);
   const z = focus.index.z ?? 0;
+  const currentIndex = axis.kind === "none" ? 0 : axis.index;
+  const visibleAnnotations = useMemo(() => annotations.filter((annotation) => {
+    if (annotation.image_id !== objectId) return false;
+    if (axis.kind === "none") return true;
+    const at = annotation.index?.[axis.kind] ?? (axis.kind === "z" ? annotation.z : undefined);
+    return at === currentIndex;
+  }), [annotations, objectId, axis.kind, currentIndex]);
   const wallEditing = tool === "wall"; // 手柄只在壁线编辑态画（能力位由注册表限定为 IMT）
 
   // 像素坐标 → overlay 画布坐标（CSS px，与 worldToCanvas / pointer 同一空间）
@@ -94,8 +102,8 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     const tg = ToolGroupManager.getToolGroup(TG_ID);
     if (!tg) return;
     // brush 在 raster_2d 是 overlay 自持缓冲（spike3 退化方案）→ 激活态回退 pan
-    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, { wheelZoom: !isVolume });
-  }, [ready, tool, toolOptions, capabilities, isVolume, TG_ID]);
+    activateTool(tg, tool === "brush" ? "cursor" : tool, capabilities, toolOptions, { wheelZoom: !isStack });
+  }, [ready, tool, toolOptions, capabilities, isStack, TG_ID]);
 
   const sizeOverlay = useCallback(() => {
     const el = elRef.current;
@@ -167,11 +175,11 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
           legendY += 18;
         }
       }
-      if (numSlices > 0) {
+      if (numFrames > 0) {
         ctx.fillStyle = "rgba(230,234,240,0.95)";
         ctx.font = "bold 12px ui-monospace,monospace";
         ctx.textAlign = "right";
-        ctx.fillText(`z ${z + 1} / ${numSlices}`, ov.width - 12, 20);
+        ctx.fillText(`z ${z + 1} / ${numFrames}`, ov.width - 12, 20);
       }
       if (busy) {
         ctx.fillStyle = "rgba(79,176,255,0.95)";
@@ -191,13 +199,20 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
 
     drawPrimitives(ctx, work.current, proj, { overlays, index: focus.index, wallEditing }, painters);
 
+    if (axis.kind === "t" && numFrames > 0) {
+      ctx.fillStyle = "rgba(230,234,240,0.95)";
+      ctx.font = "bold 12px ui-monospace,monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(`t ${currentIndex + 1} / ${numFrames}`, ov.width - 12, 20);
+    }
+
     // 已保存 mask 标注叠色（bbox/polygon 由 CS3D 标注层自渲染，此处只管 mask）
     const bd = brushDims.current;
     if (bd) {
       ctx.imageSmoothingEnabled = false;
       const [tlx, tly] = proj(0, 0);
       const [brx, bry] = proj(bd.columns, bd.rows);
-      for (const a of annotations) {
+      for (const a of visibleAnnotations) {
         if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-")) continue;
         const cv = maskImgs.current.get(a.id);
         if (cv) {
@@ -254,7 +269,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
       ctx.textAlign = "center";
       ctx.fillText(`${barMm} mm`, sx + scr / 2, sy - 6);
     }
-  }, [cf, wallEditing, overlays, focus.index, sizeOverlay, isVolume, z, classById, toolOptions.brush.mode, toolOptions.brush.classId, classes, numSlices, busy, annotations, painters]);
+  }, [cf, wallEditing, overlays, focus.index, sizeOverlay, isVolume, z, classById, toolOptions.brush.mode, toolOptions.brush.classId, classes, numFrames, busy, visibleAnnotations, painters, axis.kind, currentIndex]);
 
   // drawOverlay 每次重渲染都会换标识（依赖 cf/overlays/工具态）——载图与标注回灌副作用
   // 不能把它放进依赖数组：那会让「切图」副作用在无关重渲染时重跑，其开头的
@@ -282,35 +297,42 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     stackIdsRef.current = [];
     brushDims.current = null;
     maskImgs.current.clear();
-    if (isVolume) {
-      setNumSlices(0);
-      labelVolRef.current = null;
+    if (isStack) {
+      setNumFrames(0);
+      if (isVolume) labelVolRef.current = null;
       const preferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
-      setIndex(preferred ?? 0);
+      if (isVolume) setIndex(preferred ?? 0);
     }
     let cancelled = false;
     (async () => {
       const ids = await source.imageIds();
       const dim = await source.dims();
       if (cancelled) return;
-      if (isVolume) {
+      if (!isVolume) primeFrameDims(ids, dim);
+      if (isStack) {
         const mid = Math.floor(dim.frames / 2);
         stackIdsRef.current = ids;
+        if (!isVolume) {
+          pixelMapRef.current = pixelMapFor(object, dim);
+          brushDims.current = pixelMapRef.current.objectDims;
+        }
         for (let t = 0; !cancelled && elRef.current && elRef.current.clientWidth === 0 && t < 30; t++) {
           await new Promise((r) => requestAnimationFrame(r));
         }
         if (cancelled) return;
-        await vp.setStack(ids, mid);
+        const selected = axisRef.current.kind === "none" ? 0 : axisRef.current.index;
+        const start = isVolume ? mid : Math.max(0, Math.min(dim.frames - 1, selected));
+        await vp.setStack(ids, start);
         if (cancelled) return;
-        const preferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
-        const initialZ = preferred ?? mid;
-        if (initialZ !== mid) await vp.setImageIdIndex(initialZ);
+        const preferred = isVolume && preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
+        const initial = preferred ?? start;
+        if (initial !== start) await vp.setImageIdIndex(initial);
         if (cancelled) return;
         vp.resetCamera();
         vp.render();
-        setNumSlices(dim.frames);
-        const latestPreferred = preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
-        setIndex(latestPreferred ?? initialZ);
+        setNumFrames(dim.frames);
+        const latestPreferred = isVolume && preferredZRef.current?.objectId === objectId ? preferredZRef.current.z : null;
+        setIndex(latestPreferred ?? initial);
         return;
       }
       const imageId = ids[0];
@@ -332,7 +354,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     return () => {
       cancelled = true;
     };
-  }, [ready, objectId, object, source, clearBrush, isVolume, setIndex, TG_ID]);
+  }, [ready, objectId, object, source, clearBrush, isStack, isVolume, setIndex, TG_ID]);
 
   const labelRef = isVolume ? volPrim?.ref ?? null : null;
   useEffect(() => {
@@ -369,45 +391,51 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
 
   useEffect(() => {
     const vp = vpRef.current;
-    if (!isVolume || !vp || numSlices <= 0 || !objectId) return;
+    if (!isStack || !vp || numFrames <= 0 || !objectId) return;
     clearBrush();
-    imageIdRef.current = stackIdsRef.current[z] ?? null;
+    if (!isVolume) maskImgs.current.clear();
+    imageIdRef.current = stackIdsRef.current[currentIndex] ?? null;
     try { annotation.state.removeAllAnnotations(); } catch { /* 无标注 */ }
     resetCsAnnoBridge();
-    void loadAnnotations(objectId, z);
+    let cancelled = false;
     (async () => {
       try {
-        await vp.setImageIdIndex(z);
+        await vp.setImageIdIndex(currentIndex);
         vp.render();
       } catch { /* 切帧期间保持现状 */ }
+      if (cancelled) return;
+      void loadAnnotations(objectId, focus.index);
       drawOverlayRef.current();
     })();
-  }, [isVolume, z, numSlices, objectId, clearBrush]);
+    return () => { cancelled = true; };
+  }, [isStack, isVolume, currentIndex, numFrames, objectId, clearBrush, focus.index]);
 
   useEffect(() => {
     const vp = vpRef.current;
-    if (!isVolume || !vp || numSlices <= 0) return;
+    if (!isVolume || !vp || numFrames <= 0) return;
     if (!voi) return;
     const { ww, wl } = voi;
     try {
       vp.setProperties({ voiRange: { lower: wl - ww / 2, upper: wl + ww / 2 } });
       vp.render();
     } catch { /* 切卷期间保持现状 */ }
-  }, [isVolume, numSlices, objectId, voi]);
+  }, [isVolume, numFrames, objectId, voi]);
 
   // store.annotations → CS3D 标注层回灌（bbox/polygon；mask 走 overlay 叠色）+ mask 着色加载
   useEffect(() => {
     if (!ready || !imageIdRef.current) return;
     const vp = vpRef.current;
     const forId = (vp as unknown as { getFrameOfReferenceUID?: () => string })?.getFrameOfReferenceUID?.() ?? "GLAUX_2D";
-    if (syncCsAnnotations(annotations, imageIdRef.current, forId, forId, pixelMapRef.current))
+    if (syncCsAnnotations(visibleAnnotations, imageIdRef.current, forId, forId, pixelMapRef.current))
       csToolsUtils.triggerAnnotationRenderForViewportIds([VP_ID]);
     // mask 着色画布懒加载（加载完成触发重绘）
     if (isVolume) return;
-    for (const a of annotations) {
+    const imageId = imageIdRef.current;
+    for (const a of visibleAnnotations) {
       if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(a.id)) continue;
       const img = new Image();
       img.onload = () => {
+        if (imageIdRef.current !== imageId || (axisRef.current.kind !== "none" && axisRef.current.index !== currentIndex)) return;
         const cv = document.createElement("canvas");
         cv.width = img.naturalWidth;
         cv.height = img.naturalHeight;
@@ -430,7 +458,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
       };
       img.src = api.annotations.maskUrl(a.id);
     }
-  }, [annotations, ready, isVolume, z, VP_ID]);
+  }, [visibleAnnotations, ready, isVolume, currentIndex, VP_ID]);
 
   // store.primitives 变化 → 同步工作副本 + 重绘（壁线拖拽中间态也走这里）
   useEffect(() => {
@@ -453,14 +481,14 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
         const world = vp.canvasToWorld([e.clientX - r.left, e.clientY - r.top] as Types.Point2);
         const [ix, iy] = csUtils.worldToImageCoords(imageId, world) as Types.Point2;
         const [ox, oy] = pixelMapRef.current.toObject(ix, iy);
-        onCoords({ x: Math.round(ox), y: Math.round(oy) });
+        onCoords({ x: Math.round(ox), y: Math.round(oy), ...focus.index });
       } catch {
         /* 视口瞬态 */
       }
     };
     el.addEventListener("mousemove", onMove);
     return () => el.removeEventListener("mousemove", onMove);
-  }, [ready, onCoords]);
+  }, [ready, onCoords, focus.index]);
 
   // --- 2D brush 自持缓冲（spike3 退化方案）：overlay 拦指针画/擦，提交走 bridge ----
   const paintAt = useCallback(
@@ -507,22 +535,23 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     const dims = isVolume ? labelVolRef.current : brushDims.current;
     if (!buf || !dims || !objectId || !buf.some((v) => v)) return;
     if (isVolume) setBusy(true);
+    const stillOnFrame = () => axisRef.current.kind === "none" || axisRef.current.index === currentIndex;
     try {
       if (isVolume) {
-        await maskSink.commit(buf, dims, { z });
+        await maskSink.commit(buf, dims, focus.index);
         if (volPrim?.ref) {
           invalidateNiftiVolume(volPrim.ref);
           const volume = await loadNiftiVolume(volPrim.ref);
           labelVolRef.current = { columns: volume.columns, rows: volume.rows, slices: volume.slices, raw: volume.raw };
         }
-        clearBrush();
+        if (stillOnFrame()) clearBrush();
       } else {
-        await maskSink.commit(buf, dims, {});
-        clearBrush(); // 已落库，转由已保存 mask 通道渲染
+        await maskSink.commit(buf, dims, focus.index);
+        if (stillOnFrame()) clearBrush(); // 已落库，转由已保存 mask 通道渲染
       }
-      drawOverlay();
+      if (stillOnFrame()) drawOverlay();
     } catch {
-      if (isVolume) {
+      if (isVolume && stillOnFrame()) {
         clearBrush();
         drawOverlay();
       }
@@ -533,9 +562,9 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
   };
 
   const onWheel = (event: React.WheelEvent) => {
-    if (!isVolume || numSlices <= 0) return;
+    if (!isStack || numFrames <= 0) return;
     const delta = event.deltaY > 0 ? 1 : -1;
-    setIndex(Math.max(0, Math.min(numSlices - 1, z + delta)));
+    setIndex(Math.max(0, Math.min(numFrames - 1, currentIndex + delta)));
   };
 
   const brushActive = tool === "brush";

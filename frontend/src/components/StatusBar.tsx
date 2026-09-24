@@ -35,7 +35,7 @@ export function StatusBar() {
       </span>
       <span className="sp" />
       <span className="item mono">
-        x {coords.x} · y {coords.y}
+        x {coords.x} · y {coords.y}{coords.t != null && ` · t ${coords.t}`}
       </span>
       <span className="item mono">
         {head ? (

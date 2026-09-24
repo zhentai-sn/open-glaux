@@ -3,7 +3,7 @@
 // 收敛三个查看器曾各自复制的 editSeqRef 序号守卫 + 失败回滚 + Notice 提示范式；
 // 查看器一律经本模块写标注，不得自带回流逻辑（SDD 04 §15「范式仅一份」验收）。
 import { ApiError, api } from "../api/client";
-import type { Annotation, AnnotationCreated, AnnotationInput, TaskOutput } from "../api/types";
+import type { Annotation, AnnotationCreated, AnnotationInput, Index, TaskOutput } from "../api/types";
 import { useSession } from "../store/session";
 
 // 全局单调递增的编辑请求序号：await 之后仅当 mySeq === editSeq 才提交/回滚。
@@ -11,10 +11,10 @@ import { useSession } from "../store/session";
 let editSeq = 0;
 
 /** 拉取某对象的标注（切图/切卷/切 slide 时调用）。 */
-export async function loadAnnotations(imageId: string, z?: number | null): Promise<void> {
+export async function loadAnnotations(imageId: string, index?: Index): Promise<void> {
   const mySeq = ++editSeq;
   try {
-    const { annotations } = await api.annotations.list(imageId, z);
+    const { annotations } = await api.annotations.list(imageId, index);
     if (mySeq !== editSeq) return; // 已被更新的编辑/切换取代
     useSession.getState().setAnnotations(annotations);
   } catch {
@@ -44,7 +44,8 @@ export async function createAnnotation(input: AnnotationInput): Promise<Annotati
   s.upsertAnnotation({
     id: tempId,
     image_id: input.image_id,
-    z: input.z ?? null,
+    ...(input.index ? { index: input.index } : {}),
+    z: input.index?.z ?? input.z ?? null,
     primitive: input.primitive as Annotation["primitive"],
     label: input.label ?? "",
     class_id: input.class_id ?? null,

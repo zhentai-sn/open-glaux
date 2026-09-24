@@ -99,6 +99,8 @@ export const zh: Record<I18nKey, string> = {
   chrome_brush_paint: "画",
   chrome_brush_erase: "擦",
   chrome_brush_radius: "半径",
+  chrome_timeline: "时间轴",
+  chrome_frame: "帧",
   chrome_preset_abd: "腹部",
   chrome_preset_med: "纵隔",
   chrome_preset_lung: "肺",
