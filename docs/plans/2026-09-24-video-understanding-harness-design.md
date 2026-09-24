@@ -1,6 +1,7 @@
 ---
 kind: record
-status: reviewed
+status: superseded
+superseded_by: docs/sdd/feats/11-video-understanding-harness/README.md
 ---
 
 # SDD 11 视频理解 harness · 一期范围设计

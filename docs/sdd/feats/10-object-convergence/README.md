@@ -156,7 +156,8 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 
 - `resources` 是服务端下发的 URL 模板，`frame` 必有，`raw`／`tiles` 按 kind 存在与否给出；缺席即该表征不可用。前端与 runtime **只读 `resources`，不得自行拼接路径**，`frontend/src/api/client.ts:123` `volumeUrl` 与 `:136` `wsiTileUrl` 因此删除。
 - `tiles` 模板含 `{level}/{col}/{row}` 三个占位段，仅 `kind="slide"` 下发。
-- `audio` 仅在 `streams[]` 含 `kind="audio"` 时下发，是为音频观测保留的取流入口。**本 SDD 只冻结键名与下发条件，不冻结该端点的请求与响应形状**（区间取样、与帧的时间对齐属观测形状，见 §17 与 SDD 11）；在 SDD 11 冻结前该键不得被消费（§7 规则 22）。
+- `audio` 仅在 `streams[]` 含 `kind="audio"` 时下发，是为音频观测保留的取流入口。**本 SDD 只冻结键名与下发条件，不冻结该端点的请求与响应形状**；SDD 11 一期以 `resources.clip` 的同步音画片段消费声音，不单独消费 `resources.audio`。
+- `clip` 由 SDD 11 为 `kind="video"` 增加，作为原声短片段的 URL 模板；其请求、响应、时间映射和预算以 SDD 11 §9 为准。
 - `axes` 的轴序固定：`image` 为 `[x,y]`，`volume` 为 `[x,y,z]`，`slide` 为 `[x,y,level]`，`video` 为 `[x,y,t]`。
 - 对象几何与标定只由 `axes`／`calibration` 表达；`ObjectMeta` 不含旧四字段或 `ImageMeta` 别名。
 - 同一个 `ObjectMeta` 同时是 `GET /images?modality=` 列表元素与 `GET /objects/{id}` 响应体，两处逐字段等价。
@@ -534,7 +535,7 @@ export interface ObjectMeta {
   display_name: string;
   axes: Axis[];                     // image:[x,y] volume:[x,y,z] slide:[x,y,level] video:[x,y,t]
   calibration: Calibration | null;
-  resources: { frame: string; raw?: string; tiles?: string; audio?: string };   // 后端下发 URL 模板，前端不拼路径
+  resources: { frame: string; raw?: string; tiles?: string; audio?: string; clip?: string };   // clip 由 SDD 11 扩展
   streams: Stream[];                // 附加流声明，默认 []；video 探到音轨时含一条 kind="audio"（D-23）
   methods: { name: string; role: "gold" | "agent" | "reference" }[];
   meta: Record<string, unknown>;    // 原 center 等自由元数据（不再必填）
@@ -708,7 +709,7 @@ science-core 中各 `Primitive` 有 `at: Index | None = None`，`Detection` 只�
 | `Calibration.kind` | `str` | 是 | 开放集，已知值 `mm_per_px`/`voxel_mm`/`mpp_um`/`time_base`；前端按已知 kind 渲染，未知 kind 只显示 `source` | 长期 |
 | `Calibration.value` | `object` / `unknown` | 是 | 形状由 `kind` 决定；跨进程一律按 `kind` 解释，不做结构猜测 | 长期 |
 | `Calibration.source` / `provenance` | `str` / `dict` | `source` 是，`provenance` 否 | `source` 为来源标识，用于未知 kind 的兜底展示 | 长期 |
-| `ObjectMeta.resources` | `{frame, raw?, tiles?, audio?}` | 是；`frame` 必填 | 后端下发 URL 模板，前端与 agent-runtime 一律取用，不得自行拼路径；`audio` 在 SDD 11 前不得消费 | 长期 |
+| `ObjectMeta.resources` | `{frame, raw?, tiles?, audio?, clip?}` | 是；`frame` 必填 | 后端下发 URL 模板，前端与 agent-runtime 一律取用，不得自行拼路径；`clip` 为 SDD 11 的视频片段扩展，`audio` 不在其一期单独消费 | 长期 |
 | `ObjectMeta.streams[]` | `Stream[]` | 是（默认 `[]`） | 与 `axes` 正交的附加流声明：`axes` 描述采样网格，`streams` 描述同一条 `t` 轴上的另一路数据。`kind` 为开放集，当前只有 `audio`；不得为此新增逐模态可空字段（D-23） | 长期 |
 | `ObjectMeta.methods[].role` | `"gold" \| "agent" \| "reference"` | 是 | 闭集三值 | 长期 |
 | `ObjectMeta.meta` | `dict` | 否（默认 `{}`） | 自由元数据；原 `ImageMeta.center` 降入此处并由必填改可选 | 长期 |
@@ -916,7 +917,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 - **[09-chat-distribution](../09-chat-distribution/README.md)**（`implemented`，**本 SDD 为上游，且是每波的回归约束**）：chat 发行包镜像内无 Python 后端，`useConversation` 中 `CHAT_EDITION ? undefined : toViewerContext()` 的短路是唯一保护。凡触碰 `toViewerContext`、示例卡或观测通道的改动，准出都必须包含 `frontend/src/chatEdition.test.tsx` 与 `agent-runtime/tests/integration/chat-edition.test.ts` 两份用例绿灯，并断言 chat 模式下不挂载需要 `focus` 的工具、不发起 `fetchObservation`。
 - **[公共规范 01 · 多组件版本与发布治理](../../01-version-release-governance.md)**（`implemented`，**本 SDD 为下游**）：新增 backend 可选依赖 `av`（PyAV，extra `video`）须同提交更新 `backend/uv.lock` 并通过 `make test-version`（`scripts/version_matrix.py` 只校验版本事实源与锁文件中的项目版本镜像，不感知依赖，无需修改）；chat 镜像、桌面壳与 agent-runtime 是三个独立发布物，过渡物删除的时点受其版本关系约束（见 §11.3 的 W7 前置）。
 
-- **[SDD 11「视频理解 harness」](../11-video-understanding-harness/README.md)**（`draft`，**本 SDD 为上游**）：以本 SDD 的视频对象、音轨声明、焦点、参照帧与观测通道为底座，冻结一期不超过 10 分钟视频的按秒寻址、原声音画短片段观测、模型问答与证据复核。数小时视频的分层导航与 Track/Event 记录原语均留待后续需求触发。本 SDD 不反向依赖它；在它 `ready` 之前，`resources.audio` 不得被消费（§7 规则 22）。
+- **[SDD 11「视频理解 harness」](../11-video-understanding-harness/README.md)**（`ready`，**本 SDD 为上游**）：以本 SDD 的视频对象、音轨声明、焦点、参照帧与观测通道为底座，冻结一期不超过 10 分钟视频的原声音画短片段观测、Qwen 问答与证据复核，并为视频对象增加 `resources.clip` 模板。数小时视频的分层导航与 Track/Event 记录原语留待后续需求触发。本 SDD 不反向依赖它；一期不单独消费 `resources.audio`。
 
 三条架构不变量在上述全部关系中保持不变，其规范表述见 §7 规则 18～20。
 
