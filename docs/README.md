@@ -118,6 +118,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20260816-01-tech-annotation-exemplar-store.zh-CN.md](researches/20260816-01-tech-annotation-exemplar-store.zh-CN.md) | 2026-08-16 | tech | 图像标注案例库技术调研（LanceDB / BiomedCLIP·DINOv2 / 检索增强分割；含已拍板决策） |
 | [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；前提已被纲领取代，不推进） |
 | [20260923-01-tech-omni-model-fit.zh-CN.md](researches/20260923-01-tech-omni-model-fit.zh-CN.md) | 2026-09-23 | tech | 全模态模型选型与仓库契合度（主选 Qwen3.8-Omni-Flash、备选 MiMo-V2.6-Flash；agent-runtime 音视频通道缺口；SDD 11 输入） |
+| [20260924-01-tech-omni-video-api-probe.zh-CN.md](researches/20260924-01-tech-omni-video-api-probe.zh-CN.md) | 2026-09-24 | tech | SDD 11 的 Qwen / MiMo 原生音画接口核对与实测记录 |
 
 ## 二、路线图 roadmaps/
 

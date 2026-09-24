@@ -945,7 +945,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - **[09-chat-distribution](../09-chat-distribution/README.md)**（`implemented`，**本 SDD 为上游，且是每波的回归约束**）：chat 发行包镜像内无 Python 后端，`useConversation` 中 `CHAT_EDITION ? undefined : toViewerContext()` 的短路是唯一保护。凡触碰 `toViewerContext`、示例卡或观测通道的改动，准出都必须包含 `frontend/src/chatEdition.test.tsx` 与 `agent-runtime/tests/integration/chat-edition.test.ts` 两份用例绿灯，并断言 chat 模式下不挂载需要 `focus` 的工具、不发起 `fetchObservation`。
 - **[公共规范 01 · 多组件版本与发布治理](../../01-version-release-governance.md)**（`implemented`，**本 SDD 为下游**）：新增 backend 可选依赖 `av`（PyAV，extra `video`）须同提交更新 `backend/uv.lock` 并通过 `make test-version`（`scripts/version_matrix.py` 只校验版本事实源与锁文件中的项目版本镜像，不感知依赖，无需修改）；chat 镜像、桌面壳与 agent-runtime 是三个独立发布物，过渡物删除的时点受其版本关系约束（见 §11.3 的 W7 前置）。
 
-- **SDD 11「视频理解 harness」**（未建，**本 SDD 为上游**）：以本 SDD 的 `ObjectMeta.streams[]`、`resources.audio`、`Focus.index.t`、`ReferenceFrame` 与 `fetchObservation` 为底座，冻结视频观测的形状——时间以秒寻址、长视频的分层导航、音画按时间区间同步交付、模型时序发现的记录原语。本 SDD 不反向依赖它；在它 `ready` 之前，`resources.audio` 不得被消费（§7 规则 22）。起草时点建议在 W2 之后，届时 `GET /objects/{id}/frame` 与 `X-Glaux-Frame` 已可运行，观测通道可实测而非纸面推演。
+- **[SDD 11「视频理解 harness」](../11-video-understanding-harness/README.md)**（`draft`，**本 SDD 为上游**）：以本 SDD 的视频对象、音轨声明、焦点、参照帧与观测通道为底座，冻结一期不超过 10 分钟视频的按秒寻址、原声音画短片段观测、模型问答与证据复核。数小时视频的分层导航与 Track/Event 记录原语均留待后续需求触发。本 SDD 不反向依赖它；在它 `ready` 之前，`resources.audio` 不得被消费（§7 规则 22）。
 
 三条架构不变量在上述全部关系中保持不变，其规范表述见 §7 规则 18～20。
 
@@ -1097,7 +1097,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 无。W0 关闭了最后两项：引擎合并可行性（smoke 测试可行，D-21）与模态字面量基线（门禁范围内 40 处，D-14 的前置条件可判）。证据见执行记录。
 
-**视频理解的观测形状不在本 SDD 内，且不构成开放问题**：2026-09-22 确定视频特性的形态是「给模型做理解视频的 harness」，工程约束尽量薄、不预先写死工具集，因此本 SDD 只冻结衬底（对象、焦点、索引、观测的参照系与取图口），不冻结模型怎么用它。以下四项一并落入 SDD 11，其中前三项已由本 SDD 备好底座、第四项待触发：一是时间以秒寻址而非帧号（`Index.t` 当前是帧索引，`Calibration{kind:"time_base"}` 已带 `fps`，缺的是观测返回把时间戳写进 `ReferenceFrame` 的兄弟结构、工具签名以秒计）；二是长视频的分层导航（一小时 25fps 即九万帧，抽帧必须先粗后细，由模型指定区间放大，而非核心预设抽样策略）；三是音画按时间区间同步交付（D-23 已把音轨声明与取流入口备好，缺的是「一个时间区间 → 帧集合加音频片段，共享同一 time base」的观测形状）；四是模型时序发现的记录原语（Track/Event），其触发条件由审计 §8.6 的「出现跟踪任务需求」改写为「第一次需要验证模型的时序判断」——纯观测能让模型说出结论，但纲领四要素中的验证器与回合轨迹需要结论可落库。
+**视频理解的观测形状不在本 SDD 内，且不构成开放问题**：2026-09-22 确定视频特性的形态是「给模型做理解视频的 harness」，工程约束尽量薄、不预先写死工具集，因此本 SDD 只冻结衬底（对象、焦点、索引、观测的参照系与取图口），不冻结模型怎么用它。[SDD 11](../11-video-understanding-harness/README.md) 一期以不超过 10 分钟的视频问答和证据定位为目标：Agent 按原视频秒数选取带原声短片段，可再次观察；D-23 的音轨声明为它提供底座。`Index.t` 在本 SDD 中仍为帧索引，SDD 11 另定按秒寻址及片段到原视频的时间映射。数小时视频的分层导航留待长视频需求；模型时序发现的记录原语（Track/Event）待首次需要验证模型时序判断时再定。上述后续事项不改变本 SDD 的范围与验收。
 
 审计 §8.6 的推迟项**不构成开放问题**：每项都有明确触发条件，在触发前本 SDD 的范围、契约与验收均可判定。具体为——视频自动跟踪（Track/Event 原语、`track_objects` 行、`SegmenterPort.track`）待出现真实跟踪任务需求；`POST /task/verify` 与通用验证器待验证器独立排期；`frontend/src/plugins/imt/` 目录搬迁待真正分包；运行期插件加载待出现仓库外作者；示例卡动态化待插件化立项；CS3D 实时播放待连续播放需求；对象 id 规范化待实际 id 冲突；标注库 `z` 列改名待多轴索引需求；非模态插件设计另立 SDD；视频文件夹级导入待超上限数据集；Tool 集合扩展待第二个需要专属交互工具的任务。触发发生时按 §16 体例新增 `D-25` 起的决策行并同步修订相应小节。
 
