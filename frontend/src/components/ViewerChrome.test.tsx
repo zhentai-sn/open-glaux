@@ -119,14 +119,13 @@ describe("引擎能力位过滤", () => {
   });
 });
 
-// 提示必须与工具的真实交互一致：CS3D PlanarFreehandROI 是按住拖拽勾画，
-// 旧文案「逐点点击顶点」照做画不出任何东西（回归夹具）。
+// 提示必须与直线 SplineROI 和 WSI SVG 的逐点绘制交互一致。
 describe("绘制提示", () => {
-  it("polygon 态显示拖拽勾画提示，且不含逐点点击的说法", () => {
+  it("polygon 态提示逐点点击与首点闭合", () => {
     mount("carotid_imt", ["bbox", "polygon", "brush", "wall"], "polygon");
     expect(screen.getByText(en.chrome_hint_polygon)).toBeTruthy();
-    expect(en.chrome_hint_polygon).toMatch(/drag/i);
-    expect(en.chrome_hint_polygon).not.toMatch(/click vertices/i);
+    expect(en.chrome_hint_polygon).toMatch(/click to add vertices/i);
+    expect(en.chrome_hint_polygon).toMatch(/click the first to close/i);
   });
 
   it("wall 态显示壁线提示，与 polygon 不共用一条", () => {

@@ -101,7 +101,7 @@ flowchart LR
     DET -->|Detection 回流| ST
 ```
 
-WSI 的 `polygon` 在 SVG 叠加层逐点绘制，已点顶点显示固定屏幕大小的圆形手柄。满三个顶点后点击首点闭合；双击末点或 Enter 也可完成，Escape 取消草稿。闭合命中与重复末点过滤使用屏幕像素距离，持久化几何始终为 level-0 坐标，点列不重复首点。`cursor` 工具拖动已保存顶点时，编辑预览保留至 `PATCH /annotations` 返回；失败恢复旧几何并提示，刷新时从服务端重载。
+三个引擎的 `polygon` 都是逐点点击、显示圆形顶点，至少三个顶点后点击首点闭合。`FrameStackViewer` 的 image / volume 分支使用 CS3D `SplineROITool` 的 `LINEAR` 类型，保存 `data.handles.points` 中的控制点，不保存插值轮廓；已存标注从同一点列重建。WSI 使用 SVG 叠加层，双击末点或 Enter 也可完成，Escape 取消草稿；闭合命中与重复末点过滤使用屏幕像素距离，持久化几何始终为 level-0 坐标，点列不重复首点。`cursor` 工具拖动 WSI 已保存顶点时，编辑预览保留至 `PATCH /annotations` 返回；失败恢复旧几何并提示，刷新时从服务端重载。
 
 ### 6.3 任务工具替换映射
 
@@ -301,6 +301,7 @@ stateDiagram-v2
 - [ ] CT 模态 `store.tool === "brush"` 生效（共享工具栏画笔按钮可用），`FrameStackViewer` 的 CT 分支走 `editMaskSink`；StatusBar 工具显示随注册表，`TOOL_LABEL` 硬编码表删除。
 - [ ] WSI 用 bbox 框选：框落库为标注且触发核检测（`on_commit`），检测行为（计数/密度）与旧 ROI 工具一致；框选过小（<24px）仍提示不触发。
 - [ ] WSI 多边形逐点显示圆形顶点，点击首点、双击末点或 Enter 完成后只保存不重复的 level-0 点列；`cursor` 下拖动顶点，保存期间不回跳，刷新后与底图对齐。
+- [ ] image / volume 的 `polygon` 与 WSI 一样逐点显示圆形顶点、点击首点闭合；保存的点列仅含点击的控制点，刷新后可拖动顶点且与原图对齐。
 - [ ] IMT 壁线编辑经统一框架完成，`/task/measure` 输出与替换前一致（同一图像同一形变的 IMT_mean 偏差 ≤ 1e-6 mm）。
 - [ ] IMT 模态下 `polygon` 画的是自由多边形并落 `/annotations`；壁线形变在独立的 `wall` 按钮下（D-17），两者互不遮蔽。
 - [ ] `PATCH` 携带过期 `base_seq` 时返回 409 且不落写；前端收到 409 时 Notice 提示并丢弃过期响应，不覆盖最新态。
@@ -316,7 +317,7 @@ stateDiagram-v2
 
 | 编号 | 决策 | 备选 | 选择理由 | 时间 |
 | --- | --- | --- | --- | --- |
-| D-8 | polygon 工具用 CS3D `PlanarFreehandROITool` | `SplineROITool`、自绘 | 同时支持逐点与自由手绘、顶点可编辑，覆盖面最大；Spline 留作后续精度选项（可并存） | 2026-08-16 |
+| D-8 | ~~polygon 工具用 CS3D `PlanarFreehandROITool`~~ **已被 D-19 替代** | `SplineROITool`、自绘 | 当时偏向自由手绘；后续真实走查发现其拖拽手势与 WSI 逐点多边形不一致 | 2026-08-16 |
 | D-9 | 2D brush 产物落 `/annotations`（kind=mask，PNG 传输）；宿主实现见 D-15（实施期从 CS3D segmentation 退化为自持缓冲） | 自持 mask 缓冲 | PNG 传输格式与 CT mask-edit 一致；宿主选型随 spike3 结果收敛 | 2026-08-16 |
 | D-10 | ~~Annotorious W3C 格式在前端映射~~ **已被 D-18 替代** | 后端映射 | 后端只认一份 Annotation 契约 | 2026-08-16 |
 | D-11 | `ANNOTATIONS_ROOT` 默认 `~/glaux_annotations`，环境变量 `GLAUX_ANNOTATIONS_ROOT` 覆盖 | 放数据集根下 | 对齐 `GLAUX_ATLAS_ROOT` 惯例（不污染数据集） | 2026-08-16 |
@@ -327,6 +328,7 @@ stateDiagram-v2
 | D-16 | ~~IMT 模态的 `polygon` 按钮专属壁线形变（ImtWallHandleTool），不与自由多边形并存~~ **已被 D-17 推翻** | 双入口并存 | 主键交互只能激活一个工具；自由标注已有 bbox 承接，壁线编辑是 IMT 核心操作 | 2026-08-17 |
 | D-17 | 壁线形变独立成 `wall` 工具（IMT 专属能力位），`polygon` 归还给自由多边形；两者各占一个工具位 | 维持 D-16 的单入口复用 | D-16 的前提「主键交互只能激活一个工具」不成立——工具位本就互斥切换，多一个按钮不冲突。实际代价是：IMT 上「多边形标注」画不出多边形，且 caroSegDeep 未产出壁线时（`editableWalls()` 为空）连形变都没有，按下鼠标直接 return，用户看到的是**完全静默**的按钮。通用工具的语义必须跨模态一致 | 2026-08-30 |
 | D-18 | WSI 的 bbox / polygon 改由 OpenSeadragon 原生 SVG 叠加层绘制与编辑，直接使用 Annotation 几何与现有写桥；删除 Annotorious 与 W3C 映射 | 继续使用 Annotorious | Annotorious 内嵌 pixi 在现有 CSP 下初始化失败；WSI 只需要 bbox 与 polygon，原生叠加层可保留 level-0 坐标与后端权威写契约 | 2026-09-23 |
+| D-19 | image / volume 的 `polygon` 改用 CS3D `SplineROITool` 的 `LINEAR` 类型，三个引擎统一逐点、圆点、首点闭合；写桥保存控制点 | 保持 D-8 的自由手绘；三引擎共写一套叠加层 | 维护者确认统一逐点交互；原生 CS3D 工具保留已有坐标与顶点编辑能力，避免再造叠加层 | 2026-09-24 |
 
 ## 17. 待确认问题
 

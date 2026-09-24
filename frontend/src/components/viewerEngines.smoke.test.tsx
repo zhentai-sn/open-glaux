@@ -1,7 +1,7 @@
 // 查看器引擎冒烟测试（SDD 10 D-21 / §17 Q1）——W4 引擎合并前的接线回归网。
 // 覆盖 FrameStackViewer 的 image / volume 两条真实组件路径，三步：
 //   1. 渲染一帧：组件向渲染引擎挂 STACK 视口并 setStack 期望的 imageId；
-//   2. 画一条多边形：store.tool=polygon 激活 PlanarFreehandROI，CS3D 的 ANNOTATION_COMPLETED
+//   2. 画一条多边形：store.tool=polygon 激活直线 SplineROI，CS3D 的 ANNOTATION_COMPLETED
 //      经 csAnno 桥落 POST /annotations，落库目标 = 焦点对象（CT 另带当前 z）；
 //   3. 提交一笔画笔：overlay 自持缓冲的笔迹，2D 落 /annotations（kind=mask），CT 落 /objects/{id}/edits。
 // 替身边界只在 jsdom 做不到的地方：
@@ -163,7 +163,7 @@ vi.mock("../viewer/nifti", async (importOriginal) => {
 });
 
 const { eventTarget } = await import("@cornerstonejs/core");
-const { Enums: ToolEnums, PlanarFreehandROITool } = await import("@cornerstonejs/tools");
+const { Enums: ToolEnums, SplineROITool } = await import("@cornerstonejs/tools");
 const { invalidateNiftiVolume } = await import("../viewer/nifti");
 const { Viewer } = await import("./Viewer");
 const { useSession } = await import("../store/session");
@@ -291,8 +291,9 @@ function engine(id: string) {
 function completePolygon(referencedImageId: string, uid: string) {
   const annotation = {
     annotationUID: uid,
-    metadata: { toolName: PlanarFreehandROITool.toolName, referencedImageId },
+    metadata: { toolName: SplineROITool.toolName, referencedImageId },
     data: {
+      handles: { points: [[10, 10, 0], [30, 10, 0], [30, 30, 0]] },
       contour: {
         polyline: [
           [10, 10, 0],
@@ -345,10 +346,10 @@ describe("FrameStackViewer（image）接线冒烟", () => {
     await waitFor(() => expect(calls.some((c) => c.url === "/api/annotations?image_id=img_1")).toBe(true));
   });
 
-  it("画一条多边形：激活 PlanarFreehandROI，完成事件落 /annotations（目标 = 焦点对象）", async () => {
+  it("画一条多边形：激活直线 SplineROI，完成事件落 /annotations（目标 = 焦点对象）", async () => {
     await mount2d();
     act(() => useSession.getState().setTool("polygon"));
-    expect(h.toolGroups.get("glaux-tg-raster2d")?.primary).toBe(PlanarFreehandROITool.toolName);
+    expect(h.toolGroups.get("glaux-tg-raster2d")?.primary).toBe(SplineROITool.toolName);
 
     completePolygon(IMAGE_ID, "cs-2d-1");
     await waitFor(() => expect(posts((u) => u === "/api/annotations")).toHaveLength(1));
@@ -426,7 +427,7 @@ describe("FrameStackViewer（volume）接线冒烟", () => {
   it("画一条多边形：完成事件落 /annotations（目标 = volume id + 当前 z）", async () => {
     await mountCt();
     act(() => useSession.getState().setTool("polygon"));
-    expect(h.toolGroups.get("glaux-tg-vol")?.primary).toBe(PlanarFreehandROITool.toolName);
+    expect(h.toolGroups.get("glaux-tg-vol")?.primary).toBe(SplineROITool.toolName);
     // volume_3d 滚轮留给切 z：Zoom 不绑滚轮
     expect(h.toolGroups.get("glaux-tg-vol")?.active.has("Zoom")).toBe(false);
 

@@ -18,7 +18,7 @@ vi.mock("@cornerstonejs/core", async (importOriginal) => {
   };
 });
 
-const { PlanarFreehandROITool, RectangleROITool } = await import("@cornerstonejs/tools");
+const { PlanarFreehandROITool, RectangleROITool, SplineROITool } = await import("@cornerstonejs/tools");
 const { csToPrimitive, primitiveToCs } = await import("./csAnno");
 const { pixelMapFor } = await import("../viewer/pixelMap");
 const { objectMeta } = await import("../test/fixtures");
@@ -83,6 +83,17 @@ describe("csToPrimitive", () => {
       ],
     });
   });
+
+  it("直线 SplineROI 保存用户点击的控制点，不保存渲染器生成的轮廓点", () => {
+    const ann = {
+      metadata: { toolName: SplineROITool.toolName },
+      data: {
+        handles: { points: [[0, 0, 0], [20, 0, 0], [20, 20, 0]] },
+        contour: { polyline: [[0, 0, 0], [10, 0, 0], [20, 0, 0], [20, 20, 0]], closed: true },
+      },
+    } as unknown as CsAnn;
+    expect(csToPrimitive(ann, IMG)).toEqual({ kind: "polyline", closed: true, points: [[0, 0], [10, 0], [10, 10]] });
+  });
 });
 
 describe("primitiveToCs", () => {
@@ -108,6 +119,9 @@ describe("primitiveToCs", () => {
     const cs = primitiveToCs(srvAnn(prim), IMG, "FOR-1") as CsAnn;
     const contour = (cs.data as { contour: { polyline: number[][]; closed: boolean } }).contour;
     expect(contour.closed).toBe(true);
+    expect(cs.metadata?.toolName).toBe(SplineROITool.toolName);
+    expect((cs.data.handles as { points: number[][] }).points).toEqual(contour.polyline);
+    expect((cs.data as { spline: { type: string } }).spline.type).toBe(SplineROITool.SplineTypes.Linear);
     expect(contour.polyline).toEqual([
       [0, 0, 0],
       [20, 0, 0],

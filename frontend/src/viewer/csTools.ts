@@ -10,6 +10,7 @@ import {
   PanTool,
   PlanarFreehandROITool,
   RectangleROITool,
+  SplineROITool,
   StackScrollTool,
   ToolGroupManager,
   WindowLevelTool,
@@ -44,6 +45,7 @@ export function csToolsReady(): Promise<void> {
       await toolsInit();
       addTool(RectangleROITool);
       addTool(PlanarFreehandROITool);
+      addTool(SplineROITool);
       addTool(BrushTool);
       addTool(PanTool);
       addTool(ZoomTool);
@@ -86,6 +88,10 @@ export function createToolGroup(
   tg.addViewport(viewportId, renderingEngineId);
   tg.addTool(RectangleROITool.toolName);
   tg.addTool(PlanarFreehandROITool.toolName);
+  tg.addTool(SplineROITool.toolName, {
+    calculateStats: false,
+    spline: { type: SplineROITool.SplineTypes.Linear },
+  });
   tg.addTool(BrushTool.toolName);
   tg.addTool(PanTool.toolName);
   tg.addTool(ZoomTool.toolName);
@@ -122,7 +128,7 @@ export function activateTool(
   // 工具的标注，disabled 的一律不画。把绘制工具 disable 掉会让已落库/刚画完的 bbox/polygon
   // 在切回光标的瞬间整片消失（画布上看着像"没保存"，其实库里在）。passive 还保留选中与
   // 顶点编辑，正是光标态该有的行为。无标注的工具（相机/画笔/壁线手柄）仍走 disabled。
-  for (const name of [RectangleROITool.toolName, PlanarFreehandROITool.toolName]) {
+  for (const name of [RectangleROITool.toolName, PlanarFreehandROITool.toolName, SplineROITool.toolName]) {
     tg.setToolPassive(name);
   }
   for (const name of [
@@ -141,7 +147,7 @@ export function activateTool(
   if (tool === "bbox" && capabilities.includes("bbox")) {
     tg.setToolActive(RectangleROITool.toolName, PRIMARY);
   } else if (tool === "polygon" && capabilities.includes("polygon")) {
-    tg.setToolActive(PlanarFreehandROITool.toolName, PRIMARY);
+    tg.setToolActive(SplineROITool.toolName, PRIMARY);
   } else if (taskTools.has(tool) && capabilities.includes(tool)) {
     taskTools.get(tool)!.activate(tg);
   } else if (tool === "brush" && capabilities.includes("brush")) {
@@ -155,4 +161,4 @@ export function activateTool(
   }
 }
 
-export { BrushTool, PlanarFreehandROITool, RectangleROITool, StackScrollTool, ToolEnums, WindowLevelTool };
+export { BrushTool, PlanarFreehandROITool, RectangleROITool, SplineROITool, StackScrollTool, ToolEnums, WindowLevelTool };

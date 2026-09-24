@@ -7,7 +7,9 @@ import {
   Enums as ToolEnums,
   PlanarFreehandROITool,
   RectangleROITool,
+  SplineROITool,
   annotation,
+  splines,
   type Types as ToolTypes,
 } from "@cornerstonejs/tools";
 
@@ -73,6 +75,12 @@ export function csToPrimitive(ann: CsAnn, imageId: string, map: PixelMap = IDENT
     if (!pts || pts.length < 3) return null;
     return { kind: "polyline", closed: true, points: pts.map((p) => map.toObject(...toImage(imageId, p))) };
   }
+  if (toolName === SplineROITool.toolName) {
+    // 直线 SplineROI 的 contour.polyline 由渲染器生成；持久化用户点击的控制点。
+    const pts = (ann.data?.handles as { points?: Point3[] } | undefined)?.points;
+    if (!pts || pts.length < 3) return null;
+    return { kind: "polyline", closed: true, points: pts.map((p) => map.toObject(...toImage(imageId, p))) };
+  }
   return null;
 }
 
@@ -115,16 +123,18 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
     } as unknown as CsAnn;
   }
   if (p.kind === "polyline" && p.closed) {
+    const points = p.points.map(([x, y]) => objectToWorld(x, y));
     return {
       ...base,
-      metadata: { ...base.metadata, toolName: PlanarFreehandROITool.toolName },
+      metadata: { ...base.metadata, toolName: SplineROITool.toolName },
       data: {
         handles: {
-          points: [],
+          points,
           activeHandleIndex: null,
           textBox: { hasMoved: false, worldPosition: objectToWorld(p.points[0][0], p.points[0][1]) },
         },
-        contour: { polyline: p.points.map(([x, y]) => objectToWorld(x, y)), closed: true },
+        contour: { polyline: points, closed: true },
+        spline: { type: SplineROITool.SplineTypes.Linear, instance: new splines.LinearSpline(), resolution: 0 },
         label: "",
         cachedStats: {},
       },

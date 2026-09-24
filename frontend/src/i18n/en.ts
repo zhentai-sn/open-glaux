@@ -98,7 +98,7 @@ export const en = {
   tl_reset: "Reset to model",
   // 统一标注外壳（SDD 04）
   chrome_hint_bbox: "Drag on the image to draw a box; click one to select & adjust",
-  chrome_hint_polygon: "Drag to trace the contour, release to close; click one to select & adjust",
+  chrome_hint_polygon: "Click to add vertices; after three points, click the first to close. Drag vertices with Select",
   chrome_hint_wall: "Drag the handles on a wall line to reshape it; run the model first if none are detected",
   chrome_brush_paint: "Paint",
   chrome_brush_erase: "Erase",
