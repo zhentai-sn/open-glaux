@@ -76,6 +76,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 - [SDD 09 基本对话 Docker 发行包](sdd/feats/09-chat-distribution/README.md)
 - [安装、运行与分发手册](runbooks/chat-distribution.md)
+- [视频问答与证据复核手册](runbooks/video-understanding.md)
 
 ## 核心文档
 
@@ -119,6 +120,8 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20260816-02-tech-deepseek-harness-integration.zh-CN.md](researches/20260816-02-tech-deepseek-harness-integration.zh-CN.md) | 2026-08-16 | tech | DeepSeek Harness 插件生态集成可行性（MCP Server / Cordis 插件 / Runtime 替换三路径；前提已被纲领取代，不推进） |
 | [20260923-01-tech-omni-model-fit.zh-CN.md](researches/20260923-01-tech-omni-model-fit.zh-CN.md) | 2026-09-23 | tech | 原始全模态模型候选调研；一期当前范围见 SDD 11 |
 | [20260924-01-tech-omni-video-api-probe.zh-CN.md](researches/20260924-01-tech-omni-video-api-probe.zh-CN.md) | 2026-09-24 | tech | Qwen 原生音画实测与 MiMo 文档核对；MiMo 已递延 |
+| [20260924-02-tech-qwen-tool-audio-placement.zh-CN.md](researches/20260924-02-tech-qwen-tool-audio-placement.zh-CN.md) | 2026-09-24 | tech | Qwen 工具视频块只计画面 token；受控媒体消息可保留音轨 |
+| [20260924-03-tech-qwen-pi-video-loop.zh-CN.md](researches/20260924-03-tech-qwen-pi-video-loop.zh-CN.md) | 2026-09-24 | tech | Qwen 真实 Pi 工具循环的蓝／绿／静音三样本对照；完整验收仍待进行 |
 
 ## 二、路线图 roadmaps/
 

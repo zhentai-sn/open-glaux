@@ -34,10 +34,12 @@ export interface SessionView extends GlauxSessionMeta {
   model: string | null;
   phase: SessionPhase;
   messages: AgentMessage[];
+  video_answers?: VideoAnswerRecord[];
+  video_observations?: ClipObservation[];
   context_usage: ContextUsage | null;
 }
 
-export type SessionListItem = Omit<SessionView, "messages">;
+export type SessionListItem = Omit<SessionView, "messages" | "video_answers" | "video_observations">;
 
 export interface CreateSessionInput {
   session_id: string;
@@ -70,7 +72,34 @@ export interface ConnectionInput {
    * 否则模型收到的只是一句"图已省略"，表现为"能对话但读不懂图"。
    */
   vision?: boolean;
+  media_adapter?: "qwen-omni";
 }
+
+export interface VideoInterval { start_ms: number; end_ms: number }
+export interface ClipObservation {
+  observation_id: string;
+  object_id: string;
+  source_sha256: string;
+  requested_interval: VideoInterval;
+  actual_interval: VideoInterval;
+  mime: "video/mp4";
+  clip_sha256: string;
+  encoding: Record<string, unknown>;
+  fps: 0.5 | 2 | 5;
+}
+export interface EvidenceRef {
+  observation_id: string;
+  kind: "visual" | "audio" | "av";
+  source_interval: VideoInterval;
+  frame_time_ms?: number;
+  region?: { kind: "box"; x0: number; y0: number; x1: number; y1: number };
+}
+export interface VideoAnswer {
+  object_id: string;
+  claims: { text: string; evidence: EvidenceRef[] }[];
+  unanswered: string[];
+}
+export interface VideoAnswerRecord { command_id: string; answer: VideoAnswer }
 
 /**
  * SDD 03 §12：agent 在一次 `locate_roi` 中查阅了图谱。由 runtime 侧 `selectExemplars()` 构造，
@@ -157,6 +186,7 @@ export type TransportCommand =
       command_id: string;
       type: "regenerate";
       connection: ConnectionInput;
+      viewer?: ViewerContext;
     }
   | {
       command_id: string;
@@ -183,6 +213,10 @@ export type TransportEvent =
         command_id?: string;
         event: import("@earendil-works/pi-agent-core").AgentHarnessEvent;
       };
+    }
+  | {
+      event: "video.answer";
+      data: { session_id: string; command_id: string; answer: VideoAnswer };
     }
   | {
       event: "adapter.error";

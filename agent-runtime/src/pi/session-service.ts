@@ -111,7 +111,7 @@ export class SessionService {
     const views = await Promise.all(
       metas.map(async (meta) => {
         try {
-          const { messages: _messages, ...item } = await this.getSession(meta.session_id);
+          const { messages: _messages, video_answers: _answers, video_observations: _observations, ...item } = await this.getSession(meta.session_id);
           return item;
         } catch (error) {
           if (error instanceof RuntimeError && error.code === "session_not_found") {
@@ -199,6 +199,20 @@ export class SessionService {
     const messages = branch.flatMap((entry) =>
       entry.type === "message" ? visibleMessage(entry.message) : [],
     );
+    const videoAnswers = branch.flatMap((entry) => {
+      if (entry.type !== "custom" || entry.customType !== "glaux.video.answer") return [];
+      const data = entry.data as { command_id?: unknown; answer?: unknown };
+      return typeof data?.command_id === "string" && data.answer && typeof data.answer === "object"
+        ? [{ command_id: data.command_id, answer: data.answer as import("../contracts.js").VideoAnswer }]
+        : [];
+    });
+    const videoObservations = branch.flatMap((entry) => {
+      if (entry.type !== "custom" || entry.customType !== "glaux.video.observation") return [];
+      const data = entry.data as { observation_id?: unknown };
+      return typeof data?.observation_id === "string"
+        ? [data as import("../contracts.js").ClipObservation]
+        : [];
+    });
     const updatedAt = branch.reduce(
       (latest, entry) => (entry.timestamp > latest ? entry.timestamp : latest),
       meta.updated_at,
@@ -210,6 +224,8 @@ export class SessionService {
       model: context.model?.modelId ?? null,
       phase: this.phaseForSession(meta.session_id),
       messages,
+      video_answers: videoAnswers,
+      video_observations: videoObservations,
       context_usage: { tokens: estimate.tokens },
       updated_at: updatedAt,
     };

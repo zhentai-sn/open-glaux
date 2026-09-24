@@ -116,6 +116,7 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
             setConnection({
               provider: event.target.value as VlmProvider,
               models: undefined,
+              mediaAdapter: "none",
             })
           }
         >
@@ -126,6 +127,17 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
 
       {connection.provider === "openai_compatible" && (
         <>
+          <label className="cfgrow">
+            <span>{t("cfg_media_adapter")}</span>
+            <select
+              className="cfgsel"
+              value={connection.mediaAdapter ?? "none"}
+              onChange={(event) => setConnection({ mediaAdapter: event.target.value as "none" | "qwen-omni" })}
+            >
+              <option value="none">{t("cfg_media_none")}</option>
+              <option value="qwen-omni">{t("cfg_media_qwen")}</option>
+            </select>
+          </label>
           <div className="cfgquick">
             <span className="cfgqlbl">{t("cfg_quickfill")}</span>
             {LOCAL_PRESETS.map((preset) => (

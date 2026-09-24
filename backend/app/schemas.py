@@ -274,10 +274,12 @@ class UploadAccepted(BaseModel):
 
 
 class UploadRejected(BaseModel):
-    """一个被拒的上传文件；``reason`` 为 §9.2 的三值 enum。"""
+    """一个被拒的上传文件；视频另有编码和时长拒绝原因（SDD 11 §13）。"""
 
     filename: str
-    reason: Literal["unsupported_type", "too_large", "corrupt"]
+    reason: Literal[
+        "unsupported_type", "too_large", "corrupt", "unsupported_codec", "duration_exceeded"
+    ]
 
 
 class UploadResult(BaseModel):

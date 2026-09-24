@@ -37,7 +37,7 @@ flowchart LR
 ## P3 · Qwen 与 Pi 工具循环
 
 - 连接输入增加显式 `media_adapter="qwen-omni"`，只在准确型号和有效 `/compatible-mode/v1` 地址启用；其他连接展示 SDD 11 §13 的提示。
-- 新增 `observe_video_interval` 工具及每轮预算。工具结果中的会话内容只存 `ClipObservation` 占位与元数据；出站 `onPayload` 把最新片段替换成 Qwen `video_url`，设置 `modalities:["text"]` 和 `reasoning_effort:"low"`。
+- 新增 `observe_video_interval` 工具及每轮预算。工具结果中的会话内容只存 `ClipObservation` 占位与元数据；出站 `onPayload` 在工具结果之后插入仅供本次请求的 `user` 视频内容块，确保 Qwen 同时接收声音与画面，设置 `modalities:["text"]` 和 `reasoning_effort:"low"`。
 - 用真实 Pi 流式请求验证“首段观察 → 再取另一段 → 原生音画回答”。确认旧观测不在每次调用中重发 Base64，媒体正文不进入会话、日志或 SSE。
 
 完成证据：同画面移声配对样本的答案随声音移动；静音样本不产生有效音频证据。

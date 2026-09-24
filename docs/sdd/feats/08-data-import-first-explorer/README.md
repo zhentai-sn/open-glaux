@@ -52,7 +52,7 @@ status: implemented
 
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
-| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `/datasources[].importable` 并集内（当前为 JPEG / PNG / MP4 / WebM）；单文件 ≤ 32 MiB；单次 ≤ 20 个文件 |
+| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `/datasources[].importable` 并集内（当前为 JPEG / PNG / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
 | 打开服务端文件夹 | 服务端路径 + 模态 | 路径须在 `GLAUX_DATASETS_ROOT`（缺省 `~/glaux_datasets`）下；模态候选为 `/tasks` 中 `object_kinds` 含 `volume` 或 `slide` 的任务所属模态（当前为 `pathology` / `ct_abdomen`），前端不硬编码列表 |
 | 加载示例数据 | 无 | 仅注册 `config` 内置根中**确实有数据**的模态 |
 | 最近使用 | 无 | 从浏览器本地记录读取 |
@@ -70,7 +70,8 @@ status: implemented
 | --- | --- | --- | --- |
 | `GLAUX_DEV_MODE` | `1` | `0` | `1` 时内置示例源自动可见，另有合成源 `synthetic-us` / `synthetic-hc`（SDD 10 D-17）；`0` 时须显式加载示例，且没有合成源 |
 | `GLAUX_DATASETS_ROOT` | `~/glaux_datasets` | 不变 | 导入与上传的允许根 |
-| `GLAUX_UPLOAD_MAX_BYTES` | 不存在 | `33554432` | 单文件上限（32 MiB） |
+| `GLAUX_UPLOAD_MAX_BYTES` | 不存在 | `33554432` | 图像单文件上限（32 MiB） |
+| `GLAUX_VIDEO_UPLOAD_MAX_BYTES` | 不存在 | `536870912` | 视频单文件上限（512 MiB，SDD 11） |
 | `GLAUX_UPLOAD_MAX_FILES` | 不存在 | `20` | 单次请求文件数上限 |
 
 ## 5. 输出结果
@@ -290,7 +291,7 @@ sequenceDiagram
 
 | 字段 | 类型 | 必填 | 约束 |
 | --- | --- | --- | --- |
-| `files` | multipart 文件，可重复 | 是 | 1 ≤ 个数 ≤ `GLAUX_UPLOAD_MAX_FILES`；单个 ≤ `GLAUX_UPLOAD_MAX_BYTES` |
+| `files` | multipart 文件，可重复 | 是 | 1 ≤ 个数 ≤ `GLAUX_UPLOAD_MAX_FILES`；图像单个 ≤ `GLAUX_UPLOAD_MAX_BYTES`，视频单个 ≤ `GLAUX_VIDEO_UPLOAD_MAX_BYTES` |
 | `name` | form 字段 | 否 | 数据源展示名；缺省为 `上传 · <本地时间>` |
 
 模态**不接受**客户端指定（决策 D-2），由服务端按受理表推断（§7 规则 5）。一批只落一个数据源：模态取第一个受理文件的模态，其余模态的文件按 `unsupported_type` 拒收；同名数据源已存在时沿用其模态。
@@ -301,12 +302,12 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `source` | `DataSourceInfo` | 是 | 本次写入的数据源；重复上传到同一目录时为更新而非新建 |
 | `accepted` | `UploadAccepted[]` | 是 | 至少一条（全拒时接口返回 422） |
-| `accepted[].id` | string | 是 | 匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$` |
+| `accepted[].id` | string | 是 | 图像匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$`；视频匹配 `^vid-[0-9a-f]{8}-[0-9a-f]{8}$` |
 | `accepted[].filename` | string | 是 | 客户端原始文件名，仅用于回显 |
 | `accepted[].bytes` | int | 是 | 落盘字节数 |
 | `rejected` | `UploadRejected[]` | 是 | 可为空数组；逐条给出原因 |
 | `rejected[].filename` | string | 是 | 客户端原始文件名 |
-| `rejected[].reason` | enum | 是 | `unsupported_type` 或 `too_large` 或 `corrupt` |
+| `rejected[].reason` | enum | 是 | 通用 `unsupported_type`、`too_large`、`corrupt`；视频增加 `unsupported_codec`、`duration_exceeded`（SDD 11 §13） |
 
 ### 9.3 上传对象 ID
 

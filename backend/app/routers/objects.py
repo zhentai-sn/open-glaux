@@ -171,6 +171,68 @@ def object_raw(object_id: str) -> Response:
     return Response(content=data, media_type=mime)
 
 
+@router.get("/{object_id}/clip")
+def object_clip(
+    object_id: str, start_ms: int, end_ms: int, source_sha256: str | None = None
+) -> Response:
+    """SDD 11 §9：私有原声短片段及原视频时间映射。"""
+    from ..video_clip import ClipTooLarge, VideoSourceChanged
+
+    ref, obj = resolve(object_id)
+    if "clip" not in obj.resources:
+        raise HTTPException(422, "该对象没有视频片段表征")
+    try:
+        result = ref.source.clip(ref.datasource, object_id, start_ms, end_ms, source_sha256)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "视频源已失效") from exc
+    except ClipTooLarge as exc:
+        raise HTTPException(413, f"clip_too_large：{exc}") from exc
+    except VideoSourceChanged as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if result is None:
+        raise HTTPException(422, "该对象没有视频片段表征")
+    body, header = result
+    return Response(
+        content=body,
+        media_type="video/mp4",
+        headers={"X-Glaux-Clip": json.dumps(header, separators=(",", ":"))},
+    )
+
+
+@router.get("/{object_id}/frame-at")
+def object_frame_at(
+    object_id: str, time_ms: int, source_sha256: str | None = None
+) -> Response:
+    """SDD 11 §9：按源 PTS 取最接近的帧及 ReferenceFrame。"""
+    from ..video_clip import VideoSourceChanged
+
+    ref, obj = resolve(object_id)
+    if "clip" not in obj.resources:
+        raise HTTPException(422, "该对象没有视频时间帧表征")
+    try:
+        result = ref.source.frame_at_time(ref.datasource, object_id, time_ms, source_sha256)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "视频源已失效") from exc
+    except VideoSourceChanged as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if result is None:
+        raise HTTPException(422, "该对象没有视频时间帧表征")
+    body, mime, frame, actual_ms, tolerance_ms = result
+    return Response(
+        content=body,
+        media_type=mime,
+        headers={
+            "X-Glaux-Frame": _frame_header(frame),
+            "X-Glaux-Frame-Time": str(actual_ms),
+            "X-Glaux-Frame-Tolerance": str(tolerance_ms),
+        },
+    )
+
+
 @router.get("/{object_id}/tiles/{level}/{col}/{row}")
 def object_tile(object_id: str, level: int, col: int, row: int) -> Response:
     return Response(content=tile_bytes(object_id, level, col, row), media_type="image/jpeg")

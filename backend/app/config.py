@@ -97,9 +97,9 @@ def _env_int(key: str, default: int) -> int:
     return v if v > 0 else default
 
 
-# --- 浏览器图像上传（SDD 08 §4.3）：单文件与单次数量上限 -----------------------
-# 只有这两道闸；总容量配额是后续工作，不在本轮范围（见实施计划 §10）。
+# --- 浏览器上传（SDD 08 / SDD 11）：图像与视频分别限制 -------------------------
 UPLOAD_MAX_BYTES = _env_int("GLAUX_UPLOAD_MAX_BYTES", 32 * 1024 * 1024)  # 32 MiB
+VIDEO_UPLOAD_MAX_BYTES = _env_int("GLAUX_VIDEO_UPLOAD_MAX_BYTES", 512 * 1024 * 1024)
 UPLOAD_MAX_FILES = _env_int("GLAUX_UPLOAD_MAX_FILES", 20)
 
 # --- Atlas · 图谱（SDD 03）：LanceDB 案例表 + 原图/裁剪图目录 ------------------------

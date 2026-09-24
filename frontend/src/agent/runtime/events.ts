@@ -8,6 +8,7 @@ export interface EventHandlers {
   onAdapterError: (
     error: Extract<TransportEvent, { event: "adapter.error" }>["data"],
   ) => void;
+  onVideoAnswer?: (event: Extract<TransportEvent, { event: "video.answer" }>["data"]) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -32,6 +33,9 @@ export const connectSessionEvents: EventConnector = (sessionId, handlers) => {
         { event: "pi.event" }
       >["data"],
     );
+  });
+  source.addEventListener("video.answer", (event) => {
+    handlers.onVideoAnswer?.(JSON.parse((event as MessageEvent<string>).data) as Extract<TransportEvent, { event: "video.answer" }>["data"]);
   });
   source.addEventListener("adapter.error", (event) => {
     handlers.onAdapterError(

@@ -44,10 +44,12 @@ def modality_of(filename: str) -> str | None:
     return hit[2] if hit else None
 
 
-#: 拒绝原因（SDD 08 §9.2 的 enum，顺序即判定顺序）。
+#: 通用拒绝原因（SDD 08 §9.2）；视频解码与时长原因见 SDD 11 §13。
 REASON_UNSUPPORTED = "unsupported_type"
 REASON_TOO_LARGE = "too_large"
 REASON_CORRUPT = "corrupt"
+REASON_UNSUPPORTED_CODEC = "unsupported_codec"
+REASON_DURATION_EXCEEDED = "duration_exceeded"
 
 IMAGE_ID_RE = re.compile(r"^nat-[0-9a-f]{8}-[0-9a-f]{8}$")
 
@@ -88,14 +90,15 @@ def image_id(source_id: str, rel_name: str) -> str:
 def classify(filename: str, head: bytes, size: int) -> tuple[str, str]:
     """单个上传文件的受理判定。
 
-    返回 ``("accept", 规范扩展名)`` 或 ``("reject", 原因)``；原因取 §9.2 的三个 enum 值。
+    返回 ``("accept", 规范扩展名)`` 或 ``("reject", 原因)``；视频采用独立字节上限。
     判定顺序即 §13 表格顺序：类型 → 大小 → 魔数。
     """
     ext = Path(filename).suffix.lower()
     fmt = _formats().get(ext)
     if fmt is None:
         return ("reject", REASON_UNSUPPORTED)
-    if size > config.UPLOAD_MAX_BYTES:
+    limit = config.VIDEO_UPLOAD_MAX_BYTES if fmt[2] == "video" else config.UPLOAD_MAX_BYTES
+    if size > limit:
         return ("reject", REASON_TOO_LARGE)
     magic, offset, _modality = fmt
     if head[offset : offset + len(magic)] != magic:

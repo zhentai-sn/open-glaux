@@ -21,12 +21,15 @@ const REJECT_KEY: Record<UploadRejectReason, I18nKey> = {
   unsupported_type: "imp_reject_type",
   too_large: "imp_reject_large",
   corrupt: "imp_reject_corrupt",
+  unsupported_codec: "imp_reject_codec",
+  duration_exceeded: "imp_reject_duration",
 };
 
 /** 前端预筛：后缀/大小不合格的直接本地拒，不发请求（后端仍是权威）。
  *  可受理后缀取自 `/datasources` 的 `importable`（SDD 10 §4.1，受理表唯一来源在后端）；
  *  尚无任何数据源时不知道受理表，只按大小预筛、类型交给后端判定。 */
-const MAX_BYTES = 32 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 
 function suffixOf(name: string): string {
   const i = name.lastIndexOf(".");
@@ -41,7 +44,7 @@ function prefilter(
   const fail: { filename: string; reason: UploadRejectReason }[] = [];
   for (const f of files) {
     if (importable.size && !importable.has(suffixOf(f.name))) fail.push({ filename: f.name, reason: "unsupported_type" });
-    else if (f.size > MAX_BYTES) fail.push({ filename: f.name, reason: "too_large" });
+    else if (f.size > ([".mp4", ".webm"].includes(suffixOf(f.name)) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) fail.push({ filename: f.name, reason: "too_large" });
     else pass.push(f);
   }
   return { pass, fail };

@@ -46,7 +46,7 @@ status: living
 面板出现在资源管理器（空态常驻，有数据时点标题栏 ＋ 展开）与插件市场的「观测空间 · 数据读取」组里，
 三个入口：
 
-1. **拖拽图片 / 选择文件…**：浏览器上传，单个 ≤ 32 MB，一次最多 20 个（`POST /uploads/images`）。
+1. **拖拽图片或视频 / 选择文件…**：浏览器上传，图像单个 ≤ 32 MiB，视频单个 ≤ 512 MiB、最长 10 分钟；一次最多 20 个（`POST /uploads/images`）。
    后端按后缀加魔数推断模态：JPEG / PNG → `natural_image`，MP4 / WebM → `video`（需 PyAV）；一批只落一个
    数据源，模态取第一个受理文件的模态，其余模态的文件按 `unsupported_type` 拒收。前端文件选择器目前仍只放行
    JPEG / PNG，改读 `/datasources` 的 `importable` 在 SDD 10 W3。

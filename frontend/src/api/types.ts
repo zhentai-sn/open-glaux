@@ -47,7 +47,7 @@ export interface ObjectMeta {
   axes: Axis[];
   calibration: Calibration | null;
   /** 后端下发的 URL 模板；前端不拼路径（§7 规则 3）。 */
-  resources: { frame: string; raw?: string; tiles?: string; audio?: string };
+  resources: { frame: string; raw?: string; tiles?: string; audio?: string; clip?: string };
   streams: Stream[];
   methods: MethodRef[];
   /** 自由元数据；原 center 在此（meta.center）。 */
@@ -148,7 +148,7 @@ export interface DataSource {
 // --- 浏览器图像上传（SDD 08 §9.2） ------------------------------------------
 
 /** 被拒原因；与后端 enum 同集合。 */
-export type UploadRejectReason = "unsupported_type" | "too_large" | "corrupt";
+export type UploadRejectReason = "unsupported_type" | "too_large" | "corrupt" | "unsupported_codec" | "duration_exceeded";
 
 export interface UploadAccepted {
   id: string;

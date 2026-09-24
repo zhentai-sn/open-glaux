@@ -106,7 +106,7 @@ export class CommandService {
         },
         {
           permissionMode: current.permission_mode,
-          ...(command.type === "prompt" && command.viewer ? { viewer: command.viewer } : {}),
+          ...(command.viewer ? { viewer: command.viewer } : {}),
         },
       );
       void completion.then(

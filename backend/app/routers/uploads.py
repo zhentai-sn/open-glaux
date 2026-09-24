@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as _dt
+import os
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -58,27 +61,74 @@ async def upload_images(
         for f in files:
             filename = f.filename or "unnamed"
             head = await f.read(upload_store.magic_prefix_len())
-            body = bytearray(head)
-            while True:
-                chunk = await f.read(_CHUNK)
-                if not chunk:
-                    break
-                body.extend(chunk)
-                if len(body) > config.UPLOAD_MAX_BYTES:
-                    break  # 超限即停读，不把超大文件整个吃进内存
-
-            verdict, detail = upload_store.classify(filename, bytes(head), len(body))
+            verdict, detail = upload_store.classify(filename, head, len(head))
             file_modality = upload_store.modality_of(filename)
             if verdict == "accept" and modality is not None and file_modality != modality:
                 verdict, detail = "reject", upload_store.REASON_UNSUPPORTED
             if verdict == "reject":
                 rejected.append(UploadRejected(filename=filename, reason=detail))  # type: ignore[arg-type]
                 continue
-            modality = file_modality
 
-            path = target / upload_store.store_name(filename, detail)
-            path.write_bytes(bytes(body))  # 同名重传覆盖同一文件 → ID 不变（§10）
-            stored.append((path, filename, len(body)))
+            limit = (
+                config.VIDEO_UPLOAD_MAX_BYTES
+                if file_modality == "video"
+                else config.UPLOAD_MAX_BYTES
+            )
+            temp_path: Path | None = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="wb", dir=target, prefix=".upload-", suffix=detail, delete=False
+                ) as tmp:
+                    temp_path = Path(tmp.name)
+                    tmp.write(head)
+                    size = len(head)
+                    while size <= limit:
+                        chunk = await f.read(_CHUNK)
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > limit:
+                            break
+                        tmp.write(chunk)
+                if size > limit:
+                    rejected.append(
+                        UploadRejected(filename=filename, reason=upload_store.REASON_TOO_LARGE)
+                    )
+                    continue
+                if file_modality == "video":
+                    from ..dataset_video import (
+                        UnsupportedVideoCodec,
+                        VideoDurationExceeded,
+                        av_available,
+                        validate_upload,
+                    )
+
+                    try:
+                        if not av_available():
+                            raise UnsupportedVideoCodec("视频解码依赖不可用")
+                        await asyncio.to_thread(validate_upload, temp_path, detail)
+                    except UnsupportedVideoCodec:
+                        rejected.append(
+                            UploadRejected(filename=filename, reason="unsupported_codec")
+                        )
+                        continue
+                    except VideoDurationExceeded:
+                        rejected.append(
+                            UploadRejected(filename=filename, reason="duration_exceeded")
+                        )
+                        continue
+                    except (ValueError, OSError):
+                        rejected.append(UploadRejected(filename=filename, reason="corrupt"))
+                        continue
+
+                path = target / upload_store.store_name(filename, detail)
+                os.replace(temp_path, path)  # 校验成功后才覆盖同名源；对象 ID 不变
+                temp_path = None
+                modality = file_modality
+                stored.append((path, filename, size))
+            finally:
+                if temp_path is not None:
+                    temp_path.unlink(missing_ok=True)
     except OSError as e:
         raise HTTPException(500, f"写入失败：{e}") from e
 
@@ -86,7 +136,7 @@ async def upload_images(
         # 全部被拒：不创建数据源，也不留下空目录（§13）
         if made_dir and not any(target.iterdir()):
             target.rmdir()
-        raise HTTPException(422, "没有可受理的图像文件")
+        raise HTTPException(422, "没有可受理的文件")
 
     # ID 依赖注册后才确定的 source_id，故先注册再派生（§9.3）
     from .. import datasource_detect

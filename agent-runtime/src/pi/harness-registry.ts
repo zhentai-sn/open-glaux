@@ -21,6 +21,7 @@ import type {
   ViewerContext,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
+import { redactText } from "../security/redact.js";
 import type { SessionService } from "./session-service.js";
 import {
   createModelRuntime,
@@ -42,6 +43,8 @@ import {
   segmentationEgressAllowed,
   SEGMENT_REGION_TOOL_NAME,
 } from "./tools/segment-region.js";
+import { createObserveVideoTool, createSubmitVideoAnswerTool } from "./tools/video.js";
+import { VideoTurn } from "./video-turn.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -57,6 +60,7 @@ export interface HarnessStartOptions {
 export interface HarnessToolContext extends HarnessStartOptions {
   connection?: ConnectionInput;
   runtime?: ModelRuntime;
+  videoTurn?: VideoTurn;
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -76,10 +80,13 @@ export interface HarnessToolFactory {
  * 显式放行，且分割后端已配 token。任一不满足就不注册——挂一个必然失败的工具只会让模型
  * 反复重试并把失败当成"图里没有该结构"。
  */
-export const defaultToolFactory: HarnessToolFactory = (context) =>
-  chatEdition() || context.permissionMode === "observe"
-    ? []
-    : availableProviders(context).map((provider) => provider.create(context));
+export const defaultToolFactory: HarnessToolFactory = (context) => {
+  if (chatEdition()) return [];
+  const providers = availableProviders(context);
+  return (context.permissionMode === "observe"
+    ? providers.filter((provider) => provider.name === "observe_video_interval" || provider.name === "submit_video_answer")
+    : providers).map((provider) => provider.create(context));
+};
 
 const SYSTEM_PROMPT =
   "You are Glaux's built-in reference assistant for image and video analysis: natural images and video, " +
@@ -114,8 +121,25 @@ const PROPOSE_PROMPT =
   "Every proposal waits for the user to confirm or reject it; you never confirm your own work, and you should say " +
   "plainly that the annotation is a suggestion.";
 
+const VIDEO_PROMPT =
+  " You are not seeing the video by default. Use observe_video_interval to inspect synchronized picture and original sound before any video claim. " +
+  "Verify events presupposed by the question, especially sounds, before citing them. Submit facts through submit_video_answer " +
+  "with source-video millisecond intervals and observation IDs; put unsupported parts in unanswered. Answer only the facts the user asked for: " +
+  "do not add scene chronology or precise event onset claims unless the user requests them and the media supports them. " +
+  "Do not infer sound from visible frames or invent a time beyond the video duration.";
+
 /** SDD 10 D-15：工具声明只在此登记，能力、焦点和提示同源。 */
 export const TOOL_PROVIDERS: ToolProvider[] = [
+  {
+    name: "observe_video_interval", requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
+    create: (ctx) => createObserveVideoTool(ctx.videoTurn!) as HarnessTool,
+    promptFragment: () => VIDEO_PROMPT,
+  },
+  {
+    name: "submit_video_answer", requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
+    create: (ctx) => createSubmitVideoAnswerTool(ctx.videoTurn!) as HarnessTool,
+    promptFragment: () => "",
+  },
   {
     name: "run_task", requires: {}, supports: () => true,
     create: (ctx) => createRunTaskTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
@@ -150,6 +174,7 @@ export const TOOL_PROVIDERS: ToolProvider[] = [
 
 function availableProviders(context: HarnessToolContext): ToolProvider[] {
   return TOOL_PROVIDERS.filter((provider) => {
+    if ((provider.name === "observe_video_interval" || provider.name === "submit_video_answer") && !context.videoTurn) return false;
     if (provider.requires.vision && !context.connection?.vision) return false;
     if (provider.requires.runtime && !context.runtime) return false;
     if (provider.requires.egress && (!segmentationEgressAllowed() || !process.env.GLAUX_SEG_API_TOKEN?.trim())) return false;
@@ -161,10 +186,14 @@ function systemPromptFor(
   viewer: ViewerContext | undefined,
   tools: HarnessTool[],
   context: HarnessToolContext,
+  videoDescription?: { duration_ms: number; has_audio: boolean },
 ): string {
   const mounted = new Set(tools.map((tool) => tool.name));
   const head = SYSTEM_PROMPT + TOOL_PROVIDERS.filter((provider) => mounted.has(provider.name)).map((provider) => provider.promptFragment(context)).join("");
   if (!viewer?.focus) return `${head} No image is currently open in the viewer.`;
+  if (viewer.focus.kind === "video" && !context.videoTurn) {
+    return `${head} The current connection does not support joint audio-video Q&A. Say so explicitly when asked about the video; ordinary conversation remains available.`;
+  }
   const parts = [`object_id=${viewer.focus.object_id}`, `kind=${viewer.object?.kind ?? viewer.focus.kind}`];
   const index = Object.entries(viewer.focus.index).filter(([, value]) => value != null)
     .map(([axis, value]) => `${axis}:${value}`).join(",");
@@ -172,6 +201,7 @@ function systemPromptFor(
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.collection) parts.push(`collection=${viewer.collection}`);
   if (viewer.method) parts.push(`method=${viewer.method}`);
+  if (videoDescription) parts.push(`duration_ms=${videoDescription.duration_ms}`, `has_audio=${videoDescription.has_audio}`);
   // 措辞刻意强调"目录标签"：这几个字段来自数据集与 UI 选择，不代表画面内容。
   // 早期版本只给这一行，模型便把标签当观察复述，用户看到的图与模型说的对不上。
   return (
@@ -232,14 +262,27 @@ export class HarnessRegistry {
     }
     if (this.slots.has(sessionId)) await this.evict(sessionId);
 
-    const session = await this.sessions.openSession(sessionId);
     const runtime = this.runtimeFactory(connection);
-    const tools = chatEdition() ? [] : this.toolFactory({ ...options, connection, runtime });
+    const session = await this.sessions.openSession(sessionId);
+    const videoTurn = runtime.videoMedia && options.viewer?.focus?.kind === "video"
+      ? new VideoTurn(options.viewer.focus.object_id, commandId, session, runtime.videoMedia,
+          (answer) => this.emit(sessionId, { event: "video.answer", data: { session_id: sessionId, command_id: commandId, answer } }))
+      : undefined;
+    let videoDescription: { duration_ms: number; has_audio: boolean } | undefined;
+    try {
+      videoDescription = videoTurn ? await videoTurn.describe() : undefined;
+    } catch (error) {
+      runtime.disposeCredential();
+      await this.sessions.closeSession(session);
+      throw error;
+    }
+    const toolContext = { ...options, connection, runtime, ...(videoTurn ? { videoTurn } : {}) };
+    const tools = chatEdition() ? [] : this.toolFactory(toolContext);
     const harness = new AgentHarness({
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(options.viewer, tools, { ...options, connection, runtime }),
+      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(options.viewer, tools, toolContext, videoDescription),
       tools,
     });
     const unsubscribeHarness = harness.subscribe((event) => {
@@ -261,6 +304,7 @@ export class HarnessRegistry {
         await this.compactIfNeeded(slot, runtime.models, runtime.model);
         slot.phase = "running";
         await operation(harness, session);
+        await videoTurn?.finalize();
       } finally {
         runtime.disposeCredential();
         slot.phase = "idle";
@@ -343,7 +387,11 @@ export class HarnessRegistry {
   ): void {
     this.emit(sessionId, {
       event: "pi.event",
-      data: { session_id: sessionId, command_id: commandId, event },
+      data: {
+        session_id: sessionId,
+        command_id: commandId,
+        event: JSON.parse(redactText(JSON.stringify(event))) as AgentHarnessEvent,
+      },
     });
   }
 

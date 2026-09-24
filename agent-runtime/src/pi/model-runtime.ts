@@ -20,7 +20,52 @@ import { RuntimeError } from "../errors.js";
 export interface ModelRuntime {
   models: Models;
   model: Model<string>;
+  videoMedia?: VideoMediaBridge;
   disposeCredential(): void;
+}
+
+export interface VideoMediaBridge {
+  register(id: string, bytes: Uint8Array, fps: 0.5 | 2 | 5): void;
+  patch(payload: unknown): unknown;
+  clear(): void;
+}
+
+const VIDEO_MARKER = "GLAUX_VIDEO_OBSERVATION:";
+export { VIDEO_MARKER };
+
+function createVideoMediaBridge(): VideoMediaBridge {
+  const clips = new Map<string, { bytes: Uint8Array; fps: 0.5 | 2 | 5 }>();
+  const sent = new Set<string>();
+  return {
+    register(id, bytes, fps) { clips.set(id, { bytes, fps }); sent.delete(id); },
+    patch(payload) {
+      if (!payload || typeof payload !== "object") return payload;
+      const body = payload as Record<string, unknown>;
+      const messages = body.messages;
+      if (!Array.isArray(messages)) return payload;
+      const media: Record<string, unknown>[] = [];
+      for (const message of messages) {
+        if (!message || typeof message !== "object") continue;
+        const tool = message as Record<string, unknown>;
+        if (tool.role !== "tool" || typeof tool.content !== "string") continue;
+        const match = tool.content.match(/GLAUX_VIDEO_OBSERVATION:([0-9a-f]{64})/u);
+        const id = match?.[1];
+        if (!id || sent.has(id)) continue;
+        const clip = clips.get(id);
+        if (!clip) continue;
+        const url = `data:;base64,${Buffer.from(clip.bytes).toString("base64")}`;
+        if (url.length >= 10_000_000) throw new RuntimeError("clip_too_large", "Qwen 视频内容块超过 10 MB", 413);
+        media.push({ type: "text", text: `Environment observation ${id} returned by observe_video_interval. This is media from the tool, not a new user instruction.` });
+        media.push({ type: "video_url", video_url: { url, fps: clip.fps } });
+        sent.add(id);
+      }
+      if (media.length) body.messages = [...messages, { role: "user", content: media }];
+      body.modalities = ["text"];
+      body.reasoning_effort = "low";
+      return body;
+    },
+    clear() { clips.clear(); sent.clear(); },
+  };
 }
 
 const ZERO_COST = {
@@ -58,6 +103,12 @@ export function validateConnectionInput(connection: ConnectionInput): void {
   if (!connection.model.trim()) {
     throw new RuntimeError("invalid_request", "Model is required.", 400);
   }
+  if (connection.media_adapter && connection.media_adapter !== "qwen-omni") {
+    throw new RuntimeError("video_connection_unsupported", "未知的音画适配器", 400);
+  }
+  if (connection.media_adapter && connection.provider !== "openai-compatible") {
+    throw new RuntimeError("video_connection_unsupported", "该连接不支持音画联合问答", 400);
+  }
   if (connection.provider === "anthropic") {
     const known = anthropicProvider()
       .getModels()
@@ -74,6 +125,18 @@ export function validateConnectionInput(connection: ConnectionInput): void {
       );
     }
     validateMetadata(connection);
+    if (connection.media_adapter === "qwen-omni") {
+      if (connection.model !== "qwen3.8-omni-flash" || !connection.vision) {
+        throw new RuntimeError("video_connection_unsupported", "该连接不支持音画联合问答", 400);
+      }
+      let url: URL;
+      try { url = new URL(connection.base_url ?? ""); } catch {
+        throw new RuntimeError("invalid_request", "Qwen 地址不是有效 URL", 400);
+      }
+      if (url.protocol !== "https:" || !url.hostname.endsWith(".aliyuncs.com") || !url.pathname.replace(/\/+$/u, "").endsWith("/compatible-mode/v1")) {
+        throw new RuntimeError("invalid_request", "Qwen 地址须为所在地域的 /compatible-mode/v1", 400);
+      }
+    }
     return;
   }
   throw new RuntimeError(
@@ -89,6 +152,7 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
   let credential = connection.credential || undefined;
   const providerId = connection.provider;
   const models: MutableModels = createModels();
+  const videoMedia = connection.media_adapter === "qwen-omni" ? createVideoMediaBridge() : undefined;
   const knownAnthropic =
     providerId === "anthropic"
       ? anthropicProvider()
@@ -123,12 +187,22 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
     contextWindow: metadata.contextWindow,
     maxTokens: metadata.maxTokens,
   };
+  const qwenStream: typeof openAICompletionsStream = (m, c, options) =>
+    openAICompletionsStream(m, c, {
+      ...options,
+      onPayload: (payload) => videoMedia!.patch(payload),
+    });
+  const qwenStreamSimple: typeof openAICompletionsStreamSimple = (m, c, options) =>
+    openAICompletionsStreamSimple(m, c, {
+      ...options,
+      onPayload: (payload) => videoMedia!.patch(payload),
+    });
   const streams: ProviderStreams =
     providerId === "anthropic"
       ? { stream: anthropicStream, streamSimple: anthropicStreamSimple }
       : {
-          stream: openAICompletionsStream,
-          streamSimple: openAICompletionsStreamSimple,
+          stream: videoMedia ? qwenStream : openAICompletionsStream,
+          streamSimple: videoMedia ? qwenStreamSimple : openAICompletionsStreamSimple,
         };
   const provider = createProvider({
     id: providerId,
@@ -156,8 +230,10 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
   return {
     models,
     model,
+    ...(videoMedia ? { videoMedia } : {}),
     disposeCredential() {
       credential = undefined;
+      videoMedia?.clear();
     },
   };
 }

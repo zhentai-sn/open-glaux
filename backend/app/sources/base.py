@@ -53,6 +53,14 @@ class Source(Protocol):
         window: tuple[float, float] | None = None,
     ) -> tuple[bytes, str, ReferenceFrame]: ...
     def raw(self, source: DataSource, object_id: str) -> tuple[Path | bytes, str] | None: ...
+    def clip(
+        self, source: DataSource, object_id: str, start_ms: int, end_ms: int,
+        source_sha256: str | None = None,
+    ) -> tuple[bytes, dict] | None: ...
+    def frame_at_time(
+        self, source: DataSource, object_id: str, time_ms: int,
+        source_sha256: str | None = None,
+    ) -> tuple[bytes, str, ReferenceFrame, int, int] | None: ...
     def tile(
         self, source: DataSource, object_id: str, level: int, col: int, row: int
     ) -> bytes | None: ...
@@ -164,6 +172,18 @@ class SourceBase:
         return self.describe(source, object_id)
 
     def raw(self, source: DataSource, object_id: str) -> tuple[Path | bytes, str] | None:
+        return None
+
+    def clip(
+        self, source: DataSource, object_id: str, start_ms: int, end_ms: int,
+        source_sha256: str | None = None,
+    ) -> tuple[bytes, dict] | None:
+        return None
+
+    def frame_at_time(
+        self, source: DataSource, object_id: str, time_ms: int,
+        source_sha256: str | None = None,
+    ) -> tuple[bytes, str, ReferenceFrame, int, int] | None:
         return None
 
     def tile(

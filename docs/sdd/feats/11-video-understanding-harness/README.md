@@ -10,9 +10,9 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 一期契约冻结，可进入实现规划；Qwen 原生音画和 API 工具循环已用合成样本实测，Pi 接线与完整验收集属于实施门禁 |
+| 当前阶段 | 一期契约冻结，实施中；Qwen 的 Pi 工具循环已通过 9 秒蓝／绿／静音合成对照，真实视频与完整标注集仍待验收 |
 | 上游依据 | [Glaux 纲领](../../../roadmaps/charter.zh-CN.md)、[SDD 10](../10-object-convergence/README.md)、[一期范围设计](../../../plans/2026-09-24-video-understanding-harness-design.md) |
-| 可行性证据 | [原生音视频接口实测](../../../researches/20260924-01-tech-omni-video-api-probe.zh-CN.md)；该记录中的 MiMo 调研是历史候选，不属于本期准出 |
+| 可行性证据 | [原生接口实测](../../../researches/20260924-01-tech-omni-video-api-probe.zh-CN.md)、[Qwen 工具音轨入口](../../../researches/20260924-02-tech-qwen-tool-audio-placement.zh-CN.md)、[Pi 合成对照](../../../researches/20260924-03-tech-qwen-pi-video-loop.zh-CN.md)；MiMo 调研仅为历史候选，不属于本期准出 |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-24 |
 
@@ -46,7 +46,7 @@ status: ready
 
 | 输入 | 来源 | 约束 |
 | --- | --- | --- |
-| 视频文件 | SDD 08 的 `POST /uploads/images`；沿用服务端命名、魔数和白名单目录 | 容器为 MP4（H.264 视频，可选 AAC 音频）或 WebM（VP8/VP9 视频，可选 Opus 音频）；必须能解码视频；有音轨时也必须可解码。服务端从流时间戳判定时长，未知或非法时长拒绝 |
+| 视频文件 | SDD 08 的 `POST /uploads/images`；沿用服务端命名、魔数和白名单目录 | 容器为 MP4（H.264 视频，可选一条 AAC 音轨）或 WebM（VP8/VP9 视频，可选一条 Opus 音轨）；必须能解码视频；有音轨时也必须可解码。服务端从流时间戳判定时长，未知或非法时长拒绝 |
 | 视频对象 | SDD 10 的 `ObjectMeta`、`Focus`、`streams[]`、`Calibration{kind="time_base"}` | `kind="video"`；`meta.duration_ms` 是经服务端验证的视频呈现时长；不以 `axes[t].size × spacing` 推断可变帧率视频时长 |
 | 用户问题 | 现有单一会话路径 | 绑定提问时的 `Focus.object_id`；不从消息文本猜对象 id，切换当前对象不改旧回答引用 |
 | 模型连接 | 用户配置的连接 | 显式媒体适配器、准确模型 ID、兼容 Chat Completions 地址和凭据；普通 `vision` 能力位不能代替音画能力位 |
@@ -83,7 +83,7 @@ sequenceDiagram
     U->>B: 点击证据时从 resources.clip 重新取片
 ```
 
-模型独自选择观察顺序、区间、`fps` 和停止时机；runtime 只执行预算与证据约束。模型通信只发生在 agent-runtime。Pi 的消息类型目前只有文本／图像；适配器在出站 `onPayload` 中把最新观测的占位引用替换为 Qwen `video_url`，并设置 `modalities:["text"]` 与 `reasoning_effort:"low"`。旧观测在后续请求中保留文字标识和元数据，不重复发送 Base64；Agent 要重新看时再次调用工具。出站替换须在 Pi 真实流式调用中验证，不能以 API 直连实测代替。
+模型独自选择观察顺序、区间、`fps` 和停止时机；runtime 只执行预算与证据约束。模型通信只发生在 agent-runtime。Pi 的消息类型目前只有文本／图像；适配器在出站 `onPayload` 中保留工具结果的文字标识，并紧接新观测的工具结果插入一条仅用于本次请求的 `user` 媒体消息，标明它是环境观测而非新用户指令，内容为 Qwen `video_url`。真实调用显示 `video_url` 放在 `tool` 内容块时只计视频 token、不计音频 token；放在受控媒体消息时音视频 token 都出现。适配器同时设置 `modalities:["text"]` 与 `reasoning_effort:"low"`。旧观测在后续请求中保留文字标识和元数据，不重复发送 Base64；Agent 要重新看时再次调用工具。
 
 ## 7. 核心规则
 
@@ -91,7 +91,7 @@ sequenceDiagram
 2. 片段画面与声音来自同一请求区间。有音轨时编码后必须保留可听音频；无音轨时允许视觉问答，证据不得声称听到了声音。不能静默改用抽帧或转写。
 3. 单次观测最多 60 秒、MP4 原始字节最多 6 MiB，含 `data:` 前缀的 Base64 请求块须严格小于 10 MB；每轮最多 12 次观测、累计请求区间时长最多 600 秒、累计片段原始字节最多 48 MiB。重复观察同样计入预算。后端尽量编码在 6 MiB 内，不能无声或缺帧地缩减区间；做不到则返回 `clip_too_large`，由 Agent 缩短区间。
 4. 后端统一输出 H.264/AAC MP4：最长边不超过 640 像素、画面最高 15 fps、有音轨时 AAC 单声道 64 kbit/s。Qwen `video_url.fps` 由 Agent 选择 `0.5`、`2` 或 `5`，默认 `2`；它控制模型抽帧密度，不改变片段原视频时间映射。源文件本身不被转码覆盖。
-5. 一期只对准确型号和显式 `qwen-omni` 适配器启用音画工具。连接探测成功不等于视频能力已通过；接口拒绝媒体时禁用本轮视频问答并说明。其他连接明确提示“该连接不支持音画联合问答”，普通对话继续可用。
+5. 一期只对准确型号和显式 `qwen-omni` 适配器启用音画工具。连接探测成功不等于视频能力已通过；接口拒绝媒体时禁用本轮视频问答并说明。其他连接明确提示“该连接不支持音画联合问答”，普通对话继续可用。`observe` 权限可挂只读视频观察和证据提交工具，不挂写入类领域工具。
 6. 每条可核查事实关联已观察证据；预设事件（如“蜂鸣时”）须先验证存在。runtime 校验对象、源指纹、观测标识、区间和区域；语义支持关系由人工标注集验收。模型自由文本中的时间戳不自动变成证据。
    未成功调用 `submit_video_answer` 的轮次只能展示“无法形成有证据的回答”，不能把模型自由文本作为已证实的结果卡。
 7. 局部视觉结论需要区域时，区域以源帧像素坐标表达，并用对应 `ReferenceFrame` 校验；全局画面或纯音频结论不强制画框。无法确定区域时不得编造。
@@ -115,13 +115,14 @@ sequenceDiagram
 | 结构／接口 | 字段或形状 | 约束 |
 | --- | --- | --- |
 | `ObjectMeta` 视频扩展 | `meta.duration_ms: int`；`resources.clip: string` | `duration_ms > 0`，来自容器流 PTS；`clip` 仅 `kind="video"` 下发，模板为 `/objects/{id}/clip?start_ms={start_ms}&end_ms={end_ms}`。前端和 runtime 只填资源模板，不自行拼路径 |
-| `GET /objects/{id}/clip` | `start_ms`, `end_ms` 整数查询；响应 `video/mp4`、`X-Glaux-Clip` JSON | 半开区间，最长 60000 ms；头包含 `object_id,source_sha256,requested_interval,actual_interval,mime,clip_sha256,encoding`；响应不含公开 URL |
+| `GET /objects/{id}/clip` | `start_ms`, `end_ms` 整数查询；复核时可附 `source_sha256`；响应 `video/mp4`、`X-Glaux-Clip` JSON | 半开区间，最长 60000 ms；源指纹不符返回 409；头包含 `object_id,source_sha256,requested_interval,actual_interval,mime,clip_sha256,encoding`；响应不含公开 URL |
+| `GET /objects/{id}/frame-at` | `time_ms` 整数查询；复核时可附 `source_sha256`；响应 PNG/JPEG、`X-Glaux-Frame`、`X-Glaux-Frame-Time`、`X-Glaux-Frame-Tolerance` | 按源 PTS 找最近有效帧，返回真实 `Index.t`、对象坐标参照、实际帧时间和局部帧周期容差；超出视频时长返回 422，源指纹不符返回 409 |
 | `VideoInterval` | `start_ms:int`, `end_ms:int` | 原视频半开区间；实际覆盖区间须在请求区间内，不能跨出源时长 |
 | `ClipObservation` | `observation_id,object_id,source_sha256,requested_interval,actual_interval,mime,clip_sha256,encoding,fps` | `observation_id` 为源指纹、实际区间、编码配置和 Qwen 抽帧档位的确定性 SHA-256；片段字节只驻留本轮内存或临时缓存 |
 | `EvidenceRef` | `observation_id,kind,source_interval,frame_time_ms?,region?` | `kind` 为 `visual`／`audio`／`av`；区间在该观测实际覆盖内；视觉区域为源帧 `box{x0,y0,x1,y1}`，需要 `frame_time_ms` 且该时刻在引用区间内 |
 | `VideoAnswer` | `object_id,claims:[{text,evidence:EvidenceRef[]}],unanswered:string[]` | 每条 `claim` 证据非空；无可证实事实时 `claims=[]` 且 `unanswered` 非空；不得引用其他对象或源版本 |
 | `ConnectionInput` 扩展 | `media_adapter?: "qwen-omni"` | 只在 `provider="openai-compatible"` 且 `model="qwen3.8-omni-flash"` 时允许；`vision=true` 仍独立保留 |
-| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | 放在工具结果对应的 Chat Completions 消息 `content` 中；每次出站只展开最新观测，且顶层含 `modalities:["text"]`、`reasoning_effort:"low"` |
+| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | `tool` 消息只留观测标识；紧随其后注入本次出站的 `user` 媒体消息，包含观测 id、说明文字和 `video_url`；每次出站只展开新观测，且顶层含 `modalities:["text"]`、`reasoning_effort:"low"`；媒体消息不写入 Pi 会话 |
 
 `actual_interval` 根据输出片段中首末有效视频／音频 PTS 计算；编码时以 `actual_interval.start_ms` 为零点。允许首尾因帧／音频采样边界缩短，但不得包含请求外内容：起点偏移不大于一帧周期或 100 ms（取较大者），终点偏移不大于 100 ms。若达不到容差，拒绝生成而非报告虚假的精确时间。`X-Glaux-Clip` 头只含上述短元数据，不含 Base64。
 
@@ -150,7 +151,7 @@ stateDiagram-v2
     failed --> waiting: 重试或下一问题
 ```
 
-每轮观测只绑定提问时的视频对象与源指纹。切换当前 Focus 不重绑定旧引用。回答及观测元数据通过 `glaux.video.observation`、`glaux.video.answer` 两类 Pi custom entry 保存；会话 `snapshot` 增加 `video_answers`，按 `command_id` 关联消息。恢复时不恢复 Base64，用户点击证据时从源文件重新生成片段；源缺失或指纹变化时进入“不可回放”状态。
+每轮观测只绑定提问时的视频对象与源指纹。切换当前 Focus 不重绑定旧引用。回答及观测元数据通过 `glaux.video.observation`、`glaux.video.answer` 两类 Pi custom entry 保存；会话 `snapshot` 增加 `video_observations` 与 `video_answers`，按 `observation_id`、`command_id` 关联。恢复时不恢复 Base64，用户点击证据时附源指纹从源文件重新生成片段；源缺失或指纹变化时进入“不可回放”状态。
 
 ## 12. 审计或事件规则
 

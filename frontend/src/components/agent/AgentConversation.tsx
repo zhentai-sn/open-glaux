@@ -23,6 +23,7 @@ import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
 import { OwlLogo } from "../OwlLogo";
+import { VideoEvidenceCard } from "./VideoEvidenceCard";
 
 const PERMISSION_MODES: PermissionMode[] = [
   "observe",
@@ -126,6 +127,7 @@ export function AgentConversation() {
     (state) => state.setPermissionMode,
   );
   const connection = useSession((state) => state.connection);
+  const videoFocused = useSession((state) => state.focus?.kind === "video");
   const setPreview = useSession((state) => state.setImagePreview);
   const { send, regenerate, abort } = useConversation();
   const [configOpen, setConfigOpen] = useState(false);
@@ -280,6 +282,12 @@ export function AgentConversation() {
         </div>
       )}
 
+      {!CHAT_EDITION && videoFocused && connection.mediaAdapter !== "qwen-omni" && (
+        <div className="agent-error" role="status">
+          {t("agent_video_unsupported")}
+        </div>
+      )}
+
       <div className="stream conversation-stream" ref={streamRef}>
         {!messages.length && !loading && (
           <div className="agent-empty">
@@ -401,6 +409,12 @@ export function AgentConversation() {
             </div>
           );
         })}
+        {!CHAT_EDITION && view?.video_answers?.map((record) => (
+          <div className="turn assistant tool" key={`video-answer-${record.command_id}`}>
+            <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
+            <VideoEvidenceCard record={record} observations={view.video_observations ?? []} />
+          </div>
+        ))}
       </div>
 
       {archived && (

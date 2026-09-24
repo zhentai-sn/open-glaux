@@ -26,6 +26,7 @@ export interface Connection {
   baseUrl: string; // "" → 用 provider 默认
   apiKey: string; // 仅本机 localStorage；发请求随 body 传后端
   model: string; // 选定模型 id
+  mediaAdapter?: "none" | "qwen-omni"; // 显式原生音画适配器（SDD 11）
   contextWindow: number | null; // 自定义模型必填；缺省用探测值/默认值预填（SDD 00 §4）
   maxTokens: number | null; // 同上；Pi 内置目录已知模型可为空
   models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
@@ -41,6 +42,7 @@ const CONNECTION_DEFAULTS: Connection = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  mediaAdapter: "none",
   contextWindow: DEFAULT_CONTEXT_WINDOW,
   maxTokens: DEFAULT_MAX_TOKENS,
 };

@@ -58,7 +58,7 @@ interface AgentSessionsState {
     connection: ConnectionInput,
     viewer?: ViewerContext,
   ) => Promise<void>;
-  regenerate: (connection: ConnectionInput) => Promise<void>;
+  regenerate: (connection: ConnectionInput, viewer?: ViewerContext) => Promise<void>;
   abort: () => Promise<void>;
   setDrawerOpen: (open: boolean) => void;
   setSearch: (search: string) => void;
@@ -86,6 +86,11 @@ export function createAgentSessionsStore(
         onSnapshot: (snapshot) => store.getState().applySnapshot(snapshot),
         onPiEvent: ({ session_id, event }) =>
           store.getState().applyPiEvent(session_id, event),
+        onVideoAnswer: ({ session_id }) => {
+          void runtime.getSession(session_id)
+            .then((snapshot) => store.getState().applySnapshot(snapshot))
+            .catch(() => undefined);
+        },
         onAdapterError: (error) => {
           store.setState({
             error: {
@@ -283,7 +288,7 @@ export function createAgentSessionsStore(
         }
       },
 
-      regenerate: async (connection) => {
+      regenerate: async (connection, viewer) => {
         const sessionId = get().currentSessionId;
         if (!sessionId) return;
         get().applySnapshot(
@@ -291,6 +296,7 @@ export function createAgentSessionsStore(
             command_id: crypto.randomUUID(),
             type: "regenerate",
             connection,
+            ...(viewer ? { viewer } : {}),
           }),
         );
       },

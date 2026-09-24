@@ -243,7 +243,8 @@ function parseCommand(value: unknown): TransportCommand {
       400,
     );
   }
-  return { command_id: body.command_id, type: "regenerate", connection };
+  const viewer = parseViewer(body.viewer);
+  return { command_id: body.command_id, type: "regenerate", connection, ...(viewer ? { viewer } : {}) };
 }
 
 /**
@@ -305,6 +306,9 @@ function parseConnection(value: unknown) {
       400,
     );
   }
+  if (connection.media_adapter !== undefined && connection.media_adapter !== "qwen-omni") {
+    throw new RuntimeError("invalid_request", "Unknown media adapter.", 400);
+  }
   return {
     provider: connection.provider,
     model: connection.model,
@@ -323,6 +327,9 @@ function parseConnection(value: unknown) {
     // 必须透传：丢掉它模型就按纯文本模型构造，pi-ai 会把用户消息里的图静默换成占位符。
     ...(typeof connection.vision === "boolean"
       ? { vision: connection.vision }
+      : {}),
+    ...(connection.media_adapter === "qwen-omni"
+      ? { media_adapter: "qwen-omni" as const }
       : {}),
   };
 }

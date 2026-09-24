@@ -164,7 +164,7 @@ sequenceDiagram
 `toObjectCoords` 转成对象像素；`frame.index` 随标注写库。越界裁回图内，退化框丢弃。
 
 工具由 [`harness-registry.ts`](../../../../agent-runtime/src/pi/harness-registry.ts) 的
-`TOOL_PROVIDERS` 登记能力、焦点支持、创建函数与提示片段；`observe` 和 chat 发行包返回空工具集。
+`TOOL_PROVIDERS` 登记能力、焦点支持、创建函数与提示片段；chat 发行包返回空工具集。`observe` 对本 SDD 的图像标注工具仍返回空集；SDD 11 的只读视频观察与证据提交可在 `observe` 下挂载。
 `run_task` 保留为命中任务注册表能力时的调用路径。需要图像字节的工具统一调用
 `fetchObservation(base, focus)`，不各自读取 `/image/{id}`；分割供应商实现 `SegmenterPort.segment`。
 前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool_execution_end`）和
@@ -394,7 +394,7 @@ trace_id；不记录图像内容与 API key。
 - [ ] 分割 endpoint 配置为私网地址且未显式放行时，出站守卫拒绝并返回
       `EGRESS_BLOCKED`（fake-ip 段 `198.18.0.0/15` 默认放行，见 `agent-runtime/src/security/net-guard.ts`）。
 - [ ] 非视觉连接下 `locate_roi` 不出现在工具集。
-- [ ] `observe` 模式下三个标注工具均不可被调用，agent 回复中不出现工具调用。
+- [ ] `observe` 模式下三个标注工具均不可被调用；仅 SDD 11 的只读视频工具可以产生工具调用。
 - [ ] `suggest` 模式下 `segment_region` 触发逐次批准，用户拒绝后本次调用终止且无标注产出。
 - [ ] 建议态标注创建时**不触发** `on_commit`；确认那一刻触发一次，普通编辑不重复触发。
 - [ ] 用户驳回建议后该标注从视口消失（库中留 `rejected` 可查），agent 无法再引用/修改它。

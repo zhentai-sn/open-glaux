@@ -24,6 +24,7 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | `GET /models` `GET /capabilities` | 注册表 | 插件市场 / 能力清单 |
 | `GET/POST /datasources` `DELETE /datasources/{id}` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源 |
 | `POST /uploads/images` | `routers/uploads.py` | 浏览器上传（SDD 08）；模态由 `SOURCES[*].formats` 推断：图像 → `natural_image`，mp4 / webm → `video` |
+| `GET /objects/{id}/clip` `…/frame-at` | `dataset_video.py`、`video_clip.py` | SDD 11 原声音画短片段、PTS 时间映射与关键帧证据；仅视频对象可用 |
 | `/annotations` `/annotations/{id}` `/annotations/{id}/mask` | `routers/annotations.py` | 统一标注（SDD 04） |
 | `/atlas/*`（`exemplars`、`collections`、`tags`、`imports/*`） | `routers/atlas.py` | 图谱：案例库与文献导入（SDD 03） |
 | ~~`/interpret` `/intent/*`~~ | 已退役——NL 由 agent-runtime 处理 | 见[退役设计](../docs/designs/2026-08-16-001-retire-orchestration.zh-CN.md) |

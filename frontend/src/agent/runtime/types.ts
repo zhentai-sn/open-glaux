@@ -19,12 +19,14 @@ export interface SessionView {
   model: string | null;
   phase: SessionPhase;
   messages: unknown[];
+  video_answers?: VideoAnswerRecord[];
+  video_observations?: ClipObservation[];
   context_usage: ContextUsage | null;
   created_at: string;
   updated_at: string;
 }
 
-export type SessionListItem = Omit<SessionView, "messages">;
+export type SessionListItem = Omit<SessionView, "messages" | "video_answers" | "video_observations">;
 
 export interface ConnectionInput {
   provider: "anthropic" | "openai-compatible";
@@ -38,7 +40,34 @@ export interface ConnectionInput {
    * 会把用户消息里的图静默换成"(image omitted)"文本占位，不报错——表现为"读不懂图"。
    */
   vision?: boolean;
+  media_adapter?: "qwen-omni";
 }
+
+export interface VideoInterval { start_ms: number; end_ms: number }
+export interface ClipObservation {
+  observation_id: string;
+  object_id: string;
+  source_sha256: string;
+  requested_interval: VideoInterval;
+  actual_interval: VideoInterval;
+  mime: "video/mp4";
+  clip_sha256: string;
+  encoding: Record<string, unknown>;
+  fps: 0.5 | 2 | 5;
+}
+export interface EvidenceRef {
+  observation_id: string;
+  kind: "visual" | "audio" | "av";
+  source_interval: VideoInterval;
+  frame_time_ms?: number;
+  region?: { kind: "box"; x0: number; y0: number; x1: number; y1: number };
+}
+export interface VideoAnswer {
+  object_id: string;
+  claims: { text: string; evidence: EvidenceRef[] }[];
+  unanswered: string[];
+}
+export interface VideoAnswerRecord { command_id: string; answer: VideoAnswer }
 
 // --- 连接探测（/agent-api/v1/connection/*）——镜像 agent-runtime connection-probe -----------
 
@@ -131,6 +160,7 @@ export type TransportCommand =
       command_id: string;
       type: "regenerate";
       connection: ConnectionInput;
+      viewer?: ViewerContext;
     }
   | {
       command_id: string;
@@ -139,6 +169,7 @@ export type TransportCommand =
 
 export type TransportEvent =
   | { event: "snapshot"; data: SessionView }
+  | { event: "video.answer"; data: { session_id: string; command_id: string; answer: VideoAnswer } }
   | {
       event: "pi.event";
       data: {

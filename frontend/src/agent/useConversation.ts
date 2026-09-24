@@ -53,6 +53,7 @@ export function toProbeInput(connection: Connection): ConnectionProbeInput {
  */
 function visionFor(connection: Connection, hasImages: boolean): boolean {
   if (hasImages) return true;
+  if (connection.mediaAdapter === "qwen-omni") return true;
   return (
     connection.models?.find((model) => model.id === connection.model)?.vision ===
     "yes"
@@ -70,6 +71,7 @@ export function toConnectionInput(
         ? "openai-compatible"
         : "anthropic",
     model: connection.model,
+    ...(connection.mediaAdapter === "qwen-omni" ? { media_adapter: "qwen-omni" as const } : {}),
     ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
     ...(connection.contextWindow
       ? { context_window: connection.contextWindow }
@@ -94,7 +96,7 @@ export function useConversation() {
         CHAT_EDITION ? undefined : toViewerContext(),
       ),
     // 重新生成会连原图一起重发（runtime 侧 regenerateLatest），所以视觉能力必须一并带上。
-    regenerate: () => regenerate(toConnectionInput(connection, true)),
+    regenerate: () => regenerate(toConnectionInput(connection, true), CHAT_EDITION ? undefined : toViewerContext()),
     abort,
   };
 }

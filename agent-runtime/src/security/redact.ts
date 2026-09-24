@@ -2,11 +2,13 @@ const SENSITIVE_KEY = /credential|api[_-]?key|authorization|cookie|bearer|token/
 const BEARER_TEXT = /(bearer\s+)[^\s,;]+/gi;
 const KEY_VALUE_TEXT =
   /((?:credential|api[_-]?key|authorization|cookie)\s*[:=]\s*)[^\s,;]+/gi;
+const MEDIA_DATA_URI = /data:[^,\s]*;base64,[A-Za-z0-9+/=]+/gi;
 
 export const REDACTED = "[REDACTED]";
 
 export function redactText(value: string): string {
   return value
+    .replace(MEDIA_DATA_URI, "data:;base64,[REDACTED]")
     .replace(BEARER_TEXT, `$1${REDACTED}`)
     .replace(KEY_VALUE_TEXT, `$1${REDACTED}`);
 }

@@ -153,7 +153,7 @@ open-glaux/
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
 
-工具由 `pi/harness-registry.ts` 的 `TOOL_PROVIDERS` 装配；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式或 `observe` 权限下一律不挂载：
+工具由 `pi/harness-registry.ts` 的 `TOOL_PROVIDERS` 装配；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式不挂领域工具；`observe` 权限仅可挂 SDD 11 的只读音画观察与证据提交工具：
 
 | 工具 | 作用 | 额外挂载条件 |
 | --- | --- | --- |
@@ -163,6 +163,7 @@ open-glaux/
 | `locate_roi` | 按描述定位对象像素矩形区域，可带图谱先验 | 有焦点且连接支持视觉 |
 | `segment_region` | 调外部分割后端取 mask，runtime 侧转对象像素多边形 | 有焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且 `GLAUX_SEG_API_TOKEN` 非空 |
 | `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认 | 有焦点 |
+| `observe_video_interval` / `submit_video_answer` | Qwen 原生音画区间观察、结构化证据校验与会话记录（SDD 11） | 当前焦点为视频、连接显式选择 `qwen-omni`；`observe` 权限也可挂载 |
 
 ### `backend/` — FastAPI 薄壳
 
@@ -174,7 +175,8 @@ open-glaux/
 | 路由 | 六组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
 | 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404 |
 | 动作轴 | `detectors/`：`Detector` 协议与 `DETECTORS` 表（键 `TaskPlugin.adapter_kind`：`wall_pair` / `contour` / `volume` / `wsi`），各实现只取数与调模型；`kernel.run_task` 持有公共前缀（解析对象 → `object_kinds` 门控 → `available()` → 选区类型 → 标定）与信封组装 |
-| 表征面 | `routers/objects.py`：`GET /objects/{id}`、`/frame`（带 `X-Glaux-Frame` 参考帧头）、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`；任务结果字节面保留 `/volume/{id}/labelmap` 与 `/wsi/{id}/verify`（SDD 10 §5.3） |
+| 表征面 | `routers/objects.py`：SDD 10 的对象、取帧、原始数据、瓦片与编辑；SDD 11 增加 `/clip` 原声短片段和 `/frame-at` 原视频时间关键帧；任务结果字节面保留 `/volume/{id}/labelmap` 与 `/wsi/{id}/verify` |
+| 视频片段 | `dataset_video.py` 从源 PTS 给出时长和按时取帧；`video_clip.py` 生成有界 H.264/AAC MP4 与源指纹映射；上传视频独立限制 512 MiB、10 分钟（SDD 11） |
 | 数据轴 | `sources/`：`Source` 协议、`SourceBase` 与 `SOURCES` 表（键 modality，SDD 10）。每个模态的 `Source` 写在对应数据模块末尾：`dataset.py`（颈动脉）、`hc_dataset.py`、`dataset_ct.py`、`dataset_wsi.py`、`dataset_natural.py`、`dataset_video.py`（PyAV 可选依赖，缺库时 video 不可用） |
 | 分割 | 全部走隔离子进程（`segment_proc.py` / `segment_ts.py` / `segment_wsi.py`） |
 | 图谱（Atlas） | `app/atlas/`：LanceDB 案例表（JSON 列 + ngram FTS）与 sha256 寻址图像目录（`GLAUX_ATLAS_ROOT`，默认 `~/glaux_atlas`）；PyMuPDF / httpx+bs4 抽图；`python -m app.atlas.cli import-dataset` 批量导入 COCO/YOLO/LabelMe |
