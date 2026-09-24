@@ -22,7 +22,7 @@ status: implemented
 本 SDD 冻结四件事：
 
 1. Explorer 的空态与导入入口（打开服务端文件夹 / 浏览器上传 / 加载示例数据 / 最近使用）。
-2. 新的浏览器图像上传接口 `POST /uploads/images` 及其安全边界。
+2. 浏览器上传接口 `POST /uploads/images`、格式清单接口 `GET /uploads/formats` 及其安全边界。
 3. 模态切换器的可见性来源由 `/tasks` 改为 `/datasources`；标签来源同为 `/datasources`（SDD 10 D-22）。
 4. `GLAUX_DEV_MODE` 缺省值由 `1` 翻为 `0`，示例数据改为显式加载。
 
@@ -52,7 +52,7 @@ status: implemented
 
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
-| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `/datasources[].importable` 并集内（当前为 JPEG / PNG / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
+| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `GET /uploads/formats` 返回的受理表内（当前为 JPEG / PNG / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
 | 打开服务端文件夹 | 服务端路径 + 模态 | 路径须在 `GLAUX_DATASETS_ROOT`（缺省 `~/glaux_datasets`）下；模态候选为 `/tasks` 中 `object_kinds` 含 `volume` 或 `slide` 的任务所属模态（当前为 `pathology` / `ct_abdomen`），前端不硬编码列表 |
 | 加载示例数据 | 无 | 仅注册 `config` 内置根中**确实有数据**的模态 |
 | 最近使用 | 无 | 从浏览器本地记录读取 |
@@ -148,7 +148,7 @@ status: implemented
 - 无活动数据源 → Explorer 渲染空态卡（标题 + 三个入口），不渲染任何目录树。
 - 有活动数据源 → 渲染「最近使用」区（非空时）+ 目录树，Explorer 头部常驻「＋ 导入」按钮。目录树为「对象」目录（列出当前模态对象的 `display_name`，为空时取 `id`）与「方法」目录（列出焦点对象的 `methods[]`，按 `role` 标 `gold` / `agent`）；头部工作区名取焦点对象所属数据源的 `name`，无焦点时取模态标签。
 - 模态切换器只渲染有活动数据源的模态；标签按 `/datasources` 元素的 `label_key`（i18n 键 `modality.<m>`）→ `label` → modality 原文取值（SDD 10 D-22），`natural_image` 显示为「通用图像 / General images」。
-- 上传控件的 `accept` 与前端预筛取 `/datasources[].importable` 的并集；尚无数据源时并集为空，前端只校验大小，类型交后端判定。
+- `GET /uploads/formats` 返回 `{"extensions": string[]}`，由服务端 `SOURCES[*].formats` 汇总完整受理后缀，不依赖当前已注册数据源。上传控件的 `accept` 与前端预筛使用该清单；清单暂不可用时只预筛大小，类型交后端判定。
 
 ### 5.5 模态切换器的窄列排版（决策 D-9）
 
@@ -277,7 +277,7 @@ sequenceDiagram
 | `backend/app/schemas.py` | 新增 `UploadResult` / `UploadAccepted` / `UploadRejected` | 修改 |
 | `backend/app/config.py` | 新增上传上限环境变量 | 修改 |
 | `frontend/src/components/SideBar.tsx` | `ModalitySwitch` 的可见性与标签均由数据源驱动；Explorer 空态、拖拽区、最近使用、「对象」/「方法」目录、头部「＋ 导入」 | 修改 |
-| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 文件夹路径 / 加载示例）；`accept` 与预筛取 `importable` 并集，文件夹导入模态取自 `/tasks` 的 `object_kinds` | 新增 |
+| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 文件夹路径 / 加载示例）；`accept` 与预筛取 `/uploads/formats`，文件夹导入模态取自 `/tasks` 的 `object_kinds` | 新增 |
 | `frontend/src/data/actions.ts` | `uploadImages` / `loadSamples` / `refreshDataSources` / `prunedRecent`；上传后经 `loadObjects(modality, {open})` 打开首个受理对象 | 修改 |
 | `frontend/src/data/recent.ts` | 最近使用的读写、v1 → v2 迁移、置顶与剔除 | 新增 |
 | `frontend/src/store/session.ts` | `recentItems` 状态与 setter | 修改 |

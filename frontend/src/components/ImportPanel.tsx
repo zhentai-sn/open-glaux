@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { api } from "../api/client";
 import type { Modality, UploadRejectReason, UploadResult } from "../api/types";
 import { importDataSource, loadSamples, uploadImages } from "../data/actions";
 import { useI18n, type I18nKey } from "../i18n";
@@ -9,7 +10,7 @@ import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 
 // 统一导入面板（SDD 08 §5.4 / §6）——三个入口收在一处：
-// 拖拽/选择本地图片上传 · 打开服务端文件夹（医学）· 加载示例数据。
+// 拖拽/选择本地图像或视频上传 · 打开服务端文件夹（医学）· 加载示例数据。
 // 曾经只有「服务端文件夹路径」一个入口，还埋在插件市场里：那是给开发者用的，
 // 普通用户既没有那个目录概念，也没有把文件放进去的手段。
 
@@ -26,8 +27,8 @@ const REJECT_KEY: Record<UploadRejectReason, I18nKey> = {
 };
 
 /** 前端预筛：后缀/大小不合格的直接本地拒，不发请求（后端仍是权威）。
- *  可受理后缀取自 `/datasources` 的 `importable`（SDD 10 §4.1，受理表唯一来源在后端）；
- *  尚无任何数据源时不知道受理表，只按大小预筛、类型交给后端判定。 */
+ *  可受理后缀取自 `/uploads/formats`，含尚无已注册数据源的模态；
+ *  清单请求失败时只按大小预筛，类型交给后端判定。 */
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 
@@ -62,13 +63,18 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
   // 服务端文件夹导入（医学）
   const [folderOpen, setFolderOpen] = useState(false);
   const [path, setPath] = useState("");
-  const datasources = useSession((s) => s.datasources);
   const tasks = useSession((s) => s.tasks);
   const label = useModalityLabel();
-  const importable = useMemo(
-    () => new Set(datasources.flatMap((d) => d.importable.map((x) => x.toLowerCase()))),
-    [datasources],
-  );
+  const [importable, setImportable] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    let active = true;
+    void api.uploadFormats()
+      .then(({ extensions }) => {
+        if (active) setImportable(new Set(extensions.map((ext) => ext.toLowerCase())));
+      })
+      .catch(() => {}); // 清单不可用时由上传接口校验类型
+    return () => { active = false; };
+  }, []);
   const folderModalities = useMemo(
     () => [...new Set(tasks.filter((tk) => tk.object_kinds.some((k) => FOLDER_KINDS.has(k))).map((tk) => tk.modality))],
     [tasks],

@@ -136,8 +136,10 @@ export const api = {
     post<DataSource>("/datasources", { path, modality, calibration: calibration ?? null }),
   /** SDD 08：显式加载仓库自带的示例数据源。幂等；无示例时返回空数组而非报错。 */
   loadSamples: () => post<DataSource[]>("/datasources/samples", {}),
+  /** 上传受理后缀，覆盖尚无已注册数据源的模态。 */
+  uploadFormats: () => get<{ extensions: string[] }>("/uploads/formats"),
   /**
-   * SDD 08：浏览器上传一批 JPEG/PNG 为通用图像数据源。
+   * SDD 08/11：浏览器上传一批图片或视频，服务端按格式决定数据源模态。
    * 不手写 Content-Type——multipart 的 boundary 必须由浏览器生成，写死会让后端解析不出分段。
    */
   uploadImages: (files: File[], name?: string) => {

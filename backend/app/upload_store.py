@@ -1,4 +1,4 @@
-"""上传图像的落盘规则与 ID 派生（SDD 08 §7 规则 5–7、§9.2/§9.3）。
+"""上传文件的落盘规则与 ID 派生（SDD 08 §7 规则 5–7、§9.2/§9.3）。
 
 纯 stdlib + config，不 import FastAPI——HTTP 层只负责取字节与拼响应，**校验与命名规则住在这里**，
 可独立测。
@@ -31,6 +31,11 @@ def _formats() -> dict[str, tuple[bytes, int, str]]:
         for ext, magic, offset in src.formats:
             out.setdefault(ext.lower(), (magic, offset, modality))
     return out
+
+
+def accepted_extensions() -> list[str]:
+    """浏览器上传受理后缀；含尚无数据源的模态。"""
+    return list(_formats())
 
 
 def magic_prefix_len() -> int:

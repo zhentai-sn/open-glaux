@@ -29,6 +29,12 @@ def _default_name() -> str:
     return "上传 · " + _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+@router.get("/formats")
+def upload_formats() -> dict[str, list[str]]:
+    """返回完整上传受理表，供首次导入时的文件选择器使用。"""
+    return {"extensions": upload_store.accepted_extensions()}
+
+
 @router.post("/images", response_model=UploadResult)
 async def upload_images(
     files: list[UploadFile] = File(...),
