@@ -122,7 +122,8 @@ export function applyToolExecutionEvent(event: unknown): boolean {
     const annotation = asProposedAnnotation(e.result?.details);
     if (!annotation || focusedId() !== annotation.image_id) return false;
     const session = useSession.getState();
-    if (session.focus?.kind === "video" && annotation.index?.t !== session.focus.index.t) return false;
+    const focusedFrame = session.focus?.index.t;
+    if (focusedFrame != null && annotation.index?.t !== focusedFrame) return false;
     const existing = session.annotations.find((item) => item.id === annotation.id);
     // SSE 重复送达不得把已经确认/驳回、seq 更高的状态退回 suggested。
     if (!existing || existing.seq < annotation.seq) session.upsertAnnotation(annotation);
