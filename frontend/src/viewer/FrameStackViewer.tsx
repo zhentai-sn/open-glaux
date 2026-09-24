@@ -88,7 +88,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
   const visibleAnnotations = useMemo(() => annotations.filter((annotation) => {
     if (annotation.image_id !== objectId) return false;
     if (axis.kind === "none") return true;
-    const at = annotation.index?.[axis.kind] ?? (axis.kind === "z" ? annotation.z : undefined);
+    const at = annotation.index?.[axis.kind];
     return at === currentIndex;
   }), [annotations, objectId, axis.kind, currentIndex]);
   const wallEditing = tool === "wall"; // 手柄只在壁线编辑态画（能力位由注册表限定为 IMT）

@@ -26,7 +26,6 @@ function makeTask(modality: TaskView["modality"], capabilities: string[]): TaskV
     modality,
     label: { en: "T", zh: "T" },
     default_method: "m",
-    viewer: modality === "pathology" ? "wsi" : modality === "ct_abdomen" ? "volume_3d" : "raster_2d",
     metrics: [],
     tools: UNIFIED_TOOLS,
     overlays: [],

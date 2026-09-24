@@ -60,7 +60,6 @@ class WallPairDetector(DetectorBase):
         det = Detection(
             primitives=(_polyline("LI", li), _polyline("MA", ma)),
             model_version=mv,
-            roi_used=roi,
             region=spec.region.model_dump(exclude_none=True) if spec.region else None,
         )
         return det, calibration_result(spec.calibration)

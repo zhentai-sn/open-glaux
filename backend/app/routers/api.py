@@ -8,7 +8,7 @@
 - /images       → ``SOURCES[modality]`` 列出全部 active 源的对象（ObjectMeta）
 - /image        → ``resolve_object`` → ``Source.frame``（缺省索引的一帧）
 - /models       → 真实方法注册表（caroSegDeep + 参考方法 + HC）
-- /volume/*、/wsi/* → CT / 病理查看器数据面（labelmap、mask-edit、tile、verify）
+- /volume/*、/wsi/* → CT / 病理任务结果面（labelmap、verify）
 只保留前端或 agent-runtime 实际调用的端点；孤儿端点已于 2026-08-16 清理。
 """
 
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 
@@ -26,9 +25,6 @@ from ..schemas import (
     Capability,
     DatasourceImportRequest,
     DataSourceInfo,
-    EditOp,
-    EditRequest,
-    ImageMeta,
     Index,
     Modality,
     ModelInfo,
@@ -150,28 +146,6 @@ def _objects_of(modality: str) -> list[ObjectMeta]:
     return out
 
 
-@router.get("/volumes", response_model=list[ImageMeta], tags=["dataset"])
-def volumes() -> list[ImageMeta]:
-    """P6：CT 体积列表——与 /images?modality=ct_abdomen 同源（alias，W7 删）。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    return _objects_of("ct_abdomen")
-
-
-@router.get("/volume/{volume_id}", tags=["dataset"])
-def volume_stream(volume_id: str) -> Response:
-    """CT 原始 NIfTI 字节——``GET /objects/{id}/raw`` 的 alias（字节等价，W7 删）。"""
-    ref, _ = objects.resolve(volume_id)
-    if ref.kind != "volume":  # 白名单守卫——防错模态（id 不参与路径拼接）
-        raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    data, _mime = objects.raw_bytes(volume_id)
-    return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={"X-Glaux-Volume-Id": volume_id, "Content-Length": str(len(data))},
-    )
-
-
 @router.get("/volume/{volume_id}/labelmap", tags=["dataset"])
 def volume_labelmap(
     volume_id: str, task: str = "totalseg_liver_kidney", method: str = "totalsegmentator_v2"
@@ -205,69 +179,11 @@ def volume_labelmap(
 # /volume/{id}/raw 与 /volume/{id}/segment 已删（2026-08-16，前端从未调用；分割统一走 /task/run）。
 
 
-# --- P6 U4：画笔编辑（alias → POST /objects/{id}/edits，W7 删） -----------------------
-
-from pydantic import BaseModel, Field  # noqa: E402  (local import; pydantic 已在 schemas 顶部)
-
-
-class VolumeMaskEditSliceIn(BaseModel):
-    z: int = Field(ge=0, description="z 索引（0..Z-1）")
-    class_id: int = Field(description="画/擦哪个器官类（须在 VolumeMask.classes 内）")
-    mode: Literal["paint", "erase"] = "paint"
-    # base64 PNG 二值掩膜（与 z 切片同尺寸）
-    mask_png_ref: str = Field(description="data:image/png;base64,...")
-
-
-class VolumeMaskEditRequest(BaseModel):
-    task: str = "totalseg_liver_kidney"
-    slices: list[VolumeMaskEditSliceIn] = Field(default_factory=list)
-    method: str = "totalsegmentator_v2"
-    # 乐观并发：客户端上次见到的编辑序号；落后于服务端 → 409（被他人超越）。
-    # None = 不校验（向后兼容单笔编辑），仍在后端锁内串行化。
-    base_seq: int | None = None
-
-
-@router.post("/volume/{volume_id}/mask-edit", tags=["dataset"])
-def volume_mask_edit(volume_id: str, req: VolumeMaskEditRequest) -> dict:
-    """画笔编辑回流——``POST /objects/{id}/edits`` 的 alias（同一实现，W7 删）。"""
-    if not KERNEL_OK:
-        raise HTTPException(503, "CT 模态需 science-core（未装配）")
-    ref, _ = objects.resolve(volume_id)
-    if ref.kind != "volume":
-        raise HTTPException(404, f"非 CT volume id：{volume_id}")
-    ops = [
-        EditOp(index=Index(z=s.z), class_id=s.class_id, mode=s.mode, mask_png=s.mask_png_ref)
-        for s in req.slices
-    ]
-    # 旧契约的 base_seq 可为 None（不做乐观并发校验），故绕过 EditRequest 的必填校验构造
-    edit = EditRequest.model_construct(
-        task=req.task, method=req.method, base_seq=req.base_seq, ops=ops
-    )
-    return objects.apply_edit(volume_id, edit)
-
-
 # /volume/{id}/verify（P6 复现 Dice）已删（2026-08-16，前端从未接线）；Dice 逻辑仍在
 # glaux_core.verification.dice，参考数据 data/ct/{vid}_ref.nii.gz 保留，需要时补一条路由即可。
 
 
 # --- P7：病理 WSI 瓦片服务（OpenSlide + DeepZoom；数据 IO，无 science-core 依赖）------
-
-
-@router.get("/slides", response_model=list[ImageMeta], tags=["dataset"])
-def slides() -> list[ImageMeta]:
-    """P7：WSI slide 列表——与 /images?modality=pathology 同源（alias，W7 删）。"""
-    _wsi_ready()
-    return _objects_of("pathology")
-
-
-@router.get("/wsi/{slide_id}/tile/{level}/{col}/{row}", tags=["dataset"])
-def wsi_tile(slide_id: str, level: int, col: int, row: int) -> Response:
-    """DeepZoom 瓦片 JPEG——``GET /objects/{id}/tiles/…`` 的 alias（字节等价，W7 删）。"""
-    _wsi_ready()
-    ref, _ = objects.resolve(slide_id)
-    if ref.kind != "slide":
-        raise HTTPException(404, f"非 WSI slide id：{slide_id}")
-    return Response(content=objects.tile_bytes(slide_id, level, col, row), media_type="image/jpeg")
 
 
 # /wsi/{id}/dzi、/thumbnail、/region 已删（2026-08-16，前端从未调用；

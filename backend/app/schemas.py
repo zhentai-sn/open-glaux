@@ -11,7 +11,7 @@ import logging
 from collections import Counter
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 log = logging.getLogger("glaux.legacy")
 
@@ -154,11 +154,7 @@ class MethodRef(BaseModel):
 
 
 class ObjectMeta(BaseModel):
-    """一个视觉对象的元数据——``GET /images?modality=`` 列表元素（SDD 10 §5.1）。
-
-    ``cf`` / ``voxel_spacing_mm`` / ``mpp_um`` / ``dims`` 为过渡字段，由 ``SourceBase`` 从
-    ``axes`` / ``calibration`` 单向回填（D-10），W7 删除。原顶层 ``center`` 已降入 ``meta.center``。
-    """
+    """一个视觉对象的元数据——``GET /images?modality=`` 列表元素（SDD 10 §5.1）。"""
 
     id: str
     kind: Literal["image", "volume", "slide", "video"]
@@ -171,11 +167,6 @@ class ObjectMeta(BaseModel):
     streams: list[Stream] = Field(default_factory=list)
     methods: list[MethodRef] = Field(default_factory=list)
     meta: dict = Field(default_factory=dict)
-    # 过渡一版（W7 删）
-    cf: float | None = None
-    voxel_spacing_mm: list[float] | None = None
-    mpp_um: list[float] | None = None
-    dims: list[int] | None = None
 
     def axis(self, name: str) -> Axis | None:
         return next((a for a in self.axes if a.name == name), None)
@@ -193,46 +184,22 @@ class ObjectMeta(BaseModel):
                 raise ValueError(f"{name}={value} 越界（合法范围 0..{ax.size - 1}）")
 
 
-ImageMeta = ObjectMeta  # 过渡别名一版（W7 删）
-
-
 # --- 任务与编辑输入（SDD 10 §4.3） --------------------------------------------
 
 
 class TaskSpec(BaseModel):
     """结构化任务规范——内核入口，字段明确可校验，无 NL 歧义。
 
-    ``image_id`` 字段名保留，语义为对象 id（D-8）。``cubs_cf`` / ``roi`` / ``roi_box`` 为过渡字段，
-    由 ``_legacy`` 单向映射为 ``calibration`` / ``region``（D-9：``roi_box`` 为 (x0, y0, x1, y1)），
-    命中时 warn 并计数，W7 删除。新字段已给出时对应旧字段整体忽略。
+    ``image_id`` 字段名保留，语义为对象 id（D-8）。
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     task: TaskType = "far_wall_cca_imt"
     image_id: str | None = None
     method: str | None = None
     calibration: Calibration | None = None
     region: Region | None = None
-    # 过渡一版（W7 删）
-    cubs_cf: float | None = Field(default=None, gt=0, description="标定系数 mm/px，须为正")
-    roi: tuple[int, int] | None = None  # 列窗 (x0, x1)
-    roi_box: tuple[int, int, int, int] | None = None  # 框选 (x0, y0, x1, y1) level-0 px
-
-    @model_validator(mode="after")
-    def _legacy(self):
-        if self.cubs_cf is not None and self.calibration is None:
-            LEGACY_HITS["cubs_cf"] += 1
-            log.warning("TaskSpec.cubs_cf 已过渡，映射为 calibration{mm_per_px}")
-            self.calibration = Calibration(kind="mm_per_px", value=self.cubs_cf, source="cubs_cf")
-        if self.region is None and self.roi_box is not None:
-            LEGACY_HITS["roi_box"] += 1
-            log.warning("TaskSpec.roi_box 已过渡，映射为 region{box}")
-            x0, y0, x1, y1 = self.roi_box
-            self.region = Region(kind="box", x0=x0, y0=y0, x1=x1, y1=y1)
-        elif self.region is None and self.roi is not None:
-            LEGACY_HITS["roi"] += 1
-            log.warning("TaskSpec.roi 已过渡，映射为 region{column_window}")
-            self.region = Region(kind="column_window", x0=self.roi[0], x1=self.roi[1])
-        return self
 
 
 class TaskMeasureRequest(BaseModel):

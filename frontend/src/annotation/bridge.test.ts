@@ -34,7 +34,6 @@ function makeAnn(id: string, seq = 1): Annotation {
   return {
     id,
     image_id: "img_1",
-    z: null,
     primitive: { kind: "bbox", x0: 1, y0: 2, x1: 10, y1: 20 },
     label: "",
     class_id: null,

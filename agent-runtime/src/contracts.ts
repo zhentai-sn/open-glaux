@@ -118,11 +118,6 @@ export interface ViewerContext {
   method?: string;
   object?: ObjectContext;
   focus?: Focus;
-  // W7 删除：parseViewer 只在 object/focus 缺失时映射
-  image_id?: string;
-  modality?: string;
-  cubs_cf?: number;
-  roi_box?: [number, number, number, number];
 }
 
 /**

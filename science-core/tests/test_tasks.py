@@ -61,9 +61,8 @@ def test_registry_covers_all_task_types():
     for task, plugin in REGISTRY.items():
         assert plugin.task is task
         # 只绑「非空」语义，不枚举取值：W2 后 adapter_kind 升级为「∈ DETECTORS 键集合」
-        # （SDD 10 规则 13）；viewer 不再被前端读取（SDD 10 D-11）。
+        # （SDD 10 规则 13）。
         assert isinstance(plugin.adapter_kind, str) and plugin.adapter_kind
-        assert isinstance(plugin.viewer, str) and plugin.viewer
         assert callable(plugin.measure)
 
 
@@ -132,7 +131,6 @@ def test_measure_hc_from_detection():
 def test_plugin_to_view_is_json_native_without_callable():
     view = plugin_to_view(REGISTRY[TaskType.FAR_WALL_CCA_IMT])
     assert view["task"] == "far_wall_cca_imt"
-    assert view["viewer"] == "raster_2d"
     assert view["adapter_kind"] == "wall_pair"
     assert view["modality"] == "carotid_imt"
     assert [m["key"] for m in view["metrics"]] == ["IMT_mean", "IMT_max", "IMT_pdm"]
@@ -147,10 +145,9 @@ def test_plugin_to_view_is_json_native_without_callable():
 
 
 def test_plugin_to_view_totalseg_liver_kidney():
-    """P6：CT 任务 plugin view 应含 volume_3d viewer + 6 个 metric keys + brush 工具 + 三色 overlay。"""
+    """P6：CT 任务 plugin view 应含 6 个 metric keys + brush 工具 + 三色 overlay。"""
     view = plugin_to_view(REGISTRY[TaskType.TOTALSEG_LIVER_KIDNEY])
     assert view["task"] == "totalseg_liver_kidney"
-    assert view["viewer"] == "volume_3d"
     assert view["adapter_kind"] == "volume"
     assert view["modality"] == "ct_abdomen"
     expected_keys = {
@@ -181,10 +178,9 @@ def test_liver_kidney_classes_constant():
 
 
 def test_plugin_to_view_nuclei_detection():
-    """P7：WSI 任务 plugin view 应含 wsi viewer + 计数/密度 metric + bbox/polygon 工具 + 单类 overlay。"""
+    """P7：WSI 任务 plugin view 应含 计数/密度 metric + bbox/polygon 工具 + 单类 overlay。"""
     view = plugin_to_view(REGISTRY[TaskType.NUCLEI_DETECTION])
     assert view["task"] == "nuclei_detection"
-    assert view["viewer"] == "wsi"
     assert view["adapter_kind"] == "wsi"
     assert view["modality"] == "pathology"
     assert {m["key"] for m in view["metrics"]} == {

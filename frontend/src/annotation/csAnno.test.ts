@@ -30,7 +30,6 @@ function srvAnn(primitive: AnnotationPrimitive): Annotation {
   return {
     id: "a1",
     image_id: "tech_401",
-    z: null,
     primitive,
     label: "",
     class_id: null,

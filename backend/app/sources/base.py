@@ -101,30 +101,6 @@ DEFAULT_CAPABILITIES: dict[str, tuple[str, ...]] = {
 }
 
 
-#: Calibration.kind → 过渡字段名。只做单向回填，不反推。
-_LEGACY_BY_CAL_KIND = {"mm_per_px": "cf", "voxel_mm": "voxel_spacing_mm", "mpp_um": "mpp_um"}
-
-
-def backfill_legacy(obj: ObjectMeta) -> ObjectMeta:
-    """从 axes / calibration 回填过渡字段；对同一对象重复回填结果不变（§10）。"""
-    update: dict = {
-        "cf": None,
-        "voxel_spacing_mm": None,
-        "mpp_um": None,
-        "dims": None,
-    }
-    cal = obj.calibration
-    field = _LEGACY_BY_CAL_KIND.get(cal.kind) if cal is not None else None
-    if field == "cf":
-        update["cf"] = float(cal.value)  # type: ignore[arg-type, union-attr]
-    elif field is not None:
-        update[field] = [float(v) for v in cal.value]  # type: ignore[union-attr]
-    # 旧 dims 只对 WSI 下发（level-0 宽高，OSD tileSource 用），其余几何族为 null。
-    if obj.kind == "slide":
-        update["dims"] = [obj.axis("x").size, obj.axis("y").size]  # type: ignore[union-attr]
-    return obj.model_copy(update=update)
-
-
 def _png(img: Image.Image) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -181,11 +157,11 @@ class SourceBase:
         return None
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
-        """子类给出 ``ObjectMeta`` 的长期字段；过渡字段由 :meth:`meta` 回填。"""
+        """子类给出 ``ObjectMeta`` 的元数据。"""
         raise NotImplementedError
 
     def meta(self, source: DataSource, object_id: str) -> ObjectMeta:
-        return backfill_legacy(self.describe(source, object_id))
+        return self.describe(source, object_id)
 
     def raw(self, source: DataSource, object_id: str) -> tuple[Path | bytes, str] | None:
         return None

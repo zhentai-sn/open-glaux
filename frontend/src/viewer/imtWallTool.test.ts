@@ -45,7 +45,6 @@ function task(): TaskView {
     modality: "carotid_imt",
     label: { en: "IMT", zh: "IMT" },
     default_method: "caroSegDeep",
-    viewer: "raster_2d",
     metrics: [],
     tools: [],
     overlays: [{ role: "LI", color: "#4FB0FF", editable: true }],

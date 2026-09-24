@@ -7,7 +7,7 @@ created: 2026-09-23
 
 > **用途**：[SDD 10「视觉对象与数据源收敛」](../sdd/feats/10-object-convergence/README.md)各波次的过程证据，包括基线、准出门禁结果、零改清单、手工走查签字、执行中发现的问题。契约以 SDD 10 为准，本记录不重述契约。
 > **上游**：[模态通用化技术债审计](2026-09-18-001-code-review-modality-generalization.zh-CN.md) §8 分波计划。
-> **状态**：`open`，按波次追加；W7 准出后改为 `closed`。
+> **状态**：`open`，W0～W7 代码证据已记录；最终统一验收签字后改为 `closed`。
 
 ## W0 · 安全网与契约冻结
 
@@ -463,3 +463,25 @@ W4 真实浏览器走查待维护者签字。自动化 smoke 只验接线，不�
 | agent 观测 | W5 `fetchObservation` 在 `t=10` 取 `/objects/{id}/frame?t=10`；`view_current_image` 告诉模型当前帧号，`propose_annotation` 将 `focus.index.t` 写入建议态并回显。对应 runtime 集成测试通过。 |
 
 门禁：版本矩阵 5/5；frontend 42 文件、245/245，lint 与 production build 绿；agent-runtime 32 文件、220/220，lint 与 build 绿；backend 334/334、ruff 绿；science-core 214/214；`check-modality-literals.sh --strict` 的 frontend/backend 比较命中均为 0；chat 两份定向测试通过，`docker/Dockerfile` 的 agent/web 两目标镜像构建通过。受限沙箱内 `uv` 缓存只读，backend 测试沿用正常本机执行方式。视频真实浏览器逐帧看图、绘制、刷新与 agent 交互尚未签字，W6 只记代码和自动化门禁完成；W4 未签项目同留最终统一验收。
+
+## W7 · 过渡物清除
+
+按 [W7 设计记录](../plans/2026-09-24-object-w7-transition-removal-design.md) 清除跨层过渡物：`ObjectMeta` 四个回填字段及 `SourceBase.backfill_legacy`、`ImageMeta` 别名、`TaskSpec` 旧输入、五组数据端点 alias、`ViewerContext` 四个旧字段与映射计数、`TaskPlugin.viewer`、`Detection.roi_used`、标注 API 的 `z` 别名。`TaskSpec`、标注、runtime 的旧输入分别返回 422、422、400；存储物理 `z` 列仍在。`Detection.region` 承接 IMT 列窗测量，算法内部的 `SegmentationResult.roi_used` 保留。
+
+`GET /image/{id}`、`GET /volume/{id}/labelmap`、`GET /wsi/{id}/verify` 仍可用。旧路径有 404 用例；CT 的 `VolumeMask.raw_ref` 同步从已退役的 `/api/volume/{id}/raw` 改到 `/api/objects/{id}/raw`，任务回归检查引用可取。前端删去旧 API helper、标注 `z` 回退和旧 TaskView 夹具；`make test` 前置运行 `check-modality-literals.sh --strict`。
+
+总门禁 `make test` 已通过：版本矩阵 5/5、agent-runtime 32 文件 208/208、frontend 42 文件 245/245、backend 324/324、science-core 213/213；后续新增的 `/objects/{id}/edits` 擦除重测定向用例与 CT `raw_ref` 定向回归 2/2 通过。runtime 测试以 `--maxWorkers=2` 运行，缓解已有的 20 会话压力用例在高并发下偶发超过 5 秒。`make lint`、frontend 与 runtime production build 均通过；严格字面量脚本三端比较命中均为 0。chat 发行包的 agent 与 web 镜像均构建通过。W4/W6 未签的真实浏览器项仍待最终统一验收；不据自动化结果代签。
+
+## 最终统一验收清单（待维护者走查）
+
+| 场景 | 验收动作与预期 | 状态 |
+| --- | --- | --- |
+| 超声底图与壁线 | 打开 `tech_401`，LI/MA 与底图对齐；拖壁线手柄后 IMT 指标更新 | 待签 |
+| 超声多边形 | 逐点绘制、圆点闭合并拖动顶点；刷新后点列与底图对齐，壁线不受影响 | 待签 |
+| 大图与画笔 | 导入边长超过 4096 px 的图，缩放后 bbox/画笔保存刷新仍对齐；模拟保存失败后可重试 | 待签 |
+| CT 逐层与方向 | 打开 CT 自动落在有器官的层；滚轮切 z 时标注只在所属层显示；底图与 labelmap 左右、上下对齐 | 待签（含 F-16） |
+| CT 工具与编辑 | VOI 预设/滑杆生效；画笔擦除后体积变化、冲突提示可见，切层重开仍一致 | 待签 |
+| 视频逐帧 | 导入视频后检查 `t` 轴与时间线；切到第 3 帧绘多边形、第 4 帧画笔，刷新后各帧只显示自己的标注 | 待签 |
+| 视频智能体 | 停在第 N 帧让智能体看当前画面并建议标注，内容对应第 N 帧，回显不泄漏到其他帧 | 待签 |
+
+WSI 的瓦片、核点与度量、ROI 对齐、框过小提示、多边形刷新和复现验证已由维护者在本记录 W4 表中签过；F-18 已关闭。W7 的旧端点与旧字段拒绝由自动化门禁覆盖，无额外浏览器动作。统一验收完成前，SDD 10 保持 `ready`，执行记录保持 `open`。

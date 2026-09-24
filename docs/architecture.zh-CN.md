@@ -174,8 +174,8 @@ open-glaux/
 | 路由 | 六组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
 | 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404 |
 | 动作轴 | `detectors/`：`Detector` 协议与 `DETECTORS` 表（键 `TaskPlugin.adapter_kind`：`wall_pair` / `contour` / `volume` / `wsi`），各实现只取数与调模型；`kernel.run_task` 持有公共前缀（解析对象 → `object_kinds` 门控 → `available()` → 选区类型 → 标定）与信封组装 |
-| 表征面 | `routers/objects.py`：`GET /objects/{id}`、`/frame`（带 `X-Glaux-Frame` 参考帧头）、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`；`/volume/*`、`/wsi/*/tile`、`/volumes`、`/slides` 是其 alias（SDD 10 §5.3，W7 删） |
-| 数据轴 | `sources/`：`Source` 协议、`SourceBase`（从 `axes` / `calibration` 回填过渡字段）与 `SOURCES` 表（键 modality，SDD 10）。每个模态的 `Source` 写在对应数据模块末尾：`dataset.py`（颈动脉）、`hc_dataset.py`、`dataset_ct.py`、`dataset_wsi.py`、`dataset_natural.py`、`dataset_video.py`（PyAV 可选依赖，缺库时 video 不可用） |
+| 表征面 | `routers/objects.py`：`GET /objects/{id}`、`/frame`（带 `X-Glaux-Frame` 参考帧头）、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`；任务结果字节面保留 `/volume/{id}/labelmap` 与 `/wsi/{id}/verify`（SDD 10 §5.3） |
+| 数据轴 | `sources/`：`Source` 协议、`SourceBase` 与 `SOURCES` 表（键 modality，SDD 10）。每个模态的 `Source` 写在对应数据模块末尾：`dataset.py`（颈动脉）、`hc_dataset.py`、`dataset_ct.py`、`dataset_wsi.py`、`dataset_natural.py`、`dataset_video.py`（PyAV 可选依赖，缺库时 video 不可用） |
 | 分割 | 全部走隔离子进程（`segment_proc.py` / `segment_ts.py` / `segment_wsi.py`） |
 | 图谱（Atlas） | `app/atlas/`：LanceDB 案例表（JSON 列 + ngram FTS）与 sha256 寻址图像目录（`GLAUX_ATLAS_ROOT`，默认 `~/glaux_atlas`）；PyMuPDF / httpx+bs4 抽图；`python -m app.atlas.cli import-dataset` 批量导入 COCO/YOLO/LabelMe |
 | 测试 | pytest + httpx |

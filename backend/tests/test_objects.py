@@ -1,4 +1,4 @@
-"""SDD 10 W2：动作轴与表征面——DETECTORS 不变量、run_task 公共前缀、/objects 端点族与 alias 等价。"""
+"""SDD 10：DETECTORS 不变量、run_task 公共前缀、/objects 端点与旧 alias 下线。"""
 
 from __future__ import annotations
 
@@ -125,17 +125,11 @@ def test_run_task_unknown_calibration_kind_is_422():
     assert r.status_code == 422
 
 
-def test_legacy_taskspec_fields_are_mapped_and_counted():
-    before = dict(schemas.LEGACY_HITS)
-    spec = schemas.TaskSpec(task="nuclei_detection", image_id="x", roi_box=(1, 2, 3, 4))
-    assert spec.region.model_dump(exclude_none=True) == {"kind": "box", "x0": 1, "y0": 2,
-                                                         "x1": 3, "y1": 4}
-    spec = schemas.TaskSpec(image_id="x", cubs_cf=0.05, roi=(10, 20))
-    assert spec.calibration.kind == "mm_per_px" and spec.region.kind == "column_window"
-    assert schemas.LEGACY_HITS["roi_box"] == before.get("roi_box", 0) + 1
-    # 新字段已给出时旧字段整体忽略
-    spec = schemas.TaskSpec(image_id="x", roi=(1, 2),
-                            region={"kind": "column_window", "x0": 5, "x1": 9})
+def test_taskspec_rejects_legacy_fields():
+    for old in ("cubs_cf", "roi", "roi_box"):
+        with pytest.raises(Exception):
+            schemas.TaskSpec.model_validate({"task": "far_wall_cca_imt", old: [1, 2]})
+    spec = schemas.TaskSpec(region={"kind": "column_window", "x0": 5, "x1": 9})
     assert (spec.region.x0, spec.region.x1) == (5, 9)
 
 
@@ -228,33 +222,12 @@ def test_representation_kind_mismatch_is_422():
         assert client.get(f"/objects/{ct['id']}/tiles/0/0/0").status_code == 422
 
 
-# --- alias 字节等价（§5.3） -------------------------------------------------------
+# --- W7：旧数据端点退役 ------------------------------------------------------
 
 
-def test_alias_volume_raw_bytes_equal():
-    ct = _first("ct_abdomen")
-    if ct is None:
-        pytest.skip("需 data/ct demo volume")
-    assert client.get(f"/volume/{ct['id']}").content == client.get(
-        f"/objects/{ct['id']}/raw").content
-    assert client.get("/volume/tech_401").status_code == 404  # 非 volume 仍 404
-
-
-def test_alias_wsi_tile_bytes_equal():
-    slide = _first("pathology")
-    if slide is None:
-        pytest.skip("需 data/wsi demo slide")
-    sid = slide["id"]
-    assert client.get(f"/wsi/{sid}/tile/9/0/0").content == client.get(
-        f"/objects/{sid}/tiles/9/0/0").content
-    assert client.get(f"/objects/{sid}/tiles/999/0/0").status_code == 404
-
-
-def test_alias_lists_equal_images():
-    for path, modality in (("/volumes", "ct_abdomen"), ("/slides", "pathology")):
-        r = client.get(path)
-        if r.status_code == 200:
-            assert r.json() == client.get("/images", params={"modality": modality}).json()
+def test_legacy_data_routes_removed():
+    for path in ("/volumes", "/slides", "/volume/ct_001", "/wsi/slide_001/tile/0/0/0"):
+        assert client.get(path).status_code == 404
 
 
 # --- /objects/{id}/edits ----------------------------------------------------------
@@ -304,15 +277,20 @@ def test_edits_optimistic_concurrency(tmp_path, monkeypatch):
     assert again.status_code == 200 and again.json()["metrics"] == body["metrics"]
 
 
-def test_edits_alias_same_result(tmp_path, monkeypatch):
+def test_edits_erase_remeasures_volume(tmp_path, monkeypatch):
     _seed_ct(tmp_path, monkeypatch)
-    new = client.post("/objects/ct_001/edits", json=_edit(0)).json()
-    dataset_ct.reset_edit_seq()
-    old = client.post("/volume/ct_001/mask-edit", json={
-        "task": "totalseg_liver_kidney", "method": "totalsegmentator_v2", "base_seq": 0,
-        "slices": [{"z": 1, "class_id": 1, "mode": "paint", "mask_png_ref": _mask_png()}],
-    }).json()
-    assert old == new
+    painted = client.post("/objects/ct_001/edits", json=_edit(0))
+    assert painted.status_code == 200
+    erase = _edit(1)
+    erase["ops"][0]["mode"] = "erase"
+    cleared = client.post("/objects/ct_001/edits", json=erase)
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["metrics"]["liver_volume_mm3"]["value"] == 0
+
+
+def test_edits_alias_removed(tmp_path, monkeypatch):
+    _seed_ct(tmp_path, monkeypatch)
+    assert client.post("/volume/ct_001/mask-edit", json={}).status_code == 404
 
 
 def test_edits_reject_bad_requests(tmp_path, monkeypatch):

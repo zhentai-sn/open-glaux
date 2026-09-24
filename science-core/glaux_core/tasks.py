@@ -127,7 +127,6 @@ class TaskPlugin:
     - ``classes``：任务产出的类别表（与 overlays 同步）。
     - ``capabilities``：开放集字符串（``bbox``/``polygon``/``brush``/``wall``/``voi``/
       ``z_scroll``/``timeline``/``verify``），驱动前端工具过滤。
-    - ``viewer``：**deprecated**，保留一版；前端不再读取（D-11），查看器由对象 kind 决定。
     """
 
     task: TaskType
@@ -139,7 +138,6 @@ class TaskPlugin:
     default_method: str  # 缺省适配器名
     measure: Callable[[Detection, CalibrationResult], Measurement]
     metrics: tuple[MetricDef, ...]  # 面板度量字段（顺序即展示序）
-    viewer: str  # deprecated（SDD 10 D-11，保留一版）："raster_2d" | "volume_3d" | "wsi" | "video"
     tools: tuple[ToolDef, ...]
     overlays: tuple[OverlaySpec, ...]
     capabilities: tuple[str, ...] = ()  # 开放集能力位（SDD 04/10），见类 docstring
@@ -162,11 +160,16 @@ def measure_imt(det: Detection, cal: CalibrationResult) -> Measurement:
     by_role = {p.role: p for p in det.primitives if isinstance(p, Polyline)}
     if "LI" not in by_role or "MA" not in by_role:
         raise ValueError("IMT 测量需 LI 与 MA 两条壁线 Polyline")
+    window = (
+        (det.region["x0"], det.region["x1"])
+        if det.region and det.region.get("kind") == "column_window"
+        else None
+    )
     r = _imt(
         _polyline_to_boundary(by_role["LI"], "LI"),
         _polyline_to_boundary(by_role["MA"], "MA"),
         cal.cf,
-        x_window=det.roi_used,  # ROI 列窗（对齐原 /run 口径；None → 全公共支撑）
+        x_window=window,
     )
     return Measurement(
         metrics={
@@ -236,7 +239,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("IMT_max", "mm", "IMT max", "最大 IMT"),
             MetricDef("IMT_pdm", "mm", "IMT (sym. PDM)", "IMT（对称 PDM）"),
         ),
-        viewer="raster_2d",
         tools=(
             ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
             ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
@@ -273,7 +275,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("OFD", "mm", "Occipitofrontal diameter", "枕额径"),
             MetricDef("area", "mm²", "Ellipse area", "椭圆面积"),
         ),
-        viewer="raster_2d",
         tools=(
             ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
             ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
@@ -289,8 +290,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         trigger="on_open",
     ),
     # P6 楔子：CT 肝+双肾分割（3 类）。几何族 "volume" 走 VolumeMask Primitive；后端
-    # _detect_for_spec 新加 "volume" 分支派发到 segment_ts.subprocess。viewer 走
-    # volume_3d（CS3D OrthographicViewport，U3 接）；tools 含 brush（画笔，U4 接）。
+    # _detect_for_spec 的 "volume" 分支派发到 segment_ts.subprocess；tools 含 brush。
     TaskType.TOTALSEG_LIVER_KIDNEY: TaskPlugin(
         task=TaskType.TOTALSEG_LIVER_KIDNEY,
         adapter_kind="volume",
@@ -311,7 +311,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("rk_volume_mm3", "mm³", "R kidney volume", "右肾体积"),
             MetricDef("rk_hu_mean", "HU", "R kidney mean HU", "右肾平均 HU"),
         ),
-        viewer="volume_3d",
         tools=(
             ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
             ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
@@ -331,7 +330,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
     ),
     # P7 楔子：病理 WSI 细胞核检测 + 计数/密度。几何族 "wsi" 走 PointSet Primitive；后端
     # _detect_for_spec 新加 "wsi" 分支派发到 segment_wsi.subprocess（ROI 抽块 + 质心去重）。
-    # viewer 走 wsi（OpenSeadragon，U4 接）；tools 含 roi 框选。v0 只读检测结果（无核编辑）。
+    # 查看器按对象 kind 选用 OpenSeadragon；tools 含 ROI 框选。
     TaskType.NUCLEI_DETECTION: TaskPlugin(
         task=TaskType.NUCLEI_DETECTION,
         adapter_kind="wsi",
@@ -349,7 +348,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("nuclei_density_mm2", "个/mm²", "Nuclei density", "核密度"),
             MetricDef("roi_area_mm2", "mm²", "ROI area", "ROI 面积"),
         ),
-        viewer="wsi",
         tools=(
             ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
             ToolDef("bbox", "▭", "Select ROI", "框选 ROI", key="r"),
@@ -385,7 +383,6 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
         "modality": plugin.modality,
         "label": {"en": plugin.label_en, "zh": plugin.label_zh},
         "default_method": plugin.default_method,
-        "viewer": plugin.viewer,  # deprecated（D-11），保留一版
         "metrics": [
             {"key": m.key, "unit": m.unit, "label": {"en": m.label_en, "zh": m.label_zh}}
             for m in plugin.metrics

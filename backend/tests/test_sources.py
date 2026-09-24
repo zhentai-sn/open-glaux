@@ -11,7 +11,6 @@ from app import schemas, upload_store
 from app.main import app
 from app.schemas import Index, ObjectMeta
 from app.sources import SOURCES
-from app.sources.base import backfill_legacy
 
 client = TestClient(app)
 
@@ -106,14 +105,13 @@ def test_object_meta_shape_per_kind():
         assert obj.source_id in {s.id for s in reg.list_all()}
 
 
-def test_backfill_is_single_truth_and_idempotent():
+def test_object_metadata_has_no_legacy_fields():
+    expected = {"id", "kind", "modality", "source_id", "display_name", "axes", "calibration",
+                "resources", "streams", "methods", "meta"}
     for row in _listed():
+        assert set(row) == expected
         obj = ObjectMeta(**row)
-        once = backfill_legacy(obj)
-        assert backfill_legacy(once) == once
-        # 子类写过渡字段也会被覆盖：服务端只有一套真相（D-10）
-        tampered = obj.model_copy(update={"cf": 123.0, "dims": [1, 1], "mpp_um": [9.0, 9.0]})
-        assert backfill_legacy(tampered) == once
+        assert obj.model_dump()["axes"]
 
 
 def test_check_index():

@@ -104,7 +104,7 @@ def test_video_meta_axes_and_time_base(videos):
         assert obj.calibration.kind == "time_base"
         assert obj.calibration.value["fps"] == pytest.approx(FPS)
         assert obj.id.startswith("vid-") and obj.display_name.endswith(".mp4")
-        assert (obj.cf, obj.voxel_spacing_mm, obj.mpp_um, obj.dims) == (None, None, None, None)
+        assert not {"cf", "voxel_spacing_mm", "mpp_um", "dims"} & obj.model_dump().keys()
         assert obj.resources["raw"] == f"/objects/{obj.id}/raw"
 
 

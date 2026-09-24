@@ -21,23 +21,6 @@ import type {
   UploadResult,
 } from "./types";
 
-/** P6 U4：画笔编辑请求体——slices 是 (z, mask_png_ref, class_id, mode)。 */
-export interface VolumeMaskEditSlice {
-  z: number;
-  /** base64 编码 PNG 二值掩膜（与 z 切片同尺寸）；服务端解 → numpy mask。 */
-  mask_png_ref: string;
-  class_id: number;
-  mode: "paint" | "erase";
-}
-
-export interface VolumeMaskEditRequest {
-  task: TaskType;
-  slices: VolumeMaskEditSlice[];
-  method?: string;
-  /** 乐观并发：客户端上次见到的编辑序号；落后 → 409（被他人超越）。 */
-  base_seq?: number | null;
-}
-
 const BASE = "/api";
 
 /** 携带后端错误 reason 的异常（如 VLM 503 不可用）。 */
@@ -126,21 +109,7 @@ export const api = {
 
   imageUrl: (id: string) => `${BASE}/image/${encodeURIComponent(id)}`,
 
-  // --- P6：CT 体积数据 ------------------------------------------------------
-  /** 原始 NIfTI 字节流（CS3D DICOM image loader 走 wadouri: scheme）。 */
-  volumeUrl: (id: string) => `${BASE}/volume/${encodeURIComponent(id)}`,
-  // labelmap 字节流由后端在 VolumeMask.ref 里直接下发绝对 URL，前端不拼；分割统一走 taskRun。
-  /** 画笔编辑回流（U4）：patch labelmap + 度量重算 + 返回 metrics。 */
-  volumeMaskEdit: (id: string, payload: VolumeMaskEditRequest) =>
-    post<{ metrics: Record<string, Measure>; labelmap_ref: string; seq: number }>(
-      `/volume/${encodeURIComponent(id)}/mask-edit`,
-      payload,
-    ),
-
   // --- P7：病理 WSI ---------------------------------------------------------
-  /** DeepZoom 瓦片 URL（OSD 自定义 tileSource 的 getTileUrl 用；level/col/row 为 DeepZoom 坐标）。 */
-  wsiTileUrl: (id: string, level: number, col: number, row: number) =>
-    `${BASE}/wsi/${encodeURIComponent(id)}/tile/${level}/${col}/${row}`,
   /** Reproducibility 验证（U5）：与 ship 的 reference（canonical ROI 检测）比质心匹配 F1。 */
   wsiVerify: (id: string, method = "stardist_he") =>
     get<{

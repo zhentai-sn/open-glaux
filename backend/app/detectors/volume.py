@@ -56,11 +56,11 @@ class VolumeDetector(DetectorBase):
             id=f"{spec.image_id}_labelmap",
             ref=labelmap_ref(spec.image_id, spec.task, method),  # URL：前端拉 labelmap
             classes=plugin.classes,
-            raw_ref=f"/api/volume/{spec.image_id}/raw",  # URL：下发前端
+            raw_ref=f"/api{obj.resources['raw']}",
             path=labelmap_path,  # fs 路径：measure 读 labelmap
             raw_path=dataset_ct.nifti_path(spec.image_id),  # fs 路径：measure 算 HU mean
         )
-        det = Detection(primitives=(vol_prim,), model_version=mv, roi_used=None)
+        det = Detection(primitives=(vol_prim,), model_version=mv)
         return det, calibration_result(spec.calibration)
 
     def hydrate(self, primitives):
@@ -110,5 +110,3 @@ class VolumeDetector(DetectorBase):
             "model_version": "human@edit",
             "seq": new_seq,  # 客户端下次编辑回传作 base_seq（乐观并发）
         }
-
-

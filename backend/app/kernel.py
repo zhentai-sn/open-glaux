@@ -165,7 +165,7 @@ def capabilities() -> list[dict]:
                 "license": "internal",
                 "status": "active",
                 "isolation": "in_process",
-                "desc": f"Task recipe · {p.adapter_kind} · viewer={p.viewer}",
+                "desc": f"Task recipe · {p.adapter_kind}",
                 "tasks": [p.task.value],
             }
         )

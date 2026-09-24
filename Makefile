@@ -30,7 +30,7 @@ install-agent-runtime:
 	cd agent-runtime && npm install
 
 ## 校验
-test: test-version test-agent-runtime test-frontend test-backend test-science-core
+test: check-literals test-version test-agent-runtime test-frontend test-backend test-science-core
 
 test-version:
 	python3 scripts/test_version_matrix.py
@@ -55,9 +55,9 @@ lint:
 	cd frontend && npm run lint
 	cd agent-runtime && npm run lint
 
-# SDD 10 D-14：模态字面量比较计数。W0 只打印基线、不阻断，不挂进 make test；W7 改 --strict 并纳入 test 前置。
+# SDD 10 D-14：核心目录的模态字面量比较必须为零。
 check-literals:
-	bash scripts/ci/check-modality-literals.sh
+	bash scripts/ci/check-modality-literals.sh --strict
 
 version:
 	python3 scripts/version_matrix.py

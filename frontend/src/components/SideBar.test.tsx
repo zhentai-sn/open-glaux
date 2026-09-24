@@ -3,7 +3,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DataSource, ImageMeta, Modality } from "../api/types";
+import type { DataSource, ObjectMeta, Modality } from "../api/types";
 import { I18nProvider } from "../i18n";
 import { useSession } from "../store/session";
 import { RECENT_KEY } from "../data/recent";
@@ -41,7 +41,7 @@ const ds = (id: string, modality: Modality, status: DataSource["status"] = "acti
   ...dsFields(modality),
 });
 
-const img = (id: string, modality: Modality): ImageMeta => objectMeta({ id, modality });
+const img = (id: string, modality: Modality): ObjectMeta => objectMeta({ id, modality });
 
 function ui() {
   return render(
@@ -120,7 +120,6 @@ describe("模态切换器可见性来自数据源（SDD 08 D-1）", () => {
           task: "nuclei_detection",
           modality: "pathology",
           label: { zh: "细胞核", en: "Nuclei" },
-          viewer: "raster_2d",
           tools: [],
           metrics: [],
           capabilities: [],
@@ -143,7 +142,6 @@ describe("模态切换器可见性来自数据源（SDD 08 D-1）", () => {
           task: "far_wall_cca_imt",
           modality: "carotid_imt",
           label: { zh: "颈动脉", en: "Carotid" },
-          viewer: "raster_2d",
           tools: [],
           metrics: [],
           capabilities: [],

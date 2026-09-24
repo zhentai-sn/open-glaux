@@ -4,8 +4,7 @@
 无任何模态分支。错误语义见 §13：未知 id 404；kind 与端点不符、索引越界、参数非法 422；
 超限 413；依赖不可用 503；编辑并发冲突 409。没有 ``GET /objects`` 列表端点（D-5）。
 
-旧端点（``/volume/{id}``、``/volume/{id}/mask-edit``、``/wsi/{id}/tile/…``）以 alias 形式
-转调本模块的内部函数，保证同一字节流（§5.3），W7 删除。
+旧表征端点已删除；保留的任务结果端点在 ``routers/api.py``（§5.3）。
 """
 
 from __future__ import annotations

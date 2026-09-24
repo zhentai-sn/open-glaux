@@ -79,10 +79,7 @@ function asProposedAnnotation(value: unknown): Annotation | null {
   if (typeof payload.image_id !== "string" || !payload.image_id) return null;
   if (typeof payload.label !== "string") return null;
   if (!Number.isInteger(payload.seq) || (payload.seq as number) < 1) return null;
-  // 历史会话的 details 可能缺 index 或只带 z；新 runtime 一律发送 index。
-  const index = payload.index === undefined
-    ? (payload.z === undefined || payload.z === null ? {} : Number.isInteger(payload.z) && (payload.z as number) >= 0 ? { z: payload.z as number } : null)
-    : asIndex(payload.index);
+  const index = asIndex(payload.index);
   if (!index) return null;
   const primitive = asAnnotationPrimitive(payload.primitive);
   if (!primitive) return null;
@@ -90,7 +87,6 @@ function asProposedAnnotation(value: unknown): Annotation | null {
     id: payload.annotation_id,
     image_id: payload.image_id,
     index,
-    z: index.z ?? null,
     primitive,
     label: payload.label,
     class_id: null,

@@ -120,7 +120,7 @@ def test_task_run_nuclei_detection(tmp_path, monkeypatch):
     body = {
         "task": "nuclei_detection",
         "image_id": "slide_001",
-        "roi_box": [0, 0, 512, 512],
+        "region": {"kind": "box", "x0": 0, "y0": 0, "x1": 512, "y1": 512},
         "method": "stardist_he",
     }
     r = client.post("/task/run", json=body)
@@ -137,13 +137,13 @@ def test_task_run_nuclei_detection(tmp_path, monkeypatch):
     assert m["roi_area_mm2"]["value"] == pytest.approx((512 * 512) * 0.499 * 0.499 / 1e6, rel=1e-3)
 
 
-def test_task_run_nuclei_requires_roi_box(monkeypatch):
-    """缺 roi_box → 422（整片推理不可行，硬拒绝）。"""
+def test_task_run_nuclei_requires_region(monkeypatch):
+    """缺 region → 422（整片推理不可行，硬拒绝）。"""
     monkeypatch.setattr(config, "wsi_live_available", lambda: True)
     body = {"task": "nuclei_detection", "image_id": "slide_001", "method": "stardist_he"}
     r = client.post("/task/run", json=body)
     assert r.status_code == 422
-    assert "roi_box" in r.text
+    assert "region" in r.text
 
 
 def test_wsi_verify_reproduces_reference(monkeypatch):
@@ -169,7 +169,7 @@ def test_task_run_nuclei_wrong_slide_id(monkeypatch):
     monkeypatch.setattr(config, "wsi_live_available", lambda: True)
     body = {
         "task": "nuclei_detection", "image_id": "nonexist",
-        "roi_box": [0, 0, 100, 100], "method": "stardist_he",
+        "region": {"kind": "box", "x0": 0, "y0": 0, "x1": 100, "y1": 100}, "method": "stardist_he",
     }
     r = client.post("/task/run", json=body)
     assert r.status_code == 404  # 未知对象 id 一律 404（SDD 10 §13），不进检测

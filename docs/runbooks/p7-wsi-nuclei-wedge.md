@@ -79,9 +79,9 @@ export GLAUX_WSI_SEG_CACHE=~/glaux_models/wsi_seg_out   # 质心 json 缓存
 cd ~/code/pre-tech/open-glaux
 make backend          # 已显式 GLAUX_DEV_MODE=1；也可用 bash scripts/dev/run-backend.sh
 # 冒烟：
-curl -s localhost:8000/slides            # [{"id":"slide_001","modality":"pathology","mpp_um":[0.499,0.499],"dims":[2220,2967]...}]
+curl -s 'localhost:8000/images?modality=pathology'  # [{"id":"slide_001","kind":"slide","calibration":{"kind":"mpp_um",...},"axes":[...]}]
 curl -s localhost:8000/tasks | grep -o nuclei_detection
-curl -s -o /dev/null -w "%{http_code}\n" "localhost:8000/wsi/slide_001/tile/8/0/0"   # 200（/dzi 端点已于 2026-08-16 删除，OSD 走 /tile）
+curl -s -o /dev/null -w "%{http_code}\n" "localhost:8000/objects/slide_001/tiles/8/0/0"   # 200，OSD 读取 resources.tiles
 ```
 
 ## 6. 真机跑一次核检测 + 生成 reference（`~10 s`，首次含模型加载）
@@ -141,4 +141,4 @@ make frontend        # 三进程一起起用 make -j3 dev
   跳过（WSI 标准做法，既避崩溃又大幅提速——gigapixel 切片绝大部分是背景）。
 - **多层 vs 单层 slide**：`CMU-1-Small-Region.svs`（demo，单分辨率层，2220×2967）放大超原生即糊；
   完整 `CMU-1.svs`（3 层：46000×32914 / 4× / 16×，1.5 gigapixel，20× 物镜）才有深缩放层层变清晰。
-  data/wsi 是 gitignore + env 可指向，丢任意 `.svs` 进去即被 `/slides` 列出。
+  data/wsi 是 gitignore + env 可指向，丢任意 `.svs` 进去即被 `/images?modality=pathology` 列出。

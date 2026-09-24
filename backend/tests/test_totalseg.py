@@ -73,7 +73,7 @@ def test_image_meta_shape(tmp_path, monkeypatch):
     dataset_ct._load_nifti.cache_clear()
     meta = dataset_ct.image_meta("ct_001")
     assert meta["modality"] == "ct_abdomen"
-    assert meta["cf"] is None  # CT 不走 cubs_cf
+    assert meta["cf"] is None  # dataset_ct 内部格式，不属于 ObjectMeta API
     assert meta["voxel_spacing_mm"] == [0.5, 0.5, 1.0]
     assert meta["methods"] == ["totalsegmentator_v2"]
 

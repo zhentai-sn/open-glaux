@@ -2,8 +2,7 @@
  * `viewer` 字段契约（`parseViewer`，SDD 10 §9.1 / §7 规则 6 / D-9 / §13）。
  *
  * 经 HTTP 命令端点下发，断言两件事：合法上下文按原样交到工具工厂；不合契约的上下文 400，
- * 不猜语义。`roi_box` 的四元组语义是角点 `(x0, y0, x1, y1)`，不是 `[x, y, w, h]`。
- * W5 收敛为 `{collection, task, method, object, focus}`；旧字段仅在新字段缺失时映射。
+ * 不猜语义。上下文使用 `{collection, task, method, object, focus}`。
  */
 
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
@@ -11,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ViewerContext } from "../../src/contracts.js";
 import type { HarnessToolContext } from "../../src/pi/harness-registry.js";
-import { getLegacyViewerHits, resetLegacyViewerHits } from "../../src/transport/routes.js";
 import { buildServer } from "../../src/transport/server.js";
 import { TEST_CONNECTION, createRuntimeFixture } from "../helpers/runtime-fixture.js";
 import {
@@ -25,7 +23,7 @@ type Server = ReturnType<typeof buildServer>;
 describe("viewer context contract (parseViewer)", () => {
   const cleanups: Array<() => Promise<void>> = [];
 
-  beforeEach(() => { resetLegacyViewerHits(); vi.spyOn(console, "warn").mockImplementation(() => undefined); });
+  beforeEach(() => { vi.spyOn(console, "warn").mockImplementation(() => undefined); });
 
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
@@ -91,93 +89,34 @@ describe("viewer context contract (parseViewer)", () => {
   }
 
   describe("accepted shapes", () => {
-    it("2D 图（颈动脉）：对象 id、数据集、任务、方法与平面标定原样交给工具", async () => {
-      const viewer = {
-        image_id: FIXTURE_OBJECT_IDS.image,
-        modality: "carotid_imt",
-        task: "far_wall_cca_imt",
-        method: "caroSegDeep",
-        cubs_cf: 0.06,
-      };
-      expect(await delivered(viewer)).toMatchObject({
-        collection: "carotid_imt",
-        task: viewer.task,
-        method: viewer.method,
-        object: { id: viewer.image_id, kind: "image", calibration: { kind: "mm_per_px", value: 0.06 } },
-        focus: { object_id: viewer.image_id, kind: "image", index: {}, region: null },
-      });
-      expect(getLegacyViewerHits()).toBe(1);
+    it.each([
+      [FIXTURE_OBJECT_IDS.image, "image", "carotid_imt", []],
+      [FIXTURE_OBJECT_IDS.ct, "volume", "ct_abdomen", [{ name: "z", size: 100 }]],
+      [FIXTURE_OBJECT_IDS.slide, "slide", "pathology", [{ name: "level", size: 4 }]],
+      [FIXTURE_OBJECT_IDS.video, "video", "video", [{ name: "t", size: 30 }]],
+    ] as const)("%s: 对象与焦点原样进入工具", async (id, kind, collection, thirdAxis) => {
+      const object = { id, kind, axes: [{ name: "x", size: 640 }, { name: "y", size: 480 }, ...thirdAxis], calibration: null };
+      const index = kind === "volume" ? { z: 0 } : kind === "slide" ? { level: 0 } : kind === "video" ? { t: 0 } : {};
+      const focus = { object_id: id, kind, index, region: null };
+      expect(await delivered({ collection, task: "example", method: "reference", object, focus })).toEqual({ collection, task: "example", method: "reference", object, focus });
     });
 
-    it("CT：只有对象 id、数据集与任务，无标定无区域", async () => {
-      const viewer = {
-        image_id: FIXTURE_OBJECT_IDS.ct,
-        modality: "ct_abdomen",
-        task: "totalseg_liver_kidney",
-      };
-      expect(await delivered(viewer)).toMatchObject({
-        collection: "ct_abdomen", task: viewer.task,
-        object: { id: viewer.image_id, kind: "volume" },
-        focus: { object_id: viewer.image_id, kind: "volume", index: { z: 0 }, region: null },
-      });
+    it("WSI 框区域保持角点语义", async () => {
+      const object = { id: FIXTURE_OBJECT_IDS.slide, kind: "slide", axes: [{ name: "x", size: 3000 }, { name: "y", size: 3000 }, { name: "level", size: 4 }], calibration: null };
+      const region = { kind: "box", x0: 1000, y0: 2000, x1: 1512, y1: 2512 };
+      const focus = { object_id: object.id, kind: "slide", index: { level: 0 }, region };
+      expect((await delivered({ object, focus }))?.focus?.region).toEqual(region);
     });
 
-    it("WSI：roi_box 作为角点 (x0, y0, x1, y1) 原样透传，不换算成宽高", async () => {
-      const viewer = {
-        image_id: FIXTURE_OBJECT_IDS.slide,
-        modality: "pathology",
-        task: "nuclei_detection",
-        roi_box: [1000, 2000, 1512, 2512],
-      };
-      const got = await delivered(viewer);
-      expect(got).toMatchObject({
-        collection: "pathology", task: viewer.task,
-        object: { id: viewer.image_id, kind: "slide" },
-        focus: { object_id: viewer.image_id, kind: "slide", index: { level: 0 }, region: { kind: "box", x0: 1000, y0: 2000, x1: 1512, y1: 2512 } },
-      });
-      const { x0, y0, x1, y1 } = got!.focus!.region as Extract<NonNullable<ViewerContext["focus"]>["region"], { kind: "box" }>;
-      // 角点语义：右下角大于左上角；若按 [x, y, w, h] 解释，这里会是 512 / 512
-      expect([x1 - x0, y1 - y0]).toEqual([512, 512]);
-    });
-
-    it("roi_box 角点颠倒时不在 runtime 纠正也不拒绝——原样透传，由后端判定", async () => {
-      // parseViewer 只校验「四个有限数」（SDD 10 §13）；x0<x1 / y0<y1 由后端硬拒
-      // （backend/app/segment_wsi.py 的「ROI 非正」）。W5 若在 runtime 侧加序校验，改此断言。
-      const viewer = { image_id: FIXTURE_OBJECT_IDS.slide, roi_box: [1512, 2512, 1000, 2000] };
-      expect((await delivered(viewer))?.focus?.region).toEqual({ kind: "box", x0: 1512, y0: 2512, x1: 1000, y1: 2000 });
-    });
-
-    it("自然图像：只有对象 id 与数据集，不带任务 / 方法 / 标定", async () => {
-      const viewer = { image_id: "coco_000139", modality: "natural_image" };
-      expect(await delivered(viewer)).toMatchObject({ collection: "natural_image", object: { id: "coco_000139", kind: "image", calibration: null } });
-    });
-
-    it("未开图：只有数据集，不带对象 id", async () => {
-      expect(await delivered({ modality: "carotid_imt" })).toEqual({ collection: "carotid_imt" });
-    });
-
-    it("空对象是合法上下文（全部字段可选）", async () => {
+    it("只选数据集与空对象均可下发", async () => {
+      expect(await delivered({ collection: "pathology" })).toEqual({ collection: "pathology" });
       expect(await delivered({})).toEqual({});
-    });
-
-    it("缺省 / null（chat 发行包不下发 viewer）：工具工厂收不到 viewer", async () => {
       expect(await delivered(undefined)).toBeUndefined();
       expect(await delivered(null)).toBeUndefined();
     });
 
-    it("未知字段丢弃，不透传给工具", async () => {
-      expect(await delivered({ image_id: FIXTURE_OBJECT_IDS.video, frame_rate: 25, extra: { a: 1 } })).toMatchObject({
-        object: { id: FIXTURE_OBJECT_IDS.video, kind: "video" },
-        focus: { object_id: FIXTURE_OBJECT_IDS.video, kind: "video", index: { t: 0 } },
-      });
-    });
-
-    it("新字段单独可用且优先；旧字段即使非法也整体忽略且不计数", async () => {
-      const object = { id: FIXTURE_OBJECT_IDS.ct, kind: "volume", axes: [{ name: "x", size: 512 }, { name: "y", size: 512 }, { name: "z", size: 100 }], calibration: { kind: "voxel_mm", value: [1, 1, 2], source: "nifti" } };
-      const focus = { object_id: FIXTURE_OBJECT_IDS.ct, kind: "volume", index: { z: 42 }, region: null };
-      expect(await delivered({ collection: "ct_abdomen", object, focus })).toEqual({ collection: "ct_abdomen", object, focus });
-      expect(await delivered({ object, focus, image_id: 123, roi_box: "bad" })).toEqual({ object, focus });
-      expect(getLegacyViewerHits()).toBe(0);
+    it("未知字段不进入工具", async () => {
+      expect(await delivered({ collection: "video", frame_rate: 25 })).toEqual({ collection: "video" });
     });
 
     it("Focus.kind 不符时以 ObjectMeta.kind 重建并告警", async () => {
@@ -192,16 +131,8 @@ describe("viewer context contract (parseViewer)", () => {
       const region = { kind: "frame_range", t0: 10, t1: 20, seed: { t: 15, box: [1, 2, 9, 10] } };
       const focus = { object_id: object.id, kind: "video", index: { t: 15 }, region };
       expect((await delivered({ object, focus }))?.focus?.region).toEqual(region);
-      expect(getLegacyViewerHits()).toBe(0);
     });
 
-    it("新上下文没有焦点时不挂图像工具；旧字段映射有计数和告警", async () => {
-      expect(await delivered({ collection: "pathology" })).toEqual({ collection: "pathology" });
-      expect(getLegacyViewerHits()).toBe(0);
-      await delivered({ image_id: FIXTURE_OBJECT_IDS.slide, modality: "pathology" });
-      expect(getLegacyViewerHits()).toBe(1);
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("累计 1 次"));
-    });
   });
 
   describe("400 branches", () => {
@@ -217,55 +148,27 @@ describe("viewer context contract (parseViewer)", () => {
       });
     });
 
-    it.each(["image_id", "task", "modality", "method"])("viewer.%s 不是字符串", async (key) => {
-      for (const bad of [1, true, null, ["x"], { id: "x" }]) {
-        expect(await rejected({ [key]: bad })).toMatchObject({
-          code: "invalid_request",
-          message: `viewer.${key} must be a string.`,
-        });
-      }
-    });
-
-    it.each([
-      ["a string", "0.06"],
-      ["null", null],
-      ["an array", [0.06]],
-    ])("viewer.cubs_cf 不是数（%s）", async (_label, cf) => {
-      expect(await rejected({ image_id: "tech_0450", cubs_cf: cf })).toMatchObject({
+    it.each(["image_id", "modality", "cubs_cf", "roi_box"])("拒绝旧字段 %s", async (key) => {
+      expect(await rejected({ [key]: "old" })).toMatchObject({
         code: "invalid_request",
-        message: "viewer.cubs_cf must be a number.",
+        message: `viewer.${key} must be omitted; use object/focus.`,
       });
     });
 
-    it("viewer.cubs_cf 不是有限数（JSON 送不出 NaN / Infinity，序列化后是 null）", async () => {
-      // JSON 里写不出 NaN / Infinity，经 HTTP 只会变成 null；此处断言它同样被拒。
-      expect(await rejected({ cubs_cf: Number.NaN })).toMatchObject({
-        message: "viewer.cubs_cf must be a number.",
-      });
+    it("新旧字段双发也拒绝", async () => {
+      const object = { id: FIXTURE_OBJECT_IDS.ct, kind: "volume", axes: [{ name: "x", size: 512 }, { name: "y", size: 512 }, { name: "z", size: 100 }], calibration: null };
+      const focus = { object_id: object.id, kind: "volume", index: { z: 0 }, region: null };
+      expect((await rejected({ object, focus, image_id: object.id })).message).toContain("viewer.image_id");
     });
 
-    it.each([
-      ["not an array", "0,0,10,10"],
-      ["an object with corner keys", { x0: 0, y0: 0, x1: 10, y1: 10 }],
-      ["three numbers", [0, 0, 10]],
-      ["five numbers", [0, 0, 10, 10, 1]],
-      ["empty", []],
-      ["a string element", [0, 0, "10", 10]],
-      ["a null element", [0, 0, null, 10]],
-      ["null", null],
-    ])("viewer.roi_box 不是四个有限数（%s），报错文案是角点形状", async (_label, box) => {
-      expect(await rejected({ image_id: "slide_001", roi_box: box })).toEqual({
-        code: "invalid_request",
-        message: "viewer.roi_box must be [x0, y0, x1, y1].",
-        trace_id: expect.any(String),
-      });
+    it.each(["collection", "task", "method"])("viewer.%s 不是字符串", async (key) => {
+      expect((await rejected({ [key]: 1 })).message).toBe(`viewer.${key} must be a string.`);
     });
 
     it("新字段的对象与焦点必须同时提供且 id 一致", async () => {
       const object = { id: FIXTURE_OBJECT_IDS.ct, kind: "volume", axes: [{ name: "x", size: 512 }, { name: "y", size: 512 }, { name: "z", size: 100 }], calibration: null };
       expect((await rejected({ object })).message).toContain("viewer.object/focus");
       expect((await rejected({ object, focus: { object_id: "other", kind: "volume", index: { z: 0 }, region: null } })).message).toContain("viewer.focus.object_id");
-      expect(getLegacyViewerHits()).toBe(0);
     });
 
     it("新字段拒绝轴越界与非法 frame_range.seed", async () => {

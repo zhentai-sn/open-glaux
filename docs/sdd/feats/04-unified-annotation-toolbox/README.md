@@ -18,7 +18,7 @@ status: implemented
 
 ## 1. 本 SDD 负责什么
 
-跨模态统一的人工标注能力：**bbox / polygon / brush** 三个通用标注工具在全部查看器引擎（`raster_2d` / `volume_3d` 逐切片 / `wsi`）上的绘制、编辑、持久化与任务联动，以及承载它们的**统一工具框架**（工具语义进 store、工具声明进注册表、工具栏走统一 chrome）。标注产物是独立于任务模型结果（Detection）的一等实体 `Annotation`。
+跨模态统一的人工标注能力：**bbox / polygon / brush** 三个通用标注工具在 `FrameStackViewer`（image / volume / video）与 `PyramidViewer`（slide）上的绘制、编辑、持久化与任务联动，以及承载它们的统一工具框架。标注产物是独立于任务模型结果（Detection）的一等实体 `Annotation`。
 
 ## 2. 本 SDD 不负责什么
 
@@ -26,7 +26,7 @@ status: implemented
 | --- | --- |
 | agent 自然语言 → 建议态标注的产出流（`locate_roi` / `segment_region` / `propose_annotation`、SAM API、权限门控） | [SDD 02 · 智能体图像标注](../02-agent-image-annotation/README.md)（`implemented`）；其建议态（`suggested`）经人工确认转为 `confirmed` 后，即本 SDD 的正式标注实体 |
 | 任务模型结果的生成与测量（`/task/run`、`/task/measure`、Detection 管线） | 任务注册表现有契约，本 SDD 零改动 |
-| CT labelmap 编辑端点本身（`POST /objects/{id}/edits` + base_seq，旧路径 `POST /volume/{id}/mask-edit` 为其 alias） | 归 SDD 10，本 SDD 只换前端交互层 |
+| CT labelmap 编辑端点本身（`POST /objects/{id}/edits` + base_seq） | 归 SDD 10，本 SDD 只换前端交互层 |
 | 点标注（point）手动编辑、WSI brush、3D 跨切片传播、标注导出（COCO/LabelMe）、多人协作审阅 | 非目标（脑暴 §10）；`point` 只作为存储取值开放（§9.1），不提供人工工具、不设能力位 |
 | 标注与 Atlas 的联动（已验证标注沉淀为案例） | 远期；本期仅以 `source` / `status` 字段留接缝 |
 
@@ -34,7 +34,7 @@ status: implemented
 
 一期交付：
 
-1. 前端三个查看器的 bbox / polygon（`volume_3d` 另含 brush）可绘制、可编辑、刷新后仍在（后端持久化）；
+1. 各几何族的 bbox / polygon（支持的模态另含 brush）可绘制、可编辑、刷新后仍在（后端持久化）；
 2. 全部标注 UI 走统一工具栏与 chrome（主题 CSS + i18n），查看器内无残留私有浮动工具条；
 3. 现有任务专属工具统一替换为通用工具（IMT 手柄 / WSI ROI / CT 私有画笔），测量与任务行为不回退；
 4. 后端 `annotations` REST + SQLite 存储 + `on_commit` 任务联动钩子。
@@ -44,7 +44,7 @@ status: implemented
 | 输入 | 必填 | 说明 |
 | --- | --- | --- |
 | 用户画布交互 | 是 | CS3D 工具事件（image / volume）或 OpenSeadragon 原生叠加层事件（slide）产出的几何 |
-| 当前对象上下文 | 是 | `image_id`（经 `resolve_object` 可解析的对象 id）+ 可选 `index`（第三轴索引，`volume`=z / `video`=t / `slide`=level；`z` 为一版 API 别名） |
+| 当前对象上下文 | 是 | `image_id`（经 `resolve_object` 可解析的对象 id）+ 可选 `index`（第三轴索引，`volume`=z / `video`=t / `slide`=level） |
 | 注册表 | 是 | `GET /tasks` 下发的引擎能力位与 `on_commit` 钩子声明 |
 | `base_seq` | 更新/删除必填 | 乐观并发序号，取最近一次成功响应的 `seq` |
 
@@ -61,7 +61,7 @@ status: implemented
 
 ## 6. 核心流程
 
-### 6.1 标注创建（以 raster_2d polygon 为例）
+### 6.1 标注创建（以 image polygon 为例）
 
 ```mermaid
 sequenceDiagram
@@ -117,9 +117,9 @@ flowchart LR
 
 - 统一 `Tool` 集合：`cursor / bbox / polygon / brush / reset`，外加任务专属编辑工具 `wall`（IMT 壁线形变，D-17）；`TaskPlugin.tools[]` 可携带 `key` 供 SDD 05 的快捷键与速查面板共用；store 的 `toolOptions`（`brush: {mode, class_id, radius}`、`voi: {ww, wl}`）随 `switchModality` 复位；
 - 工具选项条由 `CHROME_SEGMENTS` 按 `TaskView.capabilities` 装配，`brush` 与 `voi` 段由 Workbench 和 Focus 共用。
-- `TaskPlugin` 新增引擎级能力声明：`raster_2d` 支持 cursor/bbox/polygon/brush（IMT 另有 `wall`）；`volume_3d` 同左 + `{z_scroll, voi}`；`wsi` 支持 cursor/bbox/polygon（brush 无服务端落点，禁用）；
+- `TaskPlugin.capabilities` 是有任务模态的工具能力来源；无任务模态读取 `DataSource.default_capabilities`。`cursor` / `reset` 为常驻工具，任务专属能力（如 `wall`）由注册表声明；
 - **通用工具的语义不因模态而变**：`polygon` 在任何模态都是自由多边形（落 `/annotations`）。任务专属编辑另立工具位，通过能力位限定可见范围——把专属交互塞进通用按钮会让该按钮在那个模态下"画不出东西"，且在前置产物缺失时静默失效；
-- 工具栏显示 = 引擎能力 ∩ 任务推荐；StatusBar 工具展示从注册表取，禁止硬编码表；
+- 工具栏显示 = 常驻工具 + 当前能力位；StatusBar 工具展示从注册表取，禁止硬编码表；
 - `reset` 只重跑活动模型（影响 Detection），不清标注。
 
 ### 7.2 标注与模型结果的边界
@@ -139,7 +139,6 @@ flowchart LR
 画笔写契约由 [SDD 10](../10-object-convergence/README.md) 承载（其 §7 规则 17、D-6），本节只引用。
 
 - CT labelmap 是任务结果而非标注，画笔编辑**不走** `/annotations`，走任务结果编辑端点 `POST /objects/{id}/edits`（`EditRequest{task, method, base_seq, ops}`，`base_seq` 乐观并发，冲突 409），由 `Detector.apply_edit` 派发并按注册表重测。
-- 旧端点 `POST /volume/{id}/mask-edit` 是其 alias（同一实现、同一响应）；前端已在 SDD 10 W4 切到新端点，alias 于 W7 删除。
 - 前端两条提交路径经注入的 `MaskSink` 区分：`annotationMaskSink`（2D 画笔 → `/annotations` kind=mask）与 `editMaskSink`（任务结果编辑 → `/objects/{id}/edits`），二者不合并；`task` / `method` 取自当前 `TaskView`，不写常量。
 - `/annotations` 在 CT 下承载的是逐切片 bbox/polygon 标注。画笔宿主实施期为 overlay 自持笔迹缓冲（D-15）。
 
@@ -184,7 +183,7 @@ erDiagram
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `id` | TEXT | 否 | — | PK | — | 标注唯一 id（uuid4） | 服务端生成 |
 | `image_id` | TEXT | 否 | — | 逻辑关联至数据源对象 | `idx_annotations_image(image_id, z)` | 挂靠对象（图/卷/切片 id） | 前端上下文 |
-| `z` | INTEGER | 是 | NULL | — | 同上 | 对象当前第三轴取值：`volume`=z / `video`=t / `slide`=level；未绑定索引（含全部 2D 对象）为 NULL | `index` 或别名 `z` |
+| `z` | INTEGER | 是 | NULL | — | 同上 | 对象当前第三轴取值：`volume`=z / `video`=t / `slide`=level；未绑定索引（含全部 2D 对象）为 NULL | `index` |
 | `kind` | TEXT | 否 | — | CHECK(kind IN ('bbox','polyline','mask','point'))，取值由 `store.py` 的 `_KINDS` 生成 | — | 原语判别；`point` 仅为 `point_set` 原语与 agent 产出预留 | payload |
 | `primitive_json` | TEXT | 否 | — | — | — | 几何原语 JSON（§9.2） | payload |
 | `label` | TEXT | 否 | `''` | — | — | 语义标签（双语取 i18n 键或自由文本） | 用户 |
@@ -217,7 +216,6 @@ mask 文件存 `<ANNOTATIONS_ROOT>/masks/<id>.png`，删除标注时同步删文
 {
   id, image_id,
   index: {z} | {t} | {level} | {},   // 响应必带；请求可选
-  z?,                                // index 的 API 别名，W7 删
   primitive: {kind:"bbox", x0,y0,x1,y1}
            | {kind:"polyline", closed:true, points:[[x,y],...], role}
            | {kind:"mask", ref}

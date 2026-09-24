@@ -34,7 +34,7 @@ describe("chat release boundary", () => {
       await fixture.sessions.createSession({ session_id: sessionId });
       await fixture.commands.accept(sessionId, {
         command_id: crypto.randomUUID(), type: "prompt", content: "hello",
-        connection: TEST_CONNECTION, viewer: { image_id: "legacy-image" },
+        connection: TEST_CONNECTION, viewer: { collection: "test" },
       });
       await fixture.registry.waitForIdle(sessionId);
       expect(toolFactory).not.toHaveBeenCalled();

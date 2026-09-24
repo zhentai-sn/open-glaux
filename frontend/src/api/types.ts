@@ -52,11 +52,7 @@ export interface ObjectMeta {
   methods: MethodRef[];
   /** 自由元数据；原 center 在此（meta.center）。 */
   meta: Record<string, unknown>;
-  // 后端过渡期仍下发 cf / voxel_spacing_mm / mpp_um / dims（W7 删）；前端类型不声明它们，
-  // 读取即编译失败（§7 规则 8），一律经 axes / calibration 取值（data/objectInfo.ts）。
 }
-/** 过渡别名一版（W7 删）。 */
-export type ImageMeta = ObjectMeta;
 
 export interface Index {
   z?: number | null;
@@ -91,10 +87,6 @@ export interface TaskSpec {
   method?: string | null;
   calibration?: Calibration | null;
   region?: Region | null;
-  /** 过渡一版（W7 删）：后端映射为 calibration / region。 */
-  cubs_cf?: number | null;
-  roi?: [number, number] | null;
-  roi_box?: [number, number, number, number] | null;
 }
 
 /** `/objects/{id}/edits` 请求体（SDD 10 §5.2）。 */
@@ -289,7 +281,6 @@ export interface TaskView {
   modality: Modality;
   label: Bilingual;
   default_method: string;
-  viewer: string;
   metrics: TaskMetricDef[];
   tools: TaskToolDef[];
   overlays: TaskOverlaySpec[];
@@ -317,7 +308,6 @@ export interface Annotation {
   id: string;
   image_id: string;
   index?: Index;
-  z?: number | null;
   primitive: AnnotationPrimitive;
   label: string;
   class_id?: number | null;
@@ -332,7 +322,6 @@ export interface Annotation {
 export interface AnnotationInput {
   image_id: string;
   index?: Index;
-  z?: number | null;
   primitive: AnnotationPrimitive | { kind: "mask" };
   mask_png_b64?: string;
   label?: string;

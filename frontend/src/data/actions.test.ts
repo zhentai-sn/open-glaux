@@ -24,7 +24,6 @@ function task(t: TaskView["task"], modality: string): TaskView {
     modality: modality as TaskView["modality"],
     label: { en: t, zh: t },
     default_method: "",
-    viewer: "",
     metrics: [],
     tools: [],
     overlays: [],

@@ -2,8 +2,8 @@
 # 模态字面量比较计数（SDD 10 §7 规则 9–10、D-14）。
 #
 # 用途：统计核心目录里「拿模态字面量做分支判断」的命中数，使「先清零字面量、再把
-# Modality / TaskType 放宽为 str」这条顺序约束可检查。W0 只打印基线；W7 改用 --strict
-# 阻断并纳入 make test 前置。
+# Modality / TaskType 放宽为 str」这条顺序约束可检查。make test 使用 --strict
+# 阻断式门禁。
 #
 # 用法：scripts/ci/check-modality-literals.sh [--list] [--strict]
 #   --list    逐条打印命中（path:line: 源码行）

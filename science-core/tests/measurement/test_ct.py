@@ -74,11 +74,11 @@ def test_volume_mask_serialize_round_trip():
 
 def test_volume_mask_with_raw_ref_serializes():
     v = VolumeMask(id="ct_001", ref="/api/volume/ct_001/labelmap",
-                   classes=_classes(), raw_ref="/api/volume/ct_001/raw", path=None)
+                   classes=_classes(), raw_ref="/api/objects/ct_001/raw", path=None)
     d = primitive_to_dict(v)
-    assert d["raw_ref"] == "/api/volume/ct_001/raw"
+    assert d["raw_ref"] == "/api/objects/ct_001/raw"
     v2 = primitive_from_dict(d)
-    assert v2.raw_ref == "/api/volume/ct_001/raw"
+    assert v2.raw_ref == "/api/objects/ct_001/raw"
 
 
 def test_primitive_from_dict_unknown_kind_raises():

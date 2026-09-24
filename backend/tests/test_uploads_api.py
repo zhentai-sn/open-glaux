@@ -174,9 +174,8 @@ def _annotate(image_id: str, x1: int, y1: int):
         "/annotations",
         json={
             "image_id": image_id,
-            "kind": "bbox",
             "status": "suggested",
-            "author": "agent",
+            "source": "agent",
             "primitive": {"kind": "bbox", "x0": 0, "y0": 0, "x1": x1, "y1": y1},
         },
     )

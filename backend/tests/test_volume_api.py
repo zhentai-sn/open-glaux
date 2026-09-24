@@ -1,4 +1,4 @@
-"""P6 U4 测试：画笔编辑回流（patch_labelmap + /volume/{id}/mask-edit 端点）。"""
+"""P6 U4 测试：画笔编辑内核与旧端点下线。"""
 
 from __future__ import annotations
 
@@ -191,114 +191,12 @@ def test_patch_labelmap_empty_slices_noop(tmp_path, monkeypatch):
     assert (arr == 1).sum() == 216  # 原样
 
 
-# --- /volume/{id}/mask-edit 端点 ----------------------------------------
+# --- W7：旧画笔端点退役 -----------------------------------------------------
 
 
-def test_mask_edit_endpoint_happy_path(tmp_path, monkeypatch):
-    """端点 patch → 重 measure → 返回新 metrics（v0: raw_ref=None，HU mean 不重算）。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    # 擦 z=5 肝中心 4×4
-    mask = np.zeros((10, 10), dtype=bool)
-    mask[3:7, 3:7] = True
-    body = {
-        "task": "totalseg_liver_kidney",
-        "method": method,
-        "slices": [{"z": 5, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(mask)}],
-    }
-    r = client.post(f"/volume/{volume_id}/mask-edit", json=body)
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert "liver_volume_mm3" in data["metrics"]
-    # voxel=(0.5,0.5,1.5) → 1 voxel = 0.375 mm³；200 体素 = 75 mm³
-    assert data["metrics"]["liver_volume_mm3"]["value"] == pytest.approx(200 * 0.375, rel=1e-3)
-    # HU mean 不在 mask-edit 响应里（v0 raw_ref 留 None）
-    assert "liver_hu_mean" not in data["metrics"]
-    assert data["labelmap_ref"].endswith(
-        "labelmap?task=totalseg_liver_kidney&method=totalsegmentator_v2"
-    )
-    assert data["model_version"] == "human@edit"
-
-
-def test_mask_edit_endpoint_rejects_unknown_class(tmp_path, monkeypatch):
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    mask = np.zeros((10, 10), dtype=bool)
-    body = {
-        "task": "totalseg_liver_kidney",
-        "slices": [{"z": 5, "class_id": 999, "mode": "paint", "mask_png_ref": _png_b64_mask(mask)}],
-    }
-    r = client.post(f"/volume/{volume_id}/mask-edit", json=body)
-    assert r.status_code == 422
-    assert "白名单" in r.json()["detail"]
-
-
-def test_mask_edit_endpoint_rejects_bad_task(tmp_path, monkeypatch):
-    """task 不在 Literal 列表 → pydantic 422 校验拒绝（快且早于 handler）。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    r = client.post(
-        f"/volume/{volume_id}/mask-edit",
-        json={"task": "far_wall_cca_imt", "slices": []},
-    )
-    assert r.status_code == 422
-
-
-def test_mask_edit_endpoint_rejects_non_ct_id(tmp_path, monkeypatch):
-    r = client.post(
-        "/volume/ct_999/mask-edit",
-        json={"task": "totalseg_liver_kidney", "slices": []},
-    )
-    # 422 校验失败 / 404 找不到 / 422 backend raise——皆可；只要求 4xx
-    assert 400 <= r.status_code < 500
-
-
-def test_mask_edit_concurrency_stale_rejected(tmp_path, monkeypatch):
-    """并发守卫（review ①）：两笔从同一 base_seq 出发，先到者成功（seq+1），落后者 409 被超越。"""
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    dataset_ct.reset_edit_seq(volume_id, method)
-    base = dataset_ct.current_edit_seq(volume_id, method)  # 0
-
-    mask = np.zeros((10, 10), dtype=bool)
-    mask[3:7, 3:7] = True
-    body_a = {
-        "task": "totalseg_liver_kidney", "method": method, "base_seq": base,
-        "slices": [{"z": 5, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(mask)}],
-    }
-    # A 先提交 → 200，seq 前进到 base+1
-    ra = client.post(f"/volume/{volume_id}/mask-edit", json=body_a)
-    assert ra.status_code == 200, ra.text
-    assert ra.json()["seq"] == base + 1
-
-    # B 仍持旧 base_seq 提交 → 409 被超越（旧编辑不会静默覆盖 A 的修正）
-    body_b = {
-        "task": "totalseg_liver_kidney", "method": method, "base_seq": base,
-        "slices": [{"z": 6, "class_id": 1, "mode": "paint", "mask_png_ref": _png_b64_mask(mask)}],
-    }
-    rb = client.post(f"/volume/{volume_id}/mask-edit", json=body_b)
-    assert rb.status_code == 409, rb.text
-    assert "超越" in rb.json()["detail"]
-
-    # B 以最新 seq 为 base 重试 → 200
-    body_b["base_seq"] = base + 1
-    rb2 = client.post(f"/volume/{volume_id}/mask-edit", json=body_b)
-    assert rb2.status_code == 200, rb2.text
-    assert rb2.json()["seq"] == base + 2
-
-
-def test_mask_edit_no_base_seq_still_serializes(tmp_path, monkeypatch):
-    """base_seq 省略时不做乐观并发校验，但仍成功且 seq 前进。
-
-    后端锁负责串行化，修复裸 read-modify-write。
-    """
-    volume_id, method, _, _ = _seed_labelmap(tmp_path, monkeypatch)
-    dataset_ct.reset_edit_seq(volume_id, method)
-    mask = np.zeros((10, 10), dtype=bool)
-    mask[3:7, 3:7] = True
-    body = {
-        "task": "totalseg_liver_kidney", "method": method,
-        "slices": [{"z": 5, "class_id": 1, "mode": "erase", "mask_png_ref": _png_b64_mask(mask)}],
-    }
-    r = client.post(f"/volume/{volume_id}/mask-edit", json=body)
-    assert r.status_code == 200
-    assert r.json()["seq"] == 1
+def test_legacy_mask_edit_endpoint_removed():
+    r = client.post("/volume/ct_001/mask-edit", json={"task": "totalseg_liver_kidney"})
+    assert r.status_code == 404
 
 
 # --- U5: Reproducibility Dice 验证 ----------------------------------------

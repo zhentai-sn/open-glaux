@@ -47,7 +47,7 @@ class WsiDetector(DetectorBase):
         r = spec.region
         if r is None:
             raise ValueError(
-                "WSI 核检测需 box 选区（region / 过渡字段 roi_box）——硬拒绝，整片推理不可行"
+                "WSI 核检测需 box 选区（region）——硬拒绝，整片推理不可行"
             )
         _, segment_wsi = _wsi_modules()
         plugin = REGISTRY[TaskType(spec.task)]
@@ -62,7 +62,7 @@ class WsiDetector(DetectorBase):
             classes=plugin.classes,
             roi=roi_box,
         )
-        det = Detection(primitives=(ps,), model_version=mv, roi_used=None,
+        det = Detection(primitives=(ps,), model_version=mv,
                         region=r.model_dump(exclude_none=True))
         return det, calibration_result(spec.calibration)
 

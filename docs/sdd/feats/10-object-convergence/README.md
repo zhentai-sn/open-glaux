@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 契约冻结；W0～W3 已准出；W4、W5、W6 代码与自动化门禁完成，未签真实浏览器走查递延至最终统一验收；W7 过渡物清除待实施，见执行记录 |
+| 当前阶段 | 契约冻结；W0～W3 已准出；W4～W7 代码与自动化门禁完成，未签真实浏览器走查递延至最终统一验收，见执行记录 |
 | 上游依据 | [模态通用化技术债审计](../../../todo/2026-09-18-001-code-review-modality-generalization.zh-CN.md)（`kind: record`，§7 目标抽象、§8 分波计划） |
 | 过程证据 | [对象收敛执行记录](../../../todo/2026-09-18-002-object-convergence-execution-log.zh-CN.md)（`kind: record`，按波次追加；承载基线、门禁结果、零改清单、手工走查签字、执行中发现的问题） |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
@@ -30,7 +30,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 4. **四个前端注册面**：`ENGINES`（键 `ObjectKind`）、`PAINTERS`、`CHROME_SEGMENTS`、`registerTaskTool`，以及 runtime 的 `TOOL_PROVIDERS`。
 5. **`/objects` 表征面**：`GET /objects/{id}`、`GET /objects/{id}/frame`、`GET /objects/{id}/raw`、`GET /objects/{id}/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits` 五个端点及其错误语义（见 §5、§13）。
 6. **两个动作的语义**：`openObject(id)` 与 `runTask(region?)`，含 `trigger = task?.trigger ?? "manual"` 的显式 no-task 契约（D-18）。
-7. **过渡物的形态与删除时点**：旧四字段由 `SourceBase` 单侧回填、旧端点退 alias、`ViewerContext` 旧字段映射，全部在 W7 清除（D-10）。
+7. **过渡物删除**：旧四字段、旧端点 alias 与 `ViewerContext` 旧字段映射已在 W7 清除（D-10），不得复活。
 
 ## 2. 本 SDD 不负责什么
 
@@ -115,7 +115,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
 | `POST /task/run` | `TaskSpec{task, image_id, method, calibration, region}` | 字段名 `image_id` 保留，语义为对象 id（D-8）；`region` 为判别联合，`box` 语义固定为 `(x0, y0, x1, y1)`（D-9） |
-| `TaskSpec` 过渡字段 | `cubs_cf`、`roi`、`roi_box` | 过渡一版，由 validator 映射为 `calibration{mm_per_px}`／`region{column_window}`／`region{box}`；映射时 warn 并计数，W7 删除 |
+| `TaskSpec` 输入字段 | `calibration`、`region` | 旧 `cubs_cf`、`roi`、`roi_box` 输入返回 422；不做隐式映射 |
 | `POST /task/measure` | `TaskMeasureRequest` 的 `cf` → `calibration` | 收 `Calibration` 而非恒为 `mm_per_px` 的浮点（现状 `backend/app/schemas.py` `cf: float = Field(gt=0)` 对 CT／WSI 必错）；未知 `Calibration.kind` → `HardReject` |
 | `POST /objects/{id}/edits` | `EditRequest{task, method, base_seq, ops}`，`EditOp{index, class_id, mode, mask_png}` | `task`／`method` 由前端从 `TaskView` 取，不得为常量；`base_seq` 是乐观并发输入，冲突 409 |
 | 任务能力门控 | `TaskPlugin.object_kinds`、`trigger`、`classes`、`capabilities` | `run_task` 用 `object_kinds` 门控几何族，不做 modality 相等比较（D-13）；`trigger` 取值 `on_open\|on_region\|manual`，缺任务时按 `manual`（D-18） |
@@ -158,7 +158,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 - `tiles` 模板含 `{level}/{col}/{row}` 三个占位段，仅 `kind="slide"` 下发。
 - `audio` 仅在 `streams[]` 含 `kind="audio"` 时下发，是为音频观测保留的取流入口。**本 SDD 只冻结键名与下发条件，不冻结该端点的请求与响应形状**（区间取样、与帧的时间对齐属观测形状，见 §17 与 SDD 11）；在 SDD 11 冻结前该键不得被消费（§7 规则 22）。
 - `axes` 的轴序固定：`image` 为 `[x,y]`，`volume` 为 `[x,y,z]`，`slide` 为 `[x,y,level]`，`video` 为 `[x,y,t]`。
-- 过渡字段 `cf`／`voxel_spacing_mm`／`mpp_um`／`dims` 由 `SourceBase` 从 `axes`／`calibration` 统一回填，服务端只有一套真相（D-10）；前端 lint 禁读，W7 删除。`ImageMeta = ObjectMeta` 别名同期删除。
+- 对象几何与标定只由 `axes`／`calibration` 表达；`ObjectMeta` 不含旧四字段或 `ImageMeta` 别名。
 - 同一个 `ObjectMeta` 同时是 `GET /images?modality=` 列表元素与 `GET /objects/{id}` 响应体，两处逐字段等价。
 
 ### 5.2 `/objects` 端点族
@@ -195,7 +195,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 
 五个端点的失败分支（未知 id、kind 与端点不符、依赖不可用、超限）一律按 §13 处理，端点侧不另设语义。
 
-### 5.3 保留面与 alias 清单
+### 5.3 保留面与已退役端点
 
 保留面不改路径、不改查询参数，只换内部分派为 `resolve_object` + `SOURCES`／`DETECTORS`；其响应体随 §5.1 演进。
 
@@ -204,17 +204,13 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | `GET /images?modality=` | 保留 | SDD 08 冻结的数据轴列表入口，返回的本就是 `ObjectMeta`；五分支收为 `SOURCES[m]` 一行，`mock.dataset()` 回退删除 |
 | `GET /datasources`、`POST /datasources/samples` | 保留 | 新增下发 `kind`、`label`、`label_key`、`importable`、`default_capabilities` 五字段 |
 | `GET /tasks`、`POST /task/run`、`POST /task/measure`、`GET /capabilities` | 保留 | 任务轴面，只换内部分派 |
-| `GET /annotations`、`POST /annotations` | 保留 | 增 `index`（`z` 作别名一版）与 `index_from`／`index_to` 过滤 |
+| `GET /annotations`、`POST /annotations` | 保留 | 第三轴只用 `index`；列表用 `index_from`／`index_to` 过滤，旧 `z` 输入返回 422 |
 | `POST /uploads/images` | 保留 | 魔数表来源改为 `SOURCES[*].formats` |
 | `GET /image/{id}` | **有意保留** | 通用图像的既有直取面，前缀判别改 `resolve_object`、删 mock 合成回退；不退 alias、不设删除时点 |
 | `GET /wsi/{slide_id}/verify` | **有意保留** | 路径与前端按钮位置不动，内部实现收进 `Detector.verify`；不新立 `POST /task/verify` |
-| `GET /volumes`、`GET /slides` | alias 一版 | 内部改 `SOURCES[m].list_ids`，W7 删除 |
-| `GET /volume/{id}` | alias 一版 | 内部改 `/objects/{id}/raw`，W7 删除 |
 | `GET /volume/{id}/labelmap?task=&method=` | **有意保留** | 任务结果字节面，不属 `/objects` 表征族；URL 由任务输出的 `ref` 模板下发（`backend/app/kernel.py:157`、`backend/app/routers/api.py:273`），前端不拼路径；不退 alias、不设删除时点 |
-| `POST /volume/{id}/mask-edit` | alias 一版 | 内部改 `/objects/{id}/edits`，W7 删除；旧契约的 `base_seq` 可为 `null`（不做乐观并发校验），alias 期间保留此行为，新端点 `base_seq` 必填 |
-| `GET /wsi/{slide_id}/tile/{level}/{col}/{row}` | alias 一版 | 内部改 `/objects/{id}/tiles/{level}/{col}/{row}`，W7 删除 |
 
-alias 期间的硬约束：每条 alias 与其新端点对每个模态返回**同一字节流**（响应头允许新端点多出 `X-Glaux-Frame`）。alias 保留到 W7，前端切到新端点在 W4；W7 删除是独立准出，不随发行周期延后（D-10）。
+`GET /volumes`、`GET /slides`、`GET /volume/{id}`、`POST /volume/{id}/mask-edit` 与 `GET /wsi/{id}/tile/{level}/{col}/{row}` 已在 W7 删除，返回 404；对应请求改用本节的 `/images` 与 `/objects` 端点。
 
 ## 6. 核心流程
 
@@ -375,17 +371,17 @@ flowchart LR
 2. **引擎只由对象几何决定（D-11）。** `ENGINES` 以 `ObjectKind` 为键，`Viewer.tsx` 从 `activeObject().kind` 取引擎、用 `axisFor(meta)` 从 `axes` 派生帧轴。读 `TaskView.viewer` 选引擎即违规（现状 `frontend/src/components/Viewer.tsx:11-30` 正是此形态）；`ENGINES` 缺键时渲染「查看器引擎尚未接入」空态，不得回落到任何缺省引擎。
 3. **前端不拼资源路径，一律读 `resources`。** 帧、原始数据与瓦片的 URL 由后端在 `ObjectMeta.resources{frame, raw, tiles}` 中下发模板，前端与 runtime 只做模板填充。在 `frontend/src/api/client.ts` 或任何组件里用字符串拼接构造 `/image/`、`/volume/`、`/wsi/…/tile/` 路径即违规（现状 `client.ts:117`、`:123`、`:136`）。
 4. **store 只存 `focus`，对象实体靠 `activeObject()` 反查。** `SessionState` 中不得再有 `activeImage` / `activeVolume` / `activeSlide` / `wsiRoi` 这类按模态分槽的活动对象字段（现状 `frontend/src/store/session.ts:226-229`）。组件需要对象元数据时调 `activeObject(s)`，需要列表时调 `objectsOf(s, modality)`；`focus` 的唯一写入者是 `setFocus` / `setIndex` / `setRegion`，组件不得持有本地的层号或帧号副本。
-5. **`Index` 是唯一的索引类型。** 第三轴一律写成 `Index{z?, t?, level?}`，由 `axes` 决定哪一维有意义。新增裸 `z: number` / `t: number` / `frame: number` 参数或字段即违规；`Annotation.z` 作为 `index` 的过渡别名保留一版，不得新增读点。
-6. **`Region` 是判别联合，`box` 的四元组语义为 `(x0, y0, x1, y1)`（D-9）。** 坐标系为 level-0 像素（`slide`）或帧像素（其余 `kind`）。用 `[x, y, w, h]` 解释该四元组、或并列保留 `roi` 与 `roi_box` 两个字段即违规；`TaskSpec` 上的 `roi` / `roi_box` 仅由过渡 validator 单向映射为 `Region`，不作为新代码的写入口。
+5. **`Index` 是唯一的索引类型。** 第三轴一律写成 `Index{z?, t?, level?}`，由 `axes` 决定哪一维有意义。标注 API 只收发 `index`；存储层物理 `z` 列保留。
+6. **`Region` 是判别联合，`box` 的四元组语义为 `(x0, y0, x1, y1)`（D-9）。** 坐标系为 level-0 像素（`slide`）或帧像素（其余 `kind`）。任务输入只收 `region`；旧 `roi` / `roi_box` 返回 422。
 7. **`Calibration.kind` 是开放集，未知 kind 以 `HardReject` 终止（D-16）。** 标定一律经 `calibration_from_dict` 构造、经 `resolve_calibration_for(obj)` 派发。对 `kind` 做穷举 `Literal` 校验、或在未知 kind 时取缺省值继续计算，均违规。前端对未知 kind 只展示 `source`，不渲染数值。
-8. **过渡期只有一套服务端真相（D-10）。** `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 由 `SourceBase` 在 `meta()` 之后从 `axes` / `calibration` **单向**回填；任何 `Source` 实现直接写这四个字段，或反过来从它们推导 `axes` / `calibration`，均违规。前端与 runtime 读取这四个字段由 lint 规则禁止，命中即构建失败。
+8. **对象元数据只有一套真相（D-10）。** `SourceBase.meta()` 直接返回 `ObjectMeta`，几何与标定由 `axes` / `calibration` 表达；旧四字段不在跨层契约中。
 9. **核心目录禁止对 `modality` 写字面量比较（D-14，门禁）。** 受管范围为 `frontend/src`（`plugins/` 除外）与 `backend/app`（`sources/`、`detectors/` 除外）。出现 `modality === "natural_image"`、`modality == "ct_abdomen"`、`if modality in ("pathology", …)` 一类比较即违规，由 `scripts/ci/check-modality-literals.sh` 统计命中数。模态差异一律通过 `SOURCES` / `TaskView.capabilities` / `ObjectMeta.kind` 表达。
 10. **先清零字面量，再放宽类型（D-14）。** `Modality` 与 `TaskType` 由枚举放宽为 `str` 的改动，必须晚于规则 9 的门禁命中数归零。顺序颠倒会让既有 `===` 比较静默走 `else` 分支而不报错，因此「放宽类型」的提交里不得同时存在未清零的字面量比较。
 11. **触发策略显式取自任务轴（D-18）。** `openObject` 只写 `const trigger = task?.trigger ?? "manual"`，无 `TaskView` 的模态即 `manual`，这是本 SDD 明确的 no-task 契约。为 `natural_image` 或 `video` 在 `REGISTRY` 中添加空的 `TaskPlugin` 行以「补齐」触发规则，违规。
 12. **`resolve_object` 是后端唯一的 id 解析入口，且无隐式回退（D-7、D-17）。** 任何端点、路由或任务实现中出现 `id.startswith("ct_")` 一类前缀判别、模块级 `_ID_RE` 匹配用于跨模块寻址、或 `if not _has_data(): return mock…` 分支，均违规。合成数据只能作为 `dev_mode()` 下显式注册的 `synthetic-us` / `synthetic-hc` Source 出现。
 13. **`run_task` 持有公共前缀，`Detector` 只取数（D-12）。** 对象解析、`object_kinds` 门控、`available()` 探测、`region.kind` 校验与标定解析固定在 `run_task` 内；`Detector` 实现里重复这几步，或反过来在 `run_task` 外绕开它们直接调 `DETECTORS[...]`，均违规。不变量：`set(plugin.adapter_kind for plugin in REGISTRY.values()) == set(DETECTORS)`。
 14. **任务门控用 `TaskPlugin.object_kinds`，不用 modality 相等（D-13）。** 判断一个任务能否作用于一个对象，只比对 `ObjectRef.kind ∈ plugin.object_kinds`；写 `plugin.modality != ref.modality` 即违规。
-15. **表征面只加不改（D-5、D-8）。** 列表入口仍是 `GET /images?modality=`，不得新建 `GET /objects` 列表端点；`TaskSpec` 与 `AnnotationIn` 的字段名 `image_id` 保留（语义为对象 id），把它改成 `object_id` 即违规。退 alias 的旧端点在存活期内必须与新端点字节等价，不得只在 alias 上打补丁。
+15. **表征面只加不改（D-5、D-8）。** 列表入口仍是 `GET /images?modality=`，不得新建 `GET /objects` 列表端点；`TaskSpec` 与 `AnnotationIn` 的字段名 `image_id` 保留（语义为对象 id）。旧 alias 端点必须保持删除状态。
 16. **观测必须携带 `ReferenceFrame`，runtime 只有一个取图口。** `agent-runtime` 中任何直接 `fetch` 图像字节的代码即违规，一律经 `fetchObservation` 返回 `Observation{bytes, mime, frame}`。模型给出的归一化框在写库前必须经 `toObjectCoords(box, frame)` 换算为 `Region`，并带上 `frame.index`；把「取到的位图尺寸」直接当对象像素尺寸使用，违规。
 17. **画笔提交经 `MaskSink`（D-6）。** 查看器不得直连任何写端点，掩膜一律交给注入的 `MaskSink.commit(mask, dims, index)`；两个实现（`annotationMaskSink` 与 `editMaskSink`）分别对应标注写入与任务结果编辑两条语义路径，二者不合并。`task` 与 `method` 从当前 `TaskView` 取，不得写成常量。
 18. **只有 `agent-runtime` 与模型通信。** `backend`、`frontend` 与 `science-core` 中出现模型提供商端点调用或密钥读取即违规。本 SDD 新增的 `SegmenterPort`、`ToolProvider` 与 `fetchObservation` 全部位于 `agent-runtime`，不构成例外。
@@ -407,7 +403,7 @@ flowchart LR
 
 | 名词 | 定义处 | 归属进程 | 唯一写入者 | 取代了什么 |
 | --- | --- | --- | --- | --- |
-| `ObjectMeta` | `backend/app/schemas.py` | backend 定义，frontend / agent-runtime 逐字镜像 | `Source.meta()`（经 `SourceBase` 回填过渡字段） | `schemas.py:58` 的 `ImageMeta`：`cf`/`voxel_spacing_mm`/`mpp_um`/`dims` 四个并列可空字段与必填的 `center` |
+| `ObjectMeta` | `backend/app/schemas.py` | backend 定义，frontend / agent-runtime 逐字镜像 | `Source.meta()` 直接返回 `ObjectMeta` | 旧 `ImageMeta` 的并列可空字段与必填 `center` 已删除 |
 | `Focus` | `frontend/src/api/types.ts` | frontend store 持有；agent-runtime 只读；backend 不持有 | `frontend/src/store/session.ts` 的 `setFocus`/`setIndex`/`setRegion` | `session.ts:226-229` 的 `activeImage`/`activeVolume`/`activeSlide`/`wsiRoi` 四槽，加 `VolumeViewer.tsx` 的组件本地 `z` |
 | `Calibration` | `backend/app/schemas.py`（实现在 `science-core/glaux_core/calibration/calibration.py`） | backend 定义，三端镜像 | `Source.detect_calibration()` 与 `calibration_from_dict()` | 三种分立标定构造各自成路、无派发入口；`TaskSpec.cubs_cf` 单一 mm/px 假设 |
 | `Region` | `backend/app/schemas.py` | backend 定义，三端镜像 | `TaskSpec.region` / `Focus.region`（前端 `setRegion`） | `schemas.py:24-25` 的 `roi`（列窗）与 `roi_box`（框选）两个并列可空字段 |
@@ -469,14 +465,14 @@ flowchart LR
 | 对象 | 职责 | 变更类型 |
 | --- | --- | --- |
 | `backend/app/schemas.py` | `Axis`/`Calibration`/`Index`/`Region`/`ReferenceFrame`/`ObjectMeta`/`EditRequest` 定义处；`Modality`/`TaskType`（`:16-17`）由 `Literal` 改 `str` + validator | 扩展 |
-| `backend/app/sources/base.py` | `Source` Protocol 与 `SourceBase` 缺省实现（过渡字段回填在此） | 新建 |
+| `backend/app/sources/base.py` | `Source` Protocol 与 `SourceBase` 缺省实现；`meta()` 直接返回 `describe()` 的 `ObjectMeta` | 新建 |
 | `backend/app/sources/__init__.py` | `SOURCES` 注册表 | 新建 |
 | `backend/app/detectors/base.py` | `Detector` Protocol | 新建 |
 | `backend/app/detectors/`（四支实现） | `kernel.py` 的四个任务分支各拆一类；`_enrich_gold`（`kernel.py:214`）归位为 `reference` | 新建 |
 | `backend/app/routers/objects.py` | `/objects/*` 表征面 | 新建 |
 | `backend/app/datasource_registry.py` | `MODALITIES`（`:32`）改 `tuple(SOURCES)`；`_builtin_specs` 改由 `builtin_sample` 提供；新增 `resolve_object` 与 id 索引；`DataSource`（`:36`）增 `kind`/`label`/`label_key`/`importable`；`dev_mode()`（`:68`）不动 | 扩展 |
-| `backend/app/routers/api.py` | `/images`（`:130`）改走 `SOURCES`；`/volumes`（`:150`）、`/slides`（`:302`）、`/volume/{id}`（`:158`）、`/volume/{id}/mask-edit`（`:233`）、`/wsi/{id}/tile`（`:309`）改内部 alias；`/volume/{id}/labelmap`（`:179`）只换内部分派为 `resolve_object` + `DETECTORS`，路径与查询参数不动；`/image/{id}`（`:364`）改 `resolve_object` 并删 mock 回退 | 退 alias |
-| `backend/app/routers/annotations.py` | `AnnotationIn`（`:39`）增 `index`（`z` 作别名）；`_dims_for`/`_plugin_for` 改 `resolve_object`；`GET` 增 `index_from`/`index_to` | 扩展 |
+| `backend/app/routers/api.py` | `/images` 走 `SOURCES`；五组旧 alias 已删；`/volume/{id}/labelmap`、`/wsi/{id}/verify` 与 `/image/{id}` 有意保留 | 重构 |
+| `backend/app/routers/annotations.py` | `AnnotationIn` 只收 `index`，响应只带 `index`；存储列 `z` 保留；`GET` 使用 `index_from`/`index_to` | 重构 |
 | `backend/app/annotations/store.py` | `_KINDS`（`:25`）与 `_SCHEMA`（`:29`）的 `kind` CHECK 扩展，带 `PRAGMA user_version` 迁移；`base_seq`/`status`/`source`/mask 落盘与 `image_id` 字段名不动 | 扩展 |
 | `backend/app/kernel.py` | `run_task`（`:251`）四条公共前缀上提；`measure_task`（`:277`）收 `Calibration`；`models()`（`:288`）汇总 `DETECTORS`；`_DS_META`（`:433`）删，改读 `builtin_sample` | 重构 |
 | `backend/app/config.py` | `root_has_data` 的模态 if 改 `SOURCES[m].probe`；`*_data_available` 降为薄 alias | 重构 |
@@ -496,13 +492,13 @@ flowchart LR
 
 | 对象 | 职责 | 变更类型 |
 | --- | --- | --- |
-| `science-core/glaux_core/contracts.py` | 各 `Primitive` 加 `at`；`Detection` 增 `region`（`roi_used` 保留一版）；`primitive_to_dict`/`from_dict` 同步 | 扩展 |
+| `science-core/glaux_core/contracts.py` | 各 `Primitive` 有 `at`；`Detection` 只保留 `region`，序列化不再含 `roi_used` | 扩展 |
 | `science-core/glaux_core/calibration/calibration.py` | `CFSource.TIME_BASE`；`resolve_calibration_for(obj)` 按 `Calibration.kind` 派发；`calibration_from_dict`（未知 kind → `HardReject`） | 扩展 |
 | `science-core/glaux_core/tasks.py` | `TaskPlugin`（`:115`）增 `object_kinds`/`trigger`/`classes`，`capabilities` 转开放集，`viewer` 标 deprecated；`REGISTRY`（`:188`）各行补能力位 | 扩展 |
 | `science-core/glaux_core/segmentation/base.py` | `Adapter` ABC 是进程内像素层契约，与 `Detector` 同名字空间但不继承 | 零改 |
-| `agent-runtime/src/contracts.ts` | `ViewerContext`（`:94-101`）增 `collection`/`object`/`focus` 并保留旧字段一版；`Observation`/`ReferenceFrame`/`ToolProvider` 镜像 | 扩展 |
+| `agent-runtime/src/contracts.ts` | `ViewerContext` 只保留 `collection`/`task`/`method`/`object`/`focus`；`Observation`/`ReferenceFrame`/`ToolProvider` 镜像 | 扩展 |
 | `agent-runtime/src/observation/`（新） | `fetchObservation` 唯一取图处；`toObjectCoords` | 新建 |
-| `agent-runtime/src/transport/routes.ts` | `parseViewer` 按 `object.kind` 判别校验，旧字段仅在缺失时映射并 warn | 重构 |
+| `agent-runtime/src/transport/routes.ts` | `parseViewer` 校验对象、焦点、轴和区域；旧上下文字段直接拒绝 | 重构 |
 | `agent-runtime/src/pi/harness-registry.ts` | `TOOL_PROVIDERS` 注册面取代固定 if 序列；`:215-270` 不动 | 重构 |
 | `agent-runtime/src/pi/tools/view-image.ts`、`locate-roi.ts`、`run-task.ts`、`propose-annotation.ts`、`segment-region.ts`、`consult-atlas.ts` | 改由 `ToolProvider` 注册、取图经 `fetchObservation`、提示词领域无关；`propose-annotation` 加 `index` | 重构 |
 | `agent-runtime/src/annotation/segmenter-port.ts` | `SegmenterPort`（`track` 推迟） | 新建 |
@@ -542,9 +538,7 @@ export interface ObjectMeta {
   streams: Stream[];                // 附加流声明，默认 []；video 探到音轨时含一条 kind="audio"（D-23）
   methods: { name: string; role: "gold" | "agent" | "reference" }[];
   meta: Record<string, unknown>;    // 原 center 等自由元数据（不再必填）
-  /** 过渡一版（第 7 波删）：cf / voxel_spacing_mm / mpp_um / dims，由 SourceBase 从 axes/calibration 回填，前端 lint 禁读 */
 }
-export type ImageMeta = ObjectMeta;  // 过渡别名一版
 
 export interface Index { z?: number; t?: number; level?: number }
 export type Region =
@@ -559,7 +553,7 @@ export interface TaskView {
   task: string; modality: string; object_kinds: ObjectKind[]; tools: ToolDef[];
   capabilities: string[];           // 开放集：bbox|polygon|brush|wall|voi|z_scroll|timeline|verify
   trigger: "on_open" | "on_region" | "manual"; classes?: ClassSpec[];
-  metrics: MetricDef[]; overlays: OverlaySpec[]; /* viewer 保留但 Viewer.tsx 不再读（D-11） */
+  metrics: MetricDef[]; overlays: OverlaySpec[];
 }
 export interface TaskSpec { task: string; image_id: string; method?: string; calibration?: Calibration; region?: Region }   // 字段名 image_id 保留（D-8）
 
@@ -603,7 +597,6 @@ export interface ViewerContext {           // 名字不改，字段收敛
   task?: string; method?: string;
   object?: Pick<ObjectMeta, "id" | "kind" | "axes" | "calibration">;
   focus?: Focus;
-  /** 过渡一版：image_id / modality / cubs_cf / roi_box；object/focus 优先，旧字段仅在缺失时映射并 warn（D-9） */
 }
 export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame }
 export function fetchObservation(base: string, focus: Focus, opts?: { size?: number; signal?: AbortSignal }): Promise<Observation>;   // 唯一取图处
@@ -639,7 +632,7 @@ class Source(Protocol):
     def invalidate(self) -> None: ...                       # 取代 caches._CACHED
 
 class SourceBase:
-    """缺省实现基类：meta() 后统一从 axes/calibration 回填过渡期旧字段——服务端只有一套真相（D-10）。
+    """缺省实现基类：meta() 返回子类 describe() 构造的 ObjectMeta。
 
     Protocol 之外的挂点（不改 Protocol 签名）：describe()（子类给长期字段）、synthetic_sample()
     （开发者模式合成源）、derive_id(source, rel_name)（上传回执 id）、locate(object_id)（is_mine 兜底
@@ -668,18 +661,13 @@ class ObjectMeta(BaseModel):
     axes: list[Axis]; calibration: Calibration | None = None
     resources: dict[str, str]; methods: list[dict] = []; meta: dict = {}
     streams: list[Stream] = []                          # D-23；video 探到音轨时含一条 kind="audio"
-    cf: float | None = None; voxel_spacing_mm: list[float] | None = None
-    mpp_um: list[float] | None = None; dims: list[int] | None = None   # 过渡一版
     def axis(self, name: str) -> Axis | None: ...
     def check_index(self, index: Index) -> None: ...   # 越界 → ValueError；取代 _dims_for + _check_within_dims 阶梯
-ImageMeta = ObjectMeta                                  # 过渡别名一版
 
 class TaskSpec(BaseModel):
     task: str; image_id: str; method: str | None = None
     calibration: Calibration | None = None; region: Region | None = None
-    cubs_cf: float | None = None; roi: tuple[int, int] | None = None; roi_box: tuple[int, int, int, int] | None = None   # 过渡一版
-    @model_validator(mode="after")
-    def _legacy(self): ...   # cubs_cf→calibration{mm_per_px}; roi→region{column_window}; roi_box→region{box,(x0,y0,x1,y1)}
+    model_config = ConfigDict(extra="forbid")
 
 class EditRequest(BaseModel): task: str; method: str; base_seq: int; ops: list[EditOp]   # EditOp{index, class_id, mode, mask_png}
 
@@ -702,7 +690,7 @@ class DetectorBase:
 DETECTORS: dict[str, Detector] = {}
 ```
 
-science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None = None`，`Detection` 增 `region`（`roi_used` 保留一版）；`calibration.py` 增 `CFSource.TIME_BASE`、`resolve_calibration_for(obj)` 与 `calibration_from_dict`（未知 `Calibration.kind` → `HardReject`）；`tasks.py` 的 `TaskPlugin` 增 `object_kinds`/`trigger`/`classes`，`capabilities` 转开放集，`viewer` 标 deprecated。
+science-core 中各 `Primitive` 有 `at: Index | None = None`，`Detection` 只用 `region`；`calibration.py` 有 `CFSource.TIME_BASE`、`resolve_calibration_for(obj)` 与 `calibration_from_dict`（未知 `Calibration.kind` → `HardReject`）；`TaskPlugin` 有 `object_kinds`/`trigger`/`classes`，`capabilities` 为开放集，不再下发 `viewer`。
 
 ### 9.3 逐字段约束
 
@@ -724,8 +712,6 @@ science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None
 | `ObjectMeta.streams[]` | `Stream[]` | 是（默认 `[]`） | 与 `axes` 正交的附加流声明：`axes` 描述采样网格，`streams` 描述同一条 `t` 轴上的另一路数据。`kind` 为开放集，当前只有 `audio`；不得为此新增逐模态可空字段（D-23） | 长期 |
 | `ObjectMeta.methods[].role` | `"gold" \| "agent" \| "reference"` | 是 | 闭集三值 | 长期 |
 | `ObjectMeta.meta` | `dict` | 否（默认 `{}`） | 自由元数据；原 `ImageMeta.center` 降入此处并由必填改可选 | 长期 |
-| `ObjectMeta.cf` / `voxel_spacing_mm` / `mpp_um` / `dims` | 四个可空标量/数组 | 否 | 由 `SourceBase` 从 `axes`/`calibration` 回填；服务端单一真相，前端 lint 禁读 | **过渡，第 7 波删** |
-| `ImageMeta`（Python 与 TS 别名） | `= ObjectMeta` | — | 仅为兼容既有导入 | **过渡，第 7 波删** |
 | `Index.z` / `t` / `level` | `int \| None` | 否 | 全部可空；语义由 `kind` 决定（`volume`=z / `video`=t / `slide`=level）；越界由 `check_index` 抛错 | 长期 |
 | `Region.kind` | 四值判别 | 是 | `box`/`column_window`/`slice`/`frame_range`；坐标一律 level-0 或帧像素（D-9）；`Detector.accepted_regions` 不含该 kind 时拒绝 | 长期 |
 | `Region.seed` | `{t, box}` | 否 | 仅 `frame_range` 使用 | 长期 |
@@ -735,18 +721,14 @@ science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None
 | `ReferenceFrame.origin` / `scale` | `tuple[float,float]` / `float` | 是 | 观测图像像素 → 对象坐标的仿射参数；`toObjectCoords` 的唯一输入 | 长期 |
 | `ReferenceFrame.width` / `height` | `int` | 是 | 实际下发帧的像素尺寸，不是对象原始尺寸 | 长期 |
 | `TaskSpec.image_id` | `str` | 是 | **字段名保留 `image_id`，不得改写为 `object_id`**（D-8） | 长期 |
-| `TaskSpec.cubs_cf` / `roi` / `roi_box` | 三个可空字段 | 否 | 由 `_legacy` validator 映射到 `calibration`/`region` | **过渡，第 7 波删** |
 | `TaskView.object_kinds` | `ObjectKind[]` | 是 | 对象几何族与任务不符时由 `run_task` 公共前缀①拒绝 | 长期 |
 | `TaskView.trigger` | `on_open \| on_region \| manual` | 是 | 缺省 `manual`；`openObject` 只在 `on_open` 时自动跑任务 | 长期 |
 | `TaskView.capabilities` | `string[]` | 是（可为空） | 开放集 `bbox\|polygon\|brush\|wall\|voi\|z_scroll\|timeline\|verify`；驱动 `CHROME_SEGMENTS` 与工具过滤 | 长期 |
-| `TaskView.viewer` | `str` | 否 | 保留字段，`Viewer.tsx` 不再读（D-11） | **过渡，第 7 波删** |
 | `EditRequest.base_seq` | `int` | 是 | 乐观并发基线，语义与 `dataset_ct.guarded_patch_labelmap` 既有实现一致 | 长期 |
 | `EditOp.index` / `class_id` / `mode` / `mask_png` | — | 是 | `index` 定位被编辑的切片/帧 | 长期 |
 | `AnnotationIn.image_id` | `str` | 是 | **字段名保留**（D-8），与 `annotations/store.py` 的列名一致 | 长期 |
 | `AnnotationIn.index` | `Index` | 否 | 新入口；语义 `volume`=z / `video`=t / `slide`=level | 长期 |
-| `AnnotationIn.z` / `Annotation.z` | `int \| None` | 否 | `index.z` 的 API 别名；**存储列 `z` 保留**，不做第二次库迁移 | **API 别名过渡，第 7 波删** |
-| `Detection.region` | `Region \| None` | 否 | 取代 `roi_used` | 长期 |
-| `Detection.roi_used` | — | 否 | 取值与字段名在过渡期不变 | **过渡，第 7 波删** |
+| `Detection.region` | `Region \| None` | 否 | 检测使用的区域；IMT 列窗测量也从此字段读取 | 长期 |
 | `Primitive.at` | `Index \| None` | 否 | 帧级/层级定位；`None` 表示不绑定索引，与 2D 现状兼容 | 长期 |
 | `Source.formats` | `tuple[tuple[str, bytes, int], ...]` | 是（可为空元组） | 后缀、魔数、offset 三者齐备；`upload_store._MAGIC` 与 `/datasources` 的 `importable` 由此汇总，二者不得各存一份 | 长期 |
 | `Detector.accepted_regions` | `tuple[str, ...]` | 是 | 元素取 `Region.kind` 的四个值 | 长期 |
@@ -818,9 +800,9 @@ science-core 侧只追加：`contracts.py` 各 `Primitive` 加 `at: Index | None
 - **`Source.invalidate()` 幂等**：连续调用与调用一次等效；对未建立过缓存的 Source 调用不得抛异常。`_invalidate_dataset_caches`（`backend/app/datasource_registry.py:243`）改为遍历 `SOURCES` 后，遍历顺序不影响结果。
 - **`GET /objects/{id}/frame` 按全部影响响应的参数做缓存键**：键为 `(id, z, t, level, roi, size, window)`（该 `kind` 不接受的参数取空位）。键相同即返回同一字节流与同一 `X-Glaux-Frame` 头；任一参数不同即为不同条目，各自解码，不得复用。`X-Glaux-Frame` 的 `index` / `origin` / `scale` 由该键唯一决定（与 §15.1 E 的头部契约断言一致）。
 - **`POST /objects/{id}/edits` 以 `base_seq` 做乐观并发**：`base_seq` 与当前序号不符时整请求拒绝且不产生任何写（错误见 §13）；`base_seq` 相符时同一 `ops` 列表重放产生同一 labelmap，`EditOp` 的应用顺序即列表顺序。
-- **旧端点 alias 与新端点字节等价**：W2 至 W7 期间，`GET /volume/{id}`、`POST /volume/{id}/mask-edit`、`GET /wsi/{slide_id}/tile/{level}/{col}/{row}`、`GET /volumes`、`GET /slides` 与对应的 `/objects/{id}/*` 对同一对象返回同一字节流。alias 只是转调，不得有第二套取数实现。
+- **旧端点不复活**：W7 删除的五组路径返回 404；表征与编辑统一使用 `/objects/{id}/*`。
 - **存储迁移不重复触发**：`annotations` 库的 `PRAGMA user_version` 升级路径以版本号为幂等键，升级完成后再次启动不再建表、不再拷数据；`glaux.recent.v1` → `v2` 是单向迁移，迁移后重复读取不再执行转换。两者的结构见 §9.5。
-- **过渡字段回填幂等且只有一份真相**：`SourceBase` 从 `axes` / `calibration` 回填 `cf`、`voxel_spacing_mm`、`mpp_um`、`dims`，对同一 `ObjectMeta` 反复回填结果不变；前端与 runtime 一律不得自算一份（D-10）。
+- **对象元数据只有一份真相**：`SourceBase.meta()` 返回 `describe()` 的 `ObjectMeta`；前端与 runtime 只读 `axes` / `calibration`。
 
 ## 11. 状态或生命周期规则
 
@@ -871,31 +853,20 @@ stateDiagram-v2
 
 索引未命中时按 D-7 遍历 `SOURCES[*].is_mine` 兜底；兜底仍未命中即 `LookupError`，不得回落到任何合成源（D-17）。`synthetic-us` / `synthetic-hc` 只在 `dev_mode()` 下作为 `DataSource` 列出，且与同模态的其他 `active` 源互斥（见 §4.1），其对象与真实对象走同一条解析路径。
 
-### 11.3 过渡物生命周期
+### 11.3 过渡物清除
 
-过渡物一律「引入 → 回填/映射 → 第 7 波删除」，删除是 W7 的独立准出，不随发行周期顺延（D-10）。
+W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibration` / `region`、`ViewerContext.object` / `focus`、`Detection.region` 与 `Annotation.index`。`ImageMeta`、`TaskPlugin.viewer`、旧字段映射、旧表征端点 alias 均已删除。旧请求按 §13 拒绝，旧路径返回 404。
 
-| 过渡物 | 引入 | 过渡期形态 | 删除 |
-| --- | --- | --- | --- |
-| `ObjectMeta` 的 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims` | W1 | `SourceBase` 从 `axes` / `calibration` 回填；前端 lint 禁读 | W7 |
-| `ImageMeta`（TS 与 Python 别名） | W1 | 指向 `ObjectMeta` | W7 |
-| `TaskSpec` 的 `cubs_cf` / `roi` / `roi_box` | W1 | `_legacy` validator 映射为 `calibration` / `region` | W7 |
-| 端点 alias（`/volumes`、`/slides`、`/volume/{id}`、`/volume/{id}/mask-edit`、`/wsi/{slide_id}/tile/{level}/{col}/{row}`） | W2 | 内部转调 `/objects/*`，双通 | W7 |
-| `ViewerContext` 的 `image_id` / `modality` / `cubs_cf` / `roi_box` | W3（前端与新字段一同下发） | W3～W4 runtime 仍只读旧字段；W5 起 `object` / `focus` 优先，旧字段仅在缺失时映射并 warn | W7 |
-| `TaskPlugin.viewer` | W2 标 deprecated | 保留字段但 `Viewer.tsx` 不再读（D-11） | W7 |
-| `Detection.roi_used` | W2 | 与新增的 `Detection.region` 并存，取值与字段名不变 | W7 |
-| `Annotation.z` API 别名 | W2 | 与 `index` 并存 | W7 删 API 别名；**存储列 `z` 保留**，不做第二次库迁移 |
-
-W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn 计数为 0；不满足则整波顺延，并在 §3 登记新时点。
+标注库物理 `z` 列继续保存对象的第三轴取值，无第二次库迁移。数据源与算法内部有独立语义的 `cf`、`dims` 等局部量，以及分割适配器内部 `SegmentationResult.roi_used`，不属于已删除的跨层过渡字段。历史引入顺序与准入证据见执行记录。
 
 ## 12. 审计或事件规则
 
 - **本 SDD 不新增服务端事件流**。对象、数据源与观测均无 SSE 通道；agent 侧的事件语义归 SDD 02，标注变更的可追溯性归 SDD 04 的 `source` + `updated_at` + `seq`。本 SDD 只改一处 details 字段归属：`glaux.annotation_proposed` 的 `z` 改为 `index`（`Index` 结构见 §9.1），改动在 SDD 02 同提交落地。
-- **旧字段映射必须 warn 且可计数**：`parseViewer`（`agent-runtime/src/transport/routes.ts:325`）在 `object` / `focus` 缺失而回落到 `image_id` / `modality` / `cubs_cf` / `roi_box` 时，每次输出一条 warn 并累加计数；后端 `TaskSpec._legacy` 命中 `cubs_cf` / `roi` / `roi_box` 时同样 warn。计数为 0 是 W7 的准入条件，故计数必须可在一次完整回归后读出。
+- **旧字段拒绝**：runtime 收到旧 `ViewerContext` 字段返回 400；后端收到旧 `TaskSpec` 或标注 `z` 输入返回 422，不做隐式映射。
 - **`Calibration` 开放集的未知 `kind` 不静默**：`calibration_from_dict` 遇未知 `kind` 抛 `HardReject`（D-16），不得回落为默认标定；该路径必须留日志，说明收到的 `kind` 与 `source`。
 - **索引兜底留痕**：`resolve_object` 走 `is_mine` 兜底命中时记一条 info 级日志（含 `object_id` 与命中的 `source`）。兜底命中率异常升高意味着索引重建时机有缺口。
 - **可选依赖缺失是状态不是错误**：`VideoSource` 在 PyAV 缺失时 `probe` 返回 `False`，`GET /datasources` 中该源不为 `active`，只记一条启动期 info，不在每次请求时刷日志。
-- **门禁检查落在 CI 而非运行时**：`scripts/ci/check-modality-literals.sh` 统计 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）的模态字面量比较命中数，W0 起只打印基线，W7 转阻断并纳入 `make test` 前置。模态字面量不做运行时检测。
+- **门禁检查落在 CI 而非运行时**：`scripts/ci/check-modality-literals.sh --strict` 统计 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）的模态字面量比较命中数；`make test` 前置运行，命中即失败。
 - **过程证据不进活文档**：grep 基线数、新旧 meta 逐字段 diff、git diff 零改清单、手工回归签字表一律写入执行记录 record（见 §0）。本 SDD 正文只保留最新结论。
 
 ## 13. 异常和人工处理
@@ -920,8 +891,8 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 | 可选依赖缺失（如 PyAV 未装） | — | — | 同上，`/datasources` 中该源不为 `active` | 惰性 import 失败即 `probe` 返 `False`，不影响其他模态 |
 | 编辑并发冲突（`base_seq` 不符） | `CONFLICT` | 409 | 「内容已被更新，请重试」 | `POST /objects/{id}/edits` 整请求拒绝且不产生写；前端丢弃乐观草稿并重拉 |
 | `Focus.kind` 与所指对象的 `ObjectMeta.kind` 不一致 | — | — | 无用户可见差异 | 以 `ObjectMeta.kind` 为准重建 `Focus` 并记一条 warn；不得按 `Focus.kind` 选引擎 |
-| 新旧字段同时出现（`object`/`focus` 与 `image_id`/`roi_box` 并存） | — | — | 无用户可见差异 | **新字段优先，旧字段整体忽略**；`parseViewer` 仅在新字段缺失时映射旧字段并 warn（D-9）。两者不做逐字段合并，避免半新半旧的混合焦点 |
-| 旧字段语义不合契约（`roi_box` 非四数） | `invalid_request` | 400 | agent 回合内报错 | `parseViewer` 拒绝，不猜测语义；契约测试在 W0 已固化 |
+| `ViewerContext` 含旧字段（即使同时有 `object`/`focus`） | `invalid_request` | 400 | agent 回合内报错 | `parseViewer` 拒绝，不读取旧值 |
+| `TaskSpec` 含 `cubs_cf` / `roi` / `roi_box`，或标注 API 含旧 `z` | `ValidationError` | 422 | 请求被拒绝 | 使用 `calibration` / `region` / `index` |
 | `ENGINES` 缺该 `ObjectKind` | — | — | 查看器区域渲染 i18n「查看器引擎尚未接入」 | 空态分支必须显式实现，不得由任何默认引擎兜底（D-11） |
 | 当前模态无任何对象 | — | — | 空态 + 导入优先入口 | `objects[modality]` 缺键为「未加载」、空数组为「已加载为空」，两者渲染不同：前者转圈，后者空态 |
 | 对象无对应 `TaskPlugin`（`natural_image`、`video`） | — | — | 不自动跑任务，工具集按默认能力位给出 | `trigger = task?.trigger ?? "manual"` 的显式 no-task 契约（D-18）；**不为其在 `REGISTRY` 造空行**，能力位默认集见 §9.4 |
@@ -953,20 +924,19 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 验收对象是**抽象本身**：六个名词（`ObjectMeta`、`Focus`、`Calibration`、`Region`、`ReferenceFrame`、`Index`）、三张表（`SOURCES`、`DETECTORS`、`REGISTRY`）各自有可观察的落地证据，以及根本目标——**第七个模态不必改核心**。断言按验收对象分组，不按交付波次分组；各波的准出门禁见审计 §8.3，波次口径见 §3，本节不重复。
 
-命令一律在 WSL 内、仓库根执行；`make test` 含 `test-version`、`test-agent-runtime`、`test-frontend`、`test-backend`、`test-science-core`。
+命令一律在 WSL 内、仓库根执行；`make test` 含阻断式 `check-literals`、`test-version`、`test-agent-runtime`、`test-frontend`、`test-backend`、`test-science-core`。
 
 ### 15.1 可自动化断言
 
 #### A. ObjectMeta（元数据单一形状）
 
-- [ ] 过渡期（W1～W7）：`GET /images?modality=ct_abdomen` 返回的首个元素的键集合等于 `ObjectMeta` 的字段集合（`id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta` 加过渡字段 `cf, voxel_spacing_mm, mpp_um, dims`），无其它额外顶层字段；`methods` 元素为 `{name, role}`。
+- [ ] `GET /images?modality=ct_abdomen` 返回的元素只含 `ObjectMeta` 长期字段（`id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta`）；`methods` 元素为 `{name, role}`。
 - [ ] 同一对象经 `GET /images?modality=` 与 `GET /objects/{id}` 返回的公共字段逐字段相等（同一构造路径，非两处各算一份）。
-- [ ] 过渡期快照测试：`SourceBase` 回填的 `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 与收敛前各模块直出值逐字段 diff 为空（含舍入与轴序）。diff 不空按缺陷处理，不得改期望值。
 - [ ] `ObjectMeta.axes` 对四种 `kind` 均非空，且 `axes[].name` 取自 `x/y/z/t/level`、`size > 0`；`meta.center` 缺失时任何消费方不抛异常。
-- [ ] W7 后：该键集合等于 `id, kind, modality, source_id, display_name, axes, calibration, resources, streams, methods, meta`，`cf`／`voxel_spacing_mm`／`mpp_um`／`dims` 不再出现在响应中。
+- [ ] `cf`／`voxel_spacing_mm`／`mpp_um`／`dims` 不出现在 `ObjectMeta` 响应中；`SourceBase.meta()` 不做字段回填。
 - [ ] 音轨声明（D-23）：对一段含音轨的 mp4，`GET /objects/{vid}` 的 `streams[]` 含且仅含一条 `kind="audio"` 且 `sample_rate`／`channels`／`duration_ms` 非空，`resources.audio` 非空；对一段无音轨的 mp4，`streams` 为 `[]` 且 `resources` 无 `audio` 键。两例均不得因音轨有无而改变 `axes` 与 `calibration`。
 - [ ] 音轨不被消费：`rg "resources\.audio|streams\[" frontend/src agent-runtime/src` 无命中（SDD 11 冻结观测形状前，§7 规则 22）。
-- [ ] W7 后：在核心目录（排除 `backend/app/sources/`、`backend/app/detectors/`、`frontend/src/plugins/`）grep `cf`、`voxel_spacing_mm`、`mpp_um`、`dims`、`ImageMeta` 零命中。
+- [ ] 跨层 `ObjectMeta` 与 `TaskSpec` schema、前端 API 类型、runtime `ViewerContext` 中没有过渡字段或 `ImageMeta`；数据源与算法内部同名领域量不计入。
 
 #### B. Focus（唯一当前观测焦点）
 
@@ -974,7 +944,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - [ ] 切对象后 `applyToolExecutionEvent` 以旧 `focus.object_id` 的事件被拒绝（含 `index.t` 维度）。
 - [ ] grep `activeImage`、`activeVolume`、`activeSlide`、`wsiRoi` 在 `frontend/src` 零命中；`useSession` 在 `frontend/src/viewer` 下零命中，查看器树中仅 `frontend/src/components/Viewer.tsx` 读 store。
 - [ ] `setIndex` / `setRegion` 不改变 `focus.object_id`；`setObjects` 不清空既有 `focus`（除非当前对象已不在列表中）。
-- [ ] `agent-runtime/tests/contract/viewer-context.test.ts`：`parseViewer` 在只有 `object`/`focus` 时通过；只有旧字段时映射成功并发出一次 warn 且计数加一；两者冲突时以 `object`/`focus` 为准。
+- [ ] `agent-runtime/tests/contract/viewer-context.test.ts`：`parseViewer` 接受 `object`/`focus`，旧字段单发或与新字段双发均返回 400。
 
 #### C. Calibration（开放集与统一派发）
 
@@ -987,14 +957,14 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 
 - [ ] `POST /task/run` 携 `region.kind = column_window` 对 `kind = volume` 的对象返回 422；携 `frame_range` 对 `kind = image` 返回 422（错误码见 §13）。
 - [ ] `Region` 的 `box` 分支序列化后字段名为 `x0,y0,x1,y1`，三端契约测试断言同一语义（D-9）。
-- [ ] `Detection.region` 存在且 `roi_used` 字段名与取值在 W7 前未变（三信封未被静默改写）。
+- [ ] `Detection.region` 存在，`detection_to_dict` 不再输出 `roi_used`；IMT 的列窗测量从 `region` 读取且数值不变。
 
 #### E. ReferenceFrame 与 Index（观测坐标与索引维）
 
 - [ ] `X-Glaux-Frame` 契约测试：四种 `kind` 各取一帧，断言 `object_id`、`index`、`origin`、`scale`、`width`、`height` 齐备且与请求的 `z`/`t`/`level`/`roi` 一致。
 - [ ] 观测正确性：CT 停在第 N 层时经 `fetchObservation` 取帧，`X-Glaux-Frame` 的 `index.z` 等于 N；slide 在 level 加 ROI 下同理；video 在 `t = 10` 下 `index.t` 等于 10。
 - [ ] `toObjectCoords` 往返：`ReferenceFrame` 下的像素框换算回对象坐标后再换算回帧坐标，误差为 0（整数域）。
-- [ ] `POST /annotations` 携 `index` 越界时返回 422（经 `resolve_object` 与 `meta.check_index`，不再按前缀猜）；`GET /annotations` 的 `index_from`/`index_to` 只返回区间内条目；`z` 作为 `index` 别名在过渡期等价。
+- [ ] `POST /annotations` 携 `index` 越界时返回 422（经 `resolve_object` 与 `meta.check_index`）；`GET /annotations` 的 `index_from`/`index_to` 只返回区间内条目；请求、响应不再含旧 `z` API 字段，物理存储列保留。
 - [ ] 各 `Primitive.at` 为空时行为与收敛前一致（可选字段不改变既有快照）。
 
 #### F. SOURCES（数据轴单一表）
@@ -1017,12 +987,12 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - [ ] `REGISTRY` 中不存在 `natural_image`、`video` 的空行（D-18）；`GET /tasks` 返回的 `TaskView` 数量等于 `REGISTRY` 行数。
 - [ ] 无任务模态：`openObject(id)` 的触发判定为 `trigger = task?.trigger ?? "manual"`，测试断言未发起 `POST /task/run`。
 - [ ] `TaskView.capabilities` 为开放集，CT 行含 `voi`、`z_scroll`，WSI 行含 `verify`；前端工具过滤等于 `ALWAYS ∪ capabilities`，无 `isCt` 之类的模态判断。
-- [ ] `TaskPlugin.viewer` 在 W4 后无任何读取点（`frontend/src`、`agent-runtime/src` 中 `.viewer` 零命中），W7 后字段删除。
+- [ ] `TaskPlugin.viewer` 与 `/tasks` 响应里的 `viewer` 字段均不存在；引擎仍从 `ObjectKind` 选择。
 
 #### I. `/objects` 表征面与保留面
 
 - [ ] 五端点各自 200：`GET /objects/{id}`、`/frame`、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`。
-- [ ] alias 等价：`GET /volume/{id}`、`GET /wsi/{slide_id}/tile/{level}/{col}/{row}`、`GET /volumes`、`GET /slides` 与对应 `/objects/*` 响应**字节相同**（W7 前双通，W7 后旧路径 404 且有用例断言）。
+- [ ] `GET /volume/{id}`、`GET /wsi/{id}/tile/{level}/{col}/{row}`、`GET /volumes`、`GET /slides` 与 `POST /volume/{id}/mask-edit` 返回 404；`GET /image/{id}`、`GET /volume/{id}/labelmap`、`GET /wsi/{id}/verify` 保持可用。
 - [ ] `POST /objects/{id}/edits` 的 `base_seq` 乐观并发：过期 `base_seq` 返回 409，重放同一 `EditRequest` 不产生第二次写入。
 - [ ] `GET /objects/{id}/frame` 的 `size`/`window`/`roi` 超出 §5.2 所列上限时返回 413；`kind = slide` 缺 `level` 返回 422。
 - [ ] `GET /images?modality=`、`GET /datasources`、`POST /datasources/samples`、`GET /tasks`、`POST /task/run`、`POST /task/measure`、`GET /capabilities`、`GET/POST /annotations`、`POST /uploads/images`、`GET /image/{id}`、`GET /wsi/{slide_id}/verify` 的路径与查询参数与收敛前逐字相同。
@@ -1033,7 +1003,7 @@ W7 的前置条件是三端 grep 门禁零命中且 W5 的旧字段映射 warn �
 - [ ] **新增一个 Source 的核心改动只有一行登记**：新建 `backend/app/dataset_<modality>.py`（Source 实现）、`backend/app/sources/__init__.py` 的 `_MODULES` 加一行，另加依赖文件 `backend/pyproject.toml` 与 `backend/uv.lock`（仅当引入新依赖）；`Modality` 放宽为 `str` 之前另需在 `schemas.py` 的 Literal 追加一值。以 `backend/app/dataset_video.py` 为实测样本，其余改动不含 `datasource_registry.py`、`config.py`、`caches.py`、`annotations/*`、`upload_store.py`、`routers/*`、`kernel.py`、`schemas.py`。
 - [ ] **前端零专属代码**：新模态在模态切换器出现、可打开、可滚动索引、可画标注，`git diff --name-only frontend/src` 除注册表一行（`ENGINES`/`PAINTERS`/`CHROME_SEGMENTS`，视是否需要新几何族）外无改动；`kind` 已有引擎时该行也不需要。
 - [ ] **删源用例（D-14）**：从 `SOURCES` 删除任一 Source 后，三端均可启动、`make test` 中与该模态无关的用例全绿，且该模态同时从 `GET /datasources`、`GET /images?modality=`、模态切换器、上传魔数表四处消失，无残留分支。
-- [ ] **字面量门禁**：`check-modality-literals.sh` 在 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）上命中数为 0；W7 后该脚本为阻断式并纳入 `make test` 前置。
+- [ ] **字面量门禁**：`make check-literals` 使用 `--strict`，在 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）上命中数为 0，并在 `make test` 前置。
 - [ ] `Modality` / `TaskType` 放宽为 `str` 之后，上述门禁仍为 0（先清零再放宽，D-14）。
 
 #### K. 结构性不变量与发行包

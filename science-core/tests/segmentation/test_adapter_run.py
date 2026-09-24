@@ -28,7 +28,7 @@ def test_wall_pair_adapter_run_returns_two_polylines():
     li, ma = det.primitives
     # MA 恒在 LI 下方 8px（厚度）
     assert ma.points[0][1] - li.points[0][1] == 8.0
-    assert det.roi_used == (10, 110)
+    assert det.region == {"kind": "column_window", "x0": 10, "x1": 110}
     assert det.model_version.startswith("stub-constant-thickness")
 
 
@@ -43,4 +43,4 @@ def test_contour_adapter_run_returns_ellipse_detection():
     assert isinstance(prim, EllipseShape)
     assert (prim.cx, prim.cy, prim.a, prim.b) == (60.0, 50.0, 40.0, 30.0)
     assert prim.role == "skull"
-    assert det.roi_used is None  # 未给 ROI
+    assert det.region is None  # 未给 ROI

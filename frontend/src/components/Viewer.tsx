@@ -12,7 +12,7 @@ import { annotationMaskSink, editMaskSink } from "../viewer/maskSinks";
 import { useTaskTools } from "../viewer/useTaskTools";
 
 // 查看器接缝（SDD 10 §7 规则 2、D-11）——引擎只由对象几何决定：按 ObjectMeta.kind 查表，
-// 不读 TaskView.viewer。本组件是查看器树中唯一读 store 处，当前对象与焦点经 props 下传。
+// 引擎由对象 kind 选择。本组件是查看器树中唯一读 store 处，当前对象与焦点经 props 下传。
 // 缺键渲染「查看器引擎尚未接入」空态，不回落到任何缺省引擎。
 const ENGINES: Partial<Record<ObjectKind, ViewerEngine>> = {
   image: FrameStackViewer,

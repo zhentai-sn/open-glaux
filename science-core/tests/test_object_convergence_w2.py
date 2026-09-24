@@ -153,18 +153,14 @@ def test_resolve_calibration_for_model_dump():
 # --- Detection.region -----------------------------------------------------------
 
 
-def test_detection_region_default_and_roi_used_untouched():
-    det = Detection(primitives=(), model_version="stub@0", roi_used=(10, 90))
-    assert det.region is None and det.roi_used == (10, 90)
-    dd = detection_to_dict(det)
-    assert dd["region"] is None and dd["roi_used"] == [10, 90]
-
-
-def test_detection_region_serialized():
+def test_detection_region_default_and_serialized():
+    det = Detection(primitives=(), model_version="stub@0")
+    assert det.region is None
+    assert detection_to_dict(det)["region"] is None
     region = {"kind": "column_window", "x0": 10, "x1": 90}
-    det = Detection(primitives=(), model_version="m", roi_used=(10, 90), region=region)
+    det = Detection(primitives=(), model_version="m", region=region)
     dd = detection_to_dict(det)
-    assert dd["region"] == region and dd["roi_used"] == [10, 90]
+    assert dd["region"] == region and "roi_used" not in dd
     json.dumps(dd)
 
 
@@ -179,7 +175,7 @@ def _all_primitives(at):
         EllipseShape("e", 1.0, 2.0, 3.0, 2.0, 0.1, "skull", at),
         Mask("m", "ref.png", "mask", at),
         Bbox("b", 0.0, 0.0, 5.0, 5.0, "bbox", at),
-        VolumeMask("v", "/api/volume/x/labelmap", _CLS, "/api/volume/x/raw", at=at),
+        VolumeMask("v", "/api/volume/x/labelmap", _CLS, "/api/objects/x/raw", at=at),
         PointSet("p", ((1.0, 2.0),), (1,), _CLS, (0.0, 0.0, 4.0, 4.0), "nuclei", at),
     ]
 
@@ -239,7 +235,7 @@ def test_registry_invariants():
 
 def test_plugin_to_view_new_keys_and_legacy_keys():
     legacy = {
-        "task", "adapter_kind", "modality", "label", "default_method", "viewer",
+        "task", "adapter_kind", "modality", "label", "default_method",
         "metrics", "tools", "overlays", "capabilities", "on_commit",
     }
     for plugin in REGISTRY.values():
@@ -254,6 +250,5 @@ def test_plugin_to_view_new_keys_and_legacy_keys():
         "class_id": 1, "role": "liver", "label": {"en": "Liver", "zh": "肝"},
         "color": "#FF8A5B", "measurable": True,
     }
-    assert ct["viewer"] == "volume_3d"  # deprecated 但保留一版
     wsi = plugin_to_view(REGISTRY[TaskType.NUCLEI_DETECTION])
     assert [c["role"] for c in wsi["classes"]] == ["nucleus"]

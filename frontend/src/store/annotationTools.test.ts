@@ -51,7 +51,6 @@ describe("switchModality 复位无泄漏（三模态轮转）", () => {
           {
             id: "leak",
             image_id: "x",
-            z: null,
             primitive: { kind: "bbox", x0: 0, y0: 0, x1: 1, y1: 1 },
             label: "",
             class_id: null,

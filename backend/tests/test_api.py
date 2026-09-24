@@ -60,7 +60,7 @@ def test_tasks_registry_exposed():
     by_id = {v["task"]: v for v in r.json()}
     assert {"far_wall_cca_imt", "fetal_hc"} <= set(by_id)
     imt = by_id["far_wall_cca_imt"]
-    assert imt["viewer"] == "raster_2d" and imt["adapter_kind"] == "wall_pair"
+    assert imt["adapter_kind"] == "wall_pair" and "viewer" not in imt
     assert imt["modality"] == "carotid_imt" and by_id["fetal_hc"]["modality"] == "fetal_hc"
     assert any(m["key"] == "IMT_mean" for m in imt["metrics"])
     assert {t["id"] for t in imt["tools"]} >= {"cursor", "bbox", "polygon", "wall", "brush"}
@@ -143,7 +143,10 @@ def test_real_dataset_cohort():
         return
     imgs = client.get("/images", params={"modality": "carotid_imt"}).json()
     assert len(imgs) == 100  # tech_401–500 演示队列
-    assert all(m["cf"] and m["cf"] > 0 for m in imgs)
+    assert all(
+        m["calibration"]["kind"] == "mm_per_px" and m["calibration"]["value"] > 0
+        for m in imgs
+    )
     assert {"name": "caroSegDeep", "role": "agent"} in imgs[0]["methods"]
 
 
@@ -182,7 +185,7 @@ def _an_hc_id() -> str:
 
 def test_hc_images_modality_tagged():
     imgs = client.get("/images", params={"modality": "fetal_hc"}).json()
-    assert all(m["modality"] == "fetal_hc" and m["cf"] > 0 for m in imgs)
+    assert all(m["modality"] == "fetal_hc" and m["calibration"]["value"] > 0 for m in imgs)
     if HAS_HC_DATA:
         assert len(imgs) == 999 and not imgs[0]["id"].startswith("hc_")  # 真实 HC18
     else:
@@ -310,7 +313,10 @@ def test_task_run_ct_returns_voxel_calibration(tmp_path, monkeypatch):
     r = client.post("/task/run", json={"task": "totalseg_liver_kidney", "image_id": "ct_001"})
     assert r.status_code == 200, r.text
     out = r.json()
-    assert any(p["kind"] == "volume_mask" for p in out["primitives"])
+    masks = [p for p in out["primitives"] if p["kind"] == "volume_mask"]
+    assert len(masks) == 1
+    assert masks[0]["raw_ref"] == "/api/objects/ct_001/raw"
+    assert client.get("/objects/ct_001/raw").status_code == 200
     assert out["metrics"]["liver_volume_mm3"]["value"] == 8 * 0.5 * 0.5 * 2.0
 
 

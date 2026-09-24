@@ -5,8 +5,7 @@
 - ``on_commit`` 钩子（注册表声明，如 WSI bbox → run_task）在创建成功后派发：
   钩子失败**不回滚标注**（已 201），响应附 ``hook_error``（SDD 04 §7.3）；
   钩子成功时响应附 ``hook_result``（TaskOutput dict），前端经既有回流通道呈现。
-- 第三轴索引（SDD 10 §9.3/§9.5）：请求用 ``index``（``z`` 为一版 API 别名），落存储列 ``z``；
-  响应行同时带 ``z``（列原值）与 ``index``（按对象第三轴命名，见 :func:`_with_index`）。
+- 第三轴索引（SDD 10 §9.3/§9.5）：请求与响应都用 ``index``，落存储列 ``z``。
 """
 
 from __future__ import annotations
@@ -14,13 +13,13 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import config
 from ..annotations.store import AnnotationError, AnnotationStore, validate_primitive
-from ..schemas import Index, ObjectMeta
+from ..schemas import Index, ObjectMeta, Region
 
 log = logging.getLogger(__name__)
 
@@ -41,15 +40,11 @@ def get_store() -> AnnotationStore:
 
 
 class AnnotationIn(BaseModel):
+    model_config = {"extra": "forbid"}
     image_id: str = Field(min_length=1)
     index: Index | None = Field(
         default=None,
         description="第三轴索引，至多一个非空：volume=z / video=t / slide=level；2D 对象省略",
-    )
-    z: int | None = Field(
-        default=None,
-        ge=0,
-        description="index 的过渡别名（W7 删）：对象第三轴取值；与 index 同传时须一致",
     )
     primitive: dict = Field(description="kind 判别几何：bbox / polyline(closed) / mask")
     mask_png_b64: str | None = Field(default=None, description="kind=mask 必填（可带 data: 前缀）")
@@ -123,31 +118,21 @@ def _third_axis(meta: ObjectMeta) -> str | None:
     return next((a.name for a in meta.axes if a.name in _THIRD_AXES), None)
 
 
-def _index_to_column(image_id: str, index: Index | None, z: int | None) -> int | None:
-    """把请求的 ``index`` / ``z`` 别名规约为存储列 ``z`` 的值，并用 ``check_index`` 校验。
-
-    - ``index`` 至多一个非空轴；与 ``z`` 同传时取值须相等；
-    - 只传 ``z`` 时按对象第三轴解释（volume=z / video=t / slide=level），2D 对象按 ``z`` 轴
-      校验而被拒；
-    - 两者皆空 → None，不做任何对象解析（2D 与"不绑定层"的标注行为不变）。
-    """
+def _index_to_column(image_id: str, index: Index | None) -> int | None:
+    """把请求的 ``index`` 规约为存储列 ``z`` 的值，并用 ``check_index`` 校验。"""
     given = {k: v for k, v in (index.model_dump() if index else {}).items() if v is not None}
     if len(given) > 1:
         raise AnnotationError("INVALID_GEOMETRY", f"index 至多指定一个轴：{sorted(given)}")
     value = next(iter(given.values()), None)
-    if value is not None and z is not None and value != z:
-        raise AnnotationError(
-            "INVALID_GEOMETRY", f"index 与别名 z 不一致：{given} vs z={z}"
-        )
-    if value is None and z is None:
+    if value is None:
         return None
     meta = _object_meta(image_id)
-    probe = Index(**given) if given else Index(**{_third_axis(meta) or "z": z})
+    probe = Index(**given)
     try:
         meta.check_index(probe)
     except ValueError as exc:
         raise AnnotationError("INVALID_GEOMETRY", str(exc)) from exc
-    return value if value is not None else z
+    return value
 
 
 def _axis_name_for(image_id: str) -> str | None:
@@ -161,11 +146,11 @@ def _axis_name_for(image_id: str) -> str | None:
 def _with_index(ann: dict, axis: str | None) -> dict:
     """响应行补 ``index``：按对象第三轴命名 ``z`` 列的值；列为 NULL 时为 ``{}``。
 
-    对象已无法解析（源被移除）时轴名未知，按别名语义回落为 ``{"z": v}``——与同行的
-    ``z`` 字段一致，不猜测 t / level。
+    对象已无法解析（源被移除）时轴名未知，回落为 ``{"z": v}``，不猜测 t / level。
     """
     v = ann["z"]
     ann["index"] = {} if v is None else {axis or "z": v}
+    del ann["z"]
     return ann
 
 
@@ -210,7 +195,10 @@ def _dispatch_on_commit(ann: dict) -> tuple[dict | None, str | None]:
         spec = TaskSpec(
             task=plugin.task.value,  # type: ignore[arg-type]
             image_id=ann["image_id"],
-            roi_box=(int(prim["x0"]), int(prim["y0"]), int(prim["x1"]), int(prim["y1"])),
+            region=Region(
+                kind="box", x0=int(prim["x0"]), y0=int(prim["y0"]),
+                x1=int(prim["x1"]), y1=int(prim["y1"]),
+            ),
             method=plugin.default_method,
         )
         return kernel.run_task(spec), None
@@ -229,18 +217,20 @@ def _http_error(e: AnnotationError) -> HTTPException:
 
 @router.get("/annotations", tags=["annotations"])
 def list_annotations(
+    request: Request,
     image_id: str = Query(min_length=1),
-    z: int | None = Query(default=None, ge=0),
     index_from: int | None = Query(default=None, ge=0),
     index_to: int | None = Query(default=None, ge=0),
 ) -> dict:
-    """列出某对象的标注；``z`` 精确匹配第三轴，``index_from``/``index_to`` 为闭区间。
+    """列出某对象的标注；``index_from``/``index_to`` 为闭区间。
 
     区间过滤只返回绑定了第三轴取值的标注（``z`` 为 null 的行不在任何区间内）。
     """
+    if "z" in request.query_params:
+        raise HTTPException(422, detail="z 查询参数已删除；使用 index_from/index_to")
     if index_from is not None and index_to is not None and index_from > index_to:
         raise HTTPException(422, detail=f"index_from({index_from}) > index_to({index_to})")
-    rows = get_store().list(image_id, z, z_from=index_from, z_to=index_to)
+    rows = get_store().list(image_id, z_from=index_from, z_to=index_to)
     axis = _axis_name_for(image_id) if rows else None
     return {"annotations": [_with_index(r, axis) for r in rows]}
 
@@ -252,7 +242,7 @@ def create_annotation(body: AnnotationIn) -> dict:
     try:
         prim = validate_primitive(kind, body.primitive)
         _check_within_dims(body.image_id, prim)
-        z = _index_to_column(body.image_id, body.index, body.z)
+        z = _index_to_column(body.image_id, body.index)
         ann = get_store().create(
             image_id=body.image_id,
             z=z,

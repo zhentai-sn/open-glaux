@@ -330,11 +330,6 @@ function parseConnection(value: unknown) {
 const OBJECT_KINDS = new Set<ObjectKind>(["image", "volume", "slide", "video"]);
 const AXIS_NAMES = new Set(["x", "y", "z", "t", "level"]);
 const INDEX_AXES = ["z", "t", "level"] as const;
-let legacyViewerHits = 0;
-
-/** W7 删除旧字段前的可读计数；完整回归后须为 0。 */
-export function getLegacyViewerHits(): number { return legacyViewerHits; }
-export function resetLegacyViewerHits(): void { legacyViewerHits = 0; }
 
 function invalid(path: string, expected: string): never {
   throw new RuntimeError("invalid_request", `${path} must be ${expected}.`, 400);
@@ -447,25 +442,20 @@ function parseFocus(value: unknown, object: NonNullable<ViewerContext["object"]>
     kind = object.kind;
   }
   const index = parseIndex(input.index);
-  const axis = kind === "volume" ? "z" : kind === "slide" ? "level" : kind === "video" ? "t" : null;
+  const axis = (object.axes[2]?.name ?? null) as (typeof INDEX_AXES)[number] | null;
   for (const name of INDEX_AXES) if (index[name] !== undefined && name !== axis) invalid("viewer.focus.index", `the ${kind} axis`);
   if (axis !== null && index[axis] !== undefined && index[axis]! >= object.axes[2]!.size) invalid(`viewer.focus.index.${axis}`, "within axes bounds");
   const region = parseRegion(input.region);
   return { object_id: objectId, kind, index, region };
 }
 
-/** 旧客户端只有扁平字段；W7 删除。kind 推断只在这条过渡路径使用。 */
-function legacyKind(modality: string | undefined, id: string): ObjectKind {
-  if (modality === "ct_abdomen" || id.startsWith("ct_")) return "volume";
-  if (modality === "pathology" || id.startsWith("slide_")) return "slide";
-  if (modality === "video" || id.startsWith("vid-")) return "video";
-  return "image";
-}
-
-/** 查看器上下文：新字段优先；旧字段仅在新字段整体缺失时映射并计数告警。 */
+/** 查看器上下文只接受对象与焦点契约。 */
 function parseViewer(value: unknown): ViewerContext | undefined {
   if (value === undefined || value === null) return undefined;
   const v = asObject(value);
+  for (const key of ["image_id", "modality", "cubs_cf", "roi_box"] as const) {
+    if (key in v) invalid(`viewer.${key}`, "omitted; use object/focus");
+  }
   const out: ViewerContext = {};
   for (const key of ["collection", "task", "method"] as const) {
     if (v[key] !== undefined) {
@@ -479,40 +469,6 @@ function parseViewer(value: unknown): ViewerContext | undefined {
     if (v.object === undefined || v.focus === undefined) invalid("viewer.object/focus", "provided together");
     out.object = parseObject(v.object);
     out.focus = parseFocus(v.focus, out.object);
-    return out; // 旧字段整体忽略，连错误形状也不读取
-  }
-  if (v.image_id === undefined && v.modality === undefined && v.cubs_cf === undefined && v.roi_box === undefined) return out;
-  for (const key of ["image_id", "modality"] as const) {
-    if (v[key] !== undefined && typeof v[key] !== "string") {
-      throw new RuntimeError("invalid_request", `viewer.${key} must be a string.`, 400);
-    }
-  }
-  if (v.cubs_cf !== undefined) {
-    if (typeof v.cubs_cf !== "number" || !Number.isFinite(v.cubs_cf)) {
-      throw new RuntimeError("invalid_request", "viewer.cubs_cf must be a number.", 400);
-    }
-  }
-  let box: [number, number, number, number] | undefined;
-  if (v.roi_box !== undefined) {
-    const candidate = v.roi_box;
-    if (
-      !Array.isArray(candidate) ||
-      candidate.length !== 4 ||
-      !candidate.every((n) => typeof n === "number" && Number.isFinite(n))
-    ) {
-      throw new RuntimeError("invalid_request", "viewer.roi_box must be [x0, y0, x1, y1].", 400);
-    }
-    box = candidate as [number, number, number, number];
-  }
-  legacyViewerHits += 1;
-  console.warn(`旧 ViewerContext 字段已映射为 object/focus（累计 ${legacyViewerHits} 次）`);
-  if (out.collection === undefined && typeof v.modality === "string") out.collection = v.modality;
-  if (typeof v.image_id === "string" && v.image_id) {
-    const kind = legacyKind(v.modality as string | undefined, v.image_id);
-    const axis = kind === "volume" ? "z" : kind === "slide" ? "level" : kind === "video" ? "t" : null;
-    const index = axis ? { [axis]: 0 } : {};
-    out.object = { id: v.image_id, kind, axes: [], calibration: v.cubs_cf === undefined ? null : { kind: "mm_per_px", value: v.cubs_cf, source: "legacy_viewer", provenance: {} } };
-    out.focus = { object_id: v.image_id, kind, index, region: box ? { kind: "box", x0: box[0], y0: box[1], x1: box[2], y1: box[3] } : null };
   }
   return out;
 }

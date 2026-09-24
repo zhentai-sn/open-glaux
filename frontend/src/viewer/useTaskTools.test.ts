@@ -34,7 +34,6 @@ describe("useTaskTools 的能力来源", () => {
       modality: "ct_abdomen",
       label: { en: "CT", zh: "CT" },
       default_method: "m",
-      viewer: "volume_3d",
       metrics: [],
       tools: ["cursor", "bbox", "brush", "reset"].map((id) => ({ id, glyph: "", label: { en: id, zh: id } })),
       overlays: [],

@@ -47,7 +47,6 @@ class ContourDetector(DetectorBase):
         det = Detection(
             primitives=(EllipseShape.from_ellipse(ell, id="skull", role="skull"),),
             model_version=mv,
-            roi_used=roi,
             region=r.model_dump(exclude_none=True) if r else None,
         )
         return det, calibration_result(spec.calibration)

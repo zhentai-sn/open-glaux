@@ -41,7 +41,7 @@ stateDiagram-v2
 | 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-09-23 |
 | 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-08-31 |
 | 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
-| 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4 人工验收递延；W5 自动门禁通过） | Glaux 项目维护者 | 2026-09-24 |
+| 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4～W7 代码与自动门禁完成，人工验收递延） | Glaux 项目维护者 | 2026-09-24 |
 | 11 | [视频理解 harness](feats/11-video-understanding-harness/README.md) | `draft`（范围已确认；双模型实测与量化门槛待定） | Glaux 项目维护者 | 2026-09-24 |
 
 ## 维护约定

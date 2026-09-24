@@ -210,12 +210,11 @@ function stubBackend() {
       let json: unknown = {};
       if (method === "GET" && url.startsWith("/api/annotations")) json = { annotations: [] };
       else if (method === "POST" && url === "/api/annotations") {
-        const input = body as { image_id: string; z?: number | null; index?: Annotation["index"]; primitive: Annotation["primitive"] };
+        const input = body as { image_id: string; index?: Annotation["index"]; primitive: Annotation["primitive"] };
         const annotation: Annotation = {
           id: `srv-${++srvId}`,
           image_id: input.image_id,
           index: input.index ?? {},
-          z: input.index?.z ?? input.z ?? null,
           primitive: input.primitive,
           label: "",
           class_id: null,

@@ -83,14 +83,14 @@ def test_bbox_crud_roundtrip():
 def test_z_filter_for_ct_slices():
     for z in (3, 5):
         client.post("/annotations", json={
-            "image_id": "ct_001", "z": z,
+            "image_id": "ct_001", "index": {"z": z},
             "primitive": {"kind": "bbox", "x0": 1, "y0": 1, "x1": 5, "y1": 5},
         })
     assert len(client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"]) == 2
-    assert (
-        len(client.get("/annotations", params={"image_id": "ct_001", "z": 3}).json()["annotations"])
-        == 1
-    )
+    rows = client.get(
+        "/annotations", params={"image_id": "ct_001", "index_from": 3, "index_to": 3}
+    ).json()["annotations"]
+    assert len(rows) == 1
 
 
 # --- base_seq 并发（409）-------------------------------------------------------
@@ -428,27 +428,19 @@ def _create(**body):
 
 
 def test_index_z_on_volume_roundtrip():
-    """ct_001（122×101×112）：index.z 落存储列 z，响应同时带 z 与 index。"""
+    """ct_001：index.z 落存储列 z，响应只带 index。"""
     r = _create(image_id="ct_001", index={"z": 7})
     assert r.status_code == 201, r.text
     ann = r.json()["annotation"]
-    assert ann["z"] == 7 and ann["index"] == {"z": 7}
+    assert ann["index"] == {"z": 7} and "z" not in ann
     got = client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"]
-    assert [(a["z"], a["index"]) for a in got] == [(7, {"z": 7})]
+    assert [a["index"] for a in got] == [{"z": 7}]
 
 
-def test_z_alias_equivalent_to_index():
-    a = _create(image_id="ct_001", z=4).json()["annotation"]
-    b = _create(image_id="ct_001", index={"z": 4}).json()["annotation"]
-    c = _create(image_id="ct_001", index={"z": 4}, z=4)
-    assert c.status_code == 201, c.text
-    assert a["index"] == b["index"] == c.json()["annotation"]["index"] == {"z": 4}
-    assert a["z"] == b["z"] == 4
-
-
-def test_conflicting_alias_rejected():
-    r = _create(image_id="ct_001", index={"z": 4}, z=5)
-    assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
+def test_z_alias_rejected():
+    r = _create(image_id="ct_001", z=4)
+    assert r.status_code == 422
+    assert client.get("/annotations", params={"image_id": "ct_001", "z": 4}).status_code == 422
     assert client.get("/annotations", params={"image_id": "ct_001"}).json()["annotations"] == []
 
 
@@ -457,7 +449,7 @@ def test_index_with_two_axes_rejected():
     assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
 
 
-@pytest.mark.parametrize("body", [{"index": {"z": 112}}, {"z": 112}, {"index": {"z": -1}}])
+@pytest.mark.parametrize("body", [{"index": {"z": 112}}, {"index": {"z": -1}}])
 def test_out_of_range_index_rejected(body):
     r = _create(image_id="ct_001", **body)
     assert r.status_code == 422, r.text
@@ -469,7 +461,7 @@ def test_wrong_axis_for_kind_rejected():
     assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
 
 
-@pytest.mark.parametrize("body", [{"index": {"z": 0}}, {"z": 0}])
+@pytest.mark.parametrize("body", [{"index": {"z": 0}}])
 def test_index_on_2d_object_rejected(body):
     r = _create(image_id=TARGET, **body)
     assert r.status_code == 422 and "INVALID_GEOMETRY" in r.json()["detail"]
@@ -479,18 +471,15 @@ def test_2d_object_without_index_keeps_null():
     r = _create(image_id=TARGET, index={})
     assert r.status_code == 201, r.text
     ann = r.json()["annotation"]
-    assert ann["z"] is None and ann["index"] == {}
+    assert ann["index"] == {} and "z" not in ann
 
 
-def test_slide_level_index_and_alias():
-    """slide_001 只有 level 0：index.level 与 z 别名都按 level 轴校验，响应 index 用 level 命名。"""
+def test_slide_level_index():
     r = _create(image_id="slide_001", index={"level": 0})
     assert r.status_code == 201, r.text
     ann = r.json()["annotation"]
-    assert ann["z"] == 0 and ann["index"] == {"level": 0}
-    assert _create(image_id="slide_001", z=0).json()["annotation"]["index"] == {"level": 0}
+    assert ann["index"] == {"level": 0} and "z" not in ann
     assert _create(image_id="slide_001", index={"level": 1}).status_code == 422
-    assert _create(image_id="slide_001", z=1).status_code == 422
 
 
 def test_index_range_filter():
@@ -502,13 +491,13 @@ def test_index_range_filter():
         rows = client.get(
             "/annotations", params={"image_id": "ct_001", **params}
         ).json()["annotations"]
-        return sorted(a["z"] for a in rows if a["z"] is not None), len(rows)
+        return sorted(a["index"]["z"] for a in rows if "z" in a["index"]), len(rows)
 
     assert zs(index_from=5, index_to=8) == ([5, 8], 2)  # 闭区间
     assert zs(index_from=6) == ([8, 11], 2)
     assert zs(index_to=2) == ([2], 1)
     assert zs(index_from=3, index_to=4) == ([], 0)
-    assert zs(z=5, index_from=0, index_to=20) == ([5], 1)
+    assert zs(index_from=5, index_to=5) == ([5], 1)
     assert zs() == ([2, 5, 8, 11], 5)
     r = client.get("/annotations", params={"image_id": "ct_001", "index_from": 9, "index_to": 3})
     assert r.status_code == 422
@@ -530,7 +519,7 @@ def test_index_range_filter_runs_in_sql(monkeypatch):
 
 
 def test_unresolvable_object_rows_fall_back_to_z_index():
-    """对象已无法解析时响应 index 按别名语义回落为 {"z": v}；z 为 null 时为 {}。"""
+    """对象已无法解析时响应 index 回落为 {"z": v}；存储列为空时为 {}。"""
     store = ann_router.get_store()
     store.create(image_id="gone_obj", kind="bbox", primitive=_BOX, z=3)
     store.create(image_id="gone_obj", kind="bbox", primitive=_BOX)

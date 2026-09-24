@@ -105,6 +105,6 @@ class ModelAdapter(Adapter):
                 Polyline.from_boundary(seg.ma, "MA"),
             ),
             model_version=seg.model_version,
-            roi_used=(seg.roi_used.x0, seg.roi_used.x1),
+            region={"kind": "column_window", "x0": seg.roi_used.x0, "x1": seg.roi_used.x1},
             meta=dict(seg.meta),
         )

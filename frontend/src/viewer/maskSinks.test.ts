@@ -35,7 +35,6 @@ describe("MaskSink 两条写语义", () => {
     expect(h.createAnnotation).toHaveBeenCalledWith({
       image_id: "image-1",
       index: { t: 3 },
-      z: null,
       primitive: { kind: "mask" },
       mask_png_b64: "data:image/png;base64,STUB",
     });

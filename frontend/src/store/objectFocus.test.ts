@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { objectMeta, taskFields } from "../test/fixtures";
 
 import { api } from "../api/client";
-import type { ImageMeta, ModelInfo, Modality, TaskOutput, TaskView } from "../api/types";
+import type { ObjectMeta, ModelInfo, Modality, TaskOutput, TaskView } from "../api/types";
 import { applyToolExecutionEvent } from "../agent/toolBridge";
 import { toViewerContext } from "../agent/useConversation";
 import { loadObjects, openObject } from "../data/actions";
@@ -22,18 +22,17 @@ const switchModality = (m: Modality) => loadObjects(m);
 
 const INITIAL = useSession.getState();
 
-function meta(id: string, modality: Modality): ImageMeta {
+function meta(id: string, modality: Modality): ObjectMeta {
   return objectMeta({ id, cf: modality === "carotid_imt" ? 0.06 : null, modality });
 }
 
-function task(t: TaskView["task"], modality: Modality, viewer: string): TaskView {
+function task(t: TaskView["task"], modality: Modality): TaskView {
   return {
     task: t,
     adapter_kind: "test",
     modality,
     label: { en: t, zh: t },
     default_method: "",
-    viewer,
     metrics: [],
     tools: [],
     overlays: [],
@@ -44,10 +43,10 @@ function task(t: TaskView["task"], modality: Modality, viewer: string): TaskView
 }
 
 const TASKS: TaskView[] = [
-  task("far_wall_cca_imt", "carotid_imt", "raster_2d"),
-  task("fetal_hc", "fetal_hc", "raster_2d"),
-  task("totalseg_liver_kidney", "ct_abdomen", "volume_3d"),
-  task("nuclei_detection", "pathology", "wsi"),
+  task("far_wall_cca_imt", "carotid_imt"),
+  task("fetal_hc", "fetal_hc"),
+  task("totalseg_liver_kidney", "ct_abdomen"),
+  task("nuclei_detection", "pathology"),
 ];
 
 // 与后端 kernel.models() 现状同形：只有 IMT 与 HC 有模型，CT / 病理 / 自然图像没有。
@@ -113,7 +112,7 @@ function proposeEnd(imageId: string, annotationId: string) {
           image_id: imageId,
           label: "x",
           primitive: { kind: "bbox", x0: 1, y0: 1, x1: 5, y1: 5 },
-          z: null,
+          index: {},
           seq: 1,
         },
       },

@@ -87,9 +87,9 @@ def test_detection_and_measurement_envelopes():
     det = Detection(
         primitives=(Polyline(id="LI", role="LI", points=((0.0, 0.0),)),),
         model_version="stub@0",
-        roi_used=(10, 90),
+        region={"kind": "column_window", "x0": 10, "x1": 90},
     )
-    assert det.model_version == "stub@0" and det.roi_used == (10, 90)
+    assert det.model_version == "stub@0" and det.region == {"kind": "column_window", "x0": 10, "x1": 90}
     meas = Measurement(
         metrics={"IMT_mean": Measure(0.9, "mm", "IMT mean", "平均 IMT")},
         calibration=CalibrationResult(cf=0.06, source=CFSource.CUBS),
@@ -146,11 +146,11 @@ def test_detection_and_measurement_to_dict():
     det = Detection(
         primitives=(Polyline(id="LI", role="LI", points=((0.0, 0.0),)),),
         model_version="stub@0",
-        roi_used=(10, 90),
+        region={"kind": "column_window", "x0": 10, "x1": 90},
         meta={"k": "v"},
     )
     dd = detection_to_dict(det)
-    assert dd["model_version"] == "stub@0" and dd["roi_used"] == [10, 90]
+    assert dd["model_version"] == "stub@0" and dd["region"] == {"kind": "column_window", "x0": 10, "x1": 90}
     assert dd["primitives"][0]["kind"] == "polyline" and dd["meta"] == {"k": "v"}
 
     meas = Measurement(

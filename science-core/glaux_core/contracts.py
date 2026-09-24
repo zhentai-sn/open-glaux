@@ -27,9 +27,7 @@
 ``at``，不另立逐帧类型；新几何形状（如 Keypoints）才需在此追加 dataclass 并在
 :func:`primitive_to_dict` / :func:`primitive_from_dict` 补分支，上层无需改动。
 
-:class:`Detection` 的 ``region`` 是 SDD 10 ``Region`` 判别联合的 dict 形态（``{"kind": "box",
-"x0", "y0", "x1", "y1"}`` / ``{"kind": "column_window", "x0", "x1"}`` …），取代 ``roi_used``；
-``roi_used`` 过渡期保留一版（取值与字段名不变）。
+:class:`Detection` 的 ``region`` 是 SDD 10 ``Region`` 判别联合的 dict 形态。
 """
 
 from __future__ import annotations
@@ -211,13 +209,11 @@ class Measure:
 class Detection:
     """适配器的统一输出：一组几何原语 + 模型版本 + 所用 ROI / Region。
 
-    ``region``（SDD 10）：``Region`` dict（``{"kind": "box"|"column_window"|...}``），取代
-    ``roi_used``；``roi_used`` 过渡期保留一版（取值与字段名不变，第 7 波删）。
+    ``region``（SDD 10）：``Region`` dict（``{"kind": "box"|"column_window"|...}``）。
     """
 
     primitives: tuple[Primitive, ...]
     model_version: str
-    roi_used: tuple[int, int] | None = None
     meta: dict = field(default_factory=dict)
     region: dict | None = None
 
@@ -321,7 +317,6 @@ def detection_to_dict(d: Detection) -> dict:
     return {
         "primitives": [primitive_to_dict(p) for p in d.primitives],
         "model_version": d.model_version,
-        "roi_used": list(d.roi_used) if d.roi_used is not None else None,
         "meta": dict(d.meta),
         "region": dict(d.region) if d.region is not None else None,
     }

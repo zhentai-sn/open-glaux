@@ -10,7 +10,6 @@ export function annotationMaskSink(objectId: string): MaskSink {
       const saved = await createAnnotation({
         image_id: objectId,
         index,
-        z: index.z ?? null,
         primitive: { kind: "mask" },
         mask_png_b64: maskToPng(mask, dims.columns, dims.rows),
       });

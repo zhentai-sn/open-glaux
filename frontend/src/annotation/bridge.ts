@@ -45,7 +45,6 @@ export async function createAnnotation(input: AnnotationInput): Promise<Annotati
     id: tempId,
     image_id: input.image_id,
     ...(input.index ? { index: input.index } : {}),
-    z: input.index?.z ?? input.z ?? null,
     primitive: input.primitive as Annotation["primitive"],
     label: input.label ?? "",
     class_id: input.class_id ?? null,

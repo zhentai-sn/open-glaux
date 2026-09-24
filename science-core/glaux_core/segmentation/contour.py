@@ -55,7 +55,7 @@ class ContourAdapter(Adapter):
         return Detection(
             primitives=(EllipseShape.from_ellipse(res.ellipse, id="skull", role="skull"),),
             model_version=res.model_version,
-            roi_used=(request.roi.x0, request.roi.x1) if request.roi is not None else None,
+            region={"kind": "column_window", "x0": request.roi.x0, "x1": request.roi.x1} if request.roi is not None else None,
             meta=dict(res.meta),
         )
 

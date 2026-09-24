@@ -133,7 +133,7 @@ VITE v5.4.21  ready in 250 ms
    - 双肾各 ~150-200 cm³
    - 滚轮切 z 轴（不是 zoom）
 5. **画笔编辑** → 工具栏切到 brush 工具，在肝上擦一小块：
-   - 后端 `POST /volume/ct_001/mask-edit` 接受
+   - 后端 `POST /objects/ct_001/edits` 接受，携 `task`、`method`、`base_seq` 与逐层 `ops`
    - 度量重算 → 肝体积下降
    - 状态条实时更新
 6. **Reproducibility Dice** → `/volume/{id}/verify` 端点已于 2026-08-16 删除（前端从未接线）；
@@ -166,4 +166,3 @@ VITE v5.4.21  ready in 250 ms
   缓存 labelmap 是否被覆盖，也可能是 voxel_spacing 解析差异（检查 `dataset_ct.vox_spacing_mm`）。
 - **镜像体积错误**：检查 `data/ct/ct_001.nii.gz` 的 `pixdim[1:4]`，是否包含负值
   （nibabel 会自动取 abs → 误通过）。
-
