@@ -42,7 +42,7 @@ stateDiagram-v2
 | 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-08-31 |
 | 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
 | 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4～W7 代码与自动门禁完成，人工验收递延） | Glaux 项目维护者 | 2026-09-24 |
-| 11 | [视频理解 harness](feats/11-video-understanding-harness/README.md) | `ready`（一期仅 Qwen；实施中，Pi 合成音画对照通过，完整验收待补） | Glaux 项目维护者 | 2026-09-24 |
+| 11 | [视频理解 harness](feats/11-video-understanding-harness/README.md) | `ready`（一期仅 Qwen；P1～P5 已实现，待真实视频基本流程验收；标注集评测后置） | Glaux 项目维护者 | 2026-09-25 |
 
 ## 维护约定
 
