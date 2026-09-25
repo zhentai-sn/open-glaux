@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -22,6 +23,7 @@ from . import config, upload_store
 
 MODALITY = "natural_image"
 _JPEG_MAGIC = b"\xff\xd8\xff"
+_EXIF_ORIENTATION = 0x0112
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 # 内置演示资产：顺序即文件栏顺序与 API 稳定顺序（SDD 07 §4.1，ID 已冻结，勿改）。
@@ -45,25 +47,66 @@ def _is_builtin_demo(source) -> bool:
     return Path(source.root) == Path(config.NATURAL_ROOT)
 
 
+# 导入源的目录列举缓存，键为 (root, 目录 mtime_ns)：增删、改名文件会改目录 mtime，缓存随之失效；
+# 文件内容变化不影响 id↔路径映射，取图时仍逐次 _probe 校验。mtime 有时钟粒度，同一刻度内的
+# 后续改动不改 mtime，故目录 mtime 距今不足 _RACY_NS 时不入缓存（同 git 的 racy 判定）。
+_LISTINGS: dict[str, tuple[tuple[str, int], list[tuple[str, Path]], dict[str, Path]]] = {}
+_RACY_NS = 2_000_000_000
+
+
+def _listing(src) -> tuple[list[tuple[str, Path]], dict[str, Path]]:
+    """某个源的 ``[(image_id, 路径)]``（稳定顺序）与 ``{image_id: 路径}``。"""
+    root = Path(src.root)
+    if _is_builtin_demo(src):
+        items = [(image_id, root / filename) for image_id, filename in ASSETS.items()]  # 声明顺序
+        return items, dict(items)
+    try:
+        key = (str(root), root.stat().st_mtime_ns)
+        hit = _LISTINGS.get(src.id)
+        if hit is not None and hit[0] == key:
+            return hit[1], hit[2]
+        paths = sorted(root.iterdir(), key=lambda p: p.name)  # 源内按文件名
+    except OSError:
+        return [], {}
+    items = [
+        (upload_store.image_id(src.id, p.name), p)
+        for p in paths
+        if upload_store.is_supported_file(p)
+    ]
+    index = dict(items)
+    if time.time_ns() - key[1] > _RACY_NS:
+        _LISTINGS[src.id] = (key, items, index)
+    else:
+        _LISTINGS.pop(src.id, None)
+    return items, index
+
+
+def _center(src) -> str:
+    return "Natural images" if _is_builtin_demo(src) else src.name
+
+
+def _path_in(src, image_id: str) -> Path:
+    """在指定源内按 id 查路径；源非 active 或 id 不在其列举里即 404（§7 规则 1）。"""
+    path = _listing(src)[1].get(image_id) if src.status == "active" else None
+    if path is None:
+        raise FileNotFoundError(f"未知通用图像：{image_id}")
+    return path
+
+
 def _entries() -> list[tuple[str, Path, str]]:
     """全部可见图像：``(image_id, 绝对路径, 所属源展示名)``，按 §5.3 的稳定顺序。"""
     out: list[tuple[str, Path, str]] = []
     for src in _sources():
-        root = Path(src.root)
-        if _is_builtin_demo(src):
-            for image_id, filename in ASSETS.items():  # 声明顺序
-                out.append((image_id, root / filename, "Natural images"))
-            continue
-        for path in sorted(root.iterdir(), key=lambda p: p.name):  # 源内按文件名
-            if upload_store.is_supported_file(path):
-                out.append((upload_store.image_id(src.id, path.name), path, src.name))
+        center = _center(src)
+        out.extend((image_id, path, center) for image_id, path in _listing(src)[0])
     return out
 
 
 def _find(image_id: str) -> tuple[Path, str]:
-    for candidate, path, center in _entries():
-        if candidate == image_id:
-            return path, center
+    for src in _sources():
+        path = _listing(src)[1].get(image_id)
+        if path is not None:
+            return path, _center(src)
     raise FileNotFoundError(f"未知通用图像：{image_id}")
 
 
@@ -175,19 +218,12 @@ class NaturalSource(SourceBase):
         )
 
     def list_ids(self, source: DataSource) -> list[str]:
-        root = Path(source.root)
-        if not root.is_dir():
+        if not Path(source.root).is_dir():
             return []
-        if _is_builtin_demo(source):
-            entries = [(image_id, root / name) for image_id, name in ASSETS.items()]
-        else:
-            entries = [
-                (upload_store.image_id(source.id, p.name), p)
-                for p in sorted(root.iterdir(), key=lambda p: p.name)
-                if upload_store.is_supported_file(p, MODALITY)
-            ]
         out: list[str] = []
-        for image_id, path in entries:
+        for image_id, path in _listing(source)[0]:
+            if not _is_builtin_demo(source) and not upload_store.is_supported_file(path, MODALITY):
+                continue
             try:
                 _probe(path)
             except FileNotFoundError:
@@ -216,8 +252,7 @@ class NaturalSource(SourceBase):
         return upload_store.image_id(source.id, path.name)
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
-        rec = image_meta(object_id)
-        w, h = image_size(object_id)
+        w, h = _probe(_path_in(source, object_id))
         return ObjectMeta(
             id=object_id,
             kind=self.kind,
@@ -225,16 +260,21 @@ class NaturalSource(SourceBase):
             source_id=source.id,
             axes=[Axis(name="x", size=w), Axis(name="y", size=h)],
             resources=resources_for(object_id),
-            methods=method_refs(rec["methods"]),
-            meta={"center": rec["center"]},
+            methods=method_refs([]),
+            meta={"center": _center(source)},
         )
 
     def encoded(self, source, object_id, index):
-        return image_bytes(object_id)
+        path = _path_in(source, object_id)
+        _probe(path)
+        # 带 EXIF 方向的图：浏览器按方向旋转显示，与对象坐标（PIL 原始朝向）不符，改走 render
+        with Image.open(path) as im:
+            if im.getexif().get(_EXIF_ORIENTATION, 1) != 1:
+                return None
+        return _read_bytes(path), media_type(path)
 
     def render(self, source, object_id, index, window):
-        path, _ = _find(object_id)
-        with Image.open(path) as im:
+        with Image.open(_path_in(source, object_id)) as im:
             return im.convert("RGB")
 
     def derive_id(self, source: DataSource, rel_name: str) -> str:

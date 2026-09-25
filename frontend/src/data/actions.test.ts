@@ -2,10 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api/client";
-import type { ObjectMeta, TaskOutput, TaskView } from "../api/types";
+import type { DataSource, ObjectMeta, TaskOutput, TaskView } from "../api/types";
 import { TOOL_OPTIONS_DEFAULTS, activeObject, useSession } from "../store/session";
 import { objectMeta, taskFields } from "../test/fixtures";
-import { defaultIndex, loadObjects, openObject, runTask } from "./actions";
+import { defaultIndex, loadObjects, openObject, openProjectFile, runTask } from "./actions";
 
 const INITIAL = useSession.getState();
 
@@ -164,5 +164,46 @@ describe("defaultIndex", () => {
     expect(defaultIndex(CT)).toEqual({ z: 0 });
     expect(defaultIndex(SLIDE)).toEqual({ level: 2 });
     expect(defaultIndex(objectMeta({ id: "v", modality: "video" as ObjectMeta["modality"] }))).toEqual({ t: 0 });
+  });
+});
+
+describe("openProjectFile（SDD 13 §6.3）", () => {
+  const ds = (id: string) => ({ id, modality: "natural_image" }) as DataSource;
+  const hit = (id: string) => objectMeta({ id, modality: "natural_image", source_id: "psrc-1" });
+
+  it("对象表已加载且数据源已知：并入返回的对象，不重拉对象表与数据源", async () => {
+    useSession.setState({ datasources: [ds("psrc-1")], objects: { natural_image: [CAT] } });
+    vi.spyOn(api, "openProjectObject").mockResolvedValue(hit("nat-a"));
+    const dsSpy = vi.spyOn(api, "datasources");
+    await openProjectFile("prj-1", "a.png");
+    expect(api.objects).not.toHaveBeenCalled();
+    expect(dsSpy).not.toHaveBeenCalled();
+    expect(useSession.getState().objects.natural_image?.map((o) => o.id)).toEqual(["natural_cat", "nat-a"]);
+    expect(useSession.getState().focus?.object_id).toBe("nat-a");
+  });
+
+  it("新登记的数据源刷新数据源；对象表未加载时整表拉取一次", async () => {
+    vi.spyOn(api, "openProjectObject").mockResolvedValue(hit("nat-a"));
+    vi.spyOn(api, "datasources").mockResolvedValue([ds("psrc-1")]);
+    await openProjectFile("prj-1", "a.png");
+    expect(api.datasources).toHaveBeenCalledOnce();
+    expect(api.objects).toHaveBeenCalledOnce();
+    expect(useSession.getState().focus?.object_id).toBe("nat-a");
+  });
+
+  it("连续点击：先发后至的旧请求不抢焦点", async () => {
+    useSession.setState({ datasources: [ds("psrc-1")], objects: { natural_image: [] } });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    vi.spyOn(api, "openProjectObject").mockImplementation(async (_p, path) => {
+      if (path === "a.png") await gate;
+      return hit(path === "a.png" ? "nat-a" : "nat-b");
+    });
+    const first = openProjectFile("prj-1", "a.png");
+    await openProjectFile("prj-1", "b.png");
+    release();
+    await first;
+    expect(useSession.getState().focus?.object_id).toBe("nat-b");
+    expect(useSession.getState().objects.natural_image?.map((o) => o.id)).toEqual(["nat-b", "nat-a"]);
   });
 });

@@ -107,3 +107,46 @@ def test_unknown_natural_image_cannot_receive_annotations(tmp_path, monkeypatch)
     assert client.get("/annotations", params={"image_id": "natural_unknown"}).json() == {
         "annotations": []
     }
+
+
+def _src(root, sid="nat-src"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=sid, root=str(root), status="active", name="imported")
+
+
+def test_listing_cache_follows_directory_changes(tmp_path):
+    import os
+
+    Image.new("RGB", (4, 3)).save(tmp_path / "a.png")
+    os.utime(tmp_path, (1_000_000_000, 1_000_000_000))  # 旧 mtime：可入缓存
+    src = _src(tmp_path)
+    first = dataset_natural._listing(src)
+    assert [p.name for _, p in first[0]] == ["a.png"]
+    assert dataset_natural._listing(src)[0] is first[0]  # 命中缓存
+    Image.new("RGB", (4, 3)).save(tmp_path / "b.png")
+    assert [p.name for _, p in dataset_natural._listing(src)[0]] == ["a.png", "b.png"]
+    (tmp_path / "a.png").unlink()
+    assert [p.name for _, p in dataset_natural._listing(src)[0]] == ["b.png"]
+
+
+def test_frame_serves_original_bytes_unless_exif_rotated(tmp_path):
+    from app.schemas import Index
+
+    Image.new("L", (40, 30)).save(tmp_path / "plain.png")
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    Image.new("RGB", (40, 30)).save(tmp_path / "rot.jpg", format="JPEG", exif=exif)
+    src = _src(tmp_path, "nat-exif")
+    ids = {p.name: i for i, p in dataset_natural._listing(src)[0]}
+    source = dataset_natural.SOURCE
+
+    data, mime, ref = source.frame(src, ids["plain.png"], Index(), size=4096)
+    assert data == (tmp_path / "plain.png").read_bytes()
+    assert mime == "image/png" and ref.scale == 1.0
+
+    data, mime, ref = source.frame(src, ids["rot.jpg"], Index(), size=4096)
+    assert mime == "image/png" and (ref.width, ref.height) == (40, 30)
+
+    _, _, ref = source.frame(src, ids["plain.png"], Index(), size=20)
+    assert (ref.width, ref.height) == (20, 15)

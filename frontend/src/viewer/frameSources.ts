@@ -37,9 +37,13 @@ export function frameSourceFor(object: ObjectMeta): FrameSource {
     const query = `${axis ? `t=${index}&` : ""}size=${FRAME_SIZE}`;
     return `web:${api.resourceUrl(`${object.resources.frame}${separator}${query}`)}`;
   };
+  const width = object.axes.find((item) => item.name === "x")?.size;
+  const height = object.axes.find((item) => item.name === "y")?.size;
   return {
     objectId,
     async dims() {
+      // 不超过 FRAME_SIZE 时后端不缩放，帧尺寸即 axes，省一次取帧；超过时按实际取到的帧为准
+      if (width && height && Math.max(width, height) <= FRAME_SIZE) return { columns: width, rows: height, frames };
       const { columns, rows } = await preloadDims(imageId(0));
       return { columns, rows, frames };
     },

@@ -183,8 +183,14 @@ sequenceDiagram
     end
     BE->>S: describe(source, object_id)
     BE-->>C: ObjectMeta
-    Note over C: 前端：openObject(id)<br/>agent-runtime：取观测返回给模型
+    Note over C: 前端：并入对象表后 openObject(id)<br/>agent-runtime：取观测返回给模型
 ```
+
+前端收到 `ObjectMeta` 后的处理：
+
+- 对象的 `source_id` 不在已知数据源里时（本次新登记），刷新数据源清单；否则不刷新。
+- 该模态对象表已加载时，把返回的对象并入表中，不重拉整表；未加载时整表拉取一次。
+- 连续点击多个文件时，只有最后一次点击设置焦点，先发后至的响应只并入对象表。
 
 ### 6.4 后台会话的工具结果
 

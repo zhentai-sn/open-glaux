@@ -335,7 +335,8 @@ class SourceBase:
         obj = self.meta(source, object_id)
         index = self.default_index(obj, index)
         width, height = obj.axis("x").size, obj.axis("y").size  # type: ignore[union-attr]
-        if roi is None and size is None and window is None:
+        # 无需裁剪、缩放（size 不小于原图最长边）、加窗时直接回原样字节，省去解码与重编码
+        if roi is None and window is None and (size is None or max(width, height) <= size):
             fast = self.encoded(source, object_id, index)
             if fast is not None:
                 data, mime = fast

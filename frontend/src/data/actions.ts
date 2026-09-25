@@ -215,15 +215,25 @@ export function projectOfObject(obj: Pick<ObjectMeta, "source_id">): string | nu
   return ds ? (ds.project_id ?? null) : undefined;
 }
 
+let openSeq = 0; // 连点守卫：只有最后一次 openProjectFile 设焦点
+
 /**
- * 按路径打开项目内文件（SDD 13 §6.3）：后端校验并按需登记数据源 → 刷新数据源与该模态对象表 →
- * 走 openObject 设焦点。失败抛 ApiError（code 为 outside_project / unsupported_format / corrupt 等）。
+ * 按路径打开项目内文件（SDD 13 §6.3）：后端校验并按需登记数据源 → 数据源是新登记的才刷新数据源 →
+ * 把返回的对象并入该模态对象表（对象表未加载时才整表拉取）→ 走 openObject 设焦点。
+ * 连续点击时只有最后一次设焦点。失败抛 ApiError（code 为 outside_project / unsupported_format / corrupt 等）。
  */
 export async function openProjectFile(projectId: string, path: string): Promise<ObjectMeta> {
+  const seq = ++openSeq;
   const meta = await api.openProjectObject(projectId, path);
-  await refreshDataSources();
-  useSession.getState().setObjects(meta.modality, await api.objects(meta.modality));
-  await openObject(meta.id);
+  if (!useSession.getState().datasources.some((d) => d.id === meta.source_id)) await refreshDataSources();
+  const loaded = useSession.getState().objects[meta.modality];
+  const base = loaded ?? (await api.objects(meta.modality));
+  const list = useSession.getState().objects[meta.modality] ?? base; // 拉表期间可能已被别处写入
+  const at = list.findIndex((o) => o.id === meta.id);
+  useSession
+    .getState()
+    .setObjects(meta.modality, at < 0 ? [...list, meta] : list.map((o, i) => (i === at ? meta : o)));
+  if (seq === openSeq) await openObject(meta.id);
   return meta;
 }
 

@@ -196,6 +196,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 
 - 取值为 `ReferenceFrame` 的紧凑 JSON（UTF-8、无空格），字段为 `object_id`、`index`、`origin`、`scale`、`width`、`height`，语义见 §9.1。
 - `origin` 是该帧左上角在对象 level-0／帧坐标系中的位置，`scale` 是「对象坐标 → 返回图像素」的缩放因子；未裁剪未缩放时为 `origin=[0,0]`、`scale=1`。
+- 无 `roi`、无 `window`、`size` 不小于原图最长边时，实现了 `encoded()` 的源直接返回原文件字节（`image/png` 或 `image/jpeg`），不解码重编码。带 EXIF 方向标记的图不走此路径，按原始朝向解码后返回 PNG，使返回图与对象坐标一致。
 - agent-runtime 的 `fetchObservation` 是唯一取图处，其 `Observation.frame` 直接取自本头；`toObjectCoords` 用它把模型输出的像素框换算回 `Region`。
 - 四种 `ObjectKind` 各取一帧断言 `origin`／`scale`／`width`／`height`，是 W2 的准出门禁之一。
 
