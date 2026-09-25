@@ -1,4 +1,4 @@
-import { CHAT_EDITION } from "../edition";
+import { WORKBENCH_ENABLED } from "../edition";
 import { create } from "zustand";
 
 import type {
@@ -90,11 +90,15 @@ const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
 /**
- * Focus 右侧栏的浏览器列（SDD feats/01 v1.4 §9 / D16、D18）：文件 / 图谱，二者互斥。
- * `null` = 浏览器列关闭，侧栏纯舞台——舞台自 v1.4 起常驻，不再是三标签之一，故枚举里没有 "stage"。
+ * Focus 右侧工作区（SDD feats/01 v1.5 / D20）：舞台或图谱，二者占同一位置互换；对话列始终保留。
+ * 图谱是一级入口，开关在左侧栏，不再是右侧浏览器列的标签。
  */
-export type FocusBrowserView = "files" | "atlas";
-const BROWSER_VIEWS: readonly FocusBrowserView[] = ["files", "atlas"];
+export type FocusSideView = "stage" | "atlas";
+/**
+ * 舞台旁的浏览器列（SDD feats/01 v1.4 §9 / D16、D18；v1.5 起只剩文件）。
+ * `null` = 浏览器列关闭，侧栏纯舞台。
+ */
+export type FocusBrowserView = "files";
 
 /** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——对话列由 CONVERSATION_MIN_W 保底，右侧图像栏允许占据更大空间。 */
 export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
@@ -118,6 +122,7 @@ export const CONVERSATION_MIN_W = 360;
 export interface FocusLayout {
   railOpen: boolean;
   rightOpen: boolean;
+  sideView: FocusSideView;
   browserView: FocusBrowserView | null;
   browserW: number | null;
   railW: number | null;
@@ -126,6 +131,7 @@ export interface FocusLayout {
 export const FOCUS_LAYOUT_DEFAULTS: FocusLayout = {
   railOpen: false,
   rightOpen: true,
+  sideView: "stage",
   browserView: null,
   browserW: null,
   railW: null,
@@ -138,9 +144,9 @@ function loadWidth(v: unknown, range: { min: number; max: number }): number | nu
   return Math.min(range.max, Math.max(range.min, Math.round(v)));
 }
 
-/** 读 uiMode：仅接受两个字面量，缺失/损坏一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
+/** 读 uiMode：仅接受两个字面量，缺失/损坏或未开放工作台（VITE_GLAUX_WORKBENCH）一律回退 focus（默认值即产品立场，SDD §6.3/D2）。 */
 function loadUiMode(): UiMode {
-  if (CHAT_EDITION) return "focus";
+  if (!WORKBENCH_ENABLED) return "focus";
   try {
     const raw = localStorage.getItem(UIMODE_KEY);
     if (raw === "focus" || raw === "workbench") return raw;
@@ -166,15 +172,14 @@ function loadFocusLayout(): FocusLayout {
               : FOCUS_LAYOUT_DEFAULTS.rightOpen;
         // v1.1–v1.3 存的是三值 rightView；v1.4 起舞台常驻，"stage" 即「没有浏览器列」→ null。
         // 非法值同样落 null（纯舞台是最保守的形态：不会把用户丢进一个空浏览器）。
-        const legacy = BROWSER_VIEWS.includes(p.rightView as FocusBrowserView)
-          ? (p.rightView as FocusBrowserView)
-          : null;
+        const legacy = p.rightView === "files" ? "files" : null;
+        // v1.4 图谱曾是浏览器列之一（browserView/rightView 为 "atlas"）→ v1.5 迁为图谱工作区。
+        const legacyAtlas = (p.browserView as unknown) === "atlas" || p.rightView === "atlas";
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
           rightOpen,
-          browserView: BROWSER_VIEWS.includes(p.browserView as FocusBrowserView)
-            ? (p.browserView as FocusBrowserView)
-            : legacy,
+          sideView: p.sideView === "stage" || p.sideView === "atlas" ? p.sideView : legacyAtlas ? "atlas" : "stage",
+          browserView: p.browserView === "files" ? "files" : legacy,
           browserW: loadWidth(p.browserW, BROWSER_W),
           railW: loadWidth(p.railW, RAIL_W),
           sideW: loadWidth(p.sideW, SIDE_W),
@@ -371,11 +376,11 @@ export const useSession = create<SessionState>((set) => ({
   setUiMode: (requested) =>
     set(() => {
       try {
-        localStorage.setItem(UIMODE_KEY, CHAT_EDITION ? "focus" : requested);
+        localStorage.setItem(UIMODE_KEY, WORKBENCH_ENABLED ? requested : "focus");
       } catch {
         /* 持久化失败不阻塞切换 */
       }
-      return { uiMode: CHAT_EDITION ? "focus" : requested };
+      return { uiMode: WORKBENCH_ENABLED ? requested : "focus" };
     }),
   setFocusLayout: (patch) =>
     set((s) => {

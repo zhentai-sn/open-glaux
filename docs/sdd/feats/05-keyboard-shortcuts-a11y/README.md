@@ -103,7 +103,7 @@ flowchart TD
 | 工具 · 复位 | `Esc` | `setTool('reset')`（仅当速查面板已关，见 D-7） | 查看器聚焦 |
 | 外壳 · 左会话栏（Focus） | `Ctrl/Cmd+B` | Focus 切左会话栏（`setFocusLayout({railOpen})`）。Workbench 侧栏由 dockview 自管，键盘开合本轮延后（见 §13） | Focus |
 | 外壳 · 右侧栏/底面板 | `Ctrl/Cmd+\` | Focus 切右侧栏（`setFocusLayout({rightOpen})`）；Workbench 切底面板（`togglePanel`） | 全局 |
-| 外壳 · 模式切换 | `Ctrl/Cmd+Shift+M` | `setUiMode` Focus↔Workbench | 全局 |
+| 外壳 · 模式切换 | `Ctrl/Cmd+Shift+M` | `setUiMode` Focus↔Workbench；仅 `VITE_GLAUX_WORKBENCH=1` 时生效并列入速查面板（01 D21） | 全局 |
 | 帮助 · 速查 | `?`（Shift+/） | 切换速查面板 | 全局（输入框内除外） |
 
 ## 8. 涉及页面和组件

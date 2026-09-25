@@ -35,11 +35,11 @@ export const useAtlasUi = create<AtlasUiState>((set) => ({
 
 /**
  * 从任意位置（如会话卡片）跳到某个案例：按当前外壳模式把图谱面板亮出来，再切到详情。
- * Focus → 右侧拓展区切 atlas 且展开；Workbench → 侧栏切 atlas。
+ * Focus → 右侧工作区换成图谱且展开；Workbench → 侧栏切 atlas。
  */
 export function revealExemplar(id: string): void {
   const s = useSession.getState();
-  if (s.uiMode === "focus") s.setFocusLayout({ browserView: "atlas", rightOpen: true });
+  if (s.uiMode === "focus") s.setFocusLayout({ sideView: "atlas", rightOpen: true });
   else s.setSidebarView("atlas");
   useAtlasUi.getState().openExemplar(id);
 }

@@ -77,7 +77,7 @@ export const KIND_ICON: Record<string, LucideIcon> = {
   correction_store: History,
 };
 
-// Focus 右侧栏标签
+// Focus 右侧栏的舞台 / 文件 / 图谱（入口在左侧栏活动栏，SDD 01 D22）
 export const TAB_ICON = { stage: Image, files: Files, atlas: BookOpen } as const;
 
 // 通用动作 / 结构图标

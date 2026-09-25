@@ -45,7 +45,7 @@ describe("FocusTopBar 图像上下文 chip", () => {
     localStorage.setItem("glaux.lang", "en");
     useSession.setState({
       uiMode: "focus",
-      focusLayout: { railOpen: false, rightOpen: false, browserView: null, browserW: null, railW: null, sideW: null },
+      focusLayout: { railOpen: false, rightOpen: false, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null },
       tasks: [],
       datasources: DS,
       modality: "carotid_imt",
@@ -64,7 +64,7 @@ describe("FocusTopBar 图像上下文 chip", () => {
   it("点击展开右侧栏并切到「文件」标签，且不改活动对象", () => {
     ui();
     fireEvent.click(screen.getByRole("button", { name: /Current image context/ }));
-    expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, browserView: "files" });
+    expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, sideView: "stage", browserView: "files" });
     expect(useSession.getState().focus?.object_id).toBe("tech_401");
   });
 

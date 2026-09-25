@@ -124,7 +124,7 @@ export function FocusShell() {
           <PaneResizer
             value={railCur}
             min={RAIL_W.min}
-            max={Math.max(RAIL_W.min, room(rightOpen ? sideCur : 40, RAIL_W.max))}
+            max={Math.max(RAIL_W.min, room(rightOpen ? sideCur : 0, RAIL_W.max))}
             side="left"
             label={t("focus_resize_rail")}
             onChange={(w) => setFocusLayout({ railW: w })}

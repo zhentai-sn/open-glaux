@@ -9,8 +9,8 @@ import { OwlLogo } from "../OwlLogo";
 import { ModeSwitch } from "./ModeSwitch";
 
 // 只读图像上下文标签（SDD feats/01 v1.2 D14）——顶栏只**显示**「模态 · 当前对象」，
-// 不再自带选择器：选图的唯一 UI 入口是右侧栏「文件」标签（复用 ExplorerView），
-// 点击本 chip 即展开右侧栏并切到该标签，避免同一份派生规则在两处各写一遍。
+// 不再自带选择器：选图的唯一 UI 入口是舞台旁的文件浏览器列（复用 ExplorerView），
+// 点击本 chip 即展开右侧栏、回到舞台并打开文件列，避免同一份派生规则在两处各写一遍。
 function ImageContextChip() {
   const { t } = useI18n();
   const modality = useSession((s) => s.modality);
@@ -25,7 +25,7 @@ function ImageContextChip() {
       className={"focus-ctx" + (activeId ? "" : " empty")}
       title={t("focus_ctx_open")}
       aria-label={t("focus_ctx_open")}
-      onClick={() => setFocusLayout({ rightOpen: true, browserView: "files" })}
+      onClick={() => setFocusLayout({ rightOpen: true, sideView: "stage", browserView: "files" })}
     >
       <Icon icon={ICONS.folder} size="sm" className="focus-ctx-glyph" />
       {modalityLabel && <span className="focus-ctx-modality">{modalityLabel}</span>}

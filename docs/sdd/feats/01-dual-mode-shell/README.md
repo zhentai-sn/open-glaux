@@ -9,9 +9,9 @@ status: implemented
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
+| SDD 状态 | `implemented`（v1.6 舞台 / 文件 / 图谱入口统一收进左侧栏、右侧栏去掉标签条与折叠竖条 2026-09-25 实现完成、自查见 §15 v1.6；v1.5 图谱升为一级入口、与舞台互换右侧工作区，工作台入口缺省关闭 2026-09-25 实现完成、自查见 §15 v1.5；v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-09-23 |
+| 最近更新 | 2026-09-25 |
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
@@ -83,8 +83,8 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- Focus 布局:会话列表(可收起)/ 居中对话流 / **右侧栏**(可折叠;舞台常驻,文件与图谱为贴右缘的浏览器列,二者互斥且可关闭;v1.4,D16–D19)/ 极简顶栏(标识、**只读图像上下文标签**、设置、模式切换;v1.2,D14)。
-- Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮)。
+- Focus 布局:左侧栏(会话列表可收起;竖条是活动栏,含会话 ☰ ＋ 与右侧栏的**舞台 / 文件 / 图谱**三个一级入口,v1.5 D20、v1.6 D22)/ 居中对话流 / **右侧工作区**(纯内容区,收起时不渲染;舞台或图谱二选一,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20)/ 极简顶栏(标识、**只读图像上下文标签**、设置,以及仅在开放工作台时出现的模式切换;v1.2 D14,v1.5 D21)。
+- Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮);入口缺省关闭,构建时设 `VITE_GLAUX_WORKBENCH=1` 才开放(D21)。
 - 切换后界面即时呈现目标模式,数据原地保留。
 
 ### 5.2 系统输出
@@ -102,7 +102,9 @@ status: implemented
 
 ```mermaid
 flowchart TD
-    A[应用启动] --> B{localStorage 有合法 uiMode?}
+    A[应用启动] --> K{VITE_GLAUX_WORKBENCH=1?}
+    K -- 否(缺省) --> F
+    K -- 是 --> B{localStorage 有合法 uiMode?}
     B -- 无/损坏 --> F[进入 Focus 模式]
     B -- focus --> F
     B -- workbench --> W[进入 Workbench 模式]
@@ -119,16 +121,16 @@ flowchart TD
     APP -- full --> RA["ResearchApp<br/>数据装载 effect 与模式无关,仅挂载时跑一次"] --> M{useSession.uiMode}
     M -- focus --> FS[FocusShell 新增]
     M -- workbench --> WB[现状树:TitleBar + ActivityBar + Shell dockview + StatusBar]
-    FS --> FT["FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→文件浏览器列) · ⚙ 弹层 · ⇄"]
+    FS --> FT["FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→舞台 + 文件浏览器列) · ⚙ 弹层 · ⇄(仅开放工作台时)"]
     FS --> PZ["PaneResizer ×2<br/>会话栏 ⇄ 对话列 ⇄ 右侧栏"]
-    FS --> SR[SessionRail 新增薄壳<br/>复用 SessionDrawer]
+    FS --> SR["SessionRail 薄壳<br/>活动栏:会话 ☰ ＋ · 舞台 / 文件 / 图谱入口(v1.6);展开复用 SessionDrawer"]
     FS --> CC[对话列<br/>复用 AgentConversation + ConversationComposer]
-    FS --> RP[FocusSidePanel v1.4<br/>右侧栏壳:文件/图谱两枚开关 + 折叠条]
-    RP --> SP[StagePanel 常驻<br/>复用 Viewer / VolumeViewer / WsiViewer + Tool 子集工具条]
-    RP --> PR[PaneResizer<br/>舞台 ⇄ 浏览器列]
-    RP --> BC[浏览器列 browserView<br/>文件 / 图谱互斥,可关闭]
+    FS --> RP["FocusSidePanel v1.6<br/>右侧纯内容区 sideView:舞台 / 图谱;收起时不渲染"]
+    RP -- sideView=stage --> SP[StagePanel<br/>复用 Viewer / VolumeViewer / WsiViewer + Tool 子集工具条]
+    RP -- sideView=stage --> PR[PaneResizer<br/>舞台 ⇄ 浏览器列]
+    RP -- sideView=stage --> BC[浏览器列 browserView<br/>文件,可关闭]
     BC --> FV[文件<br/>复用 SideBar.ExplorerView]
-    BC --> AV["图谱<br/>复用 atlas/AtlasView compact(feats/03)"]
+    RP -- sideView=atlas --> AV["图谱工作区<br/>复用 atlas/AtlasView(feats/03)"]
     WB --> TB2[TitleBar 改:右侧加 ⇄ 按钮]
     STORE[(useSession 单一 zustand store<br/>领域状态两模式共享)] -.读写.- FS & WB
 ```
@@ -140,22 +142,26 @@ flowchart TD
 3. 切到 Workbench 时 dockview 经现有 `fromJSON(glaux.layout.v1)` 恢复拖拽布局(既有机制,零新代码);切离时其布局已由现有 `onDidLayoutChange` 持久化。
 4. 数据装载(tasks/models/capabilities/…)只在 App 挂载时执行一次,与模式切换解耦——切换零请求由此保证。
 5. 读 `uiMode`:仅接受字面量 `"focus" | "workbench"`,其余(缺失/损坏)一律回退 `focus`。
+6. 工作台入口开关(D21):`VITE_GLAUX_WORKBENCH` 取 `0`(缺省)或 `1`,其余值构建期抛错;chat 发行版恒为关闭。关闭时不渲染 ⇄ 按钮、`Ctrl/Cmd+Shift+M` 不生效、速查面板不列该项,`loadUiMode`/`setUiMode` 恒为 `focus`(已持久化的 `workbench` 也回落 Focus)。
 
 ## 7. 交互规则
 
-1. **对话优先**:Focus 下对话流是唯一常驻主体;空状态为居中输入框 + 示例任务卡(Codex 式空状态)。
-2. **右侧栏(v1.4,修订 v1.1 的三标签互斥)**:Focus 右侧是一个**常驻可折叠**的侧栏。侧栏内部分为两列——左列是**舞台**,**常驻**;右列是**浏览器**(**文件** = 模态切换 + 图像导航,复用 Workbench 资源管理器视图;**图谱** = feats/03 `AtlasView`;二者互斥,可整列关闭),贴屏幕最右缘(D19)。
-   - 标签条只剩「文件」「图谱」两枚开关式标签:点击未激活标签 = 打开浏览器列并切到它;点击已激活标签 = 关闭浏览器列,侧栏回到纯舞台(等价于 v1.1 的「舞台标签」)。
-   - 舞台不再是标签,不可关闭。无活动图时仍显示占位引导(D13),不整块消失。
-   - 折叠后仍收成 40px 竖条,三枚图标 = 舞台 / 文件 / 图谱:点舞台图标 = 展开且浏览器列关闭;点另两枚 = 展开并打开对应浏览器。
+1. **对话优先**:Focus 下对话流是唯一常驻主体;空状态为居中输入框 + 示例任务卡(Codex 式空状态)。非空状态下输入框与其下方状态行和消息阅读列同宽同轴(≤720px,两侧内缩 = 消息流内边距 + 对称预留的滚动条槽)。
+2. **右侧工作区(v1.6,修订 v1.4/v1.5 的标签条与折叠竖条)**:Focus 右侧栏是**纯内容区**,承载一个工作区:**舞台**或**图谱**(`sideView`),二者占同一位置互换,对话列始终保留(D20)。右侧栏没有自己的标签条、按钮与折叠竖条;收起(`rightOpen=false`)时整栏不渲染(D22)。
+   - **舞台态**分两列——左列是**舞台**;右列是**文件浏览器**(模态切换 + 图像导航,复用 Workbench 资源管理器视图,可整列关闭),贴屏幕最右缘(D19)。无活动图时舞台显示占位引导(D13),不整块消失。
+   - **入口**统一在左侧栏活动栏(会话 ☰ ＋ 之下,分隔线隔开),三枚图标带按下态(`aria-pressed`):
+     - 舞台:按下 = 右侧开着且在舞台态。未按下时点击 = 展开纯舞台(文件列关闭);舞台 + 文件列时点击 = 关闭文件列;只剩舞台时点击 = 收起右侧栏。
+     - 文件:按下 = 舞台态且文件列开着。未按下时点击 = 展开舞台并打开文件列;按下时点击 = 关闭文件列。
+     - 图谱:按下 = 右侧开着且在图谱态。未按下时点击 = 换成图谱工作区(不改文件列开合);按下时点击 = 收起右侧栏。
+   - `Ctrl/Cmd+\` 开合右侧栏(feats/05),重新打开时恢复收起前的工作区。
    - 舞台与浏览器列之间有第三条拖拽分隔条(见第 7 条)。
    - **窄屏降级**:侧栏可用宽度 < `SIDE_SPLIT_MIN` 时无法并排,退回 v1.1 的整栏互斥形态——浏览器内容占满侧栏,且在文件浏览器选中图像后自动切回舞台。宽度回到阈值以上即恢复分栏,`browserView` 不因降级被改写。
-   - 自动切换:仅在窄屏降级态存在(选图 → 回舞台)。分栏态下选图**不**关闭浏览器列——同屏切图正是本形态的目的。`run_task` 结果写回查看器、会话卡片"在图谱中打开"照旧展开右侧栏并切到对应内容。
+   - 自动切换:仅在窄屏降级态存在(选图 → 回舞台)。分栏态下选图**不**关闭浏览器列——同屏切图正是本形态的目的。`run_task` 结果写回查看器;会话卡片"在图谱中打开"展开右侧栏并换成图谱工作区的对应案例;顶栏图像上下文 chip 展开右侧栏、回到舞台并打开文件列。
 3. **舞台不可省**:点选/圈画修正手势与"低风险试一把"核对(前端设计纲领 G4)必须在 Focus 舞台可用——Focus 不是纯聊天,是**对话 + 舞台**。
 4. **度量呈现**:度量摘要卡挂在舞台,数据取自同一 `store.metrics`;agent 的 `run_task` 结果经 toolBridge 写回查看器与 store。对话内嵌 `taskrun` 卡片仍未落地(见[实现计划 §1.3](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md))。
 5. **设置收纳**:VLM 连接配置(designs/2026-07-14-001)在 Focus 收进顶栏 ⚙ 弹层;Workbench 入口不动。
 6. **反长回规则(硬约束)**:后续新能力默认 Workbench 独占;进入 Focus 必须显式设计并更新本 SDD——防止 Focus 逐渐长回一个 IDE。
-7. **栏宽可调(v1.3;v1.4 增第三条)**:Focus 栏间各有一条拖拽分隔条——会话栏 ⇄ 对话列、对话列 ⇄ 右侧栏,以及(v1.4)右侧栏内的**舞台 ⇄ 浏览器列**。第三条只在分栏态渲染:浏览器列关闭或处于窄屏降级态时不渲染。它夹在 `BROWSER_W` 范围内,并保证舞台不小于 `STAGE_MIN`;交互(双击复位、`role="separator"`、←/→ 16px、Home 复位)与前两条完全一致,复用同一 `PaneResizer`。拖拽**在允许范围内**改变两侧栏宽度,对话列吃剩余空间(始终 ≥ 360px);越界即被夹住,不产生横向滚动、不把任一栏拖没。折叠态的栏(40px 竖条)不可拖,分隔条隐藏;展开后恢复。双击分隔条复位为默认宽度。分隔条为 `role="separator"` 可聚焦,←/→ 每次 16px、Home 复位(与 feats/05 键盘可达一致)。宽度随 `focusLayout` 持久化,刷新与模式往返保持。
+7. **栏宽可调(v1.3;v1.4 增第三条)**:Focus 栏间各有一条拖拽分隔条——会话栏 ⇄ 对话列、对话列 ⇄ 右侧栏,以及(v1.4)右侧栏内的**舞台 ⇄ 浏览器列**。第三条只在分栏态渲染:浏览器列关闭或处于窄屏降级态时不渲染。它夹在 `BROWSER_W` 范围内,并保证舞台不小于 `STAGE_MIN`;交互(双击复位、`role="separator"`、←/→ 16px、Home 复位)与前两条完全一致,复用同一 `PaneResizer`。拖拽**在允许范围内**改变两侧栏宽度,对话列吃剩余空间(始终 ≥ 360px);越界即被夹住,不产生横向滚动、不把任一栏拖没。折叠态的栏不可拖(会话栏收成 40px 活动栏,右侧栏收起即不渲染),分隔条隐藏;展开后恢复。双击分隔条复位为默认宽度。分隔条为 `role="separator"` 可聚焦,←/→ 每次 16px、Home 复位(与 feats/05 键盘可达一致)。宽度随 `focusLayout` 持久化,刷新与模式往返保持。
 8. **动效**(按[纲领 §5](../../../designs/frontend-design-charter.zh-CN.md)):模式切换为 ≤320ms 朴素 crossfade(两模式是同一世界的两种视角,不做戏剧化转场);舞台/会话栏开合 200–280ms ease-out,退场更短;`prefers-reduced-motion` 下全部降级为瞬时切换,功能语义不依赖动效;动效时长/缓动用 token,不写死。
 
 ## 8. 涉及页面与组件
@@ -163,15 +169,20 @@ flowchart TD
 | 类别 | 组件 | 契约 |
 | --- | --- | --- |
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
-| 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换 |
+| 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, sideView:"stage", browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换(仅开放工作台时) |
 | 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则拉起 ⚙ 连接配置 |
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
-| 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset);角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
+| 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset),按钮为图标 + 文字,宽度放不下(按钮全宽 + 选项段 + 提示至少 160px)时只留图标、文字改由 `title` 提示;空间不足时先截断绘制提示,再压缩选项段;角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
 | 改动(v1.4) | `FocusSidePanel` | 标签条改为「文件 / 图谱」两枚开关(点已激活者 = 关闭浏览器列);展开态渲染 `[StagePanel \| PaneResizer \| 浏览器列]` 两列,StagePanel 常驻且在左、浏览器列贴最右缘(D19);实测侧栏宽 < `SIDE_SPLIT_MIN` 时渲染 v1.1 的整栏互斥形态。**删除**「选图 → 自动切舞台」的 `useEffect`,该行为下沉为窄屏降级态专属(D17) |
 | 复用不改(v1.4) | `PaneResizer` | 舞台 ⇄ 浏览器列的第三条分隔条复用同一受控组件,`side="right"`(被调宽度的是分隔条右侧的浏览器列);不新增组件 |
 | 改动(v1.4) | `FocusTopBar` | 上下文 chip 的点击动作由 `{rightOpen:true, rightView:"files"}` 改为 `{rightOpen:true, browserView:"files"}`;显示语义不变 |
 | 改动(v1.4) | feats/03「在图谱中打开」 | 由 `rightView:"atlas"` 改为 `browserView:"atlas"`;`AtlasView` 内部不动 |
+| 改动(v1.6) | `SessionRail` | 竖条在 ☰ ＋ 之下增舞台 / 文件 / 图谱三枚入口(分隔线隔开,`aria-pressed` 表示按下态),按下态与点击语义见 §7 第 2 条,集中在 `WORKSPACE_ENTRIES` 表;chat 发行版不渲染 |
+| 改动(v1.6) | `FocusSidePanel` | 纯内容区:`rightOpen=false` 返回 `null`;`sideView="stage"` 渲染 v1.4 的舞台 + 文件浏览器列,`"atlas"` 渲染整栏 `AtlasView`;删除标签条、顶部按钮与 40px 折叠竖条 |
+| 改动(v1.6) | `FocusShell` | 会话栏拖拽上界在右侧栏收起时按 0 宽计算(原为 40px 竖条) |
+| 改动(v1.5) | `FocusTopBar` / feats/03「在图谱中打开」 | chip 点击改为 `{rightOpen:true, sideView:"stage", browserView:"files"}`;`revealExemplar` 改为 `{sideView:"atlas", rightOpen:true}` |
+| 改动(v1.5) | `ModeSwitch` / `globalKeys` / `edition.ts` | 新增 `WORKBENCH_ENABLED`(读 `VITE_GLAUX_WORKBENCH`,缺省关闭);关闭时 ⇄ 按钮不渲染、`Ctrl/Cmd+Shift+M` 与速查项移除(D21) |
 | 新增(v1.3) | `PaneResizer` | Focus 栏间拖拽分隔条:受控组件(`value`/`min`/`max`/`onChange`/`onReset`),pointer 事件 + `setPointerCapture`,`role="separator"` + `aria-valuenow/min/max` + ←/→/Home 键盘调节;自身无领域逻辑,不读 store |
 | 复用不改(v1.1) | `SideBar.ExplorerView` | 导出后在右侧栏"文件"标签复用(模态切换 + images/methods 树);Workbench 侧栏行为不变 |
 | 改动(v1.1) | `FocusTopBar` | 移除 v1.0 临时的 📖 图谱切换钮(feats/03 D-19 v1),右侧栏开合与标签切换全部收进 `FocusSidePanel` |
@@ -195,7 +206,10 @@ flowchart TD
   - 迁移:旧 `rightView:"stage"` → `browserView:null`;`"files"` → `"files"`;`"atlas"` → `"atlas"`;缺失或非法值 → `null`。`browserW` 非有限数/非正数回 `null`,否则 `clamp` 到 [`BROWSER_MIN`=240, `BROWSER_MAX`=480]。
   - 常量:`BROWSER_W = {min:240, max:480, def:240}`(缺省即最窄,D19);`STAGE_MIN = 360`;`SIDE_SPLIT_MIN = 640`(= 浏览器最小 + 舞台最小 + 分隔条余量,低于此值即窄屏降级)。阈值带 24px 迟滞:分栏 → 降级取 `< 640`,降级 → 分栏取 `≥ 664`,避免拖到临界时反复重排。
   - 分栏判定读**实测**侧栏宽度(与 v1.3 `FocusShell.room()` 同一套实测机制),不读持久化的 `sideW`——`sideW` 为 `null` 时没有像素真相值。
-- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排)。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。
+- **右侧工作区(v1.5)**:`FocusLayout` 增 `sideView: "stage" | "atlas"`(缺省 `stage`),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump。
+  - 迁移:v1.4 的 `browserView:"atlas"` 或更早的 `rightView:"atlas"` → `sideView:"atlas"`、`browserView:null`;`sideView` 缺失或非法 → 按前述规则推断,否则 `stage`;`browserView` 仅 `"files"` 保留,其余 → `null`(旧 `rightView:"files"` 仍迁为 `"files"`)。
+  - 两字段正交:切到图谱不改写 `browserView`,回到舞台时文件列恢复原开合。
+- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排);v1.5 起为 `rightOpen && sideView==="stage"`。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。
 - 其余展示字段全部复用现有 store,零新增领域字段。
 - 新增 i18n 键(mode 名称、空状态文案、示例卡、舞台工具提示)在实现计划中列全,中英齐备(G9)。
 
@@ -311,6 +325,32 @@ v1.4(舞台常驻 + 浏览器分栏):
   `browserView` 全程未被改写,阈值与迟滞逻辑均正确;单测另以打桩宽度覆盖三档判定。
   真实浏览器不存在此限制,故判定为工具侧限制而非实现缺陷。
 
+v1.5(图谱一级入口 + 工作台入口缺省关闭):
+
+- [x] 左侧栏有图谱入口;点击后右侧栏展开且换成图谱工作区,舞台与文件列不在 DOM,对话列保留。——`SessionRail.test.tsx`;浏览器走查
+- [x] 从图谱切回舞台时,文件列恢复切走前的开合。——`FocusSidePanel.test.tsx`
+- [x] 会话卡片"在图谱中打开"写 `sideView:"atlas"`;顶栏 chip 写 `sideView:"stage"` + `browserView:"files"`。——`atlasView.test.ts` / `AtlasRefCard.test.tsx` / `FocusTopBar.test.tsx`
+- [x] 旧持久化 `browserView:"atlas"`、`rightView:"atlas"` 迁为 `sideView:"atlas"`,不白屏。——`atlasView.test.ts`
+- [x] 未设 `VITE_GLAUX_WORKBENCH` 时:无 ⇄ 按钮,`Ctrl/Cmd+Shift+M` 不切换,速查面板无该项,已持久化的 `workbench` 回落 Focus。——`workbenchFlag.test.tsx`;浏览器走查
+- [x] 非空状态下输入框、状态行与消息阅读列左右边界一致。——浏览器实测三者 left/right 相等
+
+开发侧验证(2026-09-25,浏览器走查 + `248 passed` / eslint / tsc 全绿):
+
+- **已完成**:上述各项。
+- **未完成**:无(§15 v1.5 范围内)。
+
+v1.6(入口统一收进左侧栏):
+
+- [x] 左侧栏活动栏有舞台 / 文件 / 图谱三枚入口,按下态与点击语义符合 §7 第 2 条(含"只剩舞台时点舞台 = 收起""图谱按下时点图谱 = 收起")。——`SessionRail.test.tsx`
+- [x] 从图谱态或带文件列的收起态点舞台,展开为纯舞台(窄屏降级时文件列不会盖住舞台)。——`SessionRail.test.tsx`;浏览器走查
+- [x] 右侧栏无标签条与按钮;`rightOpen=false` 时 `.focus-side` 不在 DOM。——`FocusSidePanel.test.tsx`
+- [x] 宽屏下点文件后舞台与文件列并排,左侧栏舞台与文件同时呈按下态。——浏览器走查
+
+开发侧验证(2026-09-25,浏览器走查 + vitest / eslint / tsc 全绿):
+
+- **已完成**:上述各项。
+- **未完成**:无(§15 v1.6 范围内)。
+
 ## 16. 决策记录
 
 | 编号 | 决策 | 理由 |
@@ -335,7 +375,10 @@ v1.4(舞台常驻 + 浏览器分栏):
 | D17(v1.4) | 「选图 → 自动切舞台」保留为**窄屏降级态专属**,分栏态下彻底不触发 | ① 分栏态下两者同屏,自动切换只会把用户正在用的列表抢走,正是 D16 要消除的症状;② 但窄屏降级回到整栏互斥后,该行为仍是必要的——否则选完图看不到结果;③ 相对"直接删掉",代价是多一条响应式分支要写进规范与测试,换来的是窄窗口下不退化,值得 |
 | D18(v1.4) | `rightView` 三值枚举拆为 `browserView`(含 `null`)+ 常驻舞台,而非新增 `stageOpen` 布尔 | ① 舞台常驻后不存在"舞台开关",再加布尔会立刻出现 `browserView=null && stageOpen=false` 这种无意义组合;② `null` 直接表达"没有浏览器列",状态空间与界面形态一一对应;③ 沿用同一 `glaux.focusLayout.v1` 键 + 迁移规则,不 bump 版本(与 D15 ④ 一致) |
 | D19(v1.4,2026-08-30,由维护者提出) | 浏览器列改置于舞台**右侧**、贴屏幕最右缘;缺省宽度取 `BROWSER_W.min`(240)而非 300 | ① 左起 `会话 → 对话 → 舞台 → 文件`,把舞台夹在对话与文件之间——对话谈论的正是舞台上那张图,二者相邻比隔着一列文件树更连贯;② 文件列是"伸手去够"的选取器而非阅读对象,贴屏幕边缘反而更好命中(边缘是无限大的目标);③ 缺省最窄:文件列表只需看清文件名,默认就把像素让给舞台,想宽再拖——默认值应服务常态而非峰值;④ 代价是与 Lightroom/QuPath 的"左浏览右画布"惯例相反,但那些工具左侧没有对话列,前提不同 |
+| D20(v1.5,2026-09-25,由维护者提出,**修订 D16 的图谱部分**) | 图谱从右侧浏览器列的标签升为**左侧栏一级入口**;点击后图谱**替换舞台**占据右侧工作区,对话列保留 | ① 图谱是与会话并列的能力(案例库),不是舞台的附属浏览器;放进"文件 / 图谱"标签条会把两类概念混在一行;② 对话是主线,右侧是工作区——舞台与图谱是同一位置的两种工作内容,互换而非并排,右侧不再出现三列;③ 左栏图标切换右侧内容,与活动栏(activity bar)切换主视图的通行模式一致;④ 代价是舞台与图谱不能同屏,但案例详情自带案例图,核对当前图时切回舞台即可;⑤ `sideView` 与 `browserView` 正交,切换不丢文件列开合 |
+| D21(v1.5,2026-09-25,由维护者提出) | 工作台(Workbench)入口改为构建期开关 `VITE_GLAUX_WORKBENCH`,**缺省关闭** | ① 产品定位以 Focus 为唯一面向用户的形态,工作台是开发与专家调试用的备用外壳;② 与 `VITE_GLAUX_EDITION` 同为构建期开关,不做浏览器偏好,避免用户误入后找不到回路;③ 关闭时同时移除按钮、快捷键与速查项,并把持久化的 `workbench` 回落 Focus,不存在无入口可退的状态;④ Workbench 代码保留,开发时设 `VITE_GLAUX_WORKBENCH=1` 即可使用 |
+| D22(v1.6,2026-09-25,由维护者提出,**推翻 D11**) | 舞台 / 文件 / 图谱入口与图谱一起收进左侧栏活动栏;右侧栏去掉标签条、顶部按钮与 40px 折叠竖条,收起即不渲染 | ① v1.5 后入口分散在三处(左栏图谱、右侧标签条「文件」、右侧折叠竖条的舞台 / 文件),同一类"切换右侧内容"的动作有三种样式;② 活动栏是切换视图的通行模式:图标常驻一处、按下态即当前视图、点按下的图标收起面板;③ 右侧栏收起后宽度归零,空间全部还给对话列,右侧栏顶部也不再占一行给标签条;④ D11 的"与左侧对称的图标竖条"在入口集中到左侧后失去用途;⑤ "舞台"入口语义取纯舞台而非保留文件列:窄屏降级态下文件列会整栏盖住舞台,点了舞台却看到文件是错误反馈 |
 
 ## 17. 待确认问题
 
-无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13);v1.3 栏宽可拖拽 2026-08-19 由维护者提出并确认范围约束(D15);v1.4 舞台常驻 + 左右分栏、窄屏保留自动跳转 2026-08-30 由维护者拍板(D16–D18),同日据实机走查追加浏览器列右置与缺省最窄(D19)。
+无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13);v1.3 栏宽可拖拽 2026-08-19 由维护者提出并确认范围约束(D15);v1.4 舞台常驻 + 左右分栏、窄屏保留自动跳转 2026-08-30 由维护者拍板(D16–D18),同日据实机走查追加浏览器列右置与缺省最窄(D19);v1.5 图谱一级入口与工作台入口缺省关闭 2026-09-25 由维护者提出并确认交互形态(D20、D21);同日维护者提出把舞台 / 文件入口也收进左侧栏(D22,v1.6)。

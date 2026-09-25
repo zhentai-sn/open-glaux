@@ -61,8 +61,10 @@ Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_POR
 
 `VITE_GLAUX_EDITION`（前端）和 `GLAUX_EDITION`（agent-runtime）取 `full` 或 `chat`，**缺省 full**，无效值直接抛错。
 
-- `full`：Focus / Workbench 双模式、舞台、图谱、领域工具全开。
+- `full`：Focus、舞台、图谱、领域工具全开；Workbench 入口另由下方开关控制。
 - `chat`：只保留对话界面；不注册任何领域工具，改用对话提示词，不请求 Python 后端。Docker 镜像与 `compose.yaml` 显式设置。
+
+`VITE_GLAUX_WORKBENCH`（前端）取 `0` 或 `1`，**缺省 0**，无效值直接抛错。`1` 时 full 发行版在顶栏显示 Focus ⇄ Workbench 切换并启用 `Ctrl/Cmd+Shift+M`；`0` 时界面恒为 Focus。chat 发行版忽略此开关。
 
 ### 三条不变量
 

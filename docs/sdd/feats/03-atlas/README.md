@@ -238,7 +238,7 @@ sequenceDiagram
 | 对象 | 位置 | 说明 |
 | --- | --- | --- |
 | Atlas 页面（Workbench） | `frontend/src/components/atlas/`（新增）；`store/session.ts` 的 `View` 增加 `"atlas"`；ActivityBar 新增入口 | 左侧侧栏视图：列表 / 详情 / 导入向导 |
-| Atlas 页面（Focus） | `frontend/src/components/focus/`：右侧栏的浏览器列（与常驻舞台并排，与「文件」互斥） | 同一组件在 Focus 模式下挂到浏览器列 |
+| Atlas 页面（Focus） | `frontend/src/components/focus/`：左侧栏竖条的图谱入口打开，图谱替换舞台占据右侧工作区，对话列保留 | 同一组件在 Focus 模式下整栏挂到右侧工作区 |
 | ROI 框选 | `frontend/src/components/atlas/RoiPicker.tsx`：轻量 canvas/DOM 矩形叠加（候选插图为静态 PNG，不上 cornerstone 栈；D-18） | 导入预览中框选，一图多框，坐标换算回图像像素 |
 | 案例存储 | `backend/app/atlas/`（新增）：LanceDB 表 `GLAUX_ATLAS_ROOT/db/` + 图像 `GLAUX_ATLAS_ROOT/images/` | 原图与标记分存 |
 | PDF 解析 | backend 依赖 PyMuPDF（`pymupdf`），主进程可用（IO 库，非重模型） | 抽嵌入图 + 同页邻近文本 |
@@ -282,7 +282,7 @@ sequenceDiagram
 
 引用记录（表 `exemplar_refs`）：`exemplar_id`、`trace_id`、`referenced_at`；由 runtime 经 `POST /atlas/exemplars/referenced` 写入，硬删除前查询是否存在（§7.7）。
 
-前端状态：`FocusLayout.browserView = "atlas"`（[01-dual-mode-shell v1.4](../01-dual-mode-shell/README.md) §9；v1.1–v1.3 为 `rightView:"atlas"`）。「在图谱中打开」设置 `{rightOpen:true, browserView:"atlas"}`。
+前端状态：`FocusLayout.sideView = "atlas"`（[01-dual-mode-shell v1.5](../01-dual-mode-shell/README.md) §9；旧值 `browserView:"atlas"` / `rightView:"atlas"` 载入时迁移）。「在图谱中打开」设置 `{rightOpen:true, sideView:"atlas"}`。
 
 ## 10. 幂等规则
 
@@ -335,7 +335,7 @@ stateDiagram-v2
 
 - 被 [02-agent-image-annotation](../02-agent-image-annotation/README.md) 的 `locate_roi` 调用（可选先验）；02 不依赖 03 即可 `ready`。
 - 依赖 [00-reference-agent-conversations](../00-reference-agent-conversations/README.md) 的会话与 SSE 通道（会话卡片、事件）。
-- 依赖 [01-dual-mode-shell](../01-dual-mode-shell/README.md) 的外壳：Workbench 下为左侧侧栏视图；Focus 下为右侧栏的浏览器列（v1.4 `browserView`）。
+- 依赖 [01-dual-mode-shell](../01-dual-mode-shell/README.md) 的外壳：Workbench 下为左侧侧栏视图；Focus 下为右侧工作区（v1.5 `sideView`），入口在左侧栏。
 - 依赖 agent-runtime 现有 VLM 连接与出站守卫（导入期描述生成、few-shot 外发）。
 - 阶段二与 02 的 D-3 修订（SAM2 自部署）联动。
 
@@ -364,7 +364,7 @@ v1.1（图册 + Focus 右侧栏）：
 - [x] 图册路径 `肾脏 / 膜性肾病`（段内空格）、`肾脏／膜性肾病`（全角斜杠）与 `肾脏/膜性肾病` 归为同一图册。——`test_normalize_collection_segments_fullwidth_and_case`；前端 `normalizeKey` 同规则测试
 - [x] 详情页可把案例移动到另一图册：`exemplar_id` 不变、幂等键与引用记录不变、树计数即时更新。——`test_collection_prefix_filter_counts_and_move`（移动后重复导入仍返回同 id、引用保留）；详情页"移动"按钮 + `bumpRefresh`
 - [x] 旧库（无 `collection` 列）打开时自动补列为空字符串，旧案例出现在"未分册"，不需要重建。——`test_old_table_without_collection_column_is_migrated`；本机 v1 库重启后 `/collections` 返回 `[{"":4}]`
-- [x] Focus 下图谱作为右侧栏"图谱"标签呈现（01 v1.1）；会话卡片"在图谱中打开"展开右侧栏并切到该标签的对应案例。——`FocusSidePanel.test.tsx`、`atlasView.test.ts` revealExemplar
+- [x] Focus 下图谱从左侧栏入口打开，替换舞台占据右侧工作区（01 v1.5 D20）；会话卡片"在图谱中打开"展开右侧栏并换成图谱工作区的对应案例。——`SessionRail.test.tsx`、`FocusSidePanel.test.tsx`、`atlasView.test.ts` revealExemplar
 
 ### 15.1 开发侧自查（2026-08-16，实现完成后；端到端验收由维护者执行）
 
@@ -428,7 +428,7 @@ v1.1 自查里"无法验证（依赖 SDD 02 `locate_roi`）"的三条，除定�
 | D-16 | 外发许可：缺省 `local-only`；导入时可逐条/逐批改为 `shareable`，但必须勾选确认"我确认有权将该图发往第三方模型服务"，勾选记录（时间、批次）随案例保存 | 强制 `local-only` 仅本地 VLM；按网页许可证自动判定 | TEM 首场景种子几乎全来自教科书/网页，强制 local-only 会让托管 VLM 下图谱无案例可用；责任交给用户显式承担 | 2026-08-16 |
 | D-17 | 价值验证方式：固定 10 张自有 TEM 图，比较有/无图谱时 VLM 定位 bbox 与人工框的 IoU；种子规模不预设，以此度量迭代 | 预设种子条数 | 无法先验知道多少图例够用 | 2026-08-16 |
 | D-18 | 导入预览 ROI 框选用轻量 DOM 矩形叠加（`RoiPicker`），不复用 cornerstone 矩形工具 | 复用 `CornerstoneViewer` | 候选插图是静态 PNG，cornerstone 栈解决的是医学影像渲染/坐标系问题，这里没有；轻量实现可在 Focus 窄栏与 jsdom 测试中直接跑 | 2026-08-16 |
-| D-19 | v1：Focus 右侧图谱与舞台互斥、顶栏 📖 切换。**v2（2026-08-16 同日修订）**：图谱是 Focus 右侧栏三个标签（舞台/文件/图谱）之一，右侧栏由 [01 v1.1 D10–D13](../01-dual-mode-shell/README.md) 定义；顶栏 📖 移除；从会话卡片"打开"时展开右侧栏并切到图谱标签 | 图谱作为舞台内标签 | v1 是过渡形态；Codex 式常驻可折叠右侧栏让"舞台 / 文件 / 图谱"成为同一位置的三种视角 | 2026-08-16 |
+| D-19 | v1：Focus 右侧图谱与舞台互斥、顶栏 📖 切换。**v2（2026-08-16 同日修订）**：图谱是 Focus 右侧栏三个标签（舞台/文件/图谱）之一，右侧栏由 [01 v1.1 D10–D13](../01-dual-mode-shell/README.md) 定义；顶栏 📖 移除；从会话卡片"打开"时展开右侧栏并切到图谱标签。**v3（2026-09-25）**：图谱升为 Focus 左侧栏一级入口，点击后替换舞台占据右侧工作区，对话列保留，见 [01 D20](../01-dual-mode-shell/README.md) | 图谱作为舞台内标签 | v1 是过渡形态；Codex 式常驻可折叠右侧栏让"舞台 / 文件 / 图谱"成为同一位置的三种视角 | 2026-08-16 |
 | D-21 | 图谱接入会话的宿主改为**独立只读工具 `consult_atlas`**：模型自行决定何时翻图谱，检索链 `selectExemplars` 原样复用；`locate_roi` 落地后共用同一函数，本工具可留可退 | 继续等 SDD 02 `locate_roi`（03 原设计）；每轮对话自动前置检索 | `locate_roi` 连同整套标注工具、权限门控、前端 bbox 回写是一个大特性，图谱不该压在它后面；"翻图谱"本身就是一次独立的、只读的、模型可判断时机的动作；自动前置检索则是每轮都付 VLM 成本、且用户问"你是谁"也要翻一次 | 2026-08-20 |
 | D-22 | `consult_atlas` 仅在连接声明 `connection.vision === true` 时注册 | 恒挂工具，图发出去由模型自己处理 | pi-ai 的 `downgradeUnsupportedImages` 会把不支持图像的模型收到的图静默换成"image omitted"占位——挂了工具只会让模型以为自己翻过图谱，比没有图谱更坏（同 SDD 00 D-022 的判断） | 2026-08-20 |
 | D-20 | 图谱增加**图册（collection）**路径式层级作为整理维度：一案例属一图册，`/` 分级，缺省根目录；标签继续负责检索维度；`search` 可按图册限定范围 | 仅用标签分面树；固定两级分类 | 平铺 + 自由标签是 D-10 的副作用——标签是检索维度不是整理维度；"图册 = 教科书章节"与心智模型同构；路径式不需要预建目录，零受控词表 | 2026-08-16 |

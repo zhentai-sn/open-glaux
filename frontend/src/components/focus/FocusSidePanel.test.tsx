@@ -1,5 +1,5 @@
-// Focus 右侧栏（SDD feats/01 v1.4 §15）：舞台常驻；文件/图谱是与它左右分栏的浏览器列，
-// 两枚开关式标签互斥、可整列关闭；第三条分隔条夹住浏览器列宽；窄屏降级回整栏互斥并恢复选图跳转。
+// Focus 右侧栏（SDD feats/01 v1.6 §15）：纯内容区——工作区是舞台或图谱（sideView），舞台态下文件是与舞台
+// 左右分栏的浏览器列；入口都在左侧栏（见 SessionRail.test）；分隔条夹住文件列宽；窄屏降级回整栏互斥并恢复选图跳转。
 // 舞台/文件/图谱内容组件各自有测试，这里 mock 掉只验壳的行为。
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,7 @@ const KEY = "glaux.focusLayout.v1";
 const layout = (p: Partial<FocusLayout> = {}): FocusLayout => ({
   railOpen: false,
   rightOpen: true,
+  sideView: "stage",
   browserView: null,
   browserW: null,
   railW: null,
@@ -66,24 +67,21 @@ describe("FocusSidePanel v1.4 · 舞台常驻 + 分栏", () => {
     });
   });
 
-  it("browserView=null 时只有舞台：标签条无选中项，文件/图谱均不在 DOM", () => {
+  it("browserView=null 时只有舞台；本栏没有标签条与按钮（入口都在左侧栏，D22）", () => {
     ui();
     expect(screen.getByTestId("stage-view")).toBeInTheDocument();
     expect(screen.queryByTestId("files-view")).toBeNull();
     expect(screen.queryByTestId("atlas-view")).toBeNull();
-    for (const name of ["Files", "Atlas"]) {
-      expect(screen.getByRole("tab", { name: new RegExp(name) })).toHaveAttribute("aria-selected", "false");
-    }
-    // 舞台不再是标签（D16）
-    expect(screen.queryByRole("tab", { name: /Stage/ })).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("打开文件浏览器后与舞台同屏；连续选图不关闭浏览器列", () => {
+  it("打开文件列后与舞台同屏；连续选图不关闭文件列", () => {
     ui();
-    fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
+    act(() => useSession.getState().setFocusLayout({ browserView: "files" }));
     expect(screen.getByTestId("files-view")).toBeInTheDocument();
     expect(screen.getByTestId("stage-view")).toBeInTheDocument();
-    // D19：舞台在左、浏览器列贴最右缘——用文档顺序断言，DOCUMENT_POSITION_FOLLOWING = 4
+    // D19：舞台在左、文件列贴最右缘——用文档顺序断言，DOCUMENT_POSITION_FOLLOWING = 4
     expect(
       screen.getByTestId("stage-view").compareDocumentPosition(screen.getByTestId("files-view")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -99,48 +97,23 @@ describe("FocusSidePanel v1.4 · 舞台常驻 + 分栏", () => {
     expect(useSession.getState().focusLayout.browserView).toBe("files");
   });
 
-  it("点已激活的标签 = 关闭浏览器列，回到纯舞台", () => {
-    useSession.setState({ focusLayout: layout({ browserView: "files" }) });
+  it("图谱工作区替换舞台与文件列；切回舞台时文件列恢复原开合", () => {
+    useSession.setState({ focusLayout: layout({ sideView: "atlas", browserView: "files" }) });
     ui();
-    expect(screen.getByTestId("files-view")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
-    expect(screen.queryByTestId("files-view")).toBeNull();
-    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
-    expect(useSession.getState().focusLayout.browserView).toBeNull();
-    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({ browserView: null });
-  });
-
-  it("文件与图谱互斥；切换写 store + localStorage", () => {
-    ui();
-    fireEvent.click(screen.getByRole("tab", { name: /Files/ }));
-    fireEvent.click(screen.getByRole("tab", { name: /Atlas/ }));
     expect(screen.getByTestId("atlas-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("stage-view")).toBeNull();
     expect(screen.queryByTestId("files-view")).toBeNull();
-    expect(screen.getByTestId("stage-view")).toBeInTheDocument(); // 舞台始终在
-    expect(useSession.getState().focusLayout.browserView).toBe("atlas");
-    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({ rightOpen: true, browserView: "atlas" });
-  });
 
-  it("折叠 → 40px 图标条（舞台/文件/图谱三枚），点舞台图标展开且不开浏览器", () => {
-    useSession.setState({ focusLayout: layout({ browserView: "atlas" }) });
-    ui();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse side panel" }));
-    expect(useSession.getState().focusLayout.rightOpen).toBe(false);
-    expect(screen.queryByRole("tab")).toBeNull();
-    expect(screen.getAllByRole("button")).toHaveLength(3);
-
-    fireEvent.click(screen.getByRole("button", { name: "Stage" }));
-    expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, browserView: null });
-    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+    act(() => useSession.getState().setFocusLayout({ sideView: "stage" }));
     expect(screen.queryByTestId("atlas-view")).toBeNull();
+    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+    expect(screen.getByTestId("files-view")).toBeInTheDocument();
   });
 
-  it("折叠态点文件图标 → 展开并打开文件浏览器", () => {
+  it("rightOpen=false 时整栏不渲染（无折叠竖条）", () => {
     useSession.setState({ focusLayout: layout({ rightOpen: false }) });
-    ui();
-    fireEvent.click(screen.getByRole("button", { name: "Files" }));
-    expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, browserView: "files" });
-    expect(screen.getByTestId("files-view")).toBeInTheDocument();
+    const { container } = ui();
+    expect(container.querySelector(".focus-side")).toBeNull();
   });
 });
 

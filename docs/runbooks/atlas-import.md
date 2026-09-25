@@ -20,7 +20,7 @@ status: living
 | --- | --- | --- |
 | backend :8000 | LanceDB 存储、图像目录、PDF/网页抽图、REST | `/atlas/*` |
 | agent-runtime :8010 | VLM 描述生成、检索先验（挑选步） | `POST /agent-api/v1/atlas/describe` |
-| frontend :5173 | Atlas 页面（Workbench 活动栏「图谱」/ Focus 右侧栏「图谱」标签）、导入向导；只在完整版，对话预览版不含图谱 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
+| frontend :5173 | Atlas 页面（Focus 左侧栏「图谱」入口 / Workbench 活动栏「图谱」）、导入向导；只在完整版，对话预览版不含图谱 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
 
 凭据边界：VLM 凭据只从前端 / CLI 发往 agent-runtime，**不经 backend**；backend 只保存描述结果。
 
@@ -37,7 +37,7 @@ status: living
 
 ## 导入方式一：教科书 PDF（Atlas 页面）
 
-1. 打开 Atlas（Workbench 活动栏"图谱"，或 Focus 右侧栏的"图谱"标签）→ ＋ 导入 → "教科书 PDF" → 选文件 → 抽取插图。
+1. 打开 Atlas（Focus 左侧栏的"图谱"入口，或 Workbench 活动栏"图谱"）→ ＋ 导入 → "教科书 PDF" → 选文件 → 抽取插图。
    backend `POST /atlas/imports/pdf` 用 PyMuPDF 抽嵌入图 + 同页最近文本块作图注，候选暂存 `staging/<import_id>/`（不入库）。
 2. 勾选要保留的插图 → 下一步：在每张图上拖拽框 ROI（一图多框；单击选中、双击删除，"整图作为一个区域"兜底），
    每框填标签（逗号分隔，联想已有标签）与图注（默认带入抽取图注）。
@@ -71,7 +71,7 @@ cd backend && uv run python -m app.atlas.cli import-dataset /path/to/dataset --f
 
 - 检索 `GET /atlas/exemplars/search?tags=…&q=…&egress=shareable|any&limit=10[&collection=肾脏/膜性肾病]`：[图册范围 →] 标签过滤 → FTS(ngram) → 只返回 `active` → egress 过滤 → 排序截断。图册树 `GET /atlas/collections`；移动 `PUT /atlas/exemplars/{id}/collection`。
   `egress=any` 只有 runtime 判定连接 base_url 解析为回环（本地模型）时才用；托管 provider 一律 `shareable`。
-- Focus 模式下图谱是右侧栏（舞台 / 文件 / 图谱）的一个标签，可折叠成图标竖条；Workbench 仍在左侧活动栏。
+- Focus 模式下图谱从左侧栏入口打开，替换舞台占据右侧工作区；左侧栏点「舞台」回到舞台，再点「图谱」收起右侧栏；Workbench（需 `VITE_GLAUX_WORKBENCH=1`）仍在左侧活动栏。
 - 下架 `POST /atlas/exemplars/{id}/retire`：不参与检索与默认列表，历史会话卡片仍可打开；`restore` 恢复。
 - 硬删除 `DELETE /atlas/exemplars/{id}`：被会话引用过（`POST /atlas/exemplars/referenced` 写入 `exemplar_refs`）的返回 `REFERENCED`，只能下架。
 

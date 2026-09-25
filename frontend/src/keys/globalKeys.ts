@@ -1,4 +1,4 @@
-import { CHAT_EDITION } from "../edition";
+import { CHAT_EDITION, WORKBENCH_ENABLED } from "../edition";
 import { useEffect } from "react";
 
 import type { I18nKey } from "../i18n";
@@ -31,7 +31,7 @@ const SHELL_SHORTCUT_ROWS: ShortcutRow[] = [
 ];
 export const SHORTCUT_ROWS = CHAT_EDITION
   ? SHELL_SHORTCUT_ROWS.filter((row) => row.label === "sc_left" || row.label === "sc_sheet")
-  : SHELL_SHORTCUT_ROWS;
+  : SHELL_SHORTCUT_ROWS.filter((row) => WORKBENCH_ENABLED || row.label !== "sc_mode");
 
 type ToolState = Pick<ReturnType<typeof useSession.getState>, "tasks" | "datasources" | "objects" | "modality" | "focus">;
 
@@ -105,7 +105,7 @@ export function useGlobalKeys() {
       // 外壳组合键（Ctrl/Cmd，非 Alt）
       if (mod && !e.altKey) {
         const k = e.key.toLowerCase();
-        if (!CHAT_EDITION && e.shiftKey && k === "m") {
+        if (WORKBENCH_ENABLED && e.shiftKey && k === "m") {
           st.setUiMode(st.uiMode === "focus" ? "workbench" : "focus");
           e.preventDefault();
           return;

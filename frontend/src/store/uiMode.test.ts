@@ -53,28 +53,29 @@ describe("focusLayout（SDD feats/01 §9）", () => {
 
   it("缺省 → {railOpen:false, stageOpen:true}", async () => {
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null });
   });
 
   it("损坏 JSON → 回退默认，不抛错", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, "{not json");
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: true, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null });
   });
 
   it("字段类型不合法 → 逐字段回退默认", async () => {
     localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ railOpen: "yes", rightOpen: false }));
     const useSession = await freshStore();
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: false, browserView: null, browserW: null, railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: false, rightOpen: false, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null });
   });
 
   it("setFocusLayout 打补丁并持久化", async () => {
     const useSession = await freshStore();
     useSession.getState().setFocusLayout({ railOpen: true });
-    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null });
+    expect(useSession.getState().focusLayout).toEqual({ railOpen: true, rightOpen: true, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null });
     expect(JSON.parse(localStorage.getItem(FOCUS_LAYOUT_KEY) ?? "{}")).toEqual({
       railOpen: true,
       rightOpen: true,
+      sideView: "stage",
       browserView: null,
       browserW: null,
       railW: null,

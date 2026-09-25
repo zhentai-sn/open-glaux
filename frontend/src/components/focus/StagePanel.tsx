@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { currentTaskView, reRunActiveModel } from "../../data/actions";
 import { displayName, mmPerPx } from "../../data/objectInfo";
 import { useI18n } from "../../i18n";
@@ -11,6 +13,7 @@ import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
 import { TOOL_HINT } from "../toolHint";
 import { Viewer } from "../Viewer";
+import { useCompactToolbar } from "./useCompactToolbar";
 
 // 图像舞台（SDD feats/01 §8）——Focus 的一等区域：同步核对回路的落点（纲领 G4）。
 // 复用查看器引擎与任务注册表工具（同 Editor 的派生规则），不复用 tabs/breadcrumb 等 IDE chrome。
@@ -39,6 +42,8 @@ export function StagePanel() {
   const classes: ClassSpec[] = volume?.classes ?? [];
   const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
   const axis = frameAxisFor(obj, focus, setIndex);
+  const toolsRef = useRef<HTMLDivElement>(null);
+  const compact = useCompactToolbar(toolsRef);
 
   // reset 语义与 Editor.onTool 一致：回光标 + 重跑活动模型（结果直接体现在舞台度量摘要）
   const onTool = (id: Tool) => {
@@ -70,7 +75,7 @@ export function StagePanel() {
 
   return (
     <section className="focus-stage" aria-label={t("focus_stage")}>
-      <div className="focus-stage-tools" role="toolbar">
+      <div ref={toolsRef} className={"focus-stage-tools" + (compact ? " compact" : "")} role="toolbar">
         {tools.map((tl) => (
           <button
             key={tl.id}

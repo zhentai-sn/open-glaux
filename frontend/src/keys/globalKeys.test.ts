@@ -42,7 +42,7 @@ describe("useGlobalKeys（SDD feats/05）", () => {
       focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
       tasks: [task],
       shortcutSheetOpen: false,
-      focusLayout: { railOpen: false, rightOpen: true, browserView: null, browserW: null, railW: null, sideW: null },
+      focusLayout: { railOpen: false, rightOpen: true, sideView: "stage", browserView: null, browserW: null, railW: null, sideW: null },
     });
     // 焦点归到 body（查看器上下文常态）
     (document.activeElement as HTMLElement | null)?.blur?.();
