@@ -10,7 +10,7 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented`（P1） |
-| 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）未开始；业务验收待补 |
+| 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）契约已补齐（§7.2 规则 10～13、D-23～D-26），实施中；业务验收待补 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 会话管理](../00-reference-agent-conversations/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) · [SDD 08 文件栏](../08-data-import-first-explorer/README.md) · [SDD 10 对象与数据源](../10-object-convergence/README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-25 |
@@ -39,7 +39,7 @@ status: implemented
 - 不把标注库、图谱库迁入项目目录；`GLAUX_ANNOTATIONS_ROOT`、`GLAUX_ATLAS_ROOT` 保持全局。图谱是跨项目的策展库。
 - 不向项目目录写入任何文件；Glaux 对项目目录只读。
 - 不做文件内容编辑，不给智能体写文件或 shell 工具。
-- 不支持以目录为单位的对象（如 DICOM 序列）；对象一律对应单个文件。
+- 不支持以目录为单位的对象（如 DICOM 序列）与多文件切片格式（`.mrxs`、`.vms`）；对象一律对应单个文件。
 - 颈动脉超声（`carotid_imt`）与胎儿头围（`fetal_hc`）绑定特定公开数据集的命名与标注，不能按文件识别，不进入项目；它们仍经示例源在「未归属」中可用。
 - 不设全局并发上限；并发成本由用户自行控制。
 - 不适配 Docker chat 发行包（SDD 09）；`CHAT_EDITION` 下的行为不在本 SDD 验收范围。
@@ -52,7 +52,7 @@ status: implemented
 | 阶段 | 交付 | 覆盖模态 |
 | --- | --- | --- |
 | P1 | 项目登记、目录浏览、按需打开、左侧栏分组、项目胶囊、状态隔离、智能体浏览工具 | `natural_image`、`video` |
-| P2 | CT、WSI 的 Source 改造：去掉 `ct_*`、`slide_*` 文件名约定，`list_ids` 按数据源目录列举，声明 `formats`（§7.2 规则 7）；`needs_calibration` 的项目源可被 `resolve_object` 解析；同批移除 `ImportPanel` 的服务端文件夹路径框（D-21） | `ct_abdomen`、`pathology` |
+| P2 | CT、WSI 的 Source 改造：非内置源去掉 `ct_*`、`slide_*` 文件名约定与全局根，`list_ids` 按数据源目录列举，对象 id 按文件派生，声明 `formats` 并关闭浏览器上传（§7.2 规则 7、10～13）；项目源登记即为 `active`；检测器可用性改按活动数据源判定；同批移除 `ImportPanel` 的服务端文件夹路径框（D-21） | `ct_abdomen`、`pathology` |
 
 阶段目标按以下口径判定：
 
@@ -234,10 +234,15 @@ sequenceDiagram
 3. 打开对象（`POST /projects/{id}/objects`）时：按后缀确定候选模态，再按魔数校验；校验通过后，若文件所在目录尚未按该模态登记，则登记一个 `DataSource`（`origin = "project"`、`root = 文件所在目录`、`project_id = 所属项目`）。
 4. 数据源以「目录 + 模态」为粒度登记：同一目录下同模态的其他文件复用该数据源，无需再登记；数据源 id 由 `(规范化目录, modality)` 派生（D-11）。
 5. 同一后缀命中多个模态时，按 `SOURCES` 声明顺序取第一个魔数校验通过的模态。
-6. 登记时沿用 `detect_calibration`；探测不出且该模态要求标定时，状态为 `needs_calibration`，不出假值。
+6. 登记时沿用 `detect_calibration`，结果只作源级提示；项目源登记即为 `active`，不因源级标定缺失置 `needs_calibration`。标定以对象级为准（CT 取 NIfTI 头的体素间距，WSI 取切片的 mpp）；对象缺标定时 `ObjectMeta.calibration` 为空，依赖标定的任务按 `/task/run` 既有语义返回 422，不出假值（D-24）。
 7. Source 参与按需识别须满足：声明 `formats`；`list_ids(source)` 只列 `source.root` 下的对象；不依赖文件名前缀；实现 `object_id_for(source, path)`。P1 满足者为 `natural_image`、`video`；`ct_abdomen`、`pathology` 在 P2 改造后满足（SDD 10 协议修订，见 §14）。
 8. 目录列举跳过以 `.` 开头的条目；符号链接解析后落在项目根以外的条目不列出。
 9. 路径参数含 `..` 或解析后越出项目根，返回 422 `outside_project`。
+10. **文件识别**：CT 接受 `.nii.gz`（gzip 魔数 `1f 8b`，解压后为 NIfTI-1 单文件头）与 `.nii`（偏移 344 处为 `n+1 `）；WSI 接受单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`，以 OpenSlide 能识别格式为准。多文件切片格式不接受（§2）。
+11. **对象 id**：内置示例源（`ct-demo`、`wsi-demo`）保留既有 id 与文件名约定（`ct_001`、`slide_001`）；导入源（SDD 08）与项目源一律按「数据源 id + 文件名」派生，形如 `ct-<源哈希8>-<文件哈希8>`、`wsi-<源哈希8>-<文件哈希8>`，与通用图像、视频同规则（D-25）。
+12. **按 id 取文件**：按 id 读取体数据、切片、瓦片、原始文件与任务输入时，一律经 `resolve_object` 找到所属数据源，再在该源目录下定位文件；不再经「首个活动源」的全局根。内置源与导入源、项目源可以并存，互不遮蔽。
+13. **浏览器上传资格独立于 `formats`**：`SourceBase` 增 `browser_upload`（缺省真），CT、WSI 为假；上传受理表与 `importable` 只汇总 `browser_upload` 为真的 Source，医学卷仍不走浏览器上传（SDD 08 D-5，D-23）。
+14. **检测器可用性**：`VolumeDetector`、`WsiDetector` 的方法可用性与 `/wsi/{id}/verify` 的就绪判定改为「该模态存在活动数据源」（WSI 另需 OpenSlide 可用），不再探测全局根下的 `ct_*`、`slide_*`（D-26）。WSI 参考核验文件仍只对内置示例源提供。
 
 ### 7.3 智能体浏览工具
 
@@ -526,7 +531,12 @@ flowchart LR
 - [x] 非回环来源请求 `/fs/dirs`、`POST /projects` 返回 403。——单测（含 `X-Forwarded-For`、`Forwarded` 逐跳校验）
 - [x] 移除项目后磁盘文件不变，会话仍在存储中；重新打开同一路径，会话回到原项目组。——单测；走查
 - [x] 项目下有运行中会话时，移除操作被拒绝并提示原因。——单测 `SessionDrawer.test.tsx`
-- [ ] P2：文件名不以 `ct_` 开头的 `.nii.gz`、不以 `slide_` 开头的 `.svs` 可在项目中打开。
+- [ ] P2：文件名不以 `ct_` 开头的 `.nii.gz` 与 `.nii`、不以 `slide_` 开头的 `.svs` 可在项目中打开，舞台可显示（CT 切层、WSI 瓦片）。
+- [ ] P2：内置示例源开启时，项目源与导入源的 CT、WSI 仍可列出与读取，内置对象 id 保持 `ct_001`、`slide_001`。
+- [ ] P2：只有项目源时，`/tasks` 中 CT、WSI 任务的方法可用，`/task/run` 能以项目对象为输入运行（无标定的 WSI 返回 422）。
+- [ ] P2：浏览器上传 `.nii`、`.nii.gz`、`.svs`、`.tiff` 仍被拒为 `unsupported_type`。
+- [ ] P2：缺 mpp 的切片在项目中可打开浏览，`calibration` 为空。
+- [ ] P2：文件栏导入面板不再有服务端文件夹路径框。
 
 ### 15.2 智能体浏览
 
@@ -592,6 +602,10 @@ flowchart LR
 | D-20 | 「未归属」组允许新建会话 | 首次使用必须先打开文件夹 | 保留无需选目录的快速对话入口 | 2026-09-25 |
 | D-21 | `ImportPanel` 的服务端文件夹路径框推迟到 P2 移除 | P1 即移除 | P1 的按需识别不支持 CT、WSI，提前移除会让这两个模态在 P2 之前没有导入途径 | 2026-09-25 |
 | D-22 | 回环守卫逐跳校验 `X-Forwarded-For` 与 `Forwarded`，前端开发代理开启 `xfwd` | 只看直连地址 | `vite --host` 对局域网开放时，经代理的请求直连地址恒为回环，只看直连会被绕过 | 2026-09-25 |
+| D-23 | `SourceBase` 增 `browser_upload`，与 `formats` 解耦 | 不给 CT、WSI 声明 `formats`，另设项目识别表 | `formats` 是后缀与魔数的唯一来源（SDD 10 §4.1），项目识别与上传都应读它；是否允许浏览器上传是另一维度，由单独开关表达 | 2026-09-25 |
+| D-24 | 项目源登记即 `active`，标定以对象级为准 | 缺源级标定时置 `needs_calibration` | WSI 的 mpp 逐张不同，源级标定无意义；置 `needs_calibration` 会让源退出索引、对象打开即 404；任务已按对象级标定校验，缺失时显式 422 | 2026-09-25 |
+| D-25 | 内置示例源保留 `ct_001`、`slide_001`；导入源与项目源按文件派生 id | 全部改为派生 id；全部沿用文件名 | 内置 id 被测试、脚本、演示与标注引用（SDD 10 D-7 不规范化既有 id）；文件名作 id 在多源并存时冲突，派生 id 与通用图像、视频一致 | 2026-09-25 |
+| D-26 | 检测器可用性按活动数据源判定 | 保留全局根下探测 `ct_*`、`slide_*` | 只有项目源时全局根探测恒为假，CT、WSI 任务被误判不可用 | 2026-09-25 |
 
 ## 17. 待确认问题
 
