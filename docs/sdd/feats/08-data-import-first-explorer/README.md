@@ -13,7 +13,9 @@ status: implemented
 | 当前阶段 | 代码完成并通过开发侧走查（见 §15 自查）；业务验收待维护者确认后转 `accepted` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-23 |
+| 最后更新 | 2026-09-25 |
+
+§1、§2、§4.1、§8、§11、§13、D-5 中与服务端文件夹和项目相关的条款由 [SDD 13](../13-project-folder-sessions/README.md) 引入，随 SDD 13 实现，不计入本 SDD 的 `implemented` 范围。
 
 ## 1. 本 SDD 负责什么
 
@@ -21,21 +23,23 @@ status: implemented
 
 本 SDD 冻结四件事：
 
-1. Explorer 的空态与导入入口（打开服务端文件夹 / 浏览器上传 / 加载示例数据 / 最近使用）。
+1. Explorer 的空态与导入入口（浏览器上传 / 加载示例数据 / 最近使用）。服务端目录经 [SDD 13](../13-project-folder-sessions/README.md) 的「打开项目」接入，不再有路径输入框。
 2. 浏览器上传接口 `POST /uploads/images`、格式清单接口 `GET /uploads/formats` 及其安全边界。
 3. 模态切换器的可见性来源由 `/tasks` 改为 `/datasources`；标签来源同为 `/datasources`（SDD 10 D-22）。
 4. `GLAUX_DEV_MODE` 缺省值由 `1` 翻为 `0`，示例数据改为显式加载。
+
+本 SDD 的文件栏形态（模态切换器 + 对象列表）适用于未归属会话；项目会话的文件栏是项目目录树，归 SDD 13 §7.8。
 
 数据轴入口 `GET /images?modality=`、`GET /datasources`、`POST /datasources/samples` 的**路径与查询参数冻结，响应体按 [SDD 10](../10-object-convergence/README.md) 演进**：列表元素是 `ObjectMeta`，数据源元素新增 `kind` / `label` / `label_key` / `importable`。
 
 ## 2. 本 SDD 不负责什么
 
 - 不新增 science-core `TaskPlugin`，不改任务注册表内容，也不改 `/tasks` 契约本身。
-- 不放开医学模态（`carotid_imt` / `fetal_hc`）的文件夹导入；本期医学导入仍限 `pathology` / `ct_abdomen`，且仍走「服务端文件夹路径」而非浏览器上传（决策 D-5）。
+- 不放开医学模态（`carotid_imt` / `fetal_hc`）的文件夹导入；`pathology` / `ct_abdomen` 不走浏览器上传，经 SDD 13 的项目目录按需打开（决策 D-5）。
 - 不支持通过浏览器上传 WSI / NIfTI 等大体积医学卷（决策 D-5）。
 - 不改 `segment_region`、SAM 供应商、外发门控或建议态标注流；见 [SDD 02](../02-agent-image-annotation/README.md) 与 [SDD 04](../04-unified-annotation-toolbox/README.md)。
 - 不定义对象元数据、数据轴注册表与对象 id 解析（`ObjectMeta`、`SOURCES`、`resolve_object`），归 [SDD 10](../10-object-convergence/README.md)；本 SDD 与它的边界见 §6.4。
-- 不实现多数据源并存选择、云端连接器、数据集版本管理或权限模型。
+- 不实现多数据源并存选择、云端连接器、数据集版本管理或权限模型。项目内多数据源并存归 SDD 13。
 - 不做导入图像的自动分类、缩略图生成或元数据抽取。
 
 ## 3. 当前阶段目标
@@ -53,7 +57,6 @@ status: implemented
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
 | 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `GET /uploads/formats` 返回的受理表内（当前为 JPEG / PNG / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
-| 打开服务端文件夹 | 服务端路径 + 模态 | 路径须在 `GLAUX_DATASETS_ROOT`（缺省 `~/glaux_datasets`）下；模态候选为 `/tasks` 中 `object_kinds` 含 `volume` 或 `slide` 的任务所属模态（当前为 `pathology` / `ct_abdomen`），前端不硬编码列表 |
 | 加载示例数据 | 无 | 仅注册 `config` 内置根中**确实有数据**的模态 |
 | 最近使用 | 无 | 从浏览器本地记录读取 |
 
@@ -277,7 +280,7 @@ sequenceDiagram
 | `backend/app/schemas.py` | 新增 `UploadResult` / `UploadAccepted` / `UploadRejected` | 修改 |
 | `backend/app/config.py` | 新增上传上限环境变量 | 修改 |
 | `frontend/src/components/SideBar.tsx` | `ModalitySwitch` 的可见性与标签均由数据源驱动；Explorer 空态、拖拽区、最近使用、「对象」/「方法」目录、头部「＋ 导入」 | 修改 |
-| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 文件夹路径 / 加载示例）；`accept` 与预筛取 `/uploads/formats`，文件夹导入模态取自 `/tasks` 的 `object_kinds` | 新增 |
+| `frontend/src/components/ImportPanel.tsx` | 统一导入面板（上传 / 加载示例）；`accept` 与预筛取 `/uploads/formats` | 新增 |
 | `frontend/src/data/actions.ts` | `uploadImages` / `loadSamples` / `refreshDataSources` / `prunedRecent`；上传后经 `loadObjects(modality, {open})` 打开首个受理对象 | 修改 |
 | `frontend/src/data/recent.ts` | 最近使用的读写、v1 → v2 迁移、置顶与剔除 | 新增 |
 | `frontend/src/store/session.ts` | `recentItems` 状态与 setter | 修改 |
@@ -351,7 +354,7 @@ stateDiagram-v2
     Loading --> Browsing: 存在 active 数据源
     Loading --> Failed: 请求失败
     Failed --> Loading: 用户重试
-    Empty --> Importing: 拖拽/选择文件/打开文件夹/加载示例
+    Empty --> Importing: 拖拽/选择文件/加载示例
     Importing --> Browsing: 至少一个源注册成功
     Importing --> Empty: 全部被拒或请求失败
     Browsing --> Importing: 点击「＋ 导入」
@@ -380,7 +383,6 @@ stateDiagram-v2
 | 单次文件数超上限 | 整体 `422`，不写盘 | 提示一次最多 N 个 |
 | 全部文件被拒 | `422`，不创建数据源 | 停留在导入态，可重试 |
 | 磁盘写入失败 | `500`，已写入的部分文件保留但不注册数据源 | 提示导入失败，可重试 |
-| 服务端文件夹路径越界 | `422`（沿用 `register_folder`） | 提示须在允许根下 |
 | 加载示例但内置根无数据 | 返回空数组，`200` | 提示未发现示例数据，仍停留在空态 |
 | 移除最后一个数据源 | 回到 `Empty` 态 | 显示空态卡，不报错 |
 | 最近使用指向已删除对象 | 该条静默剔除并持久化 | 列表中消失 |
@@ -462,7 +464,7 @@ stateDiagram-v2
 | D-2 | 浏览器上传不接受客户端指定模态；本 SDD 期内固定归入 `natural_image`，SDD 10 起改由受理表推断（§7 规则 5） | 新增 `user_image` 模态；让用户在上传时选模态 | `natural_image` 已经是「无 TaskPlugin、无标定、走 raster_2d 兜底」的通用图像通道，语义完全吻合；再开一根轴会让前端多一处等价分支 | 2026-08-30 |
 | D-3 | UI 标签由「自然图像」改为「通用图像 / General images」 | 保持「自然图像」 | 用户上传的可能是自己的截图、示意图或非演示照片，「自然图像」是学术用语且会误导；线上契约值 `natural_image` 保持不变以免破坏兼容 | 2026-08-30 |
 | D-4 | `GLAUX_DEV_MODE` 缺省翻为 `0`，示例数据（含 SDD 07 的 4 张照片）改为显式加载 | 保持缺省 `1`；只对医学示例生效、自然照片仍常驻 | 新用户首屏应当是「把你的数据放进来」。若自然照片仍常驻，空态永远不为空，引导入口失去位置。开发脚本显式置 `1` 保证开发体验不回退 | 2026-08-30 |
-| D-5 | 本期医学模态导入维持现状（服务端文件夹路径 + 仅 `pathology`/`ct_abdomen`） | 医学模态也支持浏览器上传文件夹 | 大体积 WSI/NIfTI 的分片上传、目录结构重建与标定回填是独立难题，塞进本期会同时放大工作量与出错面 | 2026-08-30 |
+| D-5 | 医学卷不走浏览器上传；`pathology`/`ct_abdomen` 经服务端目录接入，入口为 SDD 13 的「打开项目」 | 医学模态也支持浏览器上传文件夹 | 大体积 WSI/NIfTI 的分片上传、目录结构重建与标定回填是独立难题，塞进本期会同时放大工作量与出错面 | 2026-08-30 |
 | D-6 | 移除导入源只注销、不删磁盘文件 | 一并删除上传目录 | 删除用户数据是不可逆操作，不应作为一次点击的副作用；代价是磁盘残留，由 UI 明示换取安全 | 2026-08-30 |
 | D-7 | 图像 ID 由服务端确定性派生，客户端文件名不进入路径 | 用清洗后的原始文件名作 ID | 沿用 SDD 07 D-5 的同一条防线：任何用户字符串都不参与文件系统路径拼接，路径穿越在结构上不可能 | 2026-08-30 |
 | D-8 | 「最近使用」只存浏览器本地 | 存服务端并进 `/datasources` 契约 | 最近使用是单机浏览习惯而非项目事实，落服务端会引入无谓的多端一致性问题 | 2026-08-30 |

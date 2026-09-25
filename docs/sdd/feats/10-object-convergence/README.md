@@ -16,7 +16,9 @@ status: ready
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 波次口径 | 本 SDD 冻结的契约覆盖 W0～W7；波次编号与审计 §8.2 一一对应，不另行划分 |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-24 |
+| 最后更新 | 2026-09-25 |
+
+§4.1、§9.2 中 `object_id_for` 与项目源相关的条款（D-25）由 [SDD 13](../13-project-folder-sessions/README.md) 引入，随 SDD 13 实现，不计入本 SDD 的波次范围。
 
 ## 1. 本 SDD 负责什么
 
@@ -85,12 +87,15 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
 | `SOURCES[modality].probe(root)` | 一个数据根目录 `Path` | 取代 `backend/app/config.py:119` `root_has_data` 的模态 if 阶梯；返回 `False` 即该源在 `GET /datasources` 不为 `active`（内置示例源为 `empty`），不得抛异常 |
-| `SOURCES[modality].list_ids(source)` | 一个 `DataSource` | 返回该源下全部对象 id；同时是 `resolve_object` 索引的构建输入（见 §4.2） |
+| `SOURCES[modality].list_ids(source)` | 一个 `DataSource` | 返回该源下全部对象 id；同时是 `resolve_object` 索引的构建输入（见 §4.2）。只列 `source.root` 下的对象，不依赖全局根（D-25） |
+| `SOURCES[modality].object_id_for(source, path)` | 一个 `DataSource` 与其目录下的一个文件 | 返回该文件在此源下的对象 id；不属于该源或校验失败返回 `None`。SDD 13 按需打开的唯一入口（D-25） |
 | `SOURCES[modality].formats` | 无 | `tuple[tuple[str, bytes, int], ...]`，即 `(后缀, 魔数, offset)`；是 `backend/app/upload_store.py:20` `_MAGIC` 与 `GET /datasources` 的 `importable` 的唯一来源，取代 `backend/app/routers/uploads.py` 固定模态 `natural_image` 的写法 |
 | `SOURCES[modality].detect_calibration(root)` | 数据根目录 | 取代 `backend/app/datasource_detect.py:56-61` 的 `pathology`／`ct_abdomen` 两条模态 if；探测不出返回 `{}`，落为 `status=needs_calibration`，不得出假值 |
 | `SOURCES[modality].builtin_sample()` | 无 | 返回 `DataSource \| None`，取代 `backend/app/datasource_registry.py:92` `_builtin_specs` 的硬编码列表；provider／license 在此提供 |
 | `SOURCES[modality].invalidate()` | 无 | 取代 `backend/app/caches.py` 的 `_CACHED` 模块级缓存；数据源注册／删除时逐 Source 调用 |
 | `SOURCES[modality].synthetic_sample()` | 无；仅 `dev_mode()` 为真时调用，见 `backend/app/datasource_registry.py` | 合成源 `synthetic-us`、`synthetic-hc` 是由对应模态的 `Source` 提供的 `DataSource`，只在开发者模式列出，且仅当同模态没有其他 `active` 源时为 `active`（合成颈动脉 id 与 CUBS 真实 id 同形，二者同时 `active` 会违反 §10 的 `resolve_object` 恒等）；非开发态无数据即空态，不存在 mock 隐式回退 |
+
+项目目录的按需打开（SDD 13 §7.2）是同一张表的第三个入口：数据源以「目录 + 模态」为粒度惰性登记，id 由 `(规范化目录, modality)` 派生，`origin = "project"`。
 
 浏览器上传与服务端目录导入是同一张表的两个入口：`POST /uploads/images` 的落盘目标必在导入白名单根之下，模态由 `formats` 与 `probe` 推断而非客户端指定；`POST /datasources` 的 `modality` 必须命中 `SOURCES` 键，否则 422。
 
@@ -625,6 +630,7 @@ class Source(Protocol):
     def probe(self, root: Path) -> bool: ...           # 取代 config.root_has_data 的 if 分支
     def list_ids(self, source: DataSource) -> list[str]: ...
     def is_mine(self, object_id: str) -> bool: ...     # 仅作 resolve_object 索引未命中时的兜底（D-7）
+    def object_id_for(self, source: DataSource, path: Path) -> str | None: ...  # SDD 13 按需打开（D-25）
     def meta(self, source: DataSource, object_id: str) -> ObjectMeta: ...
     def frame(self, source: DataSource, object_id: str, index: Index, *, roi: Region | None = None,
               size: int | None = None, window: tuple[float, float] | None = None) -> tuple[bytes, str, ReferenceFrame]: ...
@@ -1067,6 +1073,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 | D-22 | 模态切换器标签来源改由 `/datasources` 下发：顺序固定为 `label_key` → `label` → `modality` 原文 | 沿用 SDD 08 D-1 的「标签取自 `/tasks`」 | 本 SDD 新增。`natural_image`／`video` 没有 `TaskPlugin`，标签取自 `/tasks` 对无任务模态不成立；标签属数据源展示属性，与任务能力无关 | 2026-09-22 |
 | D-23 | 视频自带音频是一等观测内容：W1 即由 `VideoSource.meta()` 探测音轨，以 `ObjectMeta.streams[]`（与 `axes` 正交的开放集）声明参数、以 `resources.audio` 保留取流入口；消费形状留给 SDD 11 | 一、留到视频理解立项时再加字段；二、以 `meta` 自由字段承载；三、把音频写成第四根轴 | 本 SDD 新增。音画同步理解是视频特性的产品前提，契约位置晚定一次就是第二次迁移（`ObjectMeta` 是三端镜像类型，迁移成本按三倍算）。选 `streams[]` 而非可空字段，是因为逐模态可空字段正是本 SDD 要消除的形态（对比被取代的 `cf`／`voxel_spacing_mm`／`mpp_um`／`dims` 四并列）；音频不是采样网格，写成轴会让 `axes` 的轴序约定与 `check_index` 失效。只声明不消费，是为了不在观测形状未定时预设 API | 2026-09-22 |
 | D-24 | 观测焦点类型沿用 `Focus`：store 字段 `focus`，写入口 `setFocus`／`setIndex`／`setRegion`；外壳布局状态保持 `uiMode`／`focusLayout`／`setFocusLayout` 命名不变，两组之外不再新增以 `focus` 开头的 store 字段 | 改名 `Viewpoint`，三端同步改名 | 本 SDD 新增。`Focus` 是审计与三端契约草案的共用词，撞名只发生在前端 store 一处；以命名边界约束撞名风险：观测焦点只有这一组字段与写入口，外壳布局只有既有三个名字 | 2026-09-23 |
+| D-25 | `Source` 协议增 `object_id_for(source, path)`；`list_ids(source)` 只列 `source.root` 下的对象且不依赖文件名前缀；项目源 id 由 `(规范化目录, modality)` 派生，既有导入源 id 规则不变 | 由 SDD 13 自建路径到 id 的映射，绕过 `SOURCES` | SDD 13 新增。按需打开需要「文件路径 → 对象 id」的单一入口，放进 `Source` 才能与 `list_ids`、`resolve_object` 索引同源；只由目录派生 id 会让同一目录的两个模态互相覆盖；`ct_abdomen`、`pathology` 现依赖 `ct_*`、`slide_*` 前缀与全局根，由 SDD 13 P2 改造 | 2026-09-25 |
 
 ## 17. 待确认问题
 

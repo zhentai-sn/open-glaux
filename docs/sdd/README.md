@@ -31,19 +31,20 @@ stateDiagram-v2
 
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
-| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-08-19 |
-| 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1.3 栏宽可拖拽；v1 `accepted`） | Glaux 项目维护者 | 2026-09-23 |
+| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-09-25 |
+| 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1.3 栏宽可拖拽；v1 `accepted`） | Glaux 项目维护者 | 2026-09-25 |
 | 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `implemented`（建议态实时写回与快照契约 D-12） | Glaux 项目维护者 | 2026-09-23 |
 | 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v1.2 接入会话 `consult_atlas`） | Glaux 项目维护者 | 2026-09-23 |
 | 04 | [统一图像标注工具箱（bbox/polygon/brush）](feats/04-unified-annotation-toolbox/README.md) | `implemented`（浏览器走查验收待补） | Glaux 项目维护者 | 2026-09-23 |
 | 05 | [键盘可达性与全局快捷键](feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-23 |
 | 06 | [统一图标系统](feats/06-icon-system/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
 | 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-09-23 |
-| 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-08-31 |
+| 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-09-25 |
 | 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
-| 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4～W7 代码与自动门禁完成，人工验收递延） | Glaux 项目维护者 | 2026-09-24 |
+| 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4～W7 代码与自动门禁完成，人工验收递延） | Glaux 项目维护者 | 2026-09-25 |
 | 11 | [视频理解 harness](feats/11-video-understanding-harness/README.md) | `ready`（一期仅 Qwen；P1～P5 已实现，待真实视频基本流程验收；标注集评测后置） | Glaux 项目维护者 | 2026-09-25 |
 | 12 | [主题切换（深色 / 浅色）与强调色](feats/12-theme-switch/README.md) | `implemented`（v1.1 自定义强调色；Workbench 浏览器走查与业务验收待补） | Glaux 项目维护者 | 2026-09-25 |
+| 13 | [项目文件夹与并行会话](feats/13-project-folder-sessions/README.md) | `ready`（P1 通用图像与视频，P2 CT/WSI；修订 00/01/08/10） | Glaux 项目维护者 | 2026-09-25 |
 
 ## 维护约定
 

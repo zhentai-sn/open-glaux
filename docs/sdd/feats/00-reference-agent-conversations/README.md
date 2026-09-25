@@ -11,13 +11,15 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented` |
 | 创建日期 | 2026-07-27 |
-| 最近更新 | 2026-08-19 |
+| 最近更新 | 2026-09-25 |
 | 目标阶段 | 第一阶段：可持续使用的本地 AI 对话与会话管理 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
 进入 `implemented` 的依据：Runtime、REST/SSE Adapter、右侧栏会话 UI 与运行手册已经完成；
 Runtime、前端和既有 Python 测试均通过，编译产物健康检查返回 `adapter/pi/storage = ok`。真实
 Provider smoke 与 Dock 拖动/刷新属于业务验收前的人工检查，因此尚未进入 `accepted`。
+
+§6.3、§6.4、§7 规则 2、§9.2、§10 中与项目相关的条款由 [SDD 13](../13-project-folder-sessions/README.md) 引入，随 SDD 13 实现，不计入本 SDD 的 `implemented` 范围。
 
 ## 1. 负责人
 
@@ -40,7 +42,7 @@ Provider smoke 与 Dock 拖动/刷新属于业务验收前的人工检查，因�
 - 面向用户的会话分支创建、导航、比较和替代回答树。Pi 可在内部保留消息树，但第一阶段只展示活动叶路径。
 - 对任意历史 assistant 消息重新生成；仅支持重新生成最近一条回答。
 - 将 API Key 迁移至系统钥匙串或建设新的密钥管理系统。
-- 重构编辑器、左侧栏、底部面板或 Dock 布局；本阶段只改造现有右侧 Agent 面板。
+- 重构编辑器、底部面板或 Dock 布局。左侧栏会话列表的项目分组、状态点与项目胶囊由 [SDD 13](../13-project-folder-sessions/README.md) 负责。
 - 完整的工具权限执行引擎。会话只保存权限模式，为后续领域工具阶段预留契约。
 
 ## 3. 当前目标
@@ -197,7 +199,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `GET` | `/health` | Adapter、Pi Harness 与 Storage 可用状态 | `200` |
 | `GET` | `/sessions?status=active\|archived` | 获取会话列表 | `200` |
-| `POST` | `/sessions` | 以客户端 UUID 创建 Pi Session 与 Glaux 元数据 | `201`；已存在且参数一致时 `200` |
+| `POST` | `/sessions` | 以客户端 UUID 创建 Pi Session 与 Glaux 元数据；可选 `project_id` 绑定项目（SDD 13 §7.6） | `201`；已存在且参数一致时 `200` |
 | `GET` | `/sessions/{session_id}` | 获取元数据、活动叶消息、模型、context usage 与当前 phase | `200` |
 | `PATCH` | `/sessions/{session_id}` | 重命名、归档/恢复、切换模型或权限模式 | `200` |
 | `DELETE` | `/sessions/{session_id}` | 确认后删除 Pi Session 与 Glaux 元数据 | `204` |
@@ -263,14 +265,14 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 2. 配置栏：Provider/Model、权限模式、上下文占用。
 3. 消息区：用户与 assistant 消息、流式状态、停止/重试/重新生成入口。
 4. 输入区：多行文本、图像附件（粘贴/选择/拖放，见 §4.3 与 D-021）、发送/停止。
-5. 会话抽屉：在右侧面板内部覆盖展开，支持搜索、切换、重命名、归档、恢复和删除。
+5. 会话列表：按项目分组，支持搜索、切换、重命名、归档、恢复和删除；分组、状态点与项目胶囊见 SDD 13 §7.4、§7.5。
 
 不得新增分支按钮、历史消息编辑入口或替代回答版本选择器。
 
 ## 7. 规则
 
 1. 首条用户消息成功提交到 Pi Session 时生成会话标题：压缩连续空白并截取前 30 个 Unicode 字符；不额外调用模型。
-2. 新建但尚未发送消息的空会话最多保留一个；再次点击新建时复用该空会话。
+2. 新建但尚未发送消息的空会话在每个项目（含未归属）下最多保留一个；在同一项目再次点击新建时复用该空会话。
 3. 会话列表按 Pi Session 的最近更新时间倒序排列。
 4. 归档不删除数据；归档会话只读，恢复后可继续发送。
 5. 删除是永久操作，前端必须展示会话标题和不可恢复提示；Adapter 通过 Pi Session Storage API 删除 transcript，再删除 Glaux 元数据。
@@ -334,6 +336,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `model` | text nullable | 从 Pi 活动路径解析 |
 | `phase` | enum | `idle`、`running`、`stopping`、`compacting`、`error`；由 Harness phase 投影 |
 | `messages` | array | Pi 活动 leaf 路径投影；不返回非活动分支 |
+| `project_id` | text nullable | 来自 Pi Session `metadata.glaux_project_id`；空为未归属（D-023） |
 | `context_usage` | object nullable | Pi token 估算可用时返回 |
 | `created_at` | datetime | 合并 Pi 与 Glaux 元数据 |
 | `updated_at` | datetime | 最近 Pi entry 或元数据更新时间 |
@@ -356,7 +359,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 
 ## 10. 幂等性
 
-- `POST /sessions` 使用客户端生成的 `session_id`；相同 ID、相同创建参数重复提交返回已有 Session，不重复创建。
+- `POST /sessions` 使用客户端生成的 `session_id`；相同 ID、相同创建参数重复提交返回已有 Session，不重复创建；相同 ID 而 `title`、`permission_mode` 或 `project_id` 不同时返回 `409 idempotency_conflict`。
 - `prompt` 与 `regenerate` 必须携带 `command_id`。Adapter 在执行前向 Pi Session 追加 `glaux.command.accepted` custom entry，记录 `command_id`、命令类型和内容摘要哈希（摘要覆盖 `content` **与 `images` 的逐张 sha256**，
   使"同一 command_id 换图"能被判为冲突而非重复），不记录 credential；结束后追加 `glaux.command.settled` 与结果。
 - 同一 Session 中已存在相同 `command_id`、相同摘要哈希且已有 settled entry 时返回当前 SessionView，不再次调用 `AgentHarness`。
@@ -599,6 +602,7 @@ erDiagram
 | D-022 | 2026-08-20 | 带图的 prompt 恒声明 `vision: true`，不依赖 `/connection/models` 的探测结论 | ① D-021 落地后首次真机贴图即失败，根因是 `ConnectionInput.vision` 从未被前端填、也未被 transport 解析，模型按 `input:["text"]` 构造，pi `downgradeUnsupportedImages` 把图换成占位文本——**不报错**，表现为"能对话但读不懂图"，是最难诊断的一类失败；② 探测结论不可靠：多数 OpenAI 兼容端点的 `/models` 不含视觉字段，判定为 `unknown`，若据此不发图则大量可用模型被误伤；③ 用户显式贴图即意图明确，让 provider 返回明确错误远优于本地静默降级后照常作答（G5 失败可见）；④ 旧注释"用户消息中的图像块无条件转换"与 pi 实际行为不符，已在 `contracts.ts` 更正并由兼容性测试锁定 |
 | D-021 | 2026-08-19 | Composer 支持粘贴/选择/拖放图像，随 `prompt` 以 base64 内联下发，不建 Glaux 侧附件存储 | ① 贴图提问是通用对话智能体的基础能力，"附件暂未开放"占位在有视觉模型可用时是纯粹的能力缺口；② Pi `AgentHarness.prompt(text, { images })` 与 pi-ai `ImageContent` 已原生支持，两条 provider 路径在 SDD 03 §7.6 落地时已核实，内联下发不需要新协议；③ 与领域影像分工明确——CT/WSI 等已入库对象走查看器上下文与 `run_task`（只传 id，不传像素），此通道只承载"用户手上这张图"，二者不合并；④ 不做独立附件存储：图像随 Pi transcript 持久化，天然获得会话删除、归档与重放语义，避免第二份生命周期 |
 | D-020 | 2026-07-27 | regenerate 导航到最近 user 的 parent 后 replay 原文 | Pi 0.82.1 `AgentHarness` 没有公开 continue API；`prompt()` 会自行追加 user entry，该方式在不使用私有 API 的前提下生成等价新分支 |
+| D-023 | 2026-09-25 | 会话与项目的绑定在创建时写入 Pi Session `metadata.glaux_project_id`，不写 `cwd`，不进 companion table | ① Pi 的 `cwd` 与 `metadata` 均无更新接口，写入即冻结，符合「创建时绑定、不可改」；② 既有会话的 `cwd` 都是仓库根，复用 `cwd` 会让旧会话误归属；③ 不给 companion table 增列，保持 D-018 边界；契约归 [SDD 13](../13-project-folder-sessions/README.md) |
 
 ## 17. 开放问题
 

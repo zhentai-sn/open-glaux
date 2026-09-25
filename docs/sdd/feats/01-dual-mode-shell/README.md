@@ -15,6 +15,8 @@ status: implemented
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
+§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，不计入本 SDD 的 `implemented` 范围。
+
 进入 `accepted` 的依据(2026-08-13):产品维护者在真实数据环境(CUBS + 参考智能体)交互评审通过并确认阶段性验收;评审期间提出的空状态布局还原、状态行下移、Markdown 渲染、上下文环形图、徽标等打磨项均已实现并复验。§15 验收项全部通过。
 
 进入 `implemented` 的依据(2026-08-13,按[实现计划](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md)完成;tsc/eslint/vitest 18 项全绿):
@@ -38,7 +40,7 @@ status: implemented
 本需求明确不包含:
 
 - 删除或重写 Workbench(现 VSCode 式 dockview 布局)。它完整保留,降级为"专家/开发模式"。
-- 任何后端契约、任务管线、agent-runtime 的改动。Focus 模式零新增后端能力。
+- 任何后端契约、任务管线、agent-runtime 的改动。Focus 模式零新增后端能力。唯一登记例外：左侧栏项目分组、项目胶囊与项目目录树所需的后端能力由 [SDD 13](../13-project-folder-sessions/README.md) 引入(D27)。
 - 把插件市场、终端、底部面板迁入 Focus 模式(它们保持 Workbench 独占)。
 - 主题系统 / 亮色主题(见 [SDD 12](../12-theme-switch/README.md))。
 - 移动端 / 窄屏适配。
@@ -83,7 +85,7 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- Focus 布局:左侧栏(会话列表可收起;竖条是活动栏,含会话 ☰ ＋、右侧栏的**舞台 / 文件 / 图谱**入口与底部的**设置**,v1.5 D20、v1.6 D22、v1.7 D23)/ 居中对话流(设置打开时隐藏,D25)/ **右侧工作区**(纯内容区,收起时不渲染;舞台、图谱或设置三选一,设置铺满对话列位置,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20,v1.7 D23)/ 极简顶栏(只有标识,以及仅在开放工作台时出现的模式切换;v1.5 D21,v1.7 D24)。
+- Focus 布局:左侧栏(按项目分组的会话列表可收起,分组与状态点见 [SDD 13](../13-project-folder-sessions/README.md) §7.4;竖条是活动栏,含会话 ☰ ＋、右侧栏的**舞台 / 文件 / 图谱**入口与底部的**设置**,v1.5 D20、v1.6 D22、v1.7 D23)/ 居中对话流(设置打开时隐藏,D25)/ **右侧工作区**(纯内容区,收起时不渲染;舞台、图谱或设置三选一,设置铺满对话列位置,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20,v1.7 D23)/ 极简顶栏(只有标识,以及仅在开放工作台时出现的模式切换;v1.5 D21,v1.7 D24)。
 - Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮);入口缺省关闭,构建时设 `VITE_GLAUX_WORKBENCH=1` 才开放(D21)。
 - 切换后界面即时呈现目标模式,数据原地保留。
 
@@ -176,7 +178,7 @@ flowchart TD
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
 | 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, sideView:"stage", browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换(仅开放工作台时) |
 | 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则在右侧打开设置面板(v1.7) |
-| 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
+| 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;SessionDrawer 内部的分组与交互归 SDD 13 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset),按钮为图标 + 文字,宽度放不下(按钮全宽 + 选项段 + 提示至少 160px)时只留图标、文字改由 `title` 提示;空间不足时先截断绘制提示,再压缩选项段;角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
 | 改动(v1.4) | `FocusSidePanel` | 标签条改为「文件 / 图谱」两枚开关(点已激活者 = 关闭浏览器列);展开态渲染 `[StagePanel \| PaneResizer \| 浏览器列]` 两列,StagePanel 常驻且在左、浏览器列贴最右缘(D19);实测侧栏宽 < `SIDE_SPLIT_MIN` 时渲染 v1.1 的整栏互斥形态。**删除**「选图 → 自动切舞台」的 `useEffect`,该行为下沉为窄屏降级态专属(D17) |
@@ -193,7 +195,9 @@ flowchart TD
 | 改动(v1.1) | `FocusTopBar` | 移除 v1.0 临时的 📖 图谱切换钮(feats/03 D-19 v1),右侧栏开合与标签切换全部收进 `FocusSidePanel` |
 | 改动(v1.2) | `FocusTopBar` | 移除内部 `ImageContextPicker`(两级原生 `<select>`)及其与 `ExplorerView` 重复的模态/列表派生逻辑,改为只读 chip;选择动作唯一入口为右侧栏「文件」标签(D14) |
 | 新增 | `ModeSwitch` | 无状态按钮,调 `setUiMode`;Focus/Workbench 顶栏共用 |
-| 复用不改 | SessionDrawer、各 Viewer | 语义零改动;仅被新壳组合 |
+| 复用不改 | 各 Viewer | 语义零改动;仅被新壳组合 |
+| 改动(SDD 13) | `SessionDrawer` | 重写为项目分组列表,Focus 与 Workbench 共用;契约见 SDD 13 §7.4 |
+| 新增(SDD 13) | `ProjectChip` / `FolderPicker` / `ProjectTree` | 输入区项目胶囊、目录选择器、项目目录树;项目会话的文件浏览器列渲染 `ProjectTree`,未归属会话仍渲染 `ExplorerView`;契约见 SDD 13 §7.5、§7.8 |
 | 改动(v1.7) | `ConnectionConfig` | 增 `variant: "popover" \| "panel"`;`panel` 去掉浮层外框、标题与关闭钮,嵌入设置面板「模型与连接」分区;字段与行为不变 |
 | 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时对话状态行、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
 | 新增(v1.7) | `SettingsPanel` | 设置面板:分区导航(模型与连接 / 外观)+ 内容;外观分区写 `useTheme` 与 i18n 语言;容器查询 < 520px 时导航横排 |
@@ -405,6 +409,7 @@ v1.7(设置面板 + 顶栏精简):
 | D23(v1.7,2026-09-25,由维护者提出) | 连接配置与主题、界面语言合并为**设置面板**,占据右侧工作区,入口在左侧栏竖条底部;面板按分区(模型与连接 / 外观)组织 | ① 浮层 300px 宽、叠在对话上,字段多(provider、地址、密钥、模型、适配器、上下文参数)时拥挤,且与对话抢焦点;占据右侧工作区后与舞台 / 图谱同一套开合语义;② 分区导航可随设置项增长扩展,不必再为每类偏好在顶栏加按钮;③ 设置是低频全局操作,放竖条底部符合活动栏惯例(常用视图在上、设置在下);④ chat 发行版没有舞台与图谱,但连接配置是对话前提,故设置入口两个发行版都有 |
 | D24(v1.7,2026-09-25,由维护者提出,**推翻 D14 ②**) | 顶栏删除图像上下文 chip;顶栏只剩标识与 ⇄ | ① D14 保留 chip 的理由是"右侧栏停在图谱时仍能看到当前图",但舞台角标已显示图名,文件列高亮当前对象,chip 的信息重复;② chip 的点击动作(打开文件列)已由左侧栏「文件」入口覆盖;③ 顶栏只保留全局标识,入口统一在左侧栏,与 D22 一致 |
 | D25(v1.7,2026-09-25,由维护者提出) | 设置面板打开时隐藏对话列,面板铺满会话栏右侧的全部宽度;对话列只隐藏不卸载 | ① 设置是独立任务,与对话并排没有协同价值,并排反而把表单挤窄;② 隐藏而非卸载,进行中的智能体回合、输入框草稿与滚动位置在关闭设置后原样保留;③ 内容区限宽 760px,宽屏下标签与控件不被拉到两端 |
+| D27(SDD 13,2026-09-25,由维护者提出) | 左侧栏会话按项目文件夹分组,输入区增项目胶囊,项目会话的文件浏览器列改为项目目录树;所需后端能力作为 §2「零新增后端能力」的唯一登记例外,契约全部归 [SDD 13](../13-project-folder-sessions/README.md) | ① 维护者要求类 Claude Code 桌面版的项目组织与同项目多会话并行;② §7 第 6 条要求新能力进入 Focus 时显式更新本 SDD;③ 契约集中在 SDD 13,本 SDD 只登记组件边界,避免两处定义 |
 
 ## 17. 待确认问题
 
