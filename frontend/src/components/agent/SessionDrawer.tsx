@@ -258,7 +258,12 @@ export function SessionDrawer() {
       (showArchived || query || session.status === "active") &&
       session.title.toLocaleLowerCase().includes(query),
   );
-  const groups = buildSessionGroups(visible, projects, known).filter(
+  // 项目列表未加载成功（后端未起、局域网访问被回环守卫拒绝）时，用见过的项目兜底分组，
+  // 不把项目会话误判为「已移除」；只读判定同样要求列表已加载（AgentConversation）
+  const effective: ProjectView[] = loaded
+    ? projects
+    : Object.entries(known).map(([id, k]) => ({ id, ...k, created_at: "", status: "ok" as const }));
+  const groups = buildSessionGroups(visible, effective, known).filter(
     // 搜索时只留命中的组；平时项目组与「未归属」组即使为空也渲染（保留组头的新建入口）
     (group) => (query ? group.sessions.length > 0 : group.kind !== "removed" || group.sessions.length > 0),
   );

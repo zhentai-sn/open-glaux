@@ -147,6 +147,13 @@ describe("SessionDrawer", () => {
     expect(within(group).queryByLabelText("New conversation in this project")).toBeNull();
   });
 
+  it("项目列表未加载时按见过的项目分组，不误判为已移除", () => {
+    useProjects.setState({ projects: [], loaded: false, refresh: vi.fn().mockRejectedValue(new Error("403")) });
+    renderDrawer();
+    expect(within(groupOf("liver")).getByText("Liver question")).toBeInTheDocument();
+    expect(screen.queryByText("liver (removed)")).toBeNull();
+  });
+
   it("项目下有运行中会话时拒绝移除", async () => {
     vi.spyOn(agentRuntimeApi, "listSessions").mockResolvedValue([{ ...inLiver, phase: "running" }]);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
