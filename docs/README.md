@@ -122,6 +122,8 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20260924-01-tech-omni-video-api-probe.zh-CN.md](researches/20260924-01-tech-omni-video-api-probe.zh-CN.md) | 2026-09-24 | tech | Qwen 原生音画实测与 MiMo 文档核对；MiMo 已递延 |
 | [20260924-02-tech-qwen-tool-audio-placement.zh-CN.md](researches/20260924-02-tech-qwen-tool-audio-placement.zh-CN.md) | 2026-09-24 | tech | Qwen 工具视频块只计画面 token；受控媒体消息可保留音轨 |
 | [20260924-03-tech-qwen-pi-video-loop.zh-CN.md](researches/20260924-03-tech-qwen-pi-video-loop.zh-CN.md) | 2026-09-24 | tech | Qwen 真实 Pi 工具循环的蓝／绿／静音三样本对照；完整验收仍待进行 |
+| [20260925-01-research-basketball-video-benchmark.zh-CN.md](researches/20260925-01-research-basketball-video-benchmark.zh-CN.md) | 2026-09-25 | research | 篮球视频理解基准 BasketballBench / BasketballSkills；视频首个落地场景的评测参照 |
+| [20260925-02-research-sports-video-eval-datasets.zh-CN.md](researches/20260925-02-research-sports-video-eval-datasets.zh-CN.md) | 2026-09-25 | research | 体育视频评测集可得性与选型；选定 TennisTV + BARD |
 
 ## 二、路线图 roadmaps/
 
