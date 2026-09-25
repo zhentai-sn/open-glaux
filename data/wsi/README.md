@@ -1,5 +1,15 @@
 # data/wsi — 病理 WSI demo 资产（P7 楔子）
 
+本目录是内置示例源 `wsi-demo` 的根，路径由 `backend/app/config.py` 的 `WSI_ROOT` 控制（默认 `data/wsi/`）。
+
+- 切片命名 `slide_NNN.<后缀>`（3 位数字，后缀属 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`），文件名主干即对象 id；
+  不符此约定的文件不进内置源。复现参考 `<id>_ref_nuclei.json` 只对本目录的切片提供。
+- 该约定只约束内置示例源。作为项目打开的目录与经 `POST /datasources` 导入的目录接受任意文件名的单文件 TIFF 族切片，
+  对象 id 按文件派生（`wsi-<源哈希8>-<文件名哈希8>`），见
+  [datasource-registry.md](../../docs/runbooks/datasource-registry.md)「CT、WSI 的识别与对象 id」。
+
+## 文件
+
 - `slide_001.svs` —— OpenSlide 可再分发测试数据 `CMU-1-Small-Region.svs`（Aperio，~1.9 MB，
   2220×2967 px，MPP 0.499 µm/px）。下载见
   [docs/runbooks/p7-wsi-nuclei-wedge.md](../../docs/runbooks/p7-wsi-nuclei-wedge.md) 第 3 步。

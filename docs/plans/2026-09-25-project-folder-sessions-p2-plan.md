@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 13 项目文件夹与并行会话 · P2 实施计划

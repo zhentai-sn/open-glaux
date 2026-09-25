@@ -9,8 +9,8 @@ status: implemented
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `implemented`（P1） |
-| 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）契约已补齐（§7.2 规则 10～13、D-23～D-26），实施中；业务验收待补 |
+| 状态 | `implemented`（P1、P2） |
+| 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）已实现并通过自动化门禁与开发侧浏览器走查；业务验收待补 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 会话管理](../00-reference-agent-conversations/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) · [SDD 08 文件栏](../08-data-import-first-explorer/README.md) · [SDD 10 对象与数据源](../10-object-convergence/README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-25 |
@@ -238,7 +238,7 @@ sequenceDiagram
 7. Source 参与按需识别须满足：声明 `formats`；`list_ids(source)` 只列 `source.root` 下的对象；不依赖文件名前缀；实现 `object_id_for(source, path)`。P1 满足者为 `natural_image`、`video`；`ct_abdomen`、`pathology` 在 P2 改造后满足（SDD 10 协议修订，见 §14）。
 8. 目录列举跳过以 `.` 开头的条目；符号链接解析后落在项目根以外的条目不列出。
 9. 路径参数含 `..` 或解析后越出项目根，返回 422 `outside_project`。
-10. **文件识别**：CT 接受 `.nii.gz`（gzip 魔数 `1f 8b`，解压后为 NIfTI-1 单文件头）与 `.nii`（偏移 344 处为 `n+1 `）；WSI 接受单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`，以 OpenSlide 能识别格式为准。多文件切片格式不接受（§2）。
+10. **文件识别**：CT 接受 `.nii.gz`（gzip 魔数 `1f 8b`，解压后为 NIfTI-1 单文件头）与 `.nii`（偏移 344 处为 `n+1\0`）；WSI 接受单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`，以 OpenSlide 能识别格式为准。多文件切片格式不接受（§2）。
 11. **对象 id**：内置示例源（`ct-demo`、`wsi-demo`）保留既有 id 与文件名约定（`ct_001`、`slide_001`）；导入源（SDD 08）与项目源一律按「数据源 id + 文件名」派生，形如 `ct-<源哈希8>-<文件哈希8>`、`wsi-<源哈希8>-<文件哈希8>`，与通用图像、视频同规则（D-25）。
 12. **按 id 取文件**：按 id 读取体数据、切片、瓦片、原始文件与任务输入时，一律经 `resolve_object` 找到所属数据源，再在该源目录下定位文件；不再经「首个活动源」的全局根。内置源与导入源、项目源可以并存，互不遮蔽。
 13. **浏览器上传资格独立于 `formats`**：`SourceBase` 增 `browser_upload`（缺省真），CT、WSI 为假；上传受理表与 `importable` 只汇总 `browser_upload` 为真的 Source，医学卷仍不走浏览器上传（SDD 08 D-5，D-23）。
@@ -531,12 +531,12 @@ flowchart LR
 - [x] 非回环来源请求 `/fs/dirs`、`POST /projects` 返回 403。——单测（含 `X-Forwarded-For`、`Forwarded` 逐跳校验）
 - [x] 移除项目后磁盘文件不变，会话仍在存储中；重新打开同一路径，会话回到原项目组。——单测；走查
 - [x] 项目下有运行中会话时，移除操作被拒绝并提示原因。——单测 `SessionDrawer.test.tsx`
-- [ ] P2：文件名不以 `ct_` 开头的 `.nii.gz` 与 `.nii`、不以 `slide_` 开头的 `.svs` 可在项目中打开，舞台可显示（CT 切层、WSI 瓦片）。
-- [ ] P2：内置示例源开启时，项目源与导入源的 CT、WSI 仍可列出与读取，内置对象 id 保持 `ct_001`、`slide_001`。
-- [ ] P2：只有项目源时，`/tasks` 中 CT、WSI 任务的方法可用，`/task/run` 能以项目对象为输入运行（无标定的 WSI 返回 422）。
-- [ ] P2：浏览器上传 `.nii`、`.nii.gz`、`.svs`、`.tiff` 仍被拒为 `unsupported_type`。
-- [ ] P2：缺 mpp 的切片在项目中可打开浏览，`calibration` 为空。
-- [ ] P2：文件栏导入面板不再有服务端文件夹路径框。
+- [x] P2：文件名不以 `ct_` 开头的 `.nii.gz` 与 `.nii`、不以 `slide_` 开头的 `.svs` 可在项目中打开，舞台可显示（CT 切层、WSI 瓦片）。——单测 `test_project_ct_wsi.py`；走查（`patient A.nii.gz`、`patient B.nii`、`tissue A.svs`）
+- [x] P2：内置示例源开启时，项目源与导入源的 CT、WSI 仍可列出与读取，内置对象 id 保持 `ct_001`、`slide_001`。——单测（三源同名文件并存）；走查（内置 `ct_001` 与项目 CT 同屏切换）
+- [x] P2：只有项目源时，`/tasks` 中 CT、WSI 任务的方法可用，`/task/run` 能以项目对象为输入运行（无标定的 WSI 返回 422）。——单测；走查（两个项目 CT 打开即触发 TotalSegmentator 实跑，结果按派生 id 缓存）
+- [x] P2：浏览器上传 `.nii`、`.nii.gz`、`.svs`、`.tiff` 仍被拒为 `unsupported_type`。——单测
+- [x] P2：缺 mpp 的切片在项目中可打开浏览，`calibration` 为空。——单测（手写 generic tiled TIFF）
+- [x] P2：文件栏导入面板不再有服务端文件夹路径框。——前端改动与测试（`895cede`）
 
 ### 15.2 智能体浏览
 
@@ -565,8 +565,8 @@ flowchart LR
 
 ### 15.5 项目作用域
 
-- [ ] 项目会话的文件栏显示项目目录树；切到另一项目的会话后，目录树随之切换。——目录树按需展开、打开文件已走查；两个项目之间切换未走查（`ProjectTree` 以 `project_id` 为 key 重建）
-- [ ] 未归属会话的文件栏为 SDD 08 形态，只列 `project_id` 为空的数据源对象。——已实现，缺自动化用例与走查
+- [x] 项目会话的文件栏显示项目目录树；切到另一项目的会话后，目录树随之切换。——走查（`med`、`liver` 与未归属之间切换）
+- [x] 未归属会话的文件栏为 SDD 08 形态，只列 `project_id` 为空的数据源对象。——走查（未归属会话的 CT 列表只有内置 `ct_001`，不含项目 CT）；缺自动化用例
 - [x] 智能体工具收到其他项目对象的 id 时返回错误，不执行任务。——单测（焦点与 `run_task.image_id` 两条路径）
 - [ ] 在项目会话中上传图像，新数据源的 `project_id` 为该项目，出现在目录树「上传」节点下。——后端归属单测通过；「上传」节点缺自动化用例与走查
 

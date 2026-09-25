@@ -4,9 +4,12 @@
 
 ## 命名约定
 
-- `<id>.nii.gz` —— 原始 CT 体积
-- id 形如 `ct_001`、`ct_002`（3 位数字）
-- 路径由 `backend/app/config.py` 的 `CT_ROOT` 控制（默认 `data/ct/`）
+本目录是内置示例源 `ct-demo` 的根，路径由 `backend/app/config.py` 的 `CT_ROOT` 控制（默认 `data/ct/`）。
+
+- `<id>.nii.gz` —— 原始 CT 体积，id 形如 `ct_001`、`ct_002`（3 位数字）；不符此约定的文件不进内置源。
+- 该约定只约束内置示例源。作为项目打开的目录与经 `POST /datasources` 导入的目录接受任意文件名的
+  `.nii`、`.nii.gz`，对象 id 按文件派生（`ct-<源哈希8>-<文件名哈希8>`），见
+  [datasource-registry.md](../../docs/runbooks/datasource-registry.md)「CT、WSI 的识别与对象 id」。
 
 ## 手动拉取（不入仓）
 
