@@ -23,11 +23,17 @@ _ALIAS = {".jpeg": ".jpg"}
 
 
 def _formats() -> dict[str, tuple[bytes, int, str]]:
-    """后缀 → (魔数, offset, modality)，按 SOURCES 登记顺序汇总；同后缀先登记者胜出。"""
+    """后缀 → (魔数, offset, modality)，按 SOURCES 登记顺序汇总；同后缀先登记者胜出。
+
+    只汇总 ``browser_upload`` 为真的 Source（SDD 13 §7.2 规则 13、D-23）：CT、WSI 声明了
+    ``formats`` 供项目识别，但医学卷仍不走浏览器上传。
+    """
     from .sources import SOURCES  # 延迟导入：SOURCES 会导入各数据模块
 
     out: dict[str, tuple[bytes, int, str]] = {}
     for modality, src in SOURCES.items():
+        if not src.browser_upload:
+            continue
         for ext, magic, offset in src.formats:
             out.setdefault(ext.lower(), (magic, offset, modality))
     return out

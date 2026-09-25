@@ -82,5 +82,5 @@ def test_unknown_slide_404():
 def test_dims_match_openslide():
     import openslide
 
-    s = openslide.OpenSlide(str(dataset_wsi._slide_path("slide_001")))
+    s = openslide.OpenSlide(str(dataset_wsi._path_of("slide_001")))
     assert dataset_wsi.dims("slide_001") == (int(s.dimensions[0]), int(s.dimensions[1]))

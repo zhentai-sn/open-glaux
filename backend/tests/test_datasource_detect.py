@@ -7,7 +7,7 @@ import shutil
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, dataset_wsi
 from app import datasource_detect as det
 from app import datasource_registry as reg
 from app.main import app
@@ -59,9 +59,10 @@ def test_import_wsi_autodetects_calibration(tmp_path, monkeypatch):
     monkeypatch.setenv("GLAUX_SOURCES_FILE", str(tmp_path / "sources.json"))
     folder = tmp_path / "myslides"
     folder.mkdir()
-    # 拷一张真实 demo slide（自带 mpp）进白名单目录
-    src_slide = next(
-        p for p in config.WSI_ROOT.glob("slide_*") if p.suffix.lower() in config._WSI_SUFFIXES
+    # 拷一张真实 demo slide（自带 mpp）进白名单目录；取最小的一张，免得复制大切片
+    src_slide = min(
+        (p for p in config.WSI_ROOT.glob("slide_*") if p.suffix.lower() in dataset_wsi._SUFFIXES),
+        key=lambda p: p.stat().st_size,
     )
     shutil.copy(src_slide, folder / src_slide.name)
 

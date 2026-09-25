@@ -56,7 +56,8 @@ def _run_live(volume_id: str, method: str, timeout: float) -> str:
     from . import dataset_ct  # 延迟导入：dataset_ct 模块级 import 本模块
 
     config.TS_CACHE.mkdir(parents=True, exist_ok=True)
-    # 走注册表生效根（与 /volume 取数同一路径），经 /datasources 导入的 CT 源才找得到输入
+    # 经 resolve_object 找到对象所属数据源再取文件（SDD 13 §7.2 规则 12），与 raw 表征同一路径：
+    # 内置、导入与项目源的 CT 都找得到输入
     try:
         in_path = dataset_ct.nifti_path(volume_id)
     except FileNotFoundError as e:

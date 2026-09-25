@@ -37,6 +37,7 @@ class VolumeDetector(DetectorBase):
 
     def methods(self) -> list[ModelInfo]:
         # 注册为 ct_abdomen 的 active 模型：否则切模态时 activeModel 停在上一模态的方法。
+        # 可用性按「存在活动的 CT 数据源」判定（SDD 13 §7.2 规则 14），只有项目源时同样可用。
         if not config.ct_data_available():
             return []
         return [ModelInfo(

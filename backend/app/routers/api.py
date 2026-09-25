@@ -66,11 +66,11 @@ except Exception as exc:  # pragma: no cover - 缺 openslide 时降级
 
 
 def _wsi_ready() -> None:
-    """WSI 端点公共守卫：openslide 装配 + 数据就绪，否则 503。"""
+    """WSI 端点公共守卫：openslide 装配 + 存在活动的病理数据源（SDD 13 §7.2 规则 14），否则 503。"""
     if not WSI_OK:
         raise HTTPException(503, "WSI 模态需 openslide（未装配）")
     if not config.wsi_data_available():
-        raise HTTPException(503, f"WSI 数据未就绪：{config.WSI_ROOT} 无 slide_*")
+        raise HTTPException(503, "WSI 数据未就绪：没有活动的病理数据源")
 
 
 # 意图层已退役（2026-08-16，见 docs/designs/2026-08-16-001-retire-orchestration）：

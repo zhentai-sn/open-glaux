@@ -66,17 +66,26 @@ def test_datasources_carry_kind_label_importable():
         src = SOURCES[row["modality"]]
         assert row["kind"] == src.kind
         assert row["label"] == src.label and row["label_key"] == f"modality.{row['modality']}"
-        assert row["importable"] == [ext for ext, _, _ in src.formats]
+        # 不接受浏览器上传的 Source（CT、WSI）importable 为空（SDD 13 §7.2 规则 13）
+        expected = [ext for ext, _, _ in src.formats] if src.browser_upload else []
+        assert row["importable"] == expected
 
 
 def test_upload_magic_table_derives_from_formats():
-    """受理表只有一处来源：每个 Source 的 formats。"""
+    """受理表只有一处来源：``browser_upload`` 为真的 Source 的 formats（SDD 13 D-23）。"""
     for modality, src in SOURCES.items():
+        if not src.browser_upload:
+            continue
         for ext, magic, offset in src.formats:
             head = b"\0" * offset + magic + b"\0" * 8
             verdict, _ = upload_store.classify(f"f{ext}", head, 10)
             assert verdict == "accept" and upload_store.modality_of(f"f{ext}") == modality
     assert upload_store.classify("f.tiff", b"II*\0", 10) == ("reject", "unsupported_type")
+    # 声明了 formats 但不接受上传的 Source：后缀不进受理表
+    exts = set(upload_store.accepted_extensions())
+    for src in SOURCES.values():
+        if not src.browser_upload:
+            assert src.formats and not {ext for ext, _, _ in src.formats} & exts
 
 
 # --- ObjectMeta 形状 --------------------------------------------------------------

@@ -32,6 +32,7 @@ class WsiDetector(DetectorBase):
         return True
 
     def methods(self) -> list[ModelInfo]:
+        # 可用性按「OpenSlide 可用且存在活动的病理数据源」判定（SDD 13 §7.2 规则 14）。
         if not config.wsi_data_available():
             return []
         return [ModelInfo(
@@ -70,10 +71,16 @@ class WsiDetector(DetectorBase):
         """与 ship 的 reference 检测算质心匹配 F1（复现验证，非真 GT）。
 
         缺 reference → ``FileNotFoundError``（端点 422）；隔离环境不可用 → ``RuntimeError``（503）。
+        参考文件只对内置示例源提供（SDD 13 §7.2 规则 14）：导入源、项目源的切片一律按缺
+        reference 处理。
         """
         from glaux_core.verification.nuclei import nuclei_reproducibility
 
         _, segment_wsi = _wsi_modules()
+        if ref.datasource.origin != "builtin":
+            raise FileNotFoundError(
+                f"reproducibility reference 只对内置示例切片提供：{ref.object_id} 不可核验"
+            )
         ref_path = config.WSI_ROOT / f"{ref.object_id}_ref_nuclei.json"
         if not ref_path.is_file():
             raise FileNotFoundError(

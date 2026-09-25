@@ -117,7 +117,10 @@ class DataSource:
             "kind": src.kind,
             "label": src.label,
             "label_key": src.label_key,
-            "importable": [ext for ext, _magic, _offset in src.formats],
+            # 浏览器上传受理的后缀；不接受上传的 Source 为空（SDD 13 §7.2 规则 13）
+            "importable": (
+                [ext for ext, _magic, _offset in src.formats] if src.browser_upload else []
+            ),
             "default_capabilities": default_capabilities(self.modality),
         }
 
@@ -643,12 +646,21 @@ def ensure_project_source(project: Project, directory: Path, modality: str) -> D
     """按「目录 + 模态」登记项目源；已登记则直接返回原条目（§7.2 规则 3–4、§10 幂等）。
 
     标定沿用 ``Source.detect_calibration``（§7.2 规则 6，与 :func:`register_folder` 的 ``detect``
-    注入同一实现）：探测不出且该模态要求标定 → ``needs_calibration``，不出假值。探测在锁外做
-    （视频要解复用），落表前在锁内再查一次，并发打开同目录只登记一条。
+    注入同一实现），结果只作源级提示、照常落盘（探测不出为 ``{}``）。项目源登记即 ``active``
+    （D-24）：标定以对象级为准，对象缺标定时由 ``/task/run`` 按对象 422，不让整个源退出索引。
+    探测在锁外做（视频要解复用），落表前在锁内再查一次，并发打开同目录只登记一条。
     """
     spec = project_source_spec(project, directory, modality)
     with _state_lock:
         existing = _SOURCES.get(spec.id)
+        # D-24 之前登记的项目源可能落为 needs_calibration：再次打开时提为 active，否则对象恒 404
+        promoted = existing is not None and existing.status == "needs_calibration"
+        if promoted:
+            existing = DataSource(**{**asdict(existing), "status": "active"})
+            _SOURCES[existing.id] = existing
+            _save_persisted()
+    if promoted:
+        _invalidate_dataset_caches()
     if existing is not None:
         return existing
     src_impl = _sources()[modality]
@@ -656,8 +668,7 @@ def ensure_project_source(project: Project, directory: Path, modality: str) -> D
         cal = dict(src_impl.detect_calibration(spec.root) or {})
     except Exception:  # noqa: BLE001 — 探测失败 → 视为无标定
         cal = {}
-    status = "active" if cal or not src_impl.calibration_required else "needs_calibration"
-    src = DataSource(**{**asdict(spec), "calibration": cal, "status": status})
+    src = DataSource(**{**asdict(spec), "calibration": cal, "status": "active"})
     with _state_lock:
         existing = _SOURCES.get(src.id)
         if existing is not None:

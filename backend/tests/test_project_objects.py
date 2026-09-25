@@ -67,7 +67,7 @@ def _write_mp4(path: Path) -> None:
 
 @pytest.fixture
 def project(tmp_path):
-    """项目目录 ``cases/``：两张图、一段文本、一个 CT 文件、一个子目录与一个隐藏文件。"""
+    """项目目录 ``cases/``：两张图、一段文本、一个假 ``.nii.gz``、一个子目录与一个隐藏文件。"""
     root = tmp_path / "cases"
     (root / "sub").mkdir(parents=True)
     (root / "b.jpg").write_bytes(_jpeg())
@@ -183,8 +183,9 @@ def test_outside_project_rejected(project, tmp_path):
 def test_unsupported_and_corrupt(project):
     r = _open(project, "notes.txt")
     assert (r.status_code, _code(r)) == (422, "unsupported_format")
+    # gzip 魔数对、解压后不是 NIfTI-1 头：CT 参与按需识别（SDD 13 P2）后按 corrupt 拒
     r = _open(project, "ct_001.nii.gz")
-    assert (r.status_code, _code(r)) == (422, "unsupported_format")
+    assert (r.status_code, _code(r)) == (422, "corrupt")
     (project.path / "fake.jpg").write_text("not really a jpeg")
     r = _open(project, "fake.jpg")
     assert (r.status_code, _code(r)) == (422, "corrupt")
@@ -195,8 +196,24 @@ def test_unsupported_and_corrupt(project):
     assert _project_sources(project) == []  # 校验不过不留数据源
 
 
+def test_open_real_nifti(project):
+    """真实 NIfTI（文件名不带 ``ct_`` 约定）可在项目中打开，登记一个 CT 项目源。"""
+    nib = pytest.importorskip("nibabel")
+    np = pytest.importorskip("numpy")
+    nib.save(nib.Nifti1Image(np.zeros((4, 5, 3), np.int16), np.eye(4)),
+             str(project.path / "abdomen scan.nii.gz"))
+    r = _open(project, "abdomen scan.nii.gz")
+    assert r.status_code == 200, r.text
+    meta = r.json()
+    assert meta["modality"] == "ct_abdomen" and meta["kind"] == "volume"
+    assert meta["id"].startswith("ct-") and meta["display_name"] == "abdomen scan.nii.gz"
+    assert [a["size"] for a in meta["axes"]] == [4, 5, 3]
+    [ds] = _project_sources(project)
+    assert ds.modality == "ct_abdomen" and ds.status == "active"
+
+
 def test_default_object_id_for_is_unsupported(project, monkeypatch):
-    """候选 Source 未实现 ``object_id_for``（P1 的 CT、WSI 形态）→ unsupported_format。"""
+    """候选 Source 未实现 ``object_id_for``（不参与按需识别的替身）→ unsupported_format。"""
 
     class Legacy(SourceBase):
         modality = "ct_abdomen"
@@ -267,7 +284,7 @@ def test_entries_root_listing(project, tmp_path):
         ("sub", "dir", None, None),
         ("a.png", "file", "natural_image", None),
         ("b.jpg", "file", "natural_image", None),
-        ("ct_001.nii.gz", "file", None, None),
+        ("ct_001.nii.gz", "file", "ct_abdomen", None),
         ("notes.txt", "file", None, None),
     ]
     assert body["total"] == 7

@@ -112,10 +112,6 @@ ANNOTATIONS_ROOT = _env_path("GLAUX_ANNOTATIONS_ROOT", HOME / "glaux_annotations
 # 描述生成走 agent-runtime（主进程无 LLM SDK）；导入期调用，失败不阻塞入库。
 AGENT_RUNTIME_URL = os.environ.get("GLAUX_AGENT_RUNTIME_URL", "http://127.0.0.1:8010")
 
-# WSI vendor 格式后缀（OpenSlide 支持面的子集；v0 走 .svs demo）。
-_WSI_SUFFIXES = (".svs", ".ndpi", ".tif", ".tiff", ".mrxs", ".scn", ".vms", ".bif")
-
-
 def root_has_data(modality: str, root: Path) -> bool:
     """某模态在给定 ``root`` 下是否有数据——薄 alias，判据在 ``SOURCES[modality].probe``。
 
@@ -140,6 +136,24 @@ def _available(modality: str) -> bool:
     return root is not None and root_has_data(modality, root)
 
 
+def _has_active_source(modality: str) -> bool:
+    """该模态存在活动数据源（SDD 13 §7.2 规则 14、D-26）。
+
+    不探测任何全局根下的文件名约定：只有项目源或导入源时同样为真，内置示例源只是其中之一。
+    """
+    from . import datasource_registry as reg  # 延迟导入，避免模块级循环
+
+    return any(not s.synthetic for s in reg.active_sources(modality))
+
+
+def _openslide_available() -> bool:
+    try:
+        import openslide  # noqa: F401
+    except Exception:  # noqa: BLE001 - 缺库或缺 libopenslide
+        return False
+    return True
+
+
 def data_available() -> bool:
     """真实 CUBS 数据集是否就绪。"""
     return _available("carotid_imt")
@@ -161,8 +175,8 @@ def hc_live_available() -> bool:
 
 
 def ct_data_available() -> bool:
-    """CT 体积数据是否就绪（当前生效源下 ship 了至少 1 例 NIfTI）。"""
-    return _available("ct_abdomen")
+    """CT 体积数据是否就绪：存在活动的 CT 数据源（SDD 13 D-26）。"""
+    return _has_active_source("ct_abdomen")
 
 
 def ts_live_available() -> bool:
@@ -171,8 +185,8 @@ def ts_live_available() -> bool:
 
 
 def wsi_data_available() -> bool:
-    """病理 WSI 数据是否就绪（当前生效源下 ship 了至少 1 例 slide）。"""
-    return _available("pathology")
+    """病理 WSI 数据是否就绪：OpenSlide 可用且存在活动的病理数据源（SDD 13 D-26）。"""
+    return _openslide_available() and _has_active_source("pathology")
 
 
 def wsi_live_available() -> bool:

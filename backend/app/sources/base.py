@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -38,6 +39,7 @@ class Source(Protocol):
     modality: str
     kind: str
     formats: tuple[tuple[str, bytes, int], ...]
+    browser_upload: bool
 
     def probe(self, root: Path) -> bool: ...
     def list_ids(self, source: DataSource) -> list[str]: ...
@@ -101,7 +103,10 @@ def suffix_matches(formats: tuple[tuple[str, bytes, int], ...], name: str) -> bo
 
 
 def magic_matches(formats: tuple[tuple[str, bytes, int], ...], path: Path) -> bool:
-    """按文件名命中的 ``formats`` 行校验文件头魔数；后缀不命中或读不了都算不符。"""
+    """按文件名命中的 ``formats`` 行校验文件头魔数；后缀不命中或读不了都算不符。
+
+    同一后缀可声明多行（如 WSI 的 TIFF 与 BigTIFF、大小端四种魔数），任一行命中即符。
+    """
     lower = path.name.lower()
     rows = [(magic, off) for ext, magic, off in formats if lower.endswith(ext.lower())]
     if not rows:
@@ -112,6 +117,19 @@ def magic_matches(formats: tuple[tuple[str, bytes, int], ...], path: Path) -> bo
     except OSError:
         return False
     return any(head[off : off + len(m)] == m for m, off in rows)
+
+
+def derive_object_id(prefix: str, source_id: str, rel_name: str) -> str:
+    """按「数据源 id + 源内文件名」派生对象 id：``<prefix>-<源哈希8>-<文件名哈希8>``。
+
+    同源同文件名恒得同 id；导入源与项目源的 CT、WSI 用它（SDD 13 §7.2 规则 11、D-25），
+    与通用图像 ``nat-``、视频 ``vid-`` 同规则。
+    """
+
+    def h(text: str) -> str:
+        return hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
+
+    return f"{prefix}-{h(source_id)}-{h(rel_name)}"
 
 
 def is_direct_child(source: DataSource, path: Path) -> bool:
@@ -164,6 +182,9 @@ class SourceBase:
     modality: str = ""
     kind: str = "image"
     formats: tuple[tuple[str, bytes, int], ...] = ()
+    #: 是否接受浏览器上传（SDD 13 §7.2 规则 13、D-23）。与 ``formats`` 解耦：``formats`` 是后缀与
+    #: 魔数的唯一来源，项目识别总读它；上传受理表与 ``importable`` 只汇总本开关为真的 Source。
+    browser_upload: bool = True
     #: 模态切换器的服务端兜底文案与 i18n 键（D-22）。
     label: str = ""
     #: 导入时若既无显式标定也探测不出，是否标 ``needs_calibration``。
@@ -211,7 +232,7 @@ class SourceBase:
         """文件在此源下的对象 id（SDD 10 §9.2、D-25；SDD 13 按需打开的唯一入口）。
 
         不属于该源或校验失败返回 ``None``。缺省实现恒为 ``None``：该模态不参与按需识别
-        （P1 的 CT、WSI，SDD 13 §7.2 规则 7），判定见 :func:`supports_object_id_for`。
+        （SDD 13 §7.2 规则 7），判定见 :func:`supports_object_id_for`。
         """
         return None
 

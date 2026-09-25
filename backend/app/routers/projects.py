@@ -192,7 +192,7 @@ def projects_entries(
 def projects_open_object(project_id: str, req: ProjectObjectRequest) -> ObjectMeta:
     """按需打开项目内一个文件，返回其 ``ObjectMeta``（§6.3、§7.2 规则 3–5、§10）。
 
-    后缀无候选、或候选 Source 都不参与按需识别（P1 的 CT、WSI）→ ``unsupported_format``；
+    后缀无候选、或候选 Source 都不参与按需识别（未实现 ``object_id_for``）→ ``unsupported_format``；
     候选都校验不过（魔数不符、无法解码）→ ``corrupt``。同后缀多个候选按 ``SOURCES`` 声明顺序取
     第一个校验通过者。校验先用未登记的源草稿做，通过后才登记，损坏文件不留数据源。
     同一文件重复打开得到同一对象 id，不重复登记（数据源 id 由目录与模态派生）。
