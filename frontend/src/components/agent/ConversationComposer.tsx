@@ -73,7 +73,8 @@ export function ConversationComposer({
     try {
       const uploaded = await uploadImages([picked]);
       const accepted = uploaded.accepted[0];
-      if (!accepted || uploaded.source.modality !== "video") throw new Error(t("agent_video_missing"));
+      const meta = accepted && Object.values(useSession.getState().objects).flat().find((o) => o.id === accepted.id);
+      if (!accepted || !meta?.resources.clip) throw new Error(t("agent_video_missing"));
       setVideo({ objectId: accepted.id, name: picked.name });
     } catch (error) {
       notify("crit", t("agent_video_upload_failed", {

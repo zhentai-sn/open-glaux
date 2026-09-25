@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+from .. import config
 from ..schemas import Index, ObjectMeta, ReferenceFrame, Region
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -208,6 +209,14 @@ class SourceBase:
     def derive_id(self, source: DataSource, rel_name: str) -> str:
         """服务端派生的对象 id（上传受理回执用）。只有可上传的源实现。"""
         raise NotImplementedError(f"{self.modality} 不接受上传")
+
+    def upload_max_bytes(self) -> int:
+        """浏览器上传的单文件字节上限；运行时读取，便于环境变量与测试覆盖。"""
+        return config.UPLOAD_MAX_BYTES
+
+    def validate_upload(self, path: Path, ext: str) -> str | None:
+        """落盘前的内容校验（魔数之后）。通过返回 None，否则返回拒绝原因码。"""
+        return None
 
     # --- 取帧 ---------------------------------------------------------------
 

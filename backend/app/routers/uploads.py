@@ -75,11 +75,7 @@ async def upload_images(
                 rejected.append(UploadRejected(filename=filename, reason=detail))  # type: ignore[arg-type]
                 continue
 
-            limit = (
-                config.VIDEO_UPLOAD_MAX_BYTES
-                if file_modality == "video"
-                else config.UPLOAD_MAX_BYTES
-            )
+            limit = upload_store.upload_max_bytes(filename)
             temp_path: Path | None = None
             try:
                 with tempfile.NamedTemporaryFile(
@@ -101,31 +97,12 @@ async def upload_images(
                         UploadRejected(filename=filename, reason=upload_store.REASON_TOO_LARGE)
                     )
                     continue
-                if file_modality == "video":
-                    from ..dataset_video import (
-                        UnsupportedVideoCodec,
-                        VideoDurationExceeded,
-                        av_available,
-                        validate_upload,
-                    )
-
-                    try:
-                        if not av_available():
-                            raise UnsupportedVideoCodec("视频解码依赖不可用")
-                        await asyncio.to_thread(validate_upload, temp_path, detail)
-                    except UnsupportedVideoCodec:
-                        rejected.append(
-                            UploadRejected(filename=filename, reason="unsupported_codec")
-                        )
-                        continue
-                    except VideoDurationExceeded:
-                        rejected.append(
-                            UploadRejected(filename=filename, reason="duration_exceeded")
-                        )
-                        continue
-                    except (ValueError, OSError):
-                        rejected.append(UploadRejected(filename=filename, reason="corrupt"))
-                        continue
+                reason = await asyncio.to_thread(
+                    SOURCES[file_modality].validate_upload, temp_path, detail
+                )
+                if reason is not None:
+                    rejected.append(UploadRejected(filename=filename, reason=reason))  # type: ignore[arg-type]
+                    continue
 
                 path = target / upload_store.store_name(filename, detail)
                 os.replace(temp_path, path)  # 校验成功后才覆盖同名源；对象 ID 不变

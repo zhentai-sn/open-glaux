@@ -43,6 +43,14 @@ def magic_prefix_len() -> int:
     return max((len(m) + off for m, off, _ in _formats().values()), default=0)
 
 
+def upload_max_bytes(filename: str) -> int:
+    """按后缀取所属 Source 声明的单文件上限；不受理的后缀取通用上限。"""
+    from .sources import SOURCES
+
+    modality = modality_of(filename)
+    return SOURCES[modality].upload_max_bytes() if modality else config.UPLOAD_MAX_BYTES
+
+
 def modality_of(filename: str) -> str | None:
     """按后缀推断上传文件的模态；不受理的后缀 → None。"""
     hit = _formats().get(Path(filename).suffix.lower())
@@ -95,15 +103,14 @@ def image_id(source_id: str, rel_name: str) -> str:
 def classify(filename: str, head: bytes, size: int) -> tuple[str, str]:
     """单个上传文件的受理判定。
 
-    返回 ``("accept", 规范扩展名)`` 或 ``("reject", 原因)``；视频采用独立字节上限。
+    返回 ``("accept", 规范扩展名)`` 或 ``("reject", 原因)``；字节上限由所属 Source 声明。
     判定顺序即 §13 表格顺序：类型 → 大小 → 魔数。
     """
     ext = Path(filename).suffix.lower()
     fmt = _formats().get(ext)
     if fmt is None:
         return ("reject", REASON_UNSUPPORTED)
-    limit = config.VIDEO_UPLOAD_MAX_BYTES if fmt[2] == "video" else config.UPLOAD_MAX_BYTES
-    if size > limit:
+    if size > upload_max_bytes(filename):
         return ("reject", REASON_TOO_LARGE)
     magic, offset, _modality = fmt
     if head[offset : offset + len(magic)] != magic:

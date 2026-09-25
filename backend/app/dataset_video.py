@@ -18,6 +18,7 @@ from bisect import bisect_left
 from functools import lru_cache
 from pathlib import Path
 
+from . import config, upload_store
 from .datasource_registry import DataSource
 from .schemas import Axis, Calibration, ObjectMeta, Stream
 from .sources.base import SourceBase, resources_for
@@ -206,6 +207,23 @@ class VideoSource(SourceBase):
     label = "Video"
     formats = ((".mp4", b"ftyp", 4), (".webm", b"\x1a\x45\xdf\xa3", 0))
     caches = (_probe_file, _decode)
+
+    def upload_max_bytes(self) -> int:
+        return config.VIDEO_UPLOAD_MAX_BYTES
+
+    def validate_upload(self, path: Path, ext: str) -> str | None:
+        """SDD 11 §13：编码白名单、时长上限、首个音画帧可解码。"""
+        try:
+            if not av_available():
+                raise UnsupportedVideoCodec("视频解码依赖不可用")
+            validate_upload(path, ext)
+        except UnsupportedVideoCodec:
+            return upload_store.REASON_UNSUPPORTED_CODEC
+        except VideoDurationExceeded:
+            return upload_store.REASON_DURATION_EXCEEDED
+        except (ValueError, OSError):
+            return upload_store.REASON_CORRUPT
+        return None
 
     def probe(self, root: Path) -> bool:
         return av_available() and bool(_files(root))

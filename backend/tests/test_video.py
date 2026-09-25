@@ -35,7 +35,7 @@ def _level(i: int) -> int:
 def write_mp4(path, *, audio: bool) -> None:
     """合成一段 mp4：第 i 帧为灰度 _level(i) 的纯色帧。"""
     with av.open(str(path), "w") as c:
-        vs = c.add_stream("mpeg4", rate=FPS)
+        vs = c.add_stream("libx264", rate=FPS)
         vs.width, vs.height, vs.pix_fmt = W, H, "yuv420p"
         a = c.add_stream("aac", rate=16000) if audio else None
         if a is not None:

@@ -21,6 +21,7 @@ const spies = vi.hoisted(() => ({
   datasources: vi.fn(async () => []),
   loadSamples: vi.fn(async () => []),
   uploadImages: vi.fn(),
+  uploadFormats: vi.fn(async () => ({ extensions: [".png", ".mp4"] })),
   capabilities: vi.fn(async () => []),
   models: vi.fn(async () => []),
   removeDatasource: vi.fn(async () => ({ ok: true, removed: "x" })),
@@ -70,7 +71,7 @@ describe("Explorer 三态（SDD 08 §11）", () => {
   it("无 active 数据源 → 空态卡，且不发任何数据请求", () => {
     ui();
     expect(screen.getByText("No data yet")).toBeTruthy();
-    expect(screen.getByText("Drop images here")).toBeTruthy();
+    expect(screen.getByText("Drop images or videos here")).toBeTruthy();
     for (const name of ["objects", "images", "naturalImages", "volumes", "slides", "taskRun"] as const) {
       expect(spies[name]).not.toHaveBeenCalled();
     }
@@ -204,9 +205,9 @@ describe("导入入口", () => {
       objects: { carotid_imt: [img("t1", "carotid_imt")] },
     });
     ui();
-    expect(screen.queryByText("Drop images here")).toBeNull();
+    expect(screen.queryByText("Drop images or videos here")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Import data" }));
-    expect(screen.getByText("Drop images here")).toBeTruthy();
+    expect(screen.getByText("Drop images or videos here")).toBeTruthy();
   });
 
   it("空态里点「加载示例数据」调后端", () => {

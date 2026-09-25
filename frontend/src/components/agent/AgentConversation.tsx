@@ -12,7 +12,7 @@ import {
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
-import { useSession } from "../../store/session";
+import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import type { PermissionMode } from "../../agent/runtime/types";
@@ -127,7 +127,8 @@ export function AgentConversation() {
     (state) => state.setPermissionMode,
   );
   const connection = useSession((state) => state.connection);
-  const videoFocused = useSession((state) => state.focus?.kind === "video");
+  // 能力判定：焦点对象声明了音画区间资源（SDD 11），不比较模态名（SDD 10 D-14）。
+  const videoFocused = useSession((state) => Boolean(activeObject(state)?.resources.clip));
   const videoConnectionReady = connection.provider === "openai_compatible"
     && connection.model === "qwen3.8-omni-flash"
     && connection.mediaAdapter === "qwen-omni";

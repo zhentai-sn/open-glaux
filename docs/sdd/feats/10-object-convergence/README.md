@@ -638,7 +638,8 @@ class SourceBase:
     Protocol 之外的挂点（不改 Protocol 签名）：describe()（子类给长期字段）、synthetic_sample()
     （开发者模式合成源）、derive_id(source, rel_name)（上传回执 id）、locate(object_id)（is_mine 兜底
     取数据源）、encoded()/render()（取帧快路径与解码）、calibration_required、supports_window /
-    default_window、label（label_key 由 modality 派生）。"""
+    default_window、label（label_key 由 modality 派生）、upload_max_bytes()（上传单文件上限）、
+    validate_upload(path, ext)（魔数之后的内容校验，返回拒绝原因码或 None）。"""
 
 SOURCES: dict[str, Source] = {}                        # datasource_registry.MODALITIES = tuple(SOURCES)
 
