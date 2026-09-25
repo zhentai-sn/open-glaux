@@ -117,7 +117,7 @@ flowchart LR
 - `components/focus/SessionRail.tsx`：「＋」在当前会话的项目下新建，`title` 显示项目名。
 - 新建 `components/agent/ProjectChip.tsx`，挂在 `ConversationComposer` 上方：空会话可切项目（切到目标项目的空会话，带走草稿、附件、视频），有消息后只读。
 - 新建 `components/agent/FolderPicker.tsx`：快捷根、面包屑、子目录列表、路径输入框；「打开」后 `openProject` → `newSession(projectId)`。
-- `components/ImportPanel.tsx`：删除服务端文件夹部分（`:63-65`、`:78-83`、`:116-130`、`:193-229`）及对应 i18n 键与测试。
+- `components/ImportPanel.tsx`：服务端文件夹部分**推迟到 P2 删除**。P1 的按需识别不支持 CT、WSI，此时删掉会让这两个模态在 P2 之前没有导入途径；P2 让 CT、WSI 支持 `object_id_for` 后，与 Source 改造同批删除。
 - i18n 新键写入 `i18n/zh.ts`、`i18n/en.ts`；图标经 `iconMap.ts` 登记（SDD 06）。
 - 单测：分组与排序；「＋」连点只得一个空会话；胶囊切换带走草稿；有消息后胶囊只读；已移除组不可发送；状态点四态；`SessionRail.test.tsx` 的 mock 更新。
 

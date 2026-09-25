@@ -167,6 +167,21 @@ export function writeBackgroundTaskOutput(
   return true;
 }
 
+/**
+ * 胶囊切换项目（SDD 13 §7.5 规则 4）：把 ``fromSessionId`` 快照里的草稿、附件、视频移到前台，
+ * 原空会话的草稿随之清空。
+ */
+export function carryComposerFrom(fromSessionId: string): void {
+  const ws = snapshots.get(fromSessionId);
+  if (!ws) return;
+  useSession.setState({
+    composerDraft: ws.composerDraft,
+    composerAttachments: ws.composerAttachments,
+    composerVideo: ws.composerVideo,
+  });
+  snapshots.set(fromSessionId, { ...ws, composerDraft: "", composerAttachments: [], composerVideo: null });
+}
+
 /** 后台会话当前快照（测试与只读展示用）。 */
 export function workspaceOf(sessionId: string): SessionWorkspace | undefined {
   return snapshots.get(sessionId);

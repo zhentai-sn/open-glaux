@@ -23,10 +23,12 @@ import {
   File,
   Files,
   Folder,
+  FolderPlus,
   History,
   Image,
   Loader2,
   Menu,
+  MessageSquare,
   Moon,
   MousePointer2,
   Palette,
@@ -43,6 +45,7 @@ import {
   Spline,
   Square,
   Sun,
+  Trash2,
   Waves,
   X,
   type LucideIcon,
@@ -117,4 +120,7 @@ export const ICONS = {
   themeDark: Moon,
   settingsConnection: Plug, // 设置面板分区（SDD 01 v1.7 D23）
   settingsAppearance: Palette,
+  folderPlus: FolderPlus, // 打开项目文件夹（SDD 13）
+  trash: Trash2, // 移除项目（只注销，不删磁盘文件）
+  chat: MessageSquare, // 未归属会话组
 } as const;

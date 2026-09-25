@@ -16,6 +16,7 @@ import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
+import { ProjectChip } from "./ProjectChip";
 
 interface ConversationComposerProps {
   running: boolean;
@@ -197,6 +198,7 @@ export function ConversationComposer({
         }}
       />
       <div className="composer-actions">
+        {!CHAT_EDITION && <ProjectChip />}
         <input
           ref={fileInputRef}
           type="file"

@@ -22,6 +22,7 @@ function view(id: string, index = 0): SessionView {
     context_usage: { tokens: 0 },
     created_at: new Date(2026, 0, index + 1).toISOString(),
     updated_at: new Date(2026, 0, index + 1).toISOString(),
+    project_id: null,
   };
 }
 
@@ -37,6 +38,7 @@ function listItem(session: SessionView): SessionListItem {
     context_usage: session.context_usage,
     created_at: session.created_at,
     updated_at: session.updated_at,
+    project_id: session.project_id,
   };
 }
 
@@ -57,7 +59,13 @@ function fixture() {
       .mockImplementation(async (status?: string) =>
         status === "archived" ? [] : views.map(listItem),
       ),
-    createSession: vi.fn().mockImplementation(async (id: string) => view(id)),
+    createSession: vi
+      .fn()
+      .mockImplementation(async (id: string, options?: { project_id?: string | null }) => {
+        const created = { ...view(id), project_id: options?.project_id ?? null };
+        views.push(created);
+        return created;
+      }),
     getSession: vi
       .fn()
       .mockImplementation(async (id: string) => views.find((item) => item.session_id === id)!),
@@ -229,5 +237,26 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "error" });
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });
     expect(store.getState().unread[a]).toBeUndefined();
+  });
+
+  it("新建会话缺省落在当前会话的项目（SDD 13 §7.4 规则 9）", async () => {
+    const { store, client, a } = await isolated();
+    store.setState((state) => ({
+      sessions: state.sessions.map((s) => (s.session_id === a ? { ...s, project_id: "prj-a" } : s)),
+    }));
+    await store.getState().newSession();
+    expect(client.createSession).toHaveBeenLastCalledWith(expect.any(String), { project_id: "prj-a" });
+    await store.getState().newSession(null);
+    expect(client.createSession).toHaveBeenLastCalledWith(expect.any(String), { project_id: null });
+  });
+
+  it("胶囊切换项目时草稿随之带到目标会话，原会话清空（SDD 13 §7.5 规则 4）", async () => {
+    const { store, useSession, ws, a } = await isolated();
+    useSession.setState({ composerDraft: "带过去的话" });
+    await store.getState().newSession("prj-b", { carryComposer: true });
+    const target = store.getState().currentSessionId!;
+    expect(target).not.toBe(a);
+    expect(useSession.getState().composerDraft).toBe("带过去的话");
+    expect(ws.workspaceOf(a)?.composerDraft).toBe("");
   });
 });

@@ -12,6 +12,7 @@ import {
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
+import { useProjects } from "../../store/projects";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
@@ -22,6 +23,7 @@ import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
+import { projectWritable } from "./sessionGroups";
 import { OwlLogo } from "../OwlLogo";
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
 
@@ -127,6 +129,8 @@ export function AgentConversation() {
     (state) => state.setPermissionMode,
   );
   const connection = useSession((state) => state.connection);
+  const projects = useProjects((state) => state.projects);
+  const projectsLoaded = useProjects((state) => state.loaded);
   // 能力判定：焦点对象声明了音画区间资源（SDD 11），不比较模态名（SDD 10 D-14）。
   const videoFocused = useSession((state) => Boolean(activeObject(state)?.resources.clip));
   const videoConnectionReady = connection.provider === "openai_compatible"
@@ -192,8 +196,11 @@ export function AgentConversation() {
     view?.phase === "stopping" ||
     view?.phase === "compacting";
   const archived = view?.status === "archived";
+  // 项目已移除或目录失效：会话可看不可发（SDD 13 §7.4 规则 4、§11.1）；项目列表未加载前不拦
+  const projectReadonly =
+    projectsLoaded && !!view && !projectWritable(view.project_id ?? null, projects);
   const inputDisabled =
-    !connected || !view || archived || !connection.model.trim();
+    !connected || !view || archived || projectReadonly || !connection.model.trim();
   const reversedAssistantIndex = [...messages]
     .reverse()
     .findIndex((message: unknown) => messageRole(message) === "assistant");
@@ -432,6 +439,9 @@ export function AgentConversation() {
 
       {archived && (
         <div className="agent-readonly">{t("agent_archived_readonly")}</div>
+      )}
+      {!archived && projectReadonly && (
+        <div className="agent-readonly">{t("project_readonly")}</div>
       )}
       {!connection.model && (
         <div className="agent-readonly">{t("agent_model_required")} <button type="button" onClick={openConfig}>{t("cfg_title")}</button></div>

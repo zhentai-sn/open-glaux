@@ -12,6 +12,7 @@ import { TitleBar } from "./components/TitleBar";
 import { api } from "./api/client";
 import { activeModalities, loadInitialObjects, refreshDataSources } from "./data/actions";
 import { useGlobalKeys } from "./keys/globalKeys";
+import { useProjects } from "./store/projects";
 import { useSession } from "./store/session";
 
 export function ResearchApp() {
@@ -41,6 +42,8 @@ export function ResearchApp() {
       } catch {
         /* 后端未起时不阻塞外壳 */
       }
+      // 项目列表（SDD 13）：侧栏分组、项目胶囊与只读判定共用；折叠的会话栏也要能显示项目名
+      void useProjects.getState().refresh().catch(() => undefined);
       // 数据源注册表——SDD 08 起它是「有没有数据」的唯一依据，故必须先于任何数据拉取。
       await refreshDataSources();
       // 一个 active 源都没有 → 文件栏渲染空态引导，此处不再发任何数据请求（§7 规则 4）。

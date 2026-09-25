@@ -65,7 +65,7 @@ export const agentRuntimeApi = {
     ),
   createSession: (
     sessionId: string,
-    options?: { title?: string; permission_mode?: PermissionMode },
+    options?: { title?: string; permission_mode?: PermissionMode; project_id?: string | null },
   ) =>
     request<SessionView>("/sessions", {
       method: "POST",

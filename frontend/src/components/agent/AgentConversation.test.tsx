@@ -25,6 +25,7 @@ const session: SessionView = {
   context_usage: { tokens: 128, context_window: 32_768 },
   created_at: "2026-07-27T00:00:00.000Z",
   updated_at: "2026-07-27T00:01:00.000Z",
+  project_id: null,
 };
 const sessionListItem = {
   session_id: session.session_id,
@@ -37,6 +38,7 @@ const sessionListItem = {
   context_usage: session.context_usage,
   created_at: session.created_at,
   updated_at: session.updated_at,
+  project_id: session.project_id,
 };
 
 describe("AgentConversation", () => {

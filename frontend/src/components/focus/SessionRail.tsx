@@ -3,6 +3,7 @@ import { type LucideIcon } from "lucide-react";
 import { CHAT_EDITION } from "../../edition";
 import { useI18n, type I18nKey } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
+import { useProjects } from "../../store/projects";
 import { useSession, type FocusLayout } from "../../store/session";
 import { SessionDrawer } from "../agent/SessionDrawer";
 import { Icon } from "../Icon";
@@ -95,6 +96,11 @@ export function SessionRail() {
   const setFocusLayout = useSession((s) => s.setFocusLayout);
   const loading = useAgentSessions((s) => s.loading);
   const newSession = useAgentSessions((s) => s.newSession);
+  // ＋ 在当前会话的项目下新建（SDD 13 §7.4 规则 9、10），title 点明目标项目
+  const projectId = useAgentSessions(
+    (s) => s.sessions.find((x) => x.session_id === s.currentSessionId)?.project_id ?? null,
+  );
+  const projectName = useProjects((s) => (projectId ? (s.known[projectId]?.name ?? null) : null));
 
   return (
     <div className={"focus-rail" + (railOpen ? " open" : "")}>
@@ -111,7 +117,7 @@ export function SessionRail() {
         <button
           className="focus-iconbtn"
           type="button"
-          title={t("agent_new_session")}
+          title={projectName ? `${t("agent_new_session")} · ${projectName}` : t("agent_new_session")}
           disabled={loading}
           onClick={() => void newSession()}
         >

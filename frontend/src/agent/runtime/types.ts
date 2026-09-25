@@ -24,6 +24,8 @@ export interface SessionView {
   context_usage: ContextUsage | null;
   created_at: string;
   updated_at: string;
+  /** 创建时绑定的项目，不可改；空为未归属（SDD 13 §7.6、§9.5）。 */
+  project_id: string | null;
 }
 
 export type SessionListItem = Omit<SessionView, "messages" | "video_answers" | "video_observations">;

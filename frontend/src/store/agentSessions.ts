@@ -14,6 +14,7 @@ import {
 } from "../agent/runtime/events";
 import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
 import {
+  carryComposerFrom,
   dropWorkspace,
   restoreWorkspace,
   saveWorkspace,
@@ -51,7 +52,11 @@ interface AgentSessionsState {
   error: { code: string; message: string; traceId?: string } | null;
 
   initialize: () => Promise<void>;
-  newSession: () => Promise<void>;
+  /**
+   * 在项目下新建或复用空会话（SDD 13 §7.4 规则 9、§7.6 规则 3）。``projectId`` 缺省取当前会话的项目，
+   * ``null`` 为未归属。``carryComposer`` 把当前草稿、附件、视频带到目标会话（胶囊切换，§7.5 规则 4）。
+   */
+  newSession: (projectId?: string | null, options?: { carryComposer?: boolean }) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   setSessionStatus: (sessionId: string, status: SessionStatus) => Promise<void>;
@@ -83,12 +88,15 @@ export interface WorkspaceHooks {
   restore: (sessionId: string) => Promise<void>;
   drop: (sessionId: string) => void;
   backgroundSink: (sessionId: string) => TaskOutputSink;
+  /** 把 ``fromSessionId`` 快照里的草稿、附件、视频移到前台（胶囊切换项目时）。 */
+  carryComposer: (fromSessionId: string) => void;
 }
 
 const defaultWorkspaceHooks: WorkspaceHooks = {
   save: saveWorkspace,
   restore: restoreWorkspace,
   drop: dropWorkspace,
+  carryComposer: carryComposerFrom,
   backgroundSink: (sessionId) => ({
     write: (imageId, output) => writeBackgroundTaskOutput(sessionId, imageId, output),
   }),
@@ -235,12 +243,21 @@ export function createAgentSessionsStore(
         });
       },
 
-      newSession: async () => {
+      newSession: async (projectId, options) => {
         await run(async () => {
-          const created = await runtime.createSession(crypto.randomUUID());
+          const from = get().currentSessionId;
+          const target =
+            projectId === undefined
+              ? (get().sessions.find((item) => item.session_id === from)?.project_id ?? null)
+              : projectId;
+          // 后端在同一项目已有空会话时返回它而非新建（SDD 00 §7 规则 2）
+          const created = await runtime.createSession(crypto.randomUUID(), { project_id: target });
           get().applySnapshot(created);
           await refreshList();
           await select(created.session_id);
+          if (options?.carryComposer && from && from !== created.session_id) {
+            workspaces.carryComposer(from);
+          }
         });
       },
 
@@ -275,6 +292,8 @@ export function createAgentSessionsStore(
 
       deleteSession: async (sessionId) => {
         await run(async () => {
+          const deletedProject =
+            get().sessions.find((item) => item.session_id === sessionId)?.project_id ?? null;
           await runtime.deleteSession(sessionId);
           disconnectors.get(sessionId)?.();
           disconnectors.delete(sessionId);
@@ -295,9 +314,21 @@ export function createAgentSessionsStore(
             };
           });
           await refreshList();
-          const next = get().sessions.find((item) => item.status === "active");
+          // 删的不是当前会话时停在原处；否则优先同项目的下一个会话
+          const current = get().currentSessionId;
+          if (current) return;
+          const active = get().sessions.filter((item) => item.status === "active");
+          const next =
+            active.find((item) => (item.project_id ?? null) === deletedProject) ?? active[0];
           if (next) await select(next.session_id);
-          else await get().newSession();
+          else {
+            const created = await runtime.createSession(crypto.randomUUID(), {
+              project_id: deletedProject,
+            });
+            get().applySnapshot(created);
+            await refreshList();
+            await select(created.session_id);
+          }
         });
       },
 
@@ -445,6 +476,7 @@ function toListItem(view: SessionView): SessionListItem {
     context_usage: view.context_usage,
     created_at: view.created_at,
     updated_at: view.updated_at,
+    project_id: view.project_id ?? null,
   };
 }
 

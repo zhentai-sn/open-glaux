@@ -1586,6 +1586,122 @@ canvas {
   justify-content: space-between;
   gap: 8px;
 }
+/* 有项目胶囊时左侧为「胶囊 + 附件」，发送键靠右 */
+.composer-actions .composer-primary { margin-left: auto; }
+
+/* 输入区项目胶囊（SDD 13 §7.5） */
+.project-chip-wrap { position: relative; min-width: 0; }
+.project-chip {
+  display: flex;
+  max-width: 220px;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  color: var(--mid);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+.project-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-chip:not(.locked):hover { color: var(--bright); border-color: var(--agent-line); }
+.project-chip.locked { cursor: default; opacity: 0.75; }
+.project-chip-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  min-width: 200px;
+  max-width: 300px;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.project-chip-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  color: var(--ink);
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+.project-chip-menu button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-chip-menu button:hover { background: var(--hover); }
+.project-chip-menu .project-chip-open { border-top: 1px solid var(--line); margin-top: 3px; padding-top: 8px; }
+
+/* 目录选择器（SDD 13 §5.1） */
+.sheet.folder-picker { width: min(92vw, 640px); display: flex; flex-direction: column; gap: var(--space-3); }
+.folder-picker-path { display: flex; gap: 6px; }
+.folder-picker-path input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  outline: none;
+  background: var(--input);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+.folder-picker-path input:focus { border-color: var(--agent-line); }
+.folder-picker-path button,
+.folder-picker-ft button {
+  padding: 6px 12px;
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  font-size: 12px;
+}
+.folder-picker-path button:disabled,
+.folder-picker-ft button:disabled { opacity: 0.45; }
+.folder-picker-body {
+  display: grid;
+  grid-template-columns: minmax(120px, 170px) 1fr;
+  gap: 8px;
+  height: min(46vh, 360px);
+}
+@media (max-width: 520px) {
+  .folder-picker-body { grid-template-columns: 1fr; height: min(56vh, 420px); }
+  .folder-picker-roots { max-height: 96px; }
+}
+.folder-picker-roots,
+.folder-picker-list {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.folder-picker-roots button,
+.folder-picker-list button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  color: var(--ink);
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+.folder-picker-roots button span,
+.folder-picker-list button span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-picker-roots button:hover,
+.folder-picker-list button:hover { background: var(--hover); }
+.folder-picker-roots button.on { background: var(--agent-dim); }
+.folder-picker-list[aria-busy="true"] { opacity: 0.6; }
+.folder-picker-up { color: var(--mid) !important; }
+.folder-picker-empty { padding: 10px; color: var(--faint); font-size: 12px; }
+.folder-picker-error { color: var(--crit); font-size: 12px; word-break: break-all; }
+.folder-picker-ft { display: flex; justify-content: flex-end; gap: 8px; }
+.folder-picker-ft .primary { color: var(--on-agent); border-color: var(--agent); background: var(--agent); }
 /* 附件入口 + 缩略图条（SDD 00 D-021） */
 .composer-attach {
   overflow: hidden;
@@ -1830,13 +1946,19 @@ canvas {
   display: flex;
   min-width: 0;
   flex: 1;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
   padding: 4px 5px;
   text-align: left;
 }
-.session-select span {
+.session-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.session-text span {
   width: 100%;
   overflow: hidden;
   color: var(--ink);
@@ -1844,9 +1966,92 @@ canvas {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.session-select small {
+.session-text small {
   color: var(--faint);
   font-size: 9px;
+}
+.session-item.archived .session-text span { color: var(--faint); }
+
+/* 会话状态点（SDD 13 §7.4 规则 5）：空闲只占位，保持标题左对齐 */
+.session-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.session-dot.running {
+  background: var(--agent);
+  animation: glx-shimmer 1.4s ease-in-out infinite;
+}
+.session-dot.unread { background: var(--agent); }
+.session-dot.error { background: var(--crit); }
+@media (prefers-reduced-motion: reduce) {
+  .session-dot.running { animation: none; }
+}
+
+/* 项目分组（SDD 13 §7.4） */
+.session-drawer-tools { display: flex; align-items: center; gap: 2px; }
+.session-drawer-tools button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  border-radius: 4px;
+}
+.session-drawer-tools button:hover { color: var(--bright); background: var(--hover); }
+.session-group { margin-bottom: 6px; }
+.session-group-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 0 2px;
+}
+.session-group-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  color: var(--mid);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+.session-group-toggle:hover { color: var(--bright); background: var(--hover); }
+.session-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-group.removed .session-group-name,
+.session-group.missing .session-group-name { color: var(--faint); }
+.session-group-warn { display: inline-flex; color: var(--warn); }
+.session-group-actions { display: none; flex: 0 0 auto; gap: 1px; }
+.session-group-head:hover .session-group-actions,
+.session-group-head:focus-within .session-group-actions { display: flex; }
+.session-group-actions button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  border-radius: 4px;
+}
+.session-group-actions button:hover:not(:disabled) { color: var(--bright); background: var(--input); }
+.session-group-actions button:disabled { opacity: 0.4; }
+.session-group .session-item { margin-left: 10px; }
+.session-archived-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 0;
+  color: var(--faint);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
 }
 .session-actions {
   display: none;
@@ -2103,7 +2308,7 @@ body.resizing .focus-rail { transition: none; }
 .focus-rail-body .session-drawer { position: static; inset: auto; height: 100%; }
 /* 其头部 ✕ 驱动 agentSessions.drawerOpen，与 rail 的 railOpen 无关——rail 作用域内隐藏，收起走 « 按钮。
    （作用域覆盖备案：实现计划 §5；上游类名变更需同 PR 修正。） */
-.focus-rail-body .session-drawer-head button { display: none; }
+.focus-rail-body .session-drawer-close { display: none; }
 
 /* ---- 对话列：Focus 主体。流/配置条/Composer 居中列宽 ≤720px（纲领模式层尺度） ---- */
 .focus-conversation {

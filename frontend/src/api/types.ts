@@ -124,7 +124,7 @@ export interface Capability {
 }
 
 // --- 数据源（注册表 · 文件夹导入） ------------------------------------------
-export type DataSourceOrigin = "builtin" | "imported" | "connector";
+export type DataSourceOrigin = "builtin" | "imported" | "connector" | "project";
 export type DataSourceStatus = "active" | "needs_calibration" | "empty" | "planned";
 
 /** 一个已注册的数据源——镜像 backend schemas.DataSourceInfo。 */
@@ -143,6 +143,34 @@ export interface DataSource {
   importable: string[];
   /** SDD 10 §9.4：无 TaskPlugin 模态的能力位默认集；有任务的模态为空（以 TaskView 为准）。 */
   default_capabilities: string[];
+  /** SDD 13 §9.3：所属项目；空为未归属。 */
+  project_id?: string | null;
+}
+
+// --- 项目与目录浏览（SDD 13 §9.1） -------------------------------------------
+
+/** 目录选择器中的一个目录；``path`` 是后端 POSIX 路径，``display_path`` 是界面显示写法。 */
+export interface DirEntry {
+  name: string;
+  path: string;
+  display_path: string;
+  has_children: boolean;
+}
+
+export interface DirListing {
+  path: string;
+  display_path: string;
+  parent: string | null;
+  entries: DirEntry[];
+}
+
+export interface ProjectView {
+  id: string;
+  name: string;
+  path: string;
+  display_path: string;
+  created_at: string;
+  status: "ok" | "missing";
 }
 
 // --- 浏览器图像上传（SDD 08 §9.2） ------------------------------------------

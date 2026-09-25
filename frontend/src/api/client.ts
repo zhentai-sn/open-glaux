@@ -6,6 +6,8 @@ import type {
   Calibration,
   Capability,
   DataSource,
+  DirEntry,
+  DirListing,
   EditRequest,
   Index,
   Measure,
@@ -14,6 +16,7 @@ import type {
   ModelInfo,
   ObjectMeta,
   Primitive,
+  ProjectView,
   TaskOutput,
   TaskSpec,
   TaskType,
@@ -57,6 +60,22 @@ async function get<T>(path: string): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+/** 与 get 相同，但失败时带出后端 detail——目录浏览要把「不存在 / 无权限」原样告诉用户。 */
+async function getDetailed<T>(path: string): Promise<T> {
+  const r = await fetch(BASE + path);
+  if (!r.ok) {
+    let detail = `${r.status}`;
+    try {
+      const j = await r.json();
+      if (j?.detail) detail = String(j.detail);
+    } catch {
+      /* 非 JSON 错误体 */
+    }
+    throw new ApiError(r.status, detail);
+  }
+  return r.json() as Promise<T>;
+}
+
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(BASE + path, {
     method: "PATCH",
@@ -96,6 +115,13 @@ export const api = {
 
   /** SDD 10：某模态的对象列表（数据轴入口 GET /images?modality= 不变，元素为 ObjectMeta）。 */
   resourceUrl: (path: string) => `${BASE}${path}`,
+
+  /** SDD 13 §9.1：目录浏览与项目登记（后端只接受回环来源）。 */
+  fsRoots: () => getDetailed<DirEntry[]>("/fs/roots"),
+  fsDirs: (path: string) => getDetailed<DirListing>(`/fs/dirs?path=${encodeURIComponent(path)}`),
+  projects: () => get<ProjectView[]>("/projects"),
+  openProject: (path: string) => post<ProjectView>("/projects", { path }),
+  removeProject: (id: string) => del(`/projects/${encodeURIComponent(id)}`),
   objects: (modality: Modality) =>
     get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
   /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */
