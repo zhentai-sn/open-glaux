@@ -4,6 +4,7 @@
 // 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
 import type { Index, Modality, ObjectMeta, Region, TaskSpec, TaskView, UploadResult } from "../api/types";
+import { useAgentSessions } from "../store/agentSessions";
 import { activeObject, TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
 import { pushRecent, pruneRecent } from "./recent";
 
@@ -200,9 +201,35 @@ export async function loadInitialObjects(): Promise<void> {
   await loadObjects(cur && mods.includes(cur) ? cur : mods[0]);
 }
 
+// ---- 项目作用域（SDD 13 §7.8） ----
+
+/** 当前会话所属项目；未归属为 null。 */
+export function currentProjectId(): string | null {
+  const a = useAgentSessions.getState();
+  return a.sessions.find((s) => s.session_id === a.currentSessionId)?.project_id ?? null;
+}
+
+/** 对象所属项目：经其数据源的 project_id 判定；数据源未知时为 undefined。 */
+export function projectOfObject(obj: Pick<ObjectMeta, "source_id">): string | null | undefined {
+  const ds = useSession.getState().datasources.find((d) => d.id === obj.source_id);
+  return ds ? (ds.project_id ?? null) : undefined;
+}
+
+/**
+ * 按路径打开项目内文件（SDD 13 §6.3）：后端校验并按需登记数据源 → 刷新数据源与该模态对象表 →
+ * 走 openObject 设焦点。失败抛 ApiError（code 为 outside_project / unsupported_format / corrupt 等）。
+ */
+export async function openProjectFile(projectId: string, path: string): Promise<ObjectMeta> {
+  const meta = await api.openProjectObject(projectId, path);
+  await refreshDataSources();
+  useSession.getState().setObjects(meta.modality, await api.objects(meta.modality));
+  await openObject(meta.id);
+  return meta;
+}
+
 /** 上传一批本地文件 → 刷新数据源 → 进入其模态并打开首个受理的对象。返回结果供 UI 列出被拒项。 */
 export async function uploadImages(files: File[]): Promise<UploadResult> {
-  const result = await api.uploadImages(files);
+  const result = await api.uploadImages(files, undefined, currentProjectId());
   await refreshDataSources();
   const first = result.accepted[0];
   if (first) await loadObjects(result.source.modality, { open: first.id });

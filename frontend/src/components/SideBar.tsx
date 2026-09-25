@@ -4,11 +4,15 @@ import type { CapabilityLayer, Modality } from "../api/types";
 import {
   loadObjects,
   openObject,
+  projectOfObject,
   prunedRecent,
   reRunActiveModel,
   refreshDataSources,
   removeDataSource,
 } from "../data/actions";
+import { useAgentSessions } from "../store/agentSessions";
+import { useProjects } from "../store/projects";
+import { ProjectTree } from "./ProjectTree";
 import { datasourceOf, displayName } from "../data/objectInfo";
 import { ImportPanel } from "./ImportPanel";
 import { useI18n, type I18nKey } from "../i18n";
@@ -31,7 +35,8 @@ function ModalitySwitch() {
   const seen = new Set<Modality>();
   const opts: Modality[] = [];
   for (const d of datasources) {
-    if (d.status !== "active" || seen.has(d.modality)) continue;
+    // 未归属作用域只看不属于任何项目的数据源（SDD 13 §7.8 规则 2）
+    if (d.status !== "active" || d.project_id || seen.has(d.modality)) continue;
     seen.add(d.modality);
     opts.push(d.modality);
   }
@@ -53,10 +58,18 @@ function ModalitySwitch() {
 }
 
 // 最近使用（SDD 08 §5.4/§9.4）——只读本地记录，点击一律 openObject（对象所属模态未加载时顺带加载）。
-function RecentList() {
+// 只显示当前作用域的条目（SDD 13 §7.8 规则 3）：对象表里查得到的按其数据源的 project_id 判定；
+// 查不到的（模态未加载）只在未归属作用域显示，保持改前行为。
+function RecentList({ scope }: { scope: string | null }) {
   const { t } = useI18n();
   useSession((s) => s.recentItems); // 订阅变更
-  const items = prunedRecent();
+  const objects = useSession((s) => s.objects);
+  useSession((s) => s.datasources);
+  const items = prunedRecent().filter((it) => {
+    const obj = objects[it.modality]?.find((o) => o.id === it.id);
+    if (!obj) return scope === null;
+    return (projectOfObject(obj) ?? null) === scope;
+  });
   if (!items.length) return null;
   const open = (modality: string, id: string) => void openObject(id, modality as Modality);
   return (
@@ -164,9 +177,34 @@ function Dir({
 }
 
 export function ExplorerView() {
+  const { t } = useI18n();
   const dsState = useSession((s) => s.dsState);
   const datasources = useSession((s) => s.datasources);
-  const hasActive = datasources.some((d) => d.status === "active");
+  // 文件栏作用域跟随当前会话的项目（SDD 13 §7.8）：项目会话显示项目目录树，未归属会话保持 SDD 08 形态
+  const projectId = useAgentSessions(
+    (s) => s.sessions.find((x) => x.session_id === s.currentSessionId)?.project_id ?? null,
+  );
+  const project = useProjects((s) => (projectId ? s.projects.find((p) => p.id === projectId) : undefined));
+  const projectsLoaded = useProjects((s) => s.loaded);
+  if (projectId) {
+    if (project) {
+      return (
+        <div className="sb-view">
+          <ProjectTree key={projectId} projectId={projectId} />
+          <RecentList scope={projectId} />
+        </div>
+      );
+    }
+    if (projectsLoaded) {
+      return (
+        <div className="exp-empty">
+          <div className="exp-empty-sub">{t("project_readonly")}</div>
+        </div>
+      );
+    }
+    return <div className="sb-view exp-skel" aria-busy="true" />;
+  }
+  const hasActive = datasources.some((d) => d.status === "active" && !d.project_id);
   // 三态先于一切数据渲染（§11）：loading 显骨架不显文案（避免闪烁），failed 与「空」严格区分。
   if (dsState === "loading") return <div className="sb-view exp-skel" aria-busy="true" />;
   if (dsState === "failed") return <ExplorerFailed />;
@@ -178,7 +216,10 @@ function ExplorerTree() {
   const { t } = useI18n();
   const [importOpen, setImportOpen] = useState(false);
   const modality = useSession((s) => s.modality);
-  const list = useSession((s) => objectsOf(s));
+  const all = useSession((s) => objectsOf(s));
+  useSession((s) => s.datasources);
+  // 未归属作用域：剔除属于项目的对象（/images 返回该模态全部活动源）
+  const list = all.filter((o) => !projectOfObject(o));
   const focusId = useSession((s) => s.focus?.object_id ?? null);
   const obj = useSession((s) => activeObject(s));
   const datasources = useSession((s) => s.datasources);
@@ -205,7 +246,7 @@ function ExplorerTree() {
         </button>
       </div>
       {importOpen && <ImportPanel compact />}
-      <RecentList />
+      <RecentList scope={null} />
       <div>
         <Dir name={t("exp_objects")} depth={0} defaultOpen>
           {shown.map((m) => (

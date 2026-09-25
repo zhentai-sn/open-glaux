@@ -164,6 +164,21 @@ export interface DirListing {
   entries: DirEntry[];
 }
 
+/** 项目内一层条目；``modality`` 只按后缀判定，``object_id`` 是已登记目录下的提示值，打开时仍完整校验。 */
+export interface ProjectEntry {
+  name: string;
+  path: string;
+  type: "dir" | "file";
+  modality: Modality | null;
+  object_id: string | null;
+}
+
+export interface ProjectEntries {
+  path: string;
+  entries: ProjectEntry[];
+  total: number;
+}
+
 export interface ProjectView {
   id: string;
   name: string;

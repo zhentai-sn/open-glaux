@@ -16,6 +16,7 @@ import type {
   ModelInfo,
   ObjectMeta,
   Primitive,
+  ProjectEntries,
   ProjectView,
   TaskOutput,
   TaskSpec,
@@ -29,9 +30,12 @@ const BASE = "/api";
 /** 携带后端错误 reason 的异常（如 VLM 503 不可用）。 */
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, detail: string) {
+  /** 可机读错误码：后端错误体为 ``{detail:{code,message}}`` 时取 code（如 SDD 13 的 outside_project）。 */
+  code?: string;
+  constructor(status: number, detail: string, code?: string) {
     super(detail);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -43,13 +47,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   if (!r.ok) {
     let detail = `${r.status}`;
+    let code: string | undefined;
     try {
       const j = await r.json();
-      if (j?.detail) detail = String(j.detail);
+      if (j?.detail && typeof j.detail === "object") {
+        detail = String(j.detail.message ?? detail);
+        code = typeof j.detail.code === "string" ? j.detail.code : undefined;
+      } else if (j?.detail) detail = String(j.detail);
     } catch {
       /* 非 JSON 错误体 */
     }
-    throw new ApiError(r.status, detail);
+    throw new ApiError(r.status, detail, code);
   }
   return r.json() as Promise<T>;
 }
@@ -122,6 +130,13 @@ export const api = {
   projects: () => get<ProjectView[]>("/projects"),
   openProject: (path: string) => post<ProjectView>("/projects", { path }),
   removeProject: (id: string) => del(`/projects/${encodeURIComponent(id)}`),
+  /** SDD 13 §7.2：列项目内一层条目（按后缀给候选模态）；按需打开一个文件为对象。 */
+  projectEntries: (id: string, path = "") =>
+    getDetailed<ProjectEntries>(
+      `/projects/${encodeURIComponent(id)}/entries${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    ),
+  openProjectObject: (id: string, path: string) =>
+    post<ObjectMeta>(`/projects/${encodeURIComponent(id)}/objects`, { path }),
   objects: (modality: Modality) =>
     get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
   /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */
@@ -168,10 +183,12 @@ export const api = {
    * SDD 08/11：浏览器上传一批图片或视频，服务端按格式决定数据源模态。
    * 不手写 Content-Type——multipart 的 boundary 必须由浏览器生成，写死会让后端解析不出分段。
    */
-  uploadImages: (files: File[], name?: string) => {
+  uploadImages: (files: File[], name?: string, projectId?: string | null) => {
     const form = new FormData();
     for (const f of files) form.append("files", f);
     if (name) form.append("name", name);
+    // SDD 13 §7.8 规则 5：上传源归属当前会话的项目；落盘位置不变
+    if (projectId) form.append("project_id", projectId);
     return fetch(`${BASE}/uploads/images`, { method: "POST", body: form }).then(async (r) => {
       if (!r.ok) throw new ApiError(r.status, await r.text());
       return r.json() as Promise<UploadResult>;

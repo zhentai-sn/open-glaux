@@ -19,6 +19,7 @@ import { ICONS } from "../iconMap";
 import type { PermissionMode } from "../../agent/runtime/types";
 import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
+import { ObjectCard, parseObjectOpened } from "./ObjectCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
@@ -330,6 +331,18 @@ export function AgentConversation() {
                   <OwlLogo size={18} />
                 </div>
                 <AtlasRefCard payload={atlasRef} />
+              </div>
+            );
+          }
+          // 对象卡片：open_file 的工具结果（SDD 13 §7.3 规则 4），是否上舞台由人来点
+          const opened = parseObjectOpened(toolDetails);
+          if (!CHAT_EDITION && opened) {
+            return (
+              <div className="turn assistant tool" key={`obj-${index}-${opened.id}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <ObjectCard payload={opened} />
               </div>
             );
           }
