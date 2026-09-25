@@ -73,7 +73,7 @@ describe("ProjectTree", () => {
     vi.spyOn(actions, "openProjectFile").mockRejectedValue(new ApiError(422, "no", "unsupported_format"));
     renderTree();
     fireEvent.click(await screen.findByText("scan.nii.gz"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("later version");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unsupported file format");
     expect(screen.getByText("readme.txt").closest("button")).toBeNull();
   });
 

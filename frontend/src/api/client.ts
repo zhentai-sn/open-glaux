@@ -172,9 +172,6 @@ export const api = {
   // --- 数据源注册表（观测空间 · 文件夹导入） ---------------------------------
   /** 已注册数据源清单（builtin / imported）——dev-mode 标识 + 导入源删除。 */
   datasources: () => get<DataSource[]>("/datasources"),
-  /** 导入一个文件夹为数据源。缺 calibration 时后端自动探测（读不出 → needs_calibration）。 */
-  importDatasource: (path: string, modality: Modality, calibration?: Record<string, unknown>) =>
-    post<DataSource>("/datasources", { path, modality, calibration: calibration ?? null }),
   /** SDD 08：显式加载仓库自带的示例数据源。幂等；无示例时返回空数组而非报错。 */
   loadSamples: () => post<DataSource[]>("/datasources/samples", {}),
   /** 上传受理后缀，覆盖尚无已注册数据源的模态。 */

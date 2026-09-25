@@ -1,22 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api/client";
-import type { Modality, UploadRejectReason, UploadResult } from "../api/types";
-import { importDataSource, loadSamples, uploadImages } from "../data/actions";
+import type { UploadRejectReason, UploadResult } from "../api/types";
+import { loadSamples, uploadImages } from "../data/actions";
 import { useI18n, type I18nKey } from "../i18n";
-import { useModalityLabel } from "../i18n/modalityLabel";
-import { useSession } from "../store/session";
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 
-// 统一导入面板（SDD 08 §5.4 / §6）——三个入口收在一处：
-// 拖拽/选择本地图像或视频上传 · 打开服务端文件夹（医学）· 加载示例数据。
-// 曾经只有「服务端文件夹路径」一个入口，还埋在插件市场里：那是给开发者用的，
-// 普通用户既没有那个目录概念，也没有把文件放进去的手段。
-
-// 服务端文件夹导入承载浏览器上传放不下的大体积对象（SDD 08 D-5）：候选 = 任务注册表里
-// 几何族为 volume / slide 的模态，不在前端手写模态清单。
-const FOLDER_KINDS = new Set(["volume", "slide"]);
+// 统一导入面板（SDD 08 §5.4 / §6）——拖拽/选择本地图像或视频上传 · 加载示例数据。
+// 服务端目录（含 CT、WSI 等大体积医学数据）经左侧栏「打开文件夹」作为项目接入（SDD 13 D-21）。
 
 const REJECT_KEY: Record<UploadRejectReason, I18nKey> = {
   unsupported_type: "imp_reject_type",
@@ -52,7 +44,7 @@ function prefilter(
 }
 
 export function ImportPanel({ compact }: { compact?: boolean }) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -60,11 +52,6 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
   const [localRejects, setLocalRejects] = useState<{ filename: string; reason: UploadRejectReason }[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // 服务端文件夹导入（医学）
-  const [folderOpen, setFolderOpen] = useState(false);
-  const [path, setPath] = useState("");
-  const tasks = useSession((s) => s.tasks);
-  const label = useModalityLabel();
   const [importable, setImportable] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     let active = true;
@@ -75,12 +62,6 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
       .catch(() => {}); // 清单不可用时由上传接口校验类型
     return () => { active = false; };
   }, []);
-  const folderModalities = useMemo(
-    () => [...new Set(tasks.filter((tk) => tk.object_kinds.some((k) => FOLDER_KINDS.has(k))).map((tk) => tk.modality))],
-    [tasks],
-  );
-  const [picked, setModality] = useState<Modality | null>(null);
-  const modality = picked ?? folderModalities[0] ?? null;
 
   const runUpload = async (files: File[]) => {
     if (!files.length || busy) return;
@@ -106,22 +87,6 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
     try {
       const n = await loadSamples();
       if (!n) setMsg(t("imp_samples_none"));
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runFolder = async () => {
-    const p = path.trim();
-    if (!p || busy || !modality) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const status = await importDataSource(p, modality);
-      setMsg((lang === "zh" ? "已导入 · 状态：" : "Imported · status: ") + status);
-      setPath("");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -189,44 +154,6 @@ export function ImportPanel({ compact }: { compact?: boolean }) {
       <button type="button" className="imp-link" disabled={busy} onClick={() => void runSamples()}>
         {t("imp_load_samples")}
       </button>
-
-      <button
-        type="button"
-        className="dsimp-hd"
-        aria-expanded={folderOpen}
-        onClick={() => setFolderOpen((o) => !o)}
-      >
-        <span className="tw">
-          <Icon icon={folderOpen ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
-        </span>
-        <span>{t("imp_open_folder")}</span>
-      </button>
-      {folderOpen && (
-        <div className="dsimp-bd">
-          <input
-            className="dsin"
-            placeholder={lang === "zh" ? "服务端文件夹路径" : "server folder path"}
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void runFolder()}
-          />
-          <select
-            className="dsin"
-            value={modality ?? ""}
-            onChange={(e) => setModality(e.target.value as Modality)}
-          >
-            {folderModalities.map((m) => (
-              <option key={m} value={m}>
-                {label(m)}
-              </option>
-            ))}
-          </select>
-          <button className="dsbtn" disabled={busy || !path.trim()} onClick={() => void runFolder()}>
-            {busy ? "…" : lang === "zh" ? "导入" : "Import"}
-          </button>
-          <div className="dshint">{t("imp_folder_hint")}</div>
-        </div>
-      )}
 
       {msg && <div className="dsmsg">{msg}</div>}
     </div>

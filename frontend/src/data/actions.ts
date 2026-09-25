@@ -256,14 +256,6 @@ export async function reloadMarket(): Promise<void> {
   useSession.getState().setModels(models);
 }
 
-/** 导入一个文件夹为数据源 → 刷新市场；若导入的是当前模态，刷新对象表。返回状态。 */
-export async function importDataSource(path: string, modality: Modality): Promise<string> {
-  const src = await api.importDatasource(path, modality);
-  await reloadMarket();
-  if (useSession.getState().modality === modality) await loadObjects(modality);
-  return src.status;
-}
-
 /** 删除一个导入源 → 刷新市场与对象表（防删掉正用的源后列表悬空）。 */
 export async function removeDataSource(id: string): Promise<void> {
   await api.removeDatasource(id);

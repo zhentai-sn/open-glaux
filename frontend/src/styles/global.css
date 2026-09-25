@@ -53,7 +53,6 @@ button {
 .act .tip,
 .row,
 .ext,
-.dsimp-hd,
 .tab,
 .ptab,
 .etool,
@@ -291,8 +290,7 @@ button {
   height: 22px;
 }
 /* 文件树行/导入头由 <div> 语义化为 <button>（键盘可达 G10）：撑满宽度、左对齐，观感与原 div 一致 */
-button.row,
-button.dsimp-hd {
+button.row {
   width: 100%;
   text-align: left;
   font: inherit;
@@ -427,24 +425,6 @@ button.row { font-size: 13px; }
 .dsimp {
   border-bottom: 1px solid var(--line);
   font-size: 12px;
-}
-.dsimp-hd {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  color: var(--agent);
-  cursor: pointer;
-  font-weight: 600;
-}
-.dsimp-hd:hover {
-  background: var(--hover);
-}
-.dsimp-bd {
-  padding: 4px 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 .dsin {
   width: 100%;

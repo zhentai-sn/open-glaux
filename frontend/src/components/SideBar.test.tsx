@@ -25,7 +25,6 @@ const spies = vi.hoisted(() => ({
   capabilities: vi.fn(async () => []),
   models: vi.fn(async () => []),
   removeDatasource: vi.fn(async () => ({ ok: true, removed: "x" })),
-  importDatasource: vi.fn(),
 }));
 vi.mock("../api/client", () => ({ api: spies, ApiError: class extends Error {} }));
 
