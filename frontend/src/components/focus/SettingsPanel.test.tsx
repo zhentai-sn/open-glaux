@@ -40,3 +40,22 @@ it("外观分区：切换界面语言即时生效", () => {
   expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: "中文" })).toHaveAttribute("aria-checked", "true");
 });
+
+it("外观分区：强调色预设、取色器与恢复默认", () => {
+  useTheme.getState().setAccent(null);
+  fireEvent.click(screen.getByRole("button", { name: /Appearance/ }));
+  expect(screen.getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("radio", { name: "#3b82f6" }));
+  expect(useTheme.getState().accent).toBe("#3b82f6");
+  expect(document.documentElement.style.getPropertyValue("--accent-user")).toBe("#3b82f6");
+
+  fireEvent.change(screen.getByLabelText("Custom color"), { target: { value: "#12ab34" } });
+  expect(useTheme.getState().accent).toBe("#12ab34");
+  expect(screen.getByText("#12ab34")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+  expect(useTheme.getState().accent).toBeNull();
+  expect(screen.getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+});

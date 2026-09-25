@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { type LucideIcon } from "lucide-react";
 
 import { useI18n, type I18nKey, type Lang } from "../../i18n";
-import { useTheme, type Theme } from "../../store/theme";
+import { DEFAULT_ACCENT, useTheme, type Theme } from "../../store/theme";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
@@ -58,6 +58,68 @@ function SettingRow({ title, desc, children }: { title: string; desc: string; ch
   );
 }
 
+// 强调色预设（SDD feats/12 §7.2）——首项 null 即主题默认紫；其余避开语义色 good/warn/crit 与边界色。
+const ACCENT_PRESETS = ["#6366f1", "#3b82f6", "#06b6d4", "#ec4899", "#64748b"];
+
+/** 强调色：预设色块 + 原生取色器（任意色）+ 当前 hex + 恢复默认。 */
+function AccentPicker() {
+  const { t } = useI18n();
+  const theme = useTheme((s) => s.theme);
+  const accent = useTheme((s) => s.accent);
+  const setAccent = useTheme((s) => s.setAccent);
+  const current = accent ?? DEFAULT_ACCENT[theme];
+  const custom = accent !== null && !ACCENT_PRESETS.includes(accent);
+  const swatch = (c: string) => ({ "--swatch": c }) as CSSProperties;
+
+  return (
+    <div className="settings-accent">
+      <div className="settings-swatches" role="radiogroup" aria-label={t("settings_accent")}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={accent === null}
+          aria-label={t("settings_accent_default")}
+          title={t("settings_accent_default")}
+          className="settings-swatch"
+          style={swatch(DEFAULT_ACCENT[theme])}
+          onClick={() => setAccent(null)}
+        />
+        {ACCENT_PRESETS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            aria-checked={accent === c}
+            aria-label={c}
+            title={c}
+            className="settings-swatch"
+            style={swatch(c)}
+            onClick={() => setAccent(c)}
+          />
+        ))}
+        <label
+          className={"settings-swatch settings-swatch-custom" + (custom ? " on" : "")}
+          style={custom ? swatch(current) : undefined}
+          title={t("settings_accent_custom")}
+        >
+          <input
+            type="color"
+            aria-label={t("settings_accent_custom")}
+            value={current}
+            onChange={(e) => setAccent(e.target.value)}
+          />
+        </label>
+      </div>
+      <span className="settings-accent-hex mono">{current}</span>
+      {accent !== null && (
+        <button type="button" className="settings-link" onClick={() => setAccent(null)}>
+          {t("settings_accent_reset")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AppearanceSection() {
   const { t, lang, setLang } = useI18n();
   const theme = useTheme((s) => s.theme);
@@ -74,6 +136,9 @@ function AppearanceSection() {
             { value: "light", label: t("settings_theme_light") },
           ]}
         />
+      </SettingRow>
+      <SettingRow title={t("settings_accent")} desc={t("settings_accent_desc")}>
+        <AccentPicker />
       </SettingRow>
       <SettingRow title={t("settings_lang")} desc={t("settings_lang_desc")}>
         {/* 语言名用各自语言书写，切换后仍认得出来 */}

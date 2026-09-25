@@ -1,7 +1,9 @@
 /* 设计 Token — 设计稿 §2。结构色借 VS Code Dark+，领域色（智能体/边界/语义）自定。
    语义色（good/warn/crit）与 accent 严格分离。数值一律等宽 + tabular-nums。
    主题（SDD feats/12）：颜色 token 缺省为深色；<html data-theme="light"> 覆盖为浅色。
-   影像视口（[data-viewer-surface]）重新声明深色值，子树内的浮层控件在两种主题下都按深色渲染。 */
+   影像视口（[data-viewer-surface]）重新声明深色值，子树内的浮层控件在两种主题下都按深色渲染。
+   强调色（SDD feats/12 §7.2）：用户自定义时 store 在 <html> 上写 --accent-user / --accent-on / --accent-status，
+   下列 token 以它们为首选、缺省回落到主题默认紫；dim/line 由 --agent 派生，无需单独覆盖。 */
 :root,
 [data-viewer-surface] {
   color-scheme: dark;
@@ -30,12 +32,12 @@
   /* 交互蓝 · 状态栏（状态栏紫与智能体紫 --agent 同系，两种主题共用） */
   --accent: #0e70c0;
   --accent2: #3794ff;
-  --status: #6a3fb0;
+  --status: var(--accent-status, #6a3fb0);
 
-  /* 智能体专属紫 */
-  --agent: #b58bf2;
-  --agent-dim: rgba(181, 139, 242, 0.14);
-  --agent-line: rgba(181, 139, 242, 0.34);
+  /* 智能体专属紫（可由用户强调色覆盖） */
+  --agent: var(--accent-user, #b58bf2);
+  --agent-dim: color-mix(in srgb, var(--agent) 14%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent) 34%, transparent);
 
   /* 边界叠加（沿用 overlay.py 约定） */
   --li: #4fb0ff;
@@ -48,7 +50,7 @@
   --crit: #f76d6d;
 
   /* 强调底上的前景（智能体紫按钮 / 已启用徽标） */
-  --on-agent: #1a0d2e;
+  --on-agent: var(--accent-on, #1a0d2e);
   --on-good: #052;
 
   /* 次级结构面 */
@@ -86,11 +88,11 @@
 
   --accent: #005fb8;
   --accent2: #0078d4;
-  --status: #6a3fb0;
+  --status: var(--accent-status, #6a3fb0);
 
-  --agent: #7c4dd6;
-  --agent-dim: rgba(124, 77, 214, 0.1);
-  --agent-line: rgba(124, 77, 214, 0.32);
+  --agent: var(--accent-user, #7c4dd6);
+  --agent-dim: color-mix(in srgb, var(--agent) 10%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent) 32%, transparent);
 
   --li: #0a76d0;
   --ma: #d9582b;
@@ -100,7 +102,7 @@
   --warn: #b7791f;
   --crit: #d64545;
 
-  --on-agent: #ffffff;
+  --on-agent: var(--accent-on, #ffffff);
   --on-good: #ffffff;
 
   --edge: #e5e5e5;

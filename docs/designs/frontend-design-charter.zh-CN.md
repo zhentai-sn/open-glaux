@@ -133,7 +133,7 @@ Token 真相源在 [tokens.css](../../frontend/src/styles/tokens.css),自 2026-0
 | **共享层**(跨模式恒定) | 结构底/文本层级/描边色 · 智能体紫 `--agent` · 边界叠加 LI/MA/ROI(沿 `overlay.py` 约定) · 语义色 good/warn/crit · 排版(system-ui 栈、等宽数值、13px 正文/11px 区域标题) · 4/6/8px 圆角 · **动效时长与缓动(§5)** | 本纲领 + tokens.css |
 | **模式层**(布局尺度) | 活动栏 48px、侧边栏 250px、Agent 栏 340px 等 → 归 Workbench;对话流列宽 ≤720px、舞台占比等 → 归 Focus | 各模式的 Feature SDD |
 
-主题:结构底/文本层级/描边色与领域色按深色、浅色两档声明在 tokens.css,由 `<html data-theme>` 切换;`--status`(状态栏紫 `#6a3fb0`,与智能体紫 `--agent` 同系)两档共用。规则见 [SDD 12](../sdd/feats/12-theme-switch/README.md)。
+主题:结构底/文本层级/描边色与领域色按深色、浅色两档声明在 tokens.css,由 `<html data-theme>` 切换;`--status`(状态栏紫 `#6a3fb0`,与智能体紫 `--agent` 同系)两档共用。智能体紫一族(`--agent`、`--status` 及派生色)的色相可由用户在设置中自定义,语义不变。规则见 [SDD 12](../sdd/feats/12-theme-switch/README.md)。
 
 ## 7. 纲领的效力与修订
 

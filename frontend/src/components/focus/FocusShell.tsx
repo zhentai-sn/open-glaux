@@ -80,8 +80,10 @@ export function FocusShell() {
   // ---- 栏宽可拖拽（SDD feats/01 v1.3 §7-7 / D15）----
   // 宽度真相在 store（持久化）；本壳只做「范围换算」：把静态上下界与当前实测宽度合成为
   // 「拖到这儿对话列还剩 ≥360px」的动态上界，交给分隔条夹住。
-  const { railOpen, rightOpen, railW, sideW } = useSession((s) => s.focusLayout);
+  const { railOpen, rightOpen, railW, sideW, sideView } = useSession((s) => s.focusLayout);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
+  // 设置面板铺满工作区（SDD feats/01 D25）：对话列只隐藏不卸载，进行中的回合不受影响。
+  const settingsFull = rightOpen && sideView === "settings";
   const bodyRef = useRef<HTMLDivElement>(null);
   // 右侧栏未拖过时按 flex 比例自适应，没有像素真相值——实测一份，供 aria 读数与拖拽起点用。
   const [measured, setMeasured] = useState({ body: 0, side: 0 });
@@ -117,7 +119,12 @@ export function FocusShell() {
       }
     >
       <FocusTopBar />
-      <div className="focus-body" ref={bodyRef} data-side-fixed={sideW !== null ? "1" : undefined}>
+      <div
+        className="focus-body"
+        ref={bodyRef}
+        data-side-fixed={sideW !== null ? "1" : undefined}
+        data-view={settingsFull ? "settings" : undefined}
+      >
         <SessionRail />
         {railOpen && (
           <PaneResizer
@@ -139,7 +146,7 @@ export function FocusShell() {
             <FocusExampleCards onOpenConfig={() => setFocusLayout({ rightOpen: true, sideView: "settings" })} />
           )}
         </div>
-        {rightOpen && (
+        {rightOpen && !settingsFull && (
           <PaneResizer
             value={sideCur}
             min={SIDE_W.min}
