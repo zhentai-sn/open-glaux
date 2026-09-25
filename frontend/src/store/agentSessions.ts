@@ -12,7 +12,13 @@ import {
   piEventType,
   type EventConnector,
 } from "../agent/runtime/events";
-import { applyToolExecutionEvent } from "../agent/toolBridge";
+import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
+import {
+  dropWorkspace,
+  restoreWorkspace,
+  saveWorkspace,
+  writeBackgroundTaskOutput,
+} from "./sessionWorkspaces";
 import type {
   ConnectionInput,
   PermissionMode,
@@ -40,6 +46,8 @@ interface AgentSessionsState {
   connected: boolean;
   drawerOpen: boolean;
   search: string;
+  /** 后台完成、尚未被选中查看的会话（SDD 13 §7.4 规则 5、6）；只存内存。 */
+  unread: Record<string, true>;
   error: { code: string; message: string; traceId?: string } | null;
 
   initialize: () => Promise<void>;
@@ -69,9 +77,27 @@ interface AgentSessionsState {
 
 const CURRENT_SESSION_KEY = "glaux.agent.current-session";
 
+/** 会话工作区的换入换出（SDD 13 §6.5）；测试可注入替身。 */
+export interface WorkspaceHooks {
+  save: (sessionId: string) => void;
+  restore: (sessionId: string) => Promise<void>;
+  drop: (sessionId: string) => void;
+  backgroundSink: (sessionId: string) => TaskOutputSink;
+}
+
+const defaultWorkspaceHooks: WorkspaceHooks = {
+  save: saveWorkspace,
+  restore: restoreWorkspace,
+  drop: dropWorkspace,
+  backgroundSink: (sessionId) => ({
+    write: (imageId, output) => writeBackgroundTaskOutput(sessionId, imageId, output),
+  }),
+};
+
 export function createAgentSessionsStore(
   runtime: AgentRuntimeClient = agentRuntimeApi,
   connectEvents: EventConnector = connectSessionEvents,
+  workspaces: WorkspaceHooks = defaultWorkspaceHooks,
 ): UseBoundStore<StoreApi<AgentSessionsState>> {
   const disconnectors = new Map<string, () => void>();
 
@@ -151,7 +177,18 @@ export function createAgentSessionsStore(
     const select = async (sessionId: string) => {
       const snapshot = await runtime.getSession(sessionId);
       get().applySnapshot(snapshot);
-      set({ currentSessionId: sessionId, drawerOpen: false });
+      const previous = get().currentSessionId;
+      if (previous !== sessionId) {
+        if (previous) workspaces.save(previous);
+        set((state) => {
+          const unread = { ...state.unread };
+          delete unread[sessionId];
+          return { currentSessionId: sessionId, drawerOpen: false, unread };
+        });
+        await workspaces.restore(sessionId);
+      } else {
+        set({ drawerOpen: false });
+      }
       try {
         localStorage.setItem(CURRENT_SESSION_KEY, sessionId);
       } catch {
@@ -170,6 +207,7 @@ export function createAgentSessionsStore(
       connected: false,
       drawerOpen: false,
       search: "",
+      unread: {},
       error: null,
 
       initialize: async () => {
@@ -240,12 +278,21 @@ export function createAgentSessionsStore(
           await runtime.deleteSession(sessionId);
           disconnectors.get(sessionId)?.();
           disconnectors.delete(sessionId);
+          workspaces.drop(sessionId);
           set((state) => {
             const views = { ...state.views };
             const live = { ...state.live };
+            const unread = { ...state.unread };
             delete views[sessionId];
             delete live[sessionId];
-            return { views, live };
+            delete unread[sessionId];
+            // 删的是当前会话时先置空，避免随后 select 把已删会话的前台状态存回快照
+            return {
+              views,
+              live,
+              unread,
+              ...(state.currentSessionId === sessionId ? { currentSessionId: null } : {}),
+            };
           });
           await refreshList();
           const next = get().sessions.find((item) => item.status === "active");
@@ -319,6 +366,16 @@ export function createAgentSessionsStore(
       applySnapshot: (snapshot) =>
         set((state) => {
           const item = toListItem(snapshot);
+          const previousPhase = state.sessions.find(
+            (candidate) => candidate.session_id === snapshot.session_id,
+          )?.phase;
+          // 后台会话从运行中回到 idle 即记未读（SDD 13 §11.3）；出错走状态点的出错态，不记未读
+          const finishedInBackground =
+            snapshot.session_id !== state.currentSessionId &&
+            snapshot.phase === "idle" &&
+            previousPhase !== undefined &&
+            previousPhase !== "idle" &&
+            previousPhase !== "error";
           const sessions = [
             item,
             ...state.sessions.filter(
@@ -331,6 +388,9 @@ export function createAgentSessionsStore(
             sessions,
             views: { ...state.views, [snapshot.session_id]: snapshot },
             live,
+            ...(finishedInBackground
+              ? { unread: { ...state.unread, [snapshot.session_id]: true as const } }
+              : {}),
           };
         }),
 
@@ -338,8 +398,11 @@ export function createAgentSessionsStore(
         const type = piEventType(event);
         if (!type) return;
         if (type === "tool_execution_end") {
-          // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge
-          if (!CHAT_EDITION) applyToolExecutionEvent(event);
+          // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge。
+          // 后台会话的结果只进它自己的工作区快照，不改前台画面（SDD 13 §7.7 规则 5）。
+          if (CHAT_EDITION) return;
+          if (sessionId === get().currentSessionId) applyToolExecutionEvent(event);
+          else applyToolExecutionEvent(event, workspaces.backgroundSink(sessionId));
           return;
         }
         if (type === "message_update") {

@@ -101,11 +101,34 @@ function focusedId(): string | null {
   return useSession.getState().focus?.object_id ?? null;
 }
 
+/** run_task 结果的落点：缺省是前台查看器；后台会话传它自己的工作区快照（SDD 13 §7.7 规则 5）。 */
+export interface TaskOutputSink {
+  write: (
+    imageId: string,
+    output: { metrics: Record<string, Measure> | null; primitives: Primitive[]; modelVersion: string },
+  ) => boolean;
+}
+
+const foregroundSink: TaskOutputSink = {
+  write: (imageId, output) => {
+    if (focusedId() !== imageId) return false;
+    const s = useSession.getState();
+    s.setMetrics(output.metrics);
+    s.setPrimitives(output.primitives);
+    s.setSource("agent");
+    s.setModelVersion(output.modelVersion);
+    // SDD 01 v1.4 §7-2：舞台已是右侧栏常驻底座，展开即可见，故此处不再切标签——
+    // 旧的「切到舞台」会把用户正在用的浏览器列关掉，正是 D16/D17 要消除的抢占。折叠时不打扰。
+    return true;
+  },
+};
+
 /**
  * 处理一条 pi 事件；只认 `tool_execution_end` + `run_task` + 非错误 + 合法 details。
- * 返回是否应用到了查看器。
+ * 返回是否应用到了查看器或 ``sink``。标注建议是对象级共享数据，不论来自哪个会话，
+ * 都按前台焦点决定是否显示（SDD 13 §7.7 规则 6）。
  */
-export function applyToolExecutionEvent(event: unknown): boolean {
+export function applyToolExecutionEvent(event: unknown, sink: TaskOutputSink = foregroundSink): boolean {
   if (!event || typeof event !== "object") return false;
   const e = event as {
     type?: unknown;
@@ -127,15 +150,11 @@ export function applyToolExecutionEvent(event: unknown): boolean {
   }
   if (e.toolName !== RUN_TASK_TOOL_NAME) return false;
   const details = asTaskOutputDetails(e.result?.details);
-  if (!details || focusedId() !== details.image_id) return false;
-
-  const s = useSession.getState();
-  s.setMetrics(details.output.metrics ?? null);
-  s.setPrimitives(details.output.primitives ?? []);
-  s.setSource("agent");
+  if (!details) return false;
   const model = details.output.provenance?.model_version;
-  s.setModelVersion(model === undefined || model === null ? "" : String(model));
-  // SDD 01 v1.4 §7-2：舞台已是右侧栏常驻底座，展开即可见，故此处不再切标签——
-  // 旧的「切到舞台」会把用户正在用的浏览器列关掉，正是 D16/D17 要消除的抢占。折叠时不打扰。
-  return true;
+  return sink.write(details.image_id, {
+    metrics: details.output.metrics ?? null,
+    primitives: details.output.primitives ?? [],
+    modelVersion: model === undefined || model === null ? "" : String(model),
+  });
 }

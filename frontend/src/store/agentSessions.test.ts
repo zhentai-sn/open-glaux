@@ -6,6 +6,7 @@ import type {
   EventHandlers,
 } from "../agent/runtime/events";
 import type { SessionListItem, SessionView } from "../agent/runtime/types";
+import { objectMeta } from "../test/fixtures";
 import { createAgentSessionsStore } from "./agentSessions";
 
 function view(id: string, index = 0): SessionView {
@@ -117,5 +118,116 @@ describe("agent session store", () => {
 
     expect(store.getState().live[sessionId]?.streamingAssistant).toBeDefined();
     expect(JSON.stringify(store.getState())).not.toContain(credential);
+  });
+});
+
+describe("会话状态隔离（SDD 13 §7.7）", () => {
+  const runTaskEnd = (imageId: string, value: number) => ({
+    type: "tool_execution_end",
+    toolCallId: "c1",
+    toolName: "run_task",
+    isError: false,
+    result: {
+      content: [],
+      details: {
+        kind: "glaux.task_output",
+        task: "t",
+        image_id: imageId,
+        output: { metrics: { d: { value, unit: "mm" } }, primitives: [] },
+      },
+    },
+  });
+
+  async function isolated() {
+    localStorage.clear();
+    const { useSession } = await import("./session");
+    const ws = await import("./sessionWorkspaces");
+    ws.resetWorkspacesForTest();
+    useSession.setState({
+      modality: "natural_image",
+      objects: {
+        natural_image: [
+          objectMeta({ id: "x", modality: "natural_image" }),
+          objectMeta({ id: "y", modality: "natural_image" }),
+        ],
+      },
+      focus: null,
+      metrics: null,
+      composerDraft: "",
+    });
+    const f = fixture();
+    await f.store.getState().initialize();
+    const a = f.store.getState().currentSessionId!;
+    const b = f.views.find((v) => v.session_id !== a)!.session_id;
+    return { ...f, useSession, ws, a, b };
+  }
+
+  const focusOn = (id: string) => ({ object_id: id, kind: "image" as const, index: {}, region: null });
+
+  it("后台会话的 run_task 结果不改前台度量，切回后显示", async () => {
+    const { store, handlers, useSession, ws, a, b } = await isolated();
+    useSession.setState({ focus: focusOn("x") });
+    await store.getState().selectSession(b);
+    useSession.setState({ focus: focusOn("y") });
+
+    handlers.get(a)!.onPiEvent({ session_id: a, event: runTaskEnd("x", 1) });
+    expect(useSession.getState().metrics).toBeNull();
+    expect(ws.workspaceOf(a)?.metrics).toEqual({ d: { value: 1, unit: "mm" } });
+
+    await store.getState().selectSession(a);
+    expect(useSession.getState().focus?.object_id).toBe("x");
+    expect(useSession.getState().metrics).toEqual({ d: { value: 1, unit: "mm" } });
+  });
+
+  it("两会话焦点同为一个对象时，后台结果也不覆盖前台", async () => {
+    const { store, handlers, useSession, a, b } = await isolated();
+    useSession.setState({ focus: focusOn("x") });
+    await store.getState().selectSession(b);
+    useSession.setState({ focus: focusOn("x") });
+
+    handlers.get(a)!.onPiEvent({ session_id: a, event: runTaskEnd("x", 2) });
+    expect(useSession.getState().metrics).toBeNull();
+
+    handlers.get(b)!.onPiEvent({ session_id: b, event: runTaskEnd("x", 3) });
+    expect(useSession.getState().metrics).toEqual({ d: { value: 3, unit: "mm" } });
+  });
+
+  it("草稿与焦点随会话切换，互不串", async () => {
+    const { store, useSession, a, b } = await isolated();
+    useSession.setState({ focus: focusOn("y"), composerDraft: "A 的半句话" });
+    await store.getState().selectSession(b);
+    expect(useSession.getState().composerDraft).toBe("");
+    expect(useSession.getState().focus).toBeNull();
+
+    await store.getState().selectSession(a);
+    expect(useSession.getState().composerDraft).toBe("A 的半句话");
+    expect(useSession.getState().focus?.object_id).toBe("y");
+  });
+
+  it("后台会话完成后标记未读，选中后清除", async () => {
+    const { views, store, handlers, a, b } = await isolated();
+    await store.getState().selectSession(b);
+    const viewA = views.find((v) => v.session_id === a)!;
+
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "running" });
+    expect(store.getState().unread[a]).toBeUndefined();
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });
+    expect(store.getState().unread[a]).toBe(true);
+
+    await store.getState().selectSession(a);
+    expect(store.getState().unread[a]).toBeUndefined();
+  });
+
+  it("当前会话自己完成不记未读，出错不记未读", async () => {
+    const { views, store, handlers, a, b } = await isolated();
+    const viewA = views.find((v) => v.session_id === a)!;
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "running" });
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });
+    expect(store.getState().unread[a]).toBeUndefined();
+
+    await store.getState().selectSession(b);
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "error" });
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });
+    expect(store.getState().unread[a]).toBeUndefined();
   });
 });
