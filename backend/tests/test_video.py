@@ -180,7 +180,7 @@ def test_upload_mp4_infers_video_modality(tmp_path, monkeypatch):
         "pic.png": "unsupported_type",
     }
     oid = body["accepted"][0]["id"]
-    assert oid.startswith("vid-") and oid in _by_id()
+    assert oid.startswith("vid-") and _by_id()[oid].display_name == "clip.mp4"
     reg._SOURCES.clear()
 
 

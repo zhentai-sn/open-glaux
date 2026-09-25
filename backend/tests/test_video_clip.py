@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app import config, dataset_video, datasource_detect, video_clip
+from app import config, dataset_video, datasource_detect, upload_store, video_clip
 from app import datasource_registry as reg
 from app.main import app
 
@@ -371,7 +371,9 @@ def test_upload_rejects_each_bad_video_without_half_objects(upload_root, tmp_pat
         "mpeg4.mp4": "unsupported_codec",
         "broken.mp4": "corrupt",
     }
-    assert len(_leftovers(upload_root)) == 1  # 只有 ok.mp4 落盘，无临时文件残留
+    # 只有 ok.mp4 与原始文件名清单落盘，无临时文件残留
+    expected = [upload_store.NAMES_FILE, upload_store.store_name("ok.mp4", ".mp4")]
+    assert sorted(_leftovers(upload_root)) == sorted(expected)
 
 
 def test_upload_video_uses_its_own_byte_limit(upload_root, tmp_path, monkeypatch):

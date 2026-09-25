@@ -151,6 +151,42 @@ def test_uploaded_images_listed_and_fetchable():
         assert len(got.content) > 0
 
 
+def _display_names() -> dict[str, str]:
+    rows = client.get("/images", params={"modality": "natural_image"}).json()
+    return {m["id"]: m["display_name"] for m in rows}
+
+
+def test_display_name_is_original_filename():
+    first = _post(
+        [
+            ("files", ("IMG_2041.jpg", _jpeg(), "image/jpeg")),
+            ("files", ("../../etc/passwd.jpg", _jpeg(), "image/jpeg")),
+        ],
+        name="原名批",
+    )
+    assert first.status_code == 200, first.text
+    ids = [a["id"] for a in first.json()["accepted"]]
+    names = _display_names()
+    assert [names[i] for i in ids] == ["IMG_2041.jpg", "passwd.jpg"]  # 只留 basename
+
+    # 追加上传到同一源：清单合并，先前条目不丢
+    second = _post([("files", ("C:\\photos\\beach.png", _png(), "image/png"))], name="原名批")
+    assert second.status_code == 200, second.text
+    names = _display_names()
+    assert names[second.json()["accepted"][0]["id"]] == "beach.png"
+    assert [names[i] for i in ids] == ["IMG_2041.jpg", "passwd.jpg"]
+
+
+def test_display_name_falls_back_to_stored_name_without_manifest(tmp_path):
+    up = _post([("files", ("a.jpg", _jpeg(), "image/jpeg"))], name="无清单")
+    image_id = up.json()["accepted"][0]["id"]
+    from app import upload_store as us
+
+    for manifest in (tmp_path / "uploads").rglob(us.NAMES_FILE):
+        manifest.unlink()
+    assert _display_names()[image_id].startswith("img-")
+
+
 def test_image_404_after_source_removed():
     up = _post([("files", ("a.jpg", _jpeg(), "image/jpeg"))], name="待删")
     image_id = up.json()["accepted"][0]["id"]

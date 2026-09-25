@@ -276,7 +276,7 @@ class VideoSource(SourceBase):
             kind=self.kind,
             modality=self.modality,
             source_id=source.id,
-            display_name=path.name,
+            display_name=upload_store.display_name(source.root, path),
             axes=[
                 Axis(name="x", size=info["width"]),
                 Axis(name="y", size=info["height"]),

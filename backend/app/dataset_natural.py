@@ -259,8 +259,11 @@ class NaturalSource(SourceBase):
             kind=self.kind,
             modality=self.modality,
             source_id=source.id,
-            # 内置演示的冻结 ID 本身可读（SDD 07），留空由前端回退到 id；其余源取源内文件名。
-            display_name="" if _is_builtin_demo(source) else path.name,
+            # 内置演示的冻结 ID 本身可读（SDD 07），留空由前端回退到 id；上传源取原始文件名，
+            # 其余源取磁盘文件名（SDD 08 §5.3）。
+            display_name=(
+                "" if _is_builtin_demo(source) else upload_store.display_name(source.root, path)
+            ),
             axes=[Axis(name="x", size=w), Axis(name="y", size=h)],
             resources=resources_for(object_id),
             methods=method_refs([]),

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as _dt
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -21,6 +22,7 @@ from ..schemas import DataSourceInfo, UploadAccepted, UploadRejected, UploadResu
 from ..sources import SOURCES
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
+log = logging.getLogger(__name__)
 
 _CHUNK = 1 << 20  # 1 MiB
 
@@ -129,6 +131,12 @@ async def upload_images(
         if made_dir and not any(target.iterdir()):
             target.rmdir()
         raise HTTPException(422, "没有可受理的文件")
+
+    try:
+        upload_store.record_names(target, {path.name: filename for path, filename, _ in stored})
+    except OSError as e:
+        # 文件已落盘；清单写失败只让展示名回退到落盘名，不让整批上传失败
+        log.warning("写原始文件名清单失败：%s: %s", target, e)
 
     # ID 依赖注册后才确定的 source_id，故先注册再派生（§9.3）
     from .. import datasource_detect

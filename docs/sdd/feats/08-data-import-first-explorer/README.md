@@ -66,6 +66,7 @@ status: implemented
 - 导入源白名单根：`datasource_registry.datasets_root()`。
 - 上传落盘根：`datasource_registry.datasets_root() / "uploads"`。
 - 已落盘的导入源清单：`sources.json`。
+- 上传原始文件名清单：每个上传源目录下的 `.glaux-names.json`，形如 `{ "<落盘名>": "<原始文件名>" }`。
 
 ### 4.3 环境开关
 
@@ -130,7 +131,7 @@ status: implemented
   "kind": "image",
   "modality": "natural_image",
   "source_id": "imported-3f2a9c11",
-  "display_name": "img-5d41402abc4b.jpg",
+  "display_name": "IMG_2041.jpg",
   "axes": [{ "name": "x", "size": 4032, "spacing": null, "unit": "px" },
            { "name": "y", "size": 3024, "spacing": null, "unit": "px" }],
   "calibration": null,
@@ -142,7 +143,7 @@ status: implemented
 }
 ```
 
-- `display_name` 取源内文件名：项目文件夹里的图为用户原文件名；浏览器上传的图为落盘名 `img-<哈希12>.<ext>`（原始文件名不落盘，规则 6）；内置示例为空串，前端回退到冻结 ID（SDD 07）。
+- `display_name` 取源内文件名：项目文件夹里的图为磁盘文件名；浏览器上传的图取 `.glaux-names.json` 记录的原始文件名，清单缺失或无该条目时取落盘名 `img-<哈希12>.<ext>`；内置示例为空串，前端回退到冻结 ID（SDD 07）。视频同此规则。
 - `methods` 元素为 `{ name, role }`，`role` 取 `gold` | `agent` | `reference`；通用图像恒为空数组。
 - 数据源展示名只在 `meta.center`，不再有顶层 `center`。
 - `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是过渡字段，由服务端从 `axes` / `calibration` 回填，前端类型不声明；删除时点见 SDD 10 §11.3。
@@ -259,7 +260,7 @@ sequenceDiagram
 3. `natural_image` 在任务注册表中没有 `TaskPlugin`，不得为它伪造任务；其标签与其他模态同一规则，取 `/datasources` 的 `label_key` → `label` → modality 原文。
 4. 无任何活动数据源时，Explorer 只渲染空态，**不得**调用 `/images` / `/volumes` / `/slides` / `/task/run`。
 5. 上传只接受受理表内的类型，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。受理表由 `SOURCES[*].formats` 汇总（SDD 10 §4.1）：JPEG / PNG → `natural_image`，MP4 / WebM → `video`。
-6. **客户端文件名一律不进入文件系统路径。** 服务端为每个接受的文件生成落盘名与图像 ID；原始文件名只回显在响应与 UI 中。
+6. **客户端文件名一律不进入文件系统路径。** 服务端为每个接受的文件生成落盘名与图像 ID；原始文件名只回显在响应与 UI 中：上传时取其 basename（去掉 `/`、`\` 前的目录部分与控制字符，截断到 255 字符）写入该源目录的 `.glaux-names.json`，只作 `display_name` 的展示字符串。该清单只在 `uploads/` 下的源中读取，项目文件夹与服务端文件夹导入源不读。
 7. 上传对象的 ID 由「数据源 id + 源内相对文件名」确定性派生：通用图像形如 `nat-<source_hash8>-<file_hash8>`，视频形如 `vid-<source_hash8>-<file_hash8>`；同一文件重复列举得到同一 ID。
 8. 上传目录必须落在 `datasets_root()/uploads/` 下，并复用 `register_folder` 的白名单校验；越界一律 422。
 9. 某模态无活动数据源时，`/images` 返回空数组、`/image/{id}` 返回 404，不产生 503，也不存在 mock 回退（SDD 10 D-17）；前端规则 4 保证空态下不发这些请求。
@@ -274,7 +275,7 @@ sequenceDiagram
 | 对象 | 职责 | 变更类型 |
 | --- | --- | --- |
 | `backend/app/routers/uploads.py` | `POST /uploads/images`：校验、落盘、注册数据源 | 新增 |
-| `backend/app/upload_store.py` | 落盘目录、文件名与图像 ID 派生、魔数校验 | 新增 |
+| `backend/app/upload_store.py` | 落盘目录、文件名与图像 ID 派生、魔数校验、原始文件名清单读写 | 新增 |
 | `backend/app/datasource_registry.py` | `MODALITIES` 增 `natural_image`；`dev_mode()` 缺省翻 0；新增 `register_builtin_samples()` | 修改 |
 | `backend/app/dataset_natural.py` | 列图/取图从「内置白名单」扩为「内置白名单 + 导入源」 | 修改 |
 | `backend/app/routers/api.py` | 新增 `POST /datasources/samples`；`/images`、`/image/{id}` 自然图像分支接入导入源 | 修改 |
@@ -341,7 +342,7 @@ sequenceDiagram
 
 ## 10. 重复执行规则
 
-- 同一批文件重复上传到同一数据源：文件按内容覆盖同名落盘文件，`accepted[].id` 不变，数据源不重复创建（`register_folder` 已按解析后路径生成确定性 id）。
+- 同一批文件重复上传到同一数据源：文件按内容覆盖同名落盘文件，`.glaux-names.json` 按落盘名合并更新，`accepted[].id` 不变，数据源不重复创建（`register_folder` 已按解析后路径生成确定性 id）。
 - `POST /datasources/samples` 幂等：重复调用不产生重复源，仅刷新状态。
 - `GET /images?modality=natural_image` 重复请求返回相同顺序与相同 ID 集合。
 - 重复点击同一「最近使用」项只重载同一对象，不追加记录，只更新其 `at` 并前移。
@@ -409,6 +410,7 @@ stateDiagram-v2
 - [x] 上传单个超过 `GLAUX_UPLOAD_MAX_BYTES` 的文件返回 `reason=too_large`，且不落盘。
 - [x] 单次上传超过 `GLAUX_UPLOAD_MAX_FILES` 个文件返回 422，且 `uploads/` 下无新增文件。
 - [x] 客户端文件名为 `../../etc/passwd` 时，落盘路径仍在 `datasets_root()/uploads/` 下，返回 ID 匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$`。
+- [x] 上传 `IMG_2041.jpg` 后，`GET /images` 中该对象的 `display_name` 为 `IMG_2041.jpg`；客户端文件名为 `../../etc/passwd.jpg` 时为 `passwd.jpg`。
 - [x] 同一批文件重复上传到同一数据源，`GET /datasources` 条目数不增加，`accepted[].id` 与首次一致。
 - [x] `GET /images?modality=natural_image` 同时返回内置白名单图（示例已加载时）与上传图，重复请求顺序一致。
 - [x] `GET /image/{上传ID}` 返回对应字节；删除该数据源后同一 ID 返回 404。

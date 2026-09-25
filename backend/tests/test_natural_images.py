@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app import dataset_natural
+from app import dataset_natural, upload_store
 from app import datasource_registry as reg
 from app.main import app
 from app.routers import annotations
@@ -49,6 +49,8 @@ def test_display_name_is_file_name_except_builtin_demo(isolated):
     folder.mkdir()
     Image.new("RGB", (4, 3), "white").save(folder / "beach.jpg", format="JPEG")
     Image.new("RGB", (4, 3), "white").save(folder / "hill.png", format="PNG")
+    # 清单只在 uploads/ 下生效；用户目录里的同名文件不认
+    (folder / upload_store.NAMES_FILE).write_text('{"beach.jpg": "spoofed.jpg"}')
     src = reg.register_folder(folder, "natural_image")
 
     source = dataset_natural.SOURCE

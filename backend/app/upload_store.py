@@ -4,14 +4,19 @@
 可独立测。
 
 核心不变量（D7，沿用 SDD 07 D-5 的同一条防线）：**客户端文件名一律不进入文件系统路径**。
-落盘名与图像 ID 都由服务端从哈希确定性派生，原始文件名只回显在响应里。路径穿越因此在结构上
+落盘名与图像 ID 都由服务端从哈希确定性派生，原始文件名只回显在响应里、并作为展示字符串写进
+源目录的 ``.glaux-names.json``（从不参与路径拼接）。路径穿越因此在结构上
 不可能，而不是靠清洗字符串——后者永远在和下一个编码技巧赛跑。
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 from . import config
@@ -98,6 +103,62 @@ def source_dir(name: str, project_id: str | None = None) -> Path:
 def store_name(filename: str, ext: str) -> str:
     """落盘文件名——由客户端文件名哈希而来，同名重传覆盖同一文件，故 ID 稳定（§10）。"""
     return f"img-{_sha1(filename, 12)}{ext}"
+
+
+#: 上传源目录内的原始文件名清单（§7 规则 6）：``{落盘名: 原始文件名}``，只作展示。
+NAMES_FILE = ".glaux-names.json"
+_NAME_MAX = 255
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def display_filename(filename: str) -> str:
+    """客户端文件名 → 展示用 basename：去目录部分与控制字符，截断到 255 字符。"""
+    base = re.split(r"[/\\]", filename)[-1]
+    return _CONTROL.sub("", base).strip()[:_NAME_MAX]
+
+
+def record_names(target: Path, names: dict[str, str]) -> None:
+    """把 ``{落盘名: 原始文件名}`` 合并写入 ``target`` 的清单；写临时文件后原子替换。"""
+    merged = _read_names(target / NAMES_FILE)
+    merged.update({k: v for k, v in ((k, display_filename(v)) for k, v in names.items()) if v})
+    fd, tmp = tempfile.mkstemp(dir=target, prefix=".names-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(merged, f, ensure_ascii=False, sort_keys=True)
+        os.replace(tmp, target / NAMES_FILE)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _read_names(manifest: Path) -> dict[str, str]:
+    try:
+        stat = manifest.stat()
+    except OSError:
+        return {}
+    return dict(_read_names_cached(str(manifest), stat.st_mtime_ns, stat.st_size))
+
+
+@lru_cache(maxsize=64)
+def _read_names_cached(manifest: str, _mtime_ns: int, _size: int) -> dict[str, str]:
+    """按 (路径, mtime, size) 缓存：列举时每个对象都要查一次，不逐个重读清单。"""
+    try:
+        data = json.loads(Path(manifest).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and v}
+
+
+def display_name(root: Path, path: Path) -> str:
+    """对象展示名：上传源取清单里的原始文件名，其余源（及清单缺条目时）取磁盘文件名。
+
+    清单只在 ``uploads/`` 下读——项目文件夹等用户目录里的同名文件不是服务端写的，不认。
+    """
+    if not Path(root).resolve().is_relative_to(uploads_root().resolve()):
+        return path.name
+    return _read_names(Path(root) / NAMES_FILE).get(path.name) or path.name
 
 
 def image_id(source_id: str, rel_name: str) -> str:
