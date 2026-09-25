@@ -180,12 +180,16 @@ def validate_upload(path: Path, ext: str) -> dict:
 
 @lru_cache(maxsize=32)
 def _decode(path: str, mtime_ns: int, t: int):
-    """解出第 t 帧（呈现顺序）为 RGB PIL 图。按时间戳 seek 到前一关键帧再顺解。"""
+    """解出第 t 帧（呈现顺序）为 RGB PIL 图。按时间戳 seek 到前一关键帧再顺解。
+
+    按该帧的源 PTS 精确匹配（容 1 ms 取整误差），不用平均帧率换算：可变帧率下相邻帧间隔可能
+    远小于平均周期（SDD 11 §9）。
+    """
     import av
 
     info = _probe_file(path, mtime_ns)
     target = info["frame_pts_ms"][t] / 1000
-    half = 0.5 / info["fps"]
+    half = 0.001
     last = None
     with av.open(path) as container:
         vs = container.streams.video[0]
