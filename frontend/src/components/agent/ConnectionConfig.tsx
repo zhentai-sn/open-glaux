@@ -39,7 +39,17 @@ function metaForModel(model: VlmModelInfo | undefined, current: Connection) {
   return { contextWindow, maxTokens };
 }
 
-export function ConnectionConfig({ onClose }: { onClose: () => void }) {
+/**
+ * 模型与连接表单。popover：Workbench 对话面板的浮层（带标题与关闭钮）；
+ * panel：嵌进 Focus 设置面板的「模型与连接」分区（SDD feats/01 v1.7 D23），标题与关闭由面板负责。
+ */
+export function ConnectionConfig({
+  onClose,
+  variant = "popover",
+}: {
+  onClose?: () => void;
+  variant?: "popover" | "panel";
+}) {
   const { t } = useI18n();
   const connection = useSession((state) => state.connection);
   const setConnection = useSession((state) => state.setConnection);
@@ -105,8 +115,12 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
   const models = connection.models ?? [];
 
   return (
-    <div className="cfgpop" role="dialog" aria-label={t("cfg_title")}>
-      <div className="cfghead">{t("cfg_title")}</div>
+    <div
+      className={variant === "panel" ? "cfgpanel" : "cfgpop"}
+      role={variant === "panel" ? undefined : "dialog"}
+      aria-label={t("cfg_title")}
+    >
+      {variant === "popover" && <div className="cfghead">{t("cfg_title")}</div>}
       <label className="cfgrow">
         <span>{t("cfg_provider")}</span>
         <select
@@ -260,14 +274,16 @@ export function ConnectionConfig({ onClose }: { onClose: () => void }) {
           </button>
         )}
       </div>
-      <button
-        className="cfgclose"
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-      >
-        <Icon icon={ICONS.close} size="sm" />
-      </button>
+      {variant === "popover" && (
+        <button
+          className="cfgclose"
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <Icon icon={ICONS.close} size="sm" />
+        </button>
+      )}
     </div>
   );
 }

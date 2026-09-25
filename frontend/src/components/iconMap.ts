@@ -29,6 +29,7 @@ import {
   Menu,
   Moon,
   MousePointer2,
+  Palette,
   PanelLeft,
   Pencil,
   Play,
@@ -114,4 +115,6 @@ export const ICONS = {
   archive: Archive,
   themeLight: Sun, // 主题切换（SDD 12）：图标表示点击后的目标主题
   themeDark: Moon,
+  settingsConnection: Plug, // 设置面板分区（SDD 01 v1.7 D23）
+  settingsAppearance: Palette,
 } as const;

@@ -5,11 +5,12 @@ import { BROWSER_W, SIDE_SPLIT, STAGE_MIN, useSession } from "../../store/sessio
 import { AtlasView } from "../atlas/AtlasView";
 import { ExplorerView } from "../SideBar";
 import { PaneResizer } from "./PaneResizer";
+import { SettingsPanel } from "./SettingsPanel";
 import { StagePanel } from "./StagePanel";
 
-// Focus 右侧栏（SDD feats/01 v1.6 §7-2 / §9 / D16–D22）——纯内容区，没有自己的标签条与折叠竖条；
-// 舞台 / 文件 / 图谱的入口统一在左侧栏（SessionRail）。
-// 工作区是舞台或图谱（sideView），二者占同一位置互换；舞台态下文件是与舞台左右分栏的浏览器列。
+// Focus 右侧栏（SDD feats/01 v1.7 §7-2 / §9 / D16–D23）——纯内容区，没有自己的标签条与折叠竖条；
+// 舞台 / 文件 / 图谱 / 设置的入口统一在左侧栏（SessionRail）。
+// 工作区是舞台、图谱或设置（sideView），占同一位置互换；舞台态下文件是与舞台左右分栏的浏览器列。
 // 窄屏降级（§13）：实测侧栏宽放不下两列时退回整栏互斥，并恢复「选图 → 回舞台」。
 // 自身无领域逻辑，只读写 focusLayout 与自身实测宽度。
 
@@ -60,6 +61,14 @@ export function FocusSidePanel() {
 
   // 收起时整栏不渲染：重新打开走左侧栏入口或 Ctrl/Cmd+\（v1.6 D22）。
   if (!rightOpen) return null;
+
+  if (sideView === "settings") {
+    return (
+      <aside className="focus-side" ref={asideRef} aria-label={t("focus_side_panel")}>
+        <SettingsPanel />
+      </aside>
+    );
+  }
 
   if (sideView === "atlas") {
     return (

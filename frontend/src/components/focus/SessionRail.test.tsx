@@ -1,4 +1,4 @@
-// 左侧栏右侧栏入口（SDD feats/01 v1.6 D20/D22，活动栏式）：舞台 / 文件 / 图谱的按下态与点击语义。
+// 左侧栏右侧栏入口（SDD feats/01 v1.6 D20/D22、v1.7 D23，活动栏式）：舞台 / 文件 / 图谱 / 设置的按下态与点击语义。
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,6 +48,15 @@ describe("SessionRail 右侧栏入口", () => {
     expect(btn("Files")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(btn("Files"));
     expect(layout()).toMatchObject({ rightOpen: true, sideView: "stage", browserView: null });
+  });
+
+  it("设置：点击换成设置工作区；再点 → 收起右侧栏", () => {
+    fireEvent.click(btn("Settings"));
+    expect(layout()).toMatchObject({ rightOpen: true, sideView: "settings" });
+    expect(btn("Settings")).toHaveAttribute("aria-pressed", "true");
+    expect(btn("Stage")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(btn("Settings"));
+    expect(layout().rightOpen).toBe(false);
   });
 
   it("图谱：点击换成图谱工作区（不改文件列开合）；再点 → 收起右侧栏", () => {

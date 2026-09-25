@@ -50,17 +50,16 @@ status: implemented
 ## 6. 核心流程
 
 1. `main.tsx` 在首帧渲染前 import `store/theme.ts`；模块加载时读取 `glaux.theme.v1` 并写 `data-theme`。
-2. 用户点击切换按钮 → `toggleTheme()` → 写 `localStorage`、写 `data-theme`、更新 store。
+2. 用户在设置面板选择主题（`setTheme()`）或点击 Workbench 状态栏按钮（`toggleTheme()`）→ 写 `localStorage`、写 `data-theme`、更新 store。
 3. CSS 变量随 `data-theme` 重新求值，界面即时换色，无刷新、无请求。
 
 ## 7. 交互规则（可直接转验收）
 
 - 缺省主题为深色（纲领 G11）。
-- 切换按钮位置：
-  - Focus 模式：顶栏，连接配置按钮左侧。
-  - Workbench 模式：状态栏，语言切换按钮右侧。
-- 按钮图标表示点击后的目标主题：深色下显示太阳，浅色下显示月亮。
-- 按钮 `title` 与 `aria-label` 为「切换到浅色主题」/「切换到深色主题」（随界面语言）。
+- 切换入口：
+  - Focus 模式（含 chat 发行包）：左侧栏底部「设置」→「外观」分区的「主题」行，深色 / 浅色分段单选（[SDD 01](../01-dual-mode-shell/README.md) D23）；顶栏不再有主题按钮。
+  - Workbench 模式：状态栏按钮，语言切换按钮右侧。
+- 状态栏按钮图标表示点击后的目标主题：深色下显示太阳，浅色下显示月亮；`title` 与 `aria-label` 为「切换到浅色主题」/「切换到深色主题」（随界面语言）。
 - 影像视口（带 `data-viewer-surface` 属性的元素）内部始终使用深色 token，包括浮在影像上的工具条、元信息标签。
 - Tooltip 在两档主题下都是深色底白字。
 
@@ -69,8 +68,8 @@ status: implemented
 | 文件 | 改动 |
 | --- | --- |
 | `frontend/src/store/theme.ts` | 主题 store：读取、持久化、写 `data-theme` |
-| `frontend/src/components/ThemeToggle.tsx` | 切换按钮，样式类由所在栏位传入 |
-| `frontend/src/components/focus/FocusTopBar.tsx` | 挂载切换按钮 |
+| `frontend/src/components/ThemeToggle.tsx` | Workbench 状态栏的切换按钮，样式类由所在栏位传入 |
+| `frontend/src/components/focus/SettingsPanel.tsx` | Focus 设置面板「外观」分区的主题分段单选（SDD 01 D23） |
 | `frontend/src/components/StatusBar.tsx` | 挂载切换按钮 |
 | `frontend/src/components/Shell.tsx` | dockview 主题对象随主题切换 |
 | `frontend/src/styles/tokens.css` | 深色 token 声明在 `:root, [data-viewer-surface]`；浅色 token 覆盖 `:root[data-theme="light"]` |
@@ -118,7 +117,7 @@ status: implemented
 ## 11. 页面状态生命周期
 
 - 页面加载：模块初始化时一次性读取并落属性。
-- 运行期：仅响应按钮点击。
+- 运行期：仅响应设置面板选择与状态栏按钮点击。
 - 卸载：无清理动作。
 
 ## 12. 审计或事件规则
@@ -128,17 +127,18 @@ status: implemented
 ## 13. 空状态、异常状态和权限处理
 
 - `localStorage` 不可用（隐私模式等）：读取回退深色；写入失败时仅切换当前页面，不提示。
-- Chat 发行包（`VITE_GLAUX_EDITION=chat`）同样显示 Focus 顶栏的切换按钮。
+- Chat 发行包（`VITE_GLAUX_EDITION=chat`）同样可在左侧栏底部「设置」→「外观」切换主题。
 
 ## 14. 与其他 SDD 的调用关系
 
-- SDD 01：Focus 顶栏与 Workbench 状态栏新增一个按钮；布局规则不变。
+- SDD 01：Focus 的主题入口在设置面板「外观」分区（D23）；Workbench 状态栏新增一个按钮。
 - SDD 06：切换按钮使用 `Icon` 与 `ICONS` 映射。
 
 ## 15. 验收标准
 
 - [x] 无持久化键时为深色；`glaux.theme.v1=light` 时恢复浅色；非法值回退深色（`store/theme.test.ts`）。
 - [x] 切换往返写 `localStorage` 与 `data-theme`（`store/theme.test.ts`）。
+- [x] Focus 设置面板「外观」分区选择浅色 / 深色即时生效并持久化（`SettingsPanel.test.tsx`；浏览器走查深浅往返）。
 - [x] Focus 模式浅色下：外壳白底，会话栏、对话、舞台工具条、图谱视图可读；影像视口保持深色，视口内 `--ink` 取深色值。
 - [x] 深色主题与改动前视觉一致。
 - [x] typecheck 通过；既有前端测试不回退。

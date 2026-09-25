@@ -135,6 +135,11 @@ export function AgentConversation() {
   const setPreview = useSession((state) => state.setImagePreview);
   const { send, regenerate, abort } = useConversation();
   const [configOpen, setConfigOpen] = useState(false);
+  // Focus（含 chat 发行版）：连接配置在右侧设置面板（SDD feats/01 v1.7 D23）；Workbench 仍用浮层。
+  const focusShell = useSession((state) => state.uiMode === "focus");
+  const setFocusLayout = useSession((state) => state.setFocusLayout);
+  const openConfig = () =>
+    focusShell ? setFocusLayout({ rightOpen: true, sideView: "settings" }) : setConfigOpen(true);
   const streamRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -238,7 +243,7 @@ export function AgentConversation() {
       </header>
 
       <div className="agent-configbar">
-        <button type="button" onClick={() => setConfigOpen(true)}>
+        <button type="button" onClick={openConfig}>
           {connection.provider === "openai_compatible"
             ? "OpenAI-compatible"
             : "Anthropic"}
@@ -290,7 +295,7 @@ export function AgentConversation() {
         <div className="agent-error" role="status">
           <span>{t(connection.provider === "openai_compatible" && connection.model === "qwen3.8-omni-flash"
             ? "agent_video_adapter_required" : "agent_video_unsupported")}</span>
-          <button className="agent-video-config" type="button" onClick={() => setConfigOpen(true)}>
+          <button className="agent-video-config" type="button" onClick={openConfig}>
             {t("cfg_title")}
           </button>
         </div>
@@ -429,7 +434,7 @@ export function AgentConversation() {
         <div className="agent-readonly">{t("agent_archived_readonly")}</div>
       )}
       {!connection.model && (
-        <div className="agent-readonly">{t("agent_model_required")} <button type="button" onClick={() => setConfigOpen(true)}>{t("cfg_title")}</button></div>
+        <div className="agent-readonly">{t("agent_model_required")} <button type="button" onClick={openConfig}>{t("cfg_title")}</button></div>
       )}
       <ConversationComposer
         running={Boolean(running)}

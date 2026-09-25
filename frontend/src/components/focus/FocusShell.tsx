@@ -19,7 +19,7 @@ import { PaneResizer } from "./PaneResizer";
 import { SessionRail } from "./SessionRail";
 
 // 空状态示例卡（纲领 G2：示例即教学；meta 行为任务/数据集标识，标识符不翻译）。
-// 点击：连接可用即发送到参考智能体；未配模型则拉起 ⚙ 连接配置（不静默失败）。
+// 点击：连接可用即发送到参考智能体；未配模型则在右侧打开设置面板（不静默失败）。
 const EXAMPLES: { title: I18nKey; desc: I18nKey; meta: I18nKey; prompt: I18nKey }[] = [
   { title: "focus_example_1_title", desc: "focus_example_1_desc", meta: "focus_example_1_meta", prompt: "focus_example_1_prompt" },
   { title: "focus_example_2_title", desc: "focus_example_2_desc", meta: "focus_example_2_meta", prompt: "focus_example_2_prompt" },
@@ -72,7 +72,6 @@ function FocusExampleCards({ onOpenConfig }: { onOpenConfig: () => void }) {
 // 领域状态全在共享 store，本组件零领域逻辑；对话列整体复用 AgentPanel（即 AgentConversation）。
 export function FocusShell() {
   const { t } = useI18n();
-  const [configOpen, setConfigOpen] = useState(false);
   const view = useAgentSessions((s) =>
     s.currentSessionId ? s.views[s.currentSessionId] : undefined,
   );
@@ -117,7 +116,7 @@ export function FocusShell() {
         } as CSSProperties
       }
     >
-      <FocusTopBar configOpen={configOpen} onConfigToggle={setConfigOpen} />
+      <FocusTopBar />
       <div className="focus-body" ref={bodyRef} data-side-fixed={sideW !== null ? "1" : undefined}>
         <SessionRail />
         {railOpen && (
@@ -136,7 +135,9 @@ export function FocusShell() {
           <ErrorBoundary label="conversation">
             <AgentPanel />
           </ErrorBoundary>
-          {emptyConversation && <FocusExampleCards onOpenConfig={() => setConfigOpen(true)} />}
+          {emptyConversation && (
+            <FocusExampleCards onOpenConfig={() => setFocusLayout({ rightOpen: true, sideView: "settings" })} />
+          )}
         </div>
         {rightOpen && (
           <PaneResizer

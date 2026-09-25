@@ -95,5 +95,5 @@ manifest：`{"query": "…", "tags": ["TEM","EDD"], "items": [{"image": "img/001
 | Atlas 页面显示"图谱不可用（HTTP_404）" | backend 是旧进程（无 `/atlas` 路由）→ 重启 backend |
 | "图谱不可用（ATLAS_UNAVAILABLE …）" | backend 缺 lancedb 依赖 → `cd backend && uv sync` |
 | 网页导入一律 `FETCH_BLOCKED` | 目标解析到真实私网 → `GLAUX_VLM_HOST_ALLOW` 加白；若报的是 `198.18.x.x`，检查是否被显式设了 `GLAUX_VLM_ALLOW_FAKEIP=0` |
-| "先在连接设置里选择一个视觉模型" | 描述生成需要 ⚙ 连接设置里选定支持图像的模型 |
+| "先在连接设置里选择一个视觉模型" | 描述生成需要在「设置 → 模型与连接」里选定支持图像的模型 |
 | 描述"待补描述" | VLM 返回非 JSON 两次 / 网络失败 → 详情页"生成描述"重试 |

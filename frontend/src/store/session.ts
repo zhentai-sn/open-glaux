@@ -90,10 +90,11 @@ const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
 /**
- * Focus 右侧工作区（SDD feats/01 v1.5 / D20）：舞台或图谱，二者占同一位置互换；对话列始终保留。
- * 图谱是一级入口，开关在左侧栏，不再是右侧浏览器列的标签。
+ * Focus 右侧工作区（SDD feats/01 v1.5 D20 / v1.7 D23）：舞台、图谱或设置，占同一位置互换；对话列始终保留。
+ * 入口都在左侧栏，不是右侧浏览器列的标签。
  */
-export type FocusSideView = "stage" | "atlas";
+export type FocusSideView = "stage" | "atlas" | "settings";
+const SIDE_VIEWS: readonly FocusSideView[] = ["stage", "atlas", "settings"];
 /**
  * 舞台旁的浏览器列（SDD feats/01 v1.4 §9 / D16、D18；v1.5 起只剩文件）。
  * `null` = 浏览器列关闭，侧栏纯舞台。
@@ -178,7 +179,7 @@ function loadFocusLayout(): FocusLayout {
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
           rightOpen,
-          sideView: p.sideView === "stage" || p.sideView === "atlas" ? p.sideView : legacyAtlas ? "atlas" : "stage",
+          sideView: SIDE_VIEWS.includes(p.sideView as FocusSideView) ? p.sideView! : legacyAtlas ? "atlas" : "stage",
           browserView: p.browserView === "files" ? "files" : legacy,
           browserW: loadWidth(p.browserW, BROWSER_W),
           railW: loadWidth(p.railW, RAIL_W),

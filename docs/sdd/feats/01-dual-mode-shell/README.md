@@ -9,7 +9,7 @@ status: implemented
 
 | 项 | 值 |
 | --- | --- |
-| SDD 状态 | `implemented`（v1.6 舞台 / 文件 / 图谱入口统一收进左侧栏、右侧栏去掉标签条与折叠竖条 2026-09-25 实现完成、自查见 §15 v1.6；v1.5 图谱升为一级入口、与舞台互换右侧工作区，工作台入口缺省关闭 2026-09-25 实现完成、自查见 §15 v1.5；v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
+| SDD 状态 | `implemented`（v1.7 设置面板占据右侧工作区、入口在左侧栏底部，顶栏去掉图像上下文 chip 与主题按钮 2026-09-25 实现完成、自查见 §15 v1.7；v1.6 舞台 / 文件 / 图谱入口统一收进左侧栏、右侧栏去掉标签条与折叠竖条 2026-09-25 实现完成、自查见 §15 v1.6；v1.5 图谱升为一级入口、与舞台互换右侧工作区，工作台入口缺省关闭 2026-09-25 实现完成、自查见 §15 v1.5；v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
 | 最近更新 | 2026-09-25 |
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
@@ -64,7 +64,7 @@ status: implemented
 | --- | --- | --- |
 | 模式切换动作 | — | 顶栏按钮,双向切换 |
 | 对话消息 | — | 沿用现有会话基础设施(feats/00),Focus 不改发送语义 |
-| 图像选择 | — | Focus 内经右侧栏「文件」标签或对话完成(v1.2 起顶栏不再承担选择,D14);Workbench 仍经资源管理器 |
+| 图像选择 | — | Focus 内经左侧栏「文件」入口打开的文件浏览器列或对话完成(顶栏不承担选择与显示,D14/D24);Workbench 仍经资源管理器 |
 | 修正手势 | — | 点选/圈画,Focus 舞台内可用(非技术研究者刚需,见 §7) |
 
 ### 4.2 系统输入
@@ -83,7 +83,7 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- Focus 布局:左侧栏(会话列表可收起;竖条是活动栏,含会话 ☰ ＋ 与右侧栏的**舞台 / 文件 / 图谱**三个一级入口,v1.5 D20、v1.6 D22)/ 居中对话流 / **右侧工作区**(纯内容区,收起时不渲染;舞台或图谱二选一,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20)/ 极简顶栏(标识、**只读图像上下文标签**、设置,以及仅在开放工作台时出现的模式切换;v1.2 D14,v1.5 D21)。
+- Focus 布局:左侧栏(会话列表可收起;竖条是活动栏,含会话 ☰ ＋、右侧栏的**舞台 / 文件 / 图谱**入口与底部的**设置**,v1.5 D20、v1.6 D22、v1.7 D23)/ 居中对话流 / **右侧工作区**(纯内容区,收起时不渲染;舞台、图谱或设置三选一,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20,v1.7 D23)/ 极简顶栏(只有标识,以及仅在开放工作台时出现的模式切换;v1.5 D21,v1.7 D24)。
 - Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮);入口缺省关闭,构建时设 `VITE_GLAUX_WORKBENCH=1` 才开放(D21)。
 - 切换后界面即时呈现目标模式,数据原地保留。
 
@@ -121,7 +121,7 @@ flowchart TD
     APP -- full --> RA["ResearchApp<br/>数据装载 effect 与模式无关,仅挂载时跑一次"] --> M{useSession.uiMode}
     M -- focus --> FS[FocusShell 新增]
     M -- workbench --> WB[现状树:TitleBar + ActivityBar + Shell dockview + StatusBar]
-    FS --> FT["FocusTopBar 新增<br/>标识 · 图像上下文标签(只读,点击→舞台 + 文件浏览器列) · ⚙ 弹层 · ⇄(仅开放工作台时)"]
+    FS --> FT["FocusTopBar<br/>标识 · ⇄(仅开放工作台时)"]
     FS --> PZ["PaneResizer ×2<br/>会话栏 ⇄ 对话列 ⇄ 右侧栏"]
     FS --> SR["SessionRail 薄壳<br/>活动栏:会话 ☰ ＋ · 舞台 / 文件 / 图谱入口(v1.6);展开复用 SessionDrawer"]
     FS --> CC[对话列<br/>复用 AgentConversation + ConversationComposer]
@@ -156,10 +156,14 @@ flowchart TD
    - `Ctrl/Cmd+\` 开合右侧栏(feats/05),重新打开时恢复收起前的工作区。
    - 舞台与浏览器列之间有第三条拖拽分隔条(见第 7 条)。
    - **窄屏降级**:侧栏可用宽度 < `SIDE_SPLIT_MIN` 时无法并排,退回 v1.1 的整栏互斥形态——浏览器内容占满侧栏,且在文件浏览器选中图像后自动切回舞台。宽度回到阈值以上即恢复分栏,`browserView` 不因降级被改写。
-   - 自动切换:仅在窄屏降级态存在(选图 → 回舞台)。分栏态下选图**不**关闭浏览器列——同屏切图正是本形态的目的。`run_task` 结果写回查看器;会话卡片"在图谱中打开"展开右侧栏并换成图谱工作区的对应案例;顶栏图像上下文 chip 展开右侧栏、回到舞台并打开文件列。
+   - 自动切换:仅在窄屏降级态存在(选图 → 回舞台)。分栏态下选图**不**关闭浏览器列——同屏切图正是本形态的目的。`run_task` 结果写回查看器;会话卡片"在图谱中打开"展开右侧栏并换成图谱工作区的对应案例。
 3. **舞台不可省**:点选/圈画修正手势与"低风险试一把"核对(前端设计纲领 G4)必须在 Focus 舞台可用——Focus 不是纯聊天,是**对话 + 舞台**。
 4. **度量呈现**:度量摘要卡挂在舞台,数据取自同一 `store.metrics`;agent 的 `run_task` 结果经 toolBridge 写回查看器与 store。对话内嵌 `taskrun` 卡片仍未落地(见[实现计划 §1.3](../../../plans/2026-08-13-001-feat-dual-mode-shell-plan.md))。
-5. **设置收纳**:VLM 连接配置(designs/2026-07-14-001)在 Focus 收进顶栏 ⚙ 弹层;Workbench 入口不动。
+5. **设置面板(v1.7,D23)**:左侧栏竖条底部的 ⚙「设置」入口把右侧工作区换成设置面板,点击语义与图谱入口相同(未按下 → 打开;按下 → 收起右侧栏);chat 发行版同样有此入口。
+   - 面板左列为分区导航,右列为当前分区内容;面板宽 < 520px 时导航改为顶部横排、设置行改为上下排列。缺省打开「模型与连接」。
+   - 「模型与连接」:嵌入 `ConnectionConfig` 的面板形态(provider / base_url / 密钥 / 模型 / 音画适配器 / 上下文参数 / 测试 / 拉取),契约同 designs/2026-07-14-001。
+   - 「外观」:主题(深色 / 浅色,写 SDD 12 的 `useTheme`)与界面语言(中文 / English,写 i18n 语言),均为分段单选、即时生效。
+   - 其余打开连接配置的入口(对话状态行、视频模型提示、「请先配置模型」提示、空状态示例卡)在 Focus 下一律打开设置面板;Workbench 仍用浮层。
 6. **反长回规则(硬约束)**:后续新能力默认 Workbench 独占;进入 Focus 必须显式设计并更新本 SDD——防止 Focus 逐渐长回一个 IDE。
 7. **栏宽可调(v1.3;v1.4 增第三条)**:Focus 栏间各有一条拖拽分隔条——会话栏 ⇄ 对话列、对话列 ⇄ 右侧栏,以及(v1.4)右侧栏内的**舞台 ⇄ 浏览器列**。第三条只在分栏态渲染:浏览器列关闭或处于窄屏降级态时不渲染。它夹在 `BROWSER_W` 范围内,并保证舞台不小于 `STAGE_MIN`;交互(双击复位、`role="separator"`、←/→ 16px、Home 复位)与前两条完全一致,复用同一 `PaneResizer`。拖拽**在允许范围内**改变两侧栏宽度,对话列吃剩余空间(始终 ≥ 360px);越界即被夹住,不产生横向滚动、不把任一栏拖没。折叠态的栏不可拖(会话栏收成 40px 活动栏,右侧栏收起即不渲染),分隔条隐藏;展开后恢复。双击分隔条复位为默认宽度。分隔条为 `role="separator"` 可聚焦,←/→ 每次 16px、Home 复位(与 feats/05 键盘可达一致)。宽度随 `focusLayout` 持久化,刷新与模式往返保持。
 8. **动效**(按[纲领 §5](../../../designs/frontend-design-charter.zh-CN.md)):模式切换为 ≤320ms 朴素 crossfade(两模式是同一世界的两种视角,不做戏剧化转场);舞台/会话栏开合 200–280ms ease-out,退场更短;`prefers-reduced-motion` 下全部降级为瞬时切换,功能语义不依赖动效;动效时长/缓动用 token,不写死。
@@ -170,7 +174,7 @@ flowchart TD
 | --- | --- | --- |
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
 | 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, sideView:"stage", browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换(仅开放工作台时) |
-| 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则拉起 ⚙ 连接配置 |
+| 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则在右侧打开设置面板(v1.7) |
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;不改 SessionDrawer 内部 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset),按钮为图标 + 文字,宽度放不下(按钮全宽 + 选项段 + 提示至少 160px)时只留图标、文字改由 `title` 提示;空间不足时先截断绘制提示,再压缩选项段;角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |
@@ -188,12 +192,17 @@ flowchart TD
 | 改动(v1.1) | `FocusTopBar` | 移除 v1.0 临时的 📖 图谱切换钮(feats/03 D-19 v1),右侧栏开合与标签切换全部收进 `FocusSidePanel` |
 | 改动(v1.2) | `FocusTopBar` | 移除内部 `ImageContextPicker`(两级原生 `<select>`)及其与 `ExplorerView` 重复的模态/列表派生逻辑,改为只读 chip;选择动作唯一入口为右侧栏「文件」标签(D14) |
 | 新增 | `ModeSwitch` | 无状态按钮,调 `setUiMode`;Focus/Workbench 顶栏共用 |
-| 复用不改 | AgentConversation、SessionDrawer、ConnectionConfig、各 Viewer | 语义零改动;仅被新壳组合 |
+| 复用不改 | SessionDrawer、各 Viewer | 语义零改动;仅被新壳组合 |
+| 改动(v1.7) | `ConnectionConfig` | 增 `variant: "popover" \| "panel"`;`panel` 去掉浮层外框、标题与关闭钮,嵌入设置面板「模型与连接」分区;字段与行为不变 |
+| 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时对话状态行、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
+| 新增(v1.7) | `SettingsPanel` | 设置面板:分区导航(模型与连接 / 外观)+ 内容;外观分区写 `useTheme` 与 i18n 语言;容器查询 < 520px 时导航横排 |
+| 改动(v1.7) | `SessionRail` / `FocusSidePanel` / `ChatShell` | 竖条底部增 ⚙ 设置入口(chat 发行版也有);`FocusSidePanel` 在 `sideView="settings"` 时整栏渲染 `SettingsPanel`;`ChatShell` 在同条件下于对话列右侧渲染 |
+| 改动(v1.7) | `FocusTopBar` / `FocusShell` | 顶栏删除图像上下文 chip、主题按钮与 ⚙ 弹层,只剩标识与 ⇄;`FocusShell` 删除 `configOpen` 状态,示例卡改为打开设置面板(D24) |
 | 复用微调 | ConversationComposer | 草稿从组件本地 state 升入 store(内存态,不落 localStorage)——两模式对话列是不同实例,切换重挂载时草稿必须保留(§15);发送清空/失败恢复语义不变 |
 | 改动 | `App.tsx` | 按 `uiMode` 分叉渲染两棵子树(§6.2);数据装载 effect 不动 |
 | 改动 | `TitleBar` | 右侧加 ModeSwitch |
 | Focus 不渲染 | ActivityBar、SideBar、BottomPanel、TerminalView、StatusBar、dockview | DOM 级不存在(§15 有断言) |
-| Focus 内 CSS 隐藏/重排 | AgentConversation 顶部工具条、其内嵌 SessionDrawer 浮层与空态占位;空状态下另隐藏连接/权限配置条;非空状态下连接/权限条经 flex order 移至输入框下方(Claude Code 式状态行) | 会话操作归 SessionRail、连接配置归顶栏 ⚙、空态归 FocusHero(G3 收纳);空状态 Composer 经 CSS 化为设计稿的「输入框卡片」;作用域覆盖集中在 global.css Focus 段并注释 |
+| Focus 内 CSS 隐藏/重排 | AgentConversation 顶部工具条、其内嵌 SessionDrawer 浮层与空态占位;空状态下另隐藏连接/权限配置条;非空状态下连接/权限条经 flex order 移至输入框下方(Claude Code 式状态行) | 会话操作归 SessionRail、连接配置归左侧栏「设置」、空态归 FocusHero(G3 收纳);空状态 Composer 经 CSS 化为设计稿的「输入框卡片」;作用域覆盖集中在 global.css Focus 段并注释 |
 
 ## 9. 状态与展示字段
 
@@ -206,7 +215,7 @@ flowchart TD
   - 迁移:旧 `rightView:"stage"` → `browserView:null`;`"files"` → `"files"`;`"atlas"` → `"atlas"`;缺失或非法值 → `null`。`browserW` 非有限数/非正数回 `null`,否则 `clamp` 到 [`BROWSER_MIN`=240, `BROWSER_MAX`=480]。
   - 常量:`BROWSER_W = {min:240, max:480, def:240}`(缺省即最窄,D19);`STAGE_MIN = 360`;`SIDE_SPLIT_MIN = 640`(= 浏览器最小 + 舞台最小 + 分隔条余量,低于此值即窄屏降级)。阈值带 24px 迟滞:分栏 → 降级取 `< 640`,降级 → 分栏取 `≥ 664`,避免拖到临界时反复重排。
   - 分栏判定读**实测**侧栏宽度(与 v1.3 `FocusShell.room()` 同一套实测机制),不读持久化的 `sideW`——`sideW` 为 `null` 时没有像素真相值。
-- **右侧工作区(v1.5)**:`FocusLayout` 增 `sideView: "stage" | "atlas"`(缺省 `stage`),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump。
+- **右侧工作区(v1.5;v1.7 增 `settings`)**:`FocusLayout` 增 `sideView: "stage" | "atlas" | "settings"`(缺省 `stage`),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump;`sideView` 非法值按下述迁移规则推断,否则回 `stage`。设置面板的当前分区是组件内状态,不持久化(每次打开缺省「模型与连接」)。
   - 迁移:v1.4 的 `browserView:"atlas"` 或更早的 `rightView:"atlas"` → `sideView:"atlas"`、`browserView:null`;`sideView` 缺失或非法 → 按前述规则推断,否则 `stage`;`browserView` 仅 `"files"` 保留,其余 → `null`(旧 `rightView:"files"` 仍迁为 `"files"`)。
   - 两字段正交:切到图谱不改写 `browserView`,回到舞台时文件列恢复原开合。
 - 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排);v1.5 起为 `rightOpen && sideView==="stage"`。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。
@@ -249,7 +258,7 @@ stateDiagram-v2
 | 相关 SDD | 关系 |
 | --- | --- |
 | [feats/00 参考智能体与会话](../00-reference-agent-conversations/README.md) | Focus 复用其全部会话 UI 与运行时,不改契约;其"只改造右侧面板"的边界由本 SDD 显式扩展为"该面板可作为 Focus 主体渲染" |
-| [designs/2026-07-14-001 连接配置](../../../designs/2026-07-14-001-agent-connection-config.zh-CN.md) | Focus 侧入口迁入 ⚙ 弹层;契约不变 |
+| [designs/2026-07-14-001 连接配置](../../../designs/2026-07-14-001-agent-connection-config.zh-CN.md) | Focus 侧入口为左侧栏「设置」→「模型与连接」分区(v1.7);契约不变 |
 | [designs/2026-07-06 IDE 前端](../../../designs/2026-07-06-glaux-ide-frontend.zh-CN.md) | 其布局整体成为 Workbench 模式;该设计稿的"外壳=产品"前提被本 SDD 修正为"外壳=专家模式" |
 | [designs/2026-08-13-001 双模式外壳设计](../../../designs/2026-08-13-001-dual-mode-shell.zh-CN.md) | 本 SDD 的交互设计展开(已评审通过) |
 | [designs/前端设计纲领](../../../designs/frontend-design-charter.zh-CN.md) | 上位原则;本需求落地 G1(双模式)/G2(对话优先)/G3(反长回)/G4(舞台一等)/G8(单一真相源) |
@@ -351,6 +360,19 @@ v1.6(入口统一收进左侧栏):
 - **已完成**:上述各项。
 - **未完成**:无(§15 v1.6 范围内)。
 
+v1.7(设置面板 + 顶栏精简):
+
+- [x] 左侧栏竖条底部有 ⚙ 设置入口(chat 发行版也有);点击后右侧换成设置面板,再点收起右侧栏。——`SessionRail.test.tsx`;浏览器走查
+- [x] 设置面板缺省打开「模型与连接」分区,内嵌面板形态的连接表单;切到「外观」后可选深色 / 浅色与中文 / English,即时生效。——`SettingsPanel.test.tsx`;浏览器走查深浅往返
+- [x] 设置面板宽 < 520px 时导航改为顶部横排、设置行改为上下排列,无横向滚动。——浏览器实测(面板宽 424px)
+- [x] Focus 顶栏只剩标识与 ⇄(开放工作台时);无图像上下文 chip、主题按钮与 ⚙ 弹层。——`FocusTopBar.test.tsx`
+- [x] Focus 下对话状态行等连接配置入口打开设置面板而非浮层。——实现见 `AgentConversation.openConfig`;浏览器走查
+
+开发侧验证(2026-09-25,浏览器走查 + vitest `253 passed` / eslint / tsc 全绿):
+
+- **已完成**:上述各项。
+- **未完成**:无(§15 v1.7 范围内)。
+
 ## 16. 决策记录
 
 | 编号 | 决策 | 理由 |
@@ -378,7 +400,9 @@ v1.6(入口统一收进左侧栏):
 | D20(v1.5,2026-09-25,由维护者提出,**修订 D16 的图谱部分**) | 图谱从右侧浏览器列的标签升为**左侧栏一级入口**;点击后图谱**替换舞台**占据右侧工作区,对话列保留 | ① 图谱是与会话并列的能力(案例库),不是舞台的附属浏览器;放进"文件 / 图谱"标签条会把两类概念混在一行;② 对话是主线,右侧是工作区——舞台与图谱是同一位置的两种工作内容,互换而非并排,右侧不再出现三列;③ 左栏图标切换右侧内容,与活动栏(activity bar)切换主视图的通行模式一致;④ 代价是舞台与图谱不能同屏,但案例详情自带案例图,核对当前图时切回舞台即可;⑤ `sideView` 与 `browserView` 正交,切换不丢文件列开合 |
 | D21(v1.5,2026-09-25,由维护者提出) | 工作台(Workbench)入口改为构建期开关 `VITE_GLAUX_WORKBENCH`,**缺省关闭** | ① 产品定位以 Focus 为唯一面向用户的形态,工作台是开发与专家调试用的备用外壳;② 与 `VITE_GLAUX_EDITION` 同为构建期开关,不做浏览器偏好,避免用户误入后找不到回路;③ 关闭时同时移除按钮、快捷键与速查项,并把持久化的 `workbench` 回落 Focus,不存在无入口可退的状态;④ Workbench 代码保留,开发时设 `VITE_GLAUX_WORKBENCH=1` 即可使用 |
 | D22(v1.6,2026-09-25,由维护者提出,**推翻 D11**) | 舞台 / 文件 / 图谱入口与图谱一起收进左侧栏活动栏;右侧栏去掉标签条、顶部按钮与 40px 折叠竖条,收起即不渲染 | ① v1.5 后入口分散在三处(左栏图谱、右侧标签条「文件」、右侧折叠竖条的舞台 / 文件),同一类"切换右侧内容"的动作有三种样式;② 活动栏是切换视图的通行模式:图标常驻一处、按下态即当前视图、点按下的图标收起面板;③ 右侧栏收起后宽度归零,空间全部还给对话列,右侧栏顶部也不再占一行给标签条;④ D11 的"与左侧对称的图标竖条"在入口集中到左侧后失去用途;⑤ "舞台"入口语义取纯舞台而非保留文件列:窄屏降级态下文件列会整栏盖住舞台,点了舞台却看到文件是错误反馈 |
+| D23(v1.7,2026-09-25,由维护者提出) | 连接配置与主题、界面语言合并为**设置面板**,占据右侧工作区,入口在左侧栏竖条底部;面板按分区(模型与连接 / 外观)组织 | ① 浮层 300px 宽、叠在对话上,字段多(provider、地址、密钥、模型、适配器、上下文参数)时拥挤,且与对话抢焦点;占据右侧工作区后与舞台 / 图谱同一套开合语义;② 分区导航可随设置项增长扩展,不必再为每类偏好在顶栏加按钮;③ 设置是低频全局操作,放竖条底部符合活动栏惯例(常用视图在上、设置在下);④ chat 发行版没有舞台与图谱,但连接配置是对话前提,故设置入口两个发行版都有 |
+| D24(v1.7,2026-09-25,由维护者提出,**推翻 D14 ②**) | 顶栏删除图像上下文 chip;顶栏只剩标识与 ⇄ | ① D14 保留 chip 的理由是"右侧栏停在图谱时仍能看到当前图",但舞台角标已显示图名,文件列高亮当前对象,chip 的信息重复;② chip 的点击动作(打开文件列)已由左侧栏「文件」入口覆盖;③ 顶栏只保留全局标识,入口统一在左侧栏,与 D22 一致 |
 
 ## 17. 待确认问题
 
-无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13);v1.3 栏宽可拖拽 2026-08-19 由维护者提出并确认范围约束(D15);v1.4 舞台常驻 + 左右分栏、窄屏保留自动跳转 2026-08-30 由维护者拍板(D16–D18),同日据实机走查追加浏览器列右置与缺省最窄(D19);v1.5 图谱一级入口与工作台入口缺省关闭 2026-09-25 由维护者提出并确认交互形态(D20、D21);同日维护者提出把舞台 / 文件入口也收进左侧栏(D22,v1.6)。
+无。Q1(设计稿)于 2026-08-13 评审通过;Q2/Q3/Q4 决议分别入 §16 D7/D8/D9;v1.1 右侧栏方案 2026-08-16 由维护者口头确认(D10–D13);v1.3 栏宽可拖拽 2026-08-19 由维护者提出并确认范围约束(D15);v1.4 舞台常驻 + 左右分栏、窄屏保留自动跳转 2026-08-30 由维护者拍板(D16–D18),同日据实机走查追加浏览器列右置与缺省最窄(D19);v1.5 图谱一级入口与工作台入口缺省关闭 2026-09-25 由维护者提出并确认交互形态(D20、D21);同日维护者提出把舞台 / 文件入口也收进左侧栏(D22,v1.6),以及设置面板与顶栏精简(D23、D24,v1.7,入口命名「设置」由维护者选定)。
