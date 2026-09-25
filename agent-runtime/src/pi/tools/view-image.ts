@@ -131,7 +131,9 @@ export function createViewCurrentImageTool(
           {
             type: "text",
             text:
-              `This is ${imageId}${frameIndex ? ` at ${frameIndex}` : ""} (${frame.width}×${frame.height} px), ` +
+              `This is ${imageId}${frameIndex ? ` at ${frameIndex}` : ""}` +
+              `${observation.time_ms !== undefined ? `, source time ${observation.time_ms} ms` : ""}` +
+              ` (${frame.width}×${frame.height} px), ` +
               "exactly what the user has open in the viewer." +
               (labels.length
                 ? ` The dataset files it under ${labels.join(", ")} — that is a catalogue label, not an observation.` +

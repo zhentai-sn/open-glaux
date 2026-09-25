@@ -186,7 +186,7 @@ export class VideoTurn {
     await this.submit({
       object_id: this.objectId,
       claims: [],
-      unanswered: ["本轮没有形成可校验的证据回答"],
+      unanswered: ["本轮没有提交带证据的结论，上方回答未经证据校验"],
     });
   }
 

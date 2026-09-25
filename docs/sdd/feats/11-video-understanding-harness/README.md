@@ -85,7 +85,7 @@ sequenceDiagram
     U->>B: 点击证据时从 resources.clip 重新取片
 ```
 
-模型独自选择观察顺序、区间、`fps` 和停止时机；runtime 只执行预算与证据约束。模型通信只发生在 agent-runtime。Pi 的消息类型目前只有文本／图像；适配器在出站 `onPayload` 中保留工具结果的文字标识，并紧接新观测的工具结果插入一条仅用于本次请求的 `user` 媒体消息，标明它是环境观测而非新用户指令，内容为 Qwen `video_url`。真实调用显示 `video_url` 放在 `tool` 内容块时只计视频 token、不计音频 token；放在受控媒体消息时音视频 token 都出现。适配器同时设置 `modalities:["text"]` 与 `reasoning_effort:"low"`。旧观测在后续请求中保留文字标识和元数据，不重复发送 Base64；Agent 要重新看时再次调用工具。
+模型独自选择观察顺序、区间、`fps` 和停止时机；runtime 只执行预算与证据约束。模型通信只发生在 agent-runtime。Pi 的消息类型目前只有文本／图像；适配器在出站 `onPayload` 中保留工具结果的文字标识，并紧接新观测的工具结果插入一条仅用于本次请求的 `user` 媒体消息，标明它是环境观测而非新用户指令，内容为 Qwen `video_url`。真实调用显示 `video_url` 放在 `tool` 内容块时只计视频 token、不计音频 token；放在受控媒体消息时音视频 token 都出现。适配器同时设置 `modalities:["text"]` 与 `reasoning_effort:"low"`。已被模型回复过的观测在后续请求中只保留文字标识和元数据，不重复发送 Base64；Agent 要重新看时再次调用工具。出站失败时 pi-ai 丢弃出错的回复，该观测在下一次出站重新展开，避免模型把未送达的片段当作已看过。
 
 ## 7. 核心规则
 
@@ -95,11 +95,12 @@ sequenceDiagram
 4. 后端统一输出 H.264/AAC MP4：最长边不超过 640 像素、画面最高 15 fps、有音轨时 AAC 单声道 64 kbit/s。Qwen `video_url.fps` 由 Agent 选择 `0.5`、`2` 或 `5`，默认 `2`；它控制模型抽帧密度，不改变片段原视频时间映射。源文件本身不被转码覆盖。
 5. 一期只对准确型号和显式 `qwen-omni` 适配器启用音画工具。连接探测成功不等于视频能力已通过；接口拒绝媒体时禁用本轮视频问答并说明。其他连接明确提示“该连接不支持音画联合问答”，普通对话继续可用。`observe` 权限可挂只读视频观察和证据提交工具，不挂写入类领域工具。
 6. 每条可核查事实关联已观察证据；预设事件（如“蜂鸣时”）须先验证存在。runtime 校验对象、源指纹、观测标识、区间和区域；语义支持关系由人工复核，一期不做定量评测。模型自由文本中的时间戳不自动变成证据。
-   未成功调用 `submit_video_answer` 的轮次只能展示“无法形成有证据的回答”，不能把模型自由文本作为已证实的结果卡。
+   未成功调用 `submit_video_answer` 的轮次只能展示“本轮没有提交带证据的结论，上方回答未经证据校验”，不能把模型自由文本作为已证实的结果卡。
 7. 局部视觉结论需要区域时，区域以源帧像素坐标表达，并用对应 `ReferenceFrame` 校验；全局画面或纯音频结论不强制画框。无法确定区域时不得编造。
 8. 会话、日志、SSE 和 SQLite 只保存元数据，不保存凭据、片段 Base64、完整模型请求体或媒体正文。上传的源文件仍按 SDD 08 存储；临时片段缓存仅用于当前会话观测和短时播放，可删除且不承担事实存储。
 9. 前端预检用于即时提示；时长、字节、解码和证据边界均以服务端或 runtime 校验为准。
 10. Composer 的「添加文件」接受现有图片类型及 MP4/WebM。图片仍按 SDD 00 随消息发送；视频选择后立即上传并设为当前 Focus，草稿文本保留，用户点击「发送」才开始问答。上传期间禁用发送；待发送视频引用与上传状态在模式切换时保留；发送前切换其他对象不改变该引用，发送时重新聚焦关联视频。取消引用不删除已导入的源文件，并解除该视频的当前焦点。视频上传失败时保留草稿并明确提示；chat edition 保持图片入口，不调用 Python 后端。
+11. 用户问查看器当前画面时，Agent 先用 `view_current_image` 取该帧；工具结果带该帧的源时间（`X-Glaux-Frame-Time`）。系统提示给出当前帧号和按平均帧周期估算的近似时间，并标明精确时间以工具结果为准。需要把当前帧作为证据时，再观察包含该源时间的短区间。
 
 ## 8. 涉及对象
 
@@ -125,7 +126,7 @@ sequenceDiagram
 | `EvidenceRef` | `observation_id,kind,source_interval,frame_time_ms?,region?` | `kind` 为 `visual`／`audio`／`av`；区间在该观测实际覆盖内；视觉区域为源帧 `box{x0,y0,x1,y1}`，需要 `frame_time_ms` 且该时刻在引用区间内 |
 | `VideoAnswer` | `object_id,claims:[{text,evidence:EvidenceRef[]}],unanswered:string[]` | 每条 `claim` 证据非空；无可证实事实时 `claims=[]` 且 `unanswered` 非空；不得引用其他对象或源版本 |
 | `ConnectionInput` 扩展 | `media_adapter?: "qwen-omni"` | 只在 `provider="openai-compatible"` 且 `model="qwen3.8-omni-flash"` 时允许；`vision=true` 仍独立保留 |
-| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | `tool` 消息只留观测标识；紧随其后注入本次出站的 `user` 媒体消息，包含观测 id、说明文字和 `video_url`；每次出站只展开新观测，且顶层含 `modalities:["text"]`、`reasoning_effort:"low"`；媒体消息不写入 Pi 会话 |
+| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | `tool` 消息只留观测标识；紧随其后注入本次出站的 `user` 媒体消息，包含观测 id、说明文字和 `video_url`；每次出站只展开其后尚无模型回复的观测（出站失败后下一次出站重新展开），且顶层含 `modalities:["text"]`、`reasoning_effort:"low"`；媒体消息不写入 Pi 会话 |
 
 `actual_interval` 根据输出片段中首末有效视频／音频 PTS 计算；编码时以 `actual_interval.start_ms` 为零点。允许首尾因帧／音频采样边界缩短，但不得包含请求外内容：起点偏移不大于一帧周期或 100 ms（取较大者），终点偏移不大于 100 ms。若达不到容差，拒绝生成而非报告虚假的精确时间。`X-Glaux-Clip` 头只含上述短元数据，不含 Base64。
 

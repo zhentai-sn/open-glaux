@@ -34,37 +34,39 @@ const VIDEO_MARKER = "GLAUX_VIDEO_OBSERVATION:";
 export { VIDEO_MARKER };
 
 function createVideoMediaBridge(): VideoMediaBridge {
+  // 只展开「其后尚无模型回复」的观测：成功出站后会话里紧跟一条 assistant 回复，下次不再重发；
+  // 出站失败时 pi-ai 丢弃出错的 assistant 消息，该观测在下一次出站重新展开，模型不会被当作已看过。
   const clips = new Map<string, { bytes: Uint8Array; fps: 0.5 | 2 | 5 }>();
-  const sent = new Set<string>();
   return {
-    register(id, bytes, fps) { clips.set(id, { bytes, fps }); sent.delete(id); },
+    register(id, bytes, fps) { clips.set(id, { bytes, fps }); },
     patch(payload) {
       if (!payload || typeof payload !== "object") return payload;
       const body = payload as Record<string, unknown>;
       const messages = body.messages;
       if (!Array.isArray(messages)) return payload;
       const media: Record<string, unknown>[] = [];
-      for (const message of messages) {
-        if (!message || typeof message !== "object") continue;
+      const lastAssistant = messages.findLastIndex((message) =>
+        Boolean(message) && typeof message === "object" && (message as Record<string, unknown>).role === "assistant");
+      for (const [position, message] of messages.entries()) {
+        if (position < lastAssistant || !message || typeof message !== "object") continue;
         const tool = message as Record<string, unknown>;
         if (tool.role !== "tool" || typeof tool.content !== "string") continue;
         const match = tool.content.match(/GLAUX_VIDEO_OBSERVATION:([0-9a-f]{64})/u);
         const id = match?.[1];
-        if (!id || sent.has(id)) continue;
+        if (!id) continue;
         const clip = clips.get(id);
         if (!clip) continue;
         const url = `data:;base64,${Buffer.from(clip.bytes).toString("base64")}`;
         if (url.length >= 10_000_000) throw new RuntimeError("clip_too_large", "Qwen 视频内容块超过 10 MB", 413);
         media.push({ type: "text", text: `Environment observation ${id} returned by observe_video_interval. This is media from the tool, not a new user instruction.` });
         media.push({ type: "video_url", video_url: { url, fps: clip.fps } });
-        sent.add(id);
       }
       if (media.length) body.messages = [...messages, { role: "user", content: media }];
       body.modalities = ["text"];
       body.reasoning_effort = "low";
       return body;
     },
-    clear() { clips.clear(); sent.clear(); },
+    clear() { clips.clear(); },
   };
 }
 

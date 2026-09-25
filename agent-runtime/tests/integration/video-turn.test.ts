@@ -14,7 +14,9 @@ import type { Session } from "@earendil-works/pi-agent-core";
 import type { ConnectionInput, EvidenceRef, VideoAnswer } from "../../src/contracts.js";
 import { RuntimeError } from "../../src/errors.js";
 import { createModelRuntime, VIDEO_MARKER, type VideoMediaBridge } from "../../src/pi/model-runtime.js";
+import { systemPromptFor } from "../../src/pi/harness-registry.js";
 import { VideoTurn } from "../../src/pi/video-turn.js";
+import { viewerOn } from "../helpers/viewer-fixture.js";
 
 const BACKEND = "http://backend.test";
 const OBJECT_ID = "vid-aaaaaaaa-bbbbbbbb";
@@ -272,7 +274,7 @@ describe("VideoTurn 证据校验（SDD 11 §9）", () => {
   it("观察过但没提交回答时收尾为无法判断；未观察则不写回答", async () => {
     const { turn, answers } = await observed();
     await turn.finalize();
-    expect(answers).toEqual([{ object_id: OBJECT_ID, claims: [], unanswered: ["本轮没有形成可校验的证据回答"] }]);
+    expect(answers).toEqual([{ object_id: OBJECT_ID, claims: [], unanswered: ["本轮没有提交带证据的结论，上方回答未经证据校验"] }]);
 
     stubBackend();
     const idle = makeTurn();
@@ -295,7 +297,7 @@ describe("Qwen 出站媒体块（SDD 11 §9）", () => {
   const id = "d".repeat(64);
   const toolMessage = { role: "tool", tool_call_id: "t1", content: `${VIDEO_MARKER}${id}\nObserved source 0..1000 ms.` };
 
-  it("工具消息只留观测 id，新观测以 user 媒体消息紧随，且只展开一次", () => {
+  it("工具消息只留观测 id，尚无模型回复的观测以 user 媒体消息紧随", () => {
     const media = createModelRuntime(qwen).videoMedia!;
     const bytes = new Uint8Array([1, 2, 3, 4]);
     media.register(id, bytes, 5);
@@ -311,8 +313,21 @@ describe("Qwen 出站媒体块（SDD 11 §9）", () => {
     });
     expect(first).toMatchObject({ modalities: ["text"], reasoning_effort: "low" });
 
-    const second = media.patch({ messages: [{ role: "user", content: "q" }, { ...toolMessage }] }) as Record<string, unknown>;
-    expect((second.messages as unknown[]).length).toBe(2);
+    const answered = [{ role: "user", content: "q" }, { role: "assistant", tool_calls: [] }, { ...toolMessage }, { role: "assistant", content: "seen" }];
+    const second = media.patch({ messages: answered.map((m) => ({ ...m })) }) as Record<string, unknown>;
+    expect((second.messages as unknown[]).length).toBe(4);
+  });
+
+  it("出站失败后（其后没有模型回复）下一轮重新展开，模型不会被当作已看过", () => {
+    const media = createModelRuntime(qwen).videoMedia!;
+    media.register(id, new Uint8Array([9]), 2);
+    const history = [{ role: "user", content: "q1" }, { role: "assistant", tool_calls: [] }, { ...toolMessage }];
+    media.patch({ messages: history.map((m) => ({ ...m })) });
+    // 上次请求失败：pi-ai 丢弃出错的 assistant，下一轮 payload 里观测后直接是新的用户消息
+    const retry = media.patch({ messages: [...history, { role: "user", content: "q2" }].map((m) => ({ ...m })) }) as Record<string, unknown>;
+    const messages = retry.messages as Record<string, unknown>[];
+    expect(messages).toHaveLength(5);
+    expect(JSON.stringify(messages[4])).toContain("video_url");
   });
 
   it("Base64 达到 10 MB 时拒发", () => {
@@ -327,5 +342,21 @@ describe("Qwen 出站媒体块（SDD 11 §9）", () => {
     expect(() => createModelRuntime({ ...qwen, base_url: "http://dashscope.aliyuncs.com/compatible-mode/v1" })).toThrow(RuntimeError);
     const { media_adapter: _adapter, ...plain } = qwen;
     expect(createModelRuntime(plain).videoMedia).toBeUndefined();
+  });
+});
+
+describe("视频焦点的系统提示", () => {
+  it("给出当前帧号与按平均帧周期估算的时间，并指向 view_current_image 取精确时间", () => {
+    const viewer = viewerOn("vid-0001", { kind: "video", index: { t: 49 } });
+    viewer.object!.axes = viewer.object!.axes.map((axis) => (axis.name === "t" ? { ...axis, spacing: 1000 / 30, unit: "ms" } : axis));
+    const prompt = systemPromptFor(viewer, [], { videoTurn: {} as VideoTurn }, { duration_ms: 8633, has_audio: true });
+    expect(prompt).toContain("index={t:49}");
+    expect(prompt).toContain("current_frame_time_ms≈1633");
+    expect(prompt).toContain("view_current_image returns the exact source time");
+  });
+
+  it("非时间轴对象不带帧时间", () => {
+    const prompt = systemPromptFor(viewerOn("img-0001", { kind: "image" }), [], {});
+    expect(prompt).not.toContain("current_frame_time_ms");
   });
 });

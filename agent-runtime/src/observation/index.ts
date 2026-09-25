@@ -53,9 +53,12 @@ export async function fetchObservation(base: string, focus: Focus, opts: Observa
   const mime = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
   if (mime !== "image/png" && mime !== "image/jpeg") unavailable(`取图返回不支持的 MIME：${mime}`);
   const frame = parseFrame(response.headers.get("X-Glaux-Frame"), focus);
+  const rawTime = response.headers.get("X-Glaux-Frame-Time");
+  const time = rawTime === null ? undefined : Number(rawTime);
+  if (time !== undefined && (!Number.isInteger(time) || time < 0)) unavailable("X-Glaux-Frame-Time 非法");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.length) unavailable("取图返回空字节");
-  return { bytes, mime, frame };
+  return { bytes, mime, frame, ...(time !== undefined ? { time_ms: time } : {}) };
 }
 
 /** 返回对象像素坐标，不把帧尺寸当作对象尺寸。 */

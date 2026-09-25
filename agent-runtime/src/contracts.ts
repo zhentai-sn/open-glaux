@@ -131,7 +131,8 @@ export type Region =
   | { kind: "frame_range"; t0: number; t1: number; seed?: { t: number; box: [number, number, number, number] } };
 export interface Focus { object_id: string; kind: ObjectKind; index: Index; region: Region | null }
 export interface ReferenceFrame { object_id: string; index: Index; origin: [number, number]; scale: number; width: number; height: number }
-export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame }
+/** `time_ms`：时间序列对象该帧的源呈现时间（`X-Glaux-Frame-Time`），其余对象缺省。 */
+export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame; time_ms?: number }
 export interface ToolProvider {
   name: string;
   requires: { vision?: boolean; egress?: boolean; runtime?: boolean };

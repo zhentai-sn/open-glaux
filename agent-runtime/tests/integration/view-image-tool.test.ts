@@ -31,7 +31,7 @@ function pngBytes(width = WIDTH, height = HEIGHT, pad = 0): Uint8Array {
   return new Uint8Array(buf);
 }
 
-function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string; frameHeader?: boolean } = {}) {
+function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string; frameHeader?: boolean; frameTime?: string } = {}) {
   const calls: string[] = [];
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -47,7 +47,11 @@ function fakeBackend(opts: { image?: Uint8Array | null; contentType?: string; fr
     }
     const header = { object_id: id, index, origin: [0, 0], scale: 1, width: WIDTH, height: HEIGHT };
     return new Response(Buffer.from(opts.image ?? pngBytes()), {
-      headers: { "content-type": opts.contentType ?? "image/png", ...(opts.frameHeader === false ? {} : { "x-glaux-frame": JSON.stringify(header) }) },
+      headers: {
+        "content-type": opts.contentType ?? "image/png",
+        ...(opts.frameHeader === false ? {} : { "x-glaux-frame": JSON.stringify(header) }),
+        ...(opts.frameTime !== undefined ? { "x-glaux-frame-time": opts.frameTime } : {}),
+      },
     });
   }) as unknown as typeof fetch;
   return { fetch: fetchImpl, calls };
@@ -113,6 +117,17 @@ describe("view_current_image", () => {
     expect(imagesOf(result)).toHaveLength(1);
     expect(backend.calls[0]).toContain("/objects/vid-0001/frame?t=10");
     expect(textOf(result)).toContain("at t=10");
+    expect(textOf(result)).not.toContain("source time");
+  });
+
+  it("后端给出帧的源时间时一并告诉模型；时间头非法则拒发", async () => {
+    const viewer = viewerOn("vid-0001", { kind: "video", index: { t: 49 } });
+    const ok = createViewCurrentImageTool({ fetch: fakeBackend({ frameTime: "1633" }).fetch, viewer });
+    const result = await ok.execute("video-49", {}, undefined, undefined, undefined);
+    expect(textOf(result)).toContain("at t=49, source time 1633 ms");
+
+    const bad = createViewCurrentImageTool({ fetch: fakeBackend({ frameTime: "-1" }).fetch, viewer });
+    await expect(bad.execute("video-bad", {}, undefined, undefined, undefined)).rejects.toThrow(/X-Glaux-Frame-Time/u);
   });
 
   it("没开图：只回文字，不回图，也不打后端", async () => {

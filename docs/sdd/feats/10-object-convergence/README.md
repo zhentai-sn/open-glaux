@@ -194,6 +194,8 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 - agent-runtime 的 `fetchObservation` 是唯一取图处，其 `Observation.frame` 直接取自本头；`toObjectCoords` 用它把模型输出的像素框换算回 `Region`。
 - 四种 `ObjectKind` 各取一帧断言 `origin`／`scale`／`width`／`height`，是 W2 的准出门禁之一。
 
+`X-Glaux-Frame-Time` 响应头：时间序列对象（`Source.frame_time_ms` 非空）下发该帧的源呈现时间，整数毫秒、以首帧为零点、取自源 PTS；其余对象不下发。`fetchObservation` 读入 `Observation.time_ms`。
+
 五个端点的失败分支（未知 id、kind 与端点不符、依赖不可用、超限）一律按 §13 处理，端点侧不另设语义。
 
 ### 5.3 保留面与已退役端点
@@ -639,7 +641,8 @@ class SourceBase:
     （开发者模式合成源）、derive_id(source, rel_name)（上传回执 id）、locate(object_id)（is_mine 兜底
     取数据源）、encoded()/render()（取帧快路径与解码）、calibration_required、supports_window /
     default_window、label（label_key 由 modality 派生）、upload_max_bytes()（上传单文件上限）、
-    validate_upload(path, ext)（魔数之后的内容校验，返回拒绝原因码或 None）。"""
+    validate_upload(path, ext)（魔数之后的内容校验，返回拒绝原因码或 None）、frame_time_ms(source,
+    object_id, index)（该帧源呈现时间，非时间序列返回 None）。"""
 
 SOURCES: dict[str, Source] = {}                        # datasource_registry.MODALITIES = tuple(SOURCES)
 

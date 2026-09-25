@@ -285,6 +285,16 @@ def test_frame_at_uses_source_pts_on_variable_frame_rate(library, time_ms, t):
     assert tolerance >= 100 and abs(VFR_PTS[t] - time_ms) <= tolerance
 
 
+@pytest.mark.parametrize(
+    ("sample", "t", "time_ms"), [("vfr", 4, 260), ("vfr", 9, 1450), ("offset", 10, 1000)]
+)
+def test_frame_endpoint_reports_source_time_of_index(library, sample, t, time_ms):
+    """逐帧取图带回该帧的源 PTS 时间（以首帧为零点），供智能体把帧号对到时间。"""
+    r = client.get(f"/objects/{library['ids'][sample]}/frame", params={"t": t})
+    assert r.status_code == 200, r.text
+    assert int(r.headers["x-glaux-frame-time"]) == time_ms
+
+
 def test_frame_at_offsets_non_zero_start_pts(library):
     r, level = _frame_at(library["ids"]["offset"], 1000)
     assert int(r.headers["x-glaux-frame-time"]) == 1000

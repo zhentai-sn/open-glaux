@@ -313,6 +313,13 @@ class VideoSource(SourceBase):
         tolerance_ms = max(100, round(max(gaps, default=100)))
         return image, mime, frame, round(pts[index] - info["first_pts_ms"]), tolerance_ms
 
+    def frame_time_ms(self, source, object_id: str, index) -> int | None:
+        """按源 PTS 给出第 t 帧的时间，不用平均帧率换算（SDD 11 §9）。"""
+        if index.t is None:
+            return None
+        info = _probe_file(*_key(_path_of(source, object_id)))
+        return round(info["frame_pts_ms"][index.t] - info["first_pts_ms"])
+
     def raw(self, source, object_id):
         path = _path_of(source, object_id)
         return path, _MIME[path.suffix.lower()]

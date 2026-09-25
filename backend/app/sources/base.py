@@ -218,6 +218,10 @@ class SourceBase:
         """落盘前的内容校验（魔数之后）。通过返回 None，否则返回拒绝原因码。"""
         return None
 
+    def frame_time_ms(self, source: DataSource, object_id: str, index: Index) -> int | None:
+        """该帧在源媒体中的呈现时间（毫秒，以首帧为零点）；非时间序列对象返回 None。"""
+        return None
+
     # --- 取帧 ---------------------------------------------------------------
 
     def encoded(

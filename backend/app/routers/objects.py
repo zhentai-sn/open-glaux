@@ -162,7 +162,11 @@ def object_frame(
         raise HTTPException(413, f"选区过大，请缩小范围或降低分辨率：{e}") from e
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    return Response(content=data, media_type=mime, headers={"X-Glaux-Frame": _frame_header(frame)})
+    headers = {"X-Glaux-Frame": _frame_header(frame)}
+    time_ms = ref.source.frame_time_ms(ref.datasource, object_id, index)
+    if time_ms is not None:
+        headers["X-Glaux-Frame-Time"] = str(time_ms)
+    return Response(content=data, media_type=mime, headers=headers)
 
 
 @router.get("/{object_id}/raw")

@@ -122,9 +122,14 @@ const PROPOSE_PROMPT =
   "plainly that the annotation is a suggestion.";
 
 const VIDEO_PROMPT =
-  " You are not seeing the video by default. Use observe_video_interval to inspect synchronized picture and original sound before any video claim. " +
-  "Verify events presupposed by the question, especially sounds, before citing them. Submit facts through submit_video_answer " +
-  "with source-video millisecond intervals and observation IDs; put unsupported parts in unanswered. Answer only the facts the user asked for: " +
+  " You are not seeing the video by default. When the user asks about the frame currently shown in the viewer " +
+  "(\"this frame\", \"the current picture\"), call view_current_image first: it returns exactly that frame and its source time. " +
+  "Use observe_video_interval (synchronized picture and original sound, at most 60 s) for motion, sound or any span of time; " +
+  "to cite the current frame, observe a short interval containing its source time. Never say you watched a range " +
+  "unless an observation in this turn returned it. " +
+  "Verify events presupposed by the question, especially sounds, before citing them. Every factual conclusion about the video " +
+  "must be submitted through submit_video_answer with source-video millisecond intervals and observation IDs; findings written " +
+  "only in free text are shown to the user as unverified. Put unsupported parts in unanswered. Answer only the facts the user asked for: " +
   "do not add scene chronology or precise event onset claims unless the user requests them and the media supports them. " +
   "Do not infer sound from visible frames or invent a time beyond the video duration.";
 
@@ -182,7 +187,7 @@ function availableProviders(context: HarnessToolContext): ToolProvider[] {
   });
 }
 
-function systemPromptFor(
+export function systemPromptFor(
   viewer: ViewerContext | undefined,
   tools: HarnessTool[],
   context: HarnessToolContext,
@@ -198,6 +203,11 @@ function systemPromptFor(
   const index = Object.entries(viewer.focus.index).filter(([, value]) => value != null)
     .map(([axis, value]) => `${axis}:${value}`).join(",");
   if (index) parts.push(`index={${index}}`);
+  const t = viewer.focus.index.t;
+  const timeAxis = viewer.object?.axes.find((axis) => axis.name === "t" && axis.unit === "ms" && axis.spacing);
+  if (t != null && timeAxis?.spacing) {
+    parts.push(`current_frame_time_ms≈${Math.round(t * timeAxis.spacing)} (average frame period; view_current_image returns the exact source time)`);
+  }
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.collection) parts.push(`collection=${viewer.collection}`);
   if (viewer.method) parts.push(`method=${viewer.method}`);
