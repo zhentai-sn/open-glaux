@@ -12,7 +12,7 @@ import {
 
 import type {
   CreateSessionInput,
-  GlauxSessionMeta,
+  GlauxMetaRecord,
   PatchSessionInput,
   SessionListItem,
   SessionPhase,
@@ -23,6 +23,7 @@ import { RuntimeError } from "../errors.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
 import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
+import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -65,12 +66,14 @@ export class SessionService {
     const existingMetadata = await this.findPiMetadata(input.session_id);
     const requestedTitle = normalizeTitle(input.title ?? "New conversation");
     const requestedPermission = input.permission_mode ?? "controlled";
+    const requestedProjectId = input.project_id ?? null;
 
     if (existingMetadata) {
       const meta = this.requireMeta(input.session_id);
       if (
         meta.title !== requestedTitle ||
-        meta.permission_mode !== requestedPermission
+        meta.permission_mode !== requestedPermission ||
+        sessionProjectId(existingMetadata) !== requestedProjectId
       ) {
         throw new RuntimeError(
           "idempotency_conflict",
@@ -81,14 +84,19 @@ export class SessionService {
       return { created: false, view: await this.getSession(input.session_id) };
     }
 
-    const reusable = await this.findReusableEmptySession();
+    const reusable = await this.findReusableEmptySession(requestedProjectId);
     if (reusable) {
       return { created: false, view: await this.getSession(reusable.session_id) };
     }
 
+    // 项目绑定写入 Pi metadata，创建后不可改；cwd 不承载项目语义（SDD 13 §7.6、D-5）。
+    // 未归属会话不写 metadata，与升级前的旧会话同形。
     const session = await this.piRepo.create({
       id: input.session_id,
       cwd: this.env.cwd,
+      ...(requestedProjectId === null
+        ? {}
+        : { metadata: { [PROJECT_METADATA_KEY]: requestedProjectId } }),
     });
     try {
       this.metaRepo.create({
@@ -108,18 +116,18 @@ export class SessionService {
 
   async listSessions(status?: SessionStatus): Promise<SessionListItem[]> {
     const metas = this.metaRepo.list(status);
+    // 全表 list 只调用一次，再按 id 与 companion 表合并。
+    const piMetadata = await this.piMetadataById();
     const views = await Promise.all(
       metas.map(async (meta) => {
-        try {
-          const { messages: _messages, video_answers: _answers, video_observations: _observations, ...item } = await this.getSession(meta.session_id);
-          return item;
-        } catch (error) {
-          if (error instanceof RuntimeError && error.code === "session_not_found") {
-            this.metaRepo.delete(meta.session_id);
-            return undefined;
-          }
-          throw error;
+        const metadata = piMetadata.get(meta.session_id);
+        if (!metadata) {
+          // Pi 侧已不存在：顺手清掉孤立的 companion 行。
+          this.metaRepo.delete(meta.session_id);
+          return undefined;
         }
+        const { messages: _messages, video_answers: _answers, video_observations: _observations, ...item } = await this.viewOf(metadata, meta);
+        return item;
       }),
     );
     return views
@@ -129,13 +137,7 @@ export class SessionService {
 
   async getSession(sessionId: string): Promise<SessionView> {
     const metadata = await this.requirePiMetadata(sessionId);
-    const session = await this.piRepo.open(metadata);
-    try {
-      const meta = this.requireMeta(sessionId);
-      return await this.toView(session, meta);
-    } finally {
-      await this.closeSession(session);
-    }
+    return this.viewOf(metadata, this.requireMeta(sessionId));
   }
 
   async patchSession(sessionId: string, patch: PatchSessionInput): Promise<SessionView> {
@@ -190,10 +192,23 @@ export class SessionService {
     await (session.getStorage() as ClosableStorage).cleanup?.();
   }
 
+  private async viewOf(
+    metadata: SqliteSessionMetadata,
+    meta: GlauxMetaRecord,
+  ): Promise<SessionView> {
+    const session = await this.piRepo.open(metadata);
+    try {
+      return await this.toView(session, meta);
+    } finally {
+      await this.closeSession(session);
+    }
+  }
+
   private async toView(
     session: Session<SqliteSessionMetadata>,
-    meta: GlauxSessionMeta,
+    meta: GlauxMetaRecord,
   ): Promise<SessionView> {
+    const projectId = sessionProjectId(await session.getMetadata());
     const branch = await session.getBranch();
     const context = await session.buildContext();
     const messages = branch.flatMap((entry) =>
@@ -220,6 +235,7 @@ export class SessionService {
     const estimate = estimateContextTokens(context.messages);
     return {
       ...meta,
+      project_id: projectId,
       provider: context.model?.provider ?? null,
       model: context.model?.modelId ?? null,
       phase: this.phaseForSession(meta.session_id),
@@ -231,7 +247,7 @@ export class SessionService {
     };
   }
 
-  private requireMeta(sessionId: string): GlauxSessionMeta {
+  private requireMeta(sessionId: string): GlauxMetaRecord {
     const meta = this.metaRepo.get(sessionId);
     if (!meta) throw new RuntimeError("session_not_found", "Session not found.", 404);
     return meta;
@@ -251,10 +267,18 @@ export class SessionService {
     return (await this.piRepo.list()).find((item) => item.id === sessionId);
   }
 
-  private async findReusableEmptySession(): Promise<GlauxSessionMeta | undefined> {
+  private async piMetadataById(): Promise<Map<string, SqliteSessionMetadata>> {
+    return new Map((await this.piRepo.list()).map((item) => [item.id, item]));
+  }
+
+  /** 空会话复用按项目区分：同一 `project_id`（含 `null`）下最多一个（SDD 13 §7.6 规则 3）。 */
+  private async findReusableEmptySession(
+    projectId: string | null,
+  ): Promise<GlauxMetaRecord | undefined> {
+    const piMetadata = await this.piMetadataById();
     for (const meta of this.metaRepo.list("active")) {
-      const metadata = await this.findPiMetadata(meta.session_id);
-      if (!metadata) continue;
+      const metadata = piMetadata.get(meta.session_id);
+      if (!metadata || sessionProjectId(metadata) !== projectId) continue;
       const session = await this.piRepo.open(metadata);
       try {
         const hasMessage = (await session.getEntries()).some(
@@ -269,6 +293,15 @@ export class SessionService {
   }
 }
 
+/** Pi 会话 `metadata` 中承载项目绑定的键（SDD 13 §9.5）。 */
+export const PROJECT_METADATA_KEY = "glaux_project_id";
+
+/** 会话绑定的项目；升级前的旧会话与未归属会话没有该键，返回 `null`。 */
+export function sessionProjectId(metadata: SqliteSessionMetadata): string | null {
+  const value = metadata.metadata?.[PROJECT_METADATA_KEY];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 /**
  * 工具结果里需要随会话历史持久呈现的卡片。`glaux.task_output` 等纯 Viewer 结果靠实时
  * 事件写回，不进每次快照；建议标注 details 体积小且承载确认/驳回入口，必须保留。
@@ -276,6 +309,8 @@ export class SessionService {
 const VIEWABLE_DETAILS_KINDS = new Set([
   ATLAS_REFERENCED_DETAILS_KIND,
   ANNOTATION_PROPOSED_DETAILS_KIND,
+  // SDD 13 D-18：对象卡片承载「在舞台打开」入口，切换会话后须随快照恢复。
+  OBJECT_OPENED_DETAILS_KIND,
 ]);
 
 /**

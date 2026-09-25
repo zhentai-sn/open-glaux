@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   PERMISSION_MODES,
   SESSION_STATUSES,
-  type GlauxSessionMeta,
+  type GlauxMetaRecord,
   type PermissionMode,
   type SessionStatus,
 } from "../contracts.js";
@@ -18,7 +18,7 @@ interface MetaRow {
   updated_at: string;
 }
 
-function toMeta(row: MetaRow): GlauxSessionMeta {
+function toMeta(row: MetaRow): GlauxMetaRecord {
   if (
     !SESSION_STATUSES.includes(row.status as SessionStatus) ||
     !PERMISSION_MODES.includes(row.permission_mode as PermissionMode)
@@ -61,14 +61,14 @@ export class GlauxMetaRepo {
     this.database.close();
   }
 
-  get(sessionId: string): GlauxSessionMeta | undefined {
+  get(sessionId: string): GlauxMetaRecord | undefined {
     const row = this.database
       .prepare("SELECT * FROM glaux_session_meta WHERE session_id = ?")
       .get(sessionId) as MetaRow | undefined;
     return row ? toMeta(row) : undefined;
   }
 
-  list(status?: SessionStatus): GlauxSessionMeta[] {
+  list(status?: SessionStatus): GlauxMetaRecord[] {
     const rows = (
       status
         ? this.database
@@ -88,7 +88,7 @@ export class GlauxMetaRepo {
     title: string;
     permissionMode: PermissionMode;
     now?: string;
-  }): GlauxSessionMeta {
+  }): GlauxMetaRecord {
     const now = input.now ?? new Date().toISOString();
     this.database
       .prepare(
@@ -102,8 +102,8 @@ export class GlauxMetaRepo {
 
   update(
     sessionId: string,
-    patch: Partial<Pick<GlauxSessionMeta, "title" | "status" | "permission_mode">>,
-  ): GlauxSessionMeta {
+    patch: Partial<Pick<GlauxMetaRecord, "title" | "status" | "permission_mode">>,
+  ): GlauxMetaRecord {
     const current = this.get(sessionId);
     if (!current) {
       throw new RuntimeError("session_not_found", "Session not found.", 404);

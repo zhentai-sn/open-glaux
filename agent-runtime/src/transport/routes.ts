@@ -138,6 +138,14 @@ function parseCreateSession(value: unknown): CreateSessionInput {
   ) {
     throw new RuntimeError("invalid_request", "Invalid permission mode.", 400);
   }
+  // 缺省与 null 同为未归属；只收非空字符串，是否已登记由前端保证（SDD 13 §7.6 规则 5）。
+  if (
+    body.project_id !== undefined &&
+    body.project_id !== null &&
+    (typeof body.project_id !== "string" || body.project_id.length === 0)
+  ) {
+    throw new RuntimeError("invalid_request", "Invalid project id.", 400);
+  }
   return {
     session_id: body.session_id,
     ...(typeof body.title === "string" ? { title: body.title } : {}),
@@ -147,6 +155,7 @@ function parseCreateSession(value: unknown): CreateSessionInput {
             body.permission_mode as (typeof PERMISSION_MODES)[number],
         }
       : {}),
+    project_id: typeof body.project_id === "string" ? body.project_id : null,
   };
 }
 

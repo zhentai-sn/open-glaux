@@ -21,7 +21,15 @@ export interface GlauxSessionMeta {
   permission_mode: PermissionMode;
   created_at: string;
   updated_at: string;
+  /**
+   * 会话绑定的项目（SDD 13 §7.6）；来自 Pi 会话 `metadata.glaux_project_id`，`null` 为未归属。
+   * 创建时写入、不可改；不进 companion 表（SDD 00 D-018、D-023）。
+   */
+  project_id: string | null;
 }
+
+/** companion 表 `glaux_session_meta` 的一行（SDD 00 §9.1）：不含 Pi 侧持有的 `project_id`。 */
+export type GlauxMetaRecord = Omit<GlauxSessionMeta, "project_id">;
 
 export interface ContextUsage {
   tokens: number;
@@ -45,6 +53,8 @@ export interface CreateSessionInput {
   session_id: string;
   title?: string;
   permission_mode?: PermissionMode;
+  /** 缺省或 `null` 为未归属；agent-runtime 不校验项目是否已登记（SDD 13 §7.6 规则 5）。 */
+  project_id?: string | null;
 }
 
 export interface PatchSessionInput {
@@ -135,7 +145,8 @@ export interface ReferenceFrame { object_id: string; index: Index; origin: [numb
 export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame; time_ms?: number }
 export interface ToolProvider {
   name: string;
-  requires: { vision?: boolean; egress?: boolean; runtime?: boolean };
+  /** `project`：只对绑定了项目的会话挂载（SDD 13 §7.3 规则 1）。 */
+  requires: { vision?: boolean; egress?: boolean; runtime?: boolean; project?: true };
   supports(focus: Focus | undefined): boolean;
   create(context: HarnessToolContext): HarnessTool;
   promptFragment(context: HarnessToolContext): string;

@@ -22,7 +22,7 @@ import type {
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import { redactText } from "../security/redact.js";
-import type { SessionService } from "./session-service.js";
+import { sessionProjectId, type SessionService } from "./session-service.js";
 import {
   createModelRuntime,
   type ModelRuntime,
@@ -44,6 +44,9 @@ import {
   SEGMENT_REGION_TOOL_NAME,
 } from "./tools/segment-region.js";
 import { createObserveVideoTool, createSubmitVideoAnswerTool } from "./tools/video.js";
+import { createListFilesTool, LIST_FILES_TOOL_NAME } from "./tools/list-files.js";
+import { createOpenFileTool, OPEN_FILE_TOOL_NAME } from "./tools/open-file.js";
+import { PROJECT_GUARDED_TOOL_NAMES, ProjectScope, withProjectGuard } from "./tools/project-guard.js";
 import { VideoTurn } from "./video-turn.js";
 
 export interface HarnessRuntimeFactory {
@@ -61,6 +64,8 @@ export interface HarnessToolContext extends HarnessStartOptions {
   connection?: ConnectionInput;
   runtime?: ModelRuntime;
   videoTurn?: VideoTurn;
+  /** 会话绑定的项目（SDD 13 §7.6），由 `start()` 从 Pi 会话 metadata 读出；未归属会话缺省。 */
+  projectId?: string;
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -79,13 +84,24 @@ export interface HarnessToolFactory {
  * `segment_region` 需两个条件同时成立（SDD 02 §7.4）：外发经 `GLAUX_ANNOT_ALLOW_EGRESS`
  * 显式放行，且分割后端已配 token。任一不满足就不注册——挂一个必然失败的工具只会让模型
  * 反复重试并把失败当成"图里没有该结构"。
+ *
+ * `list_files` / `open_file` 只对绑定项目的会话挂载（SDD 13 §7.3）；作用于当前对象的工具经
+ * `withProjectGuard` 在执行前做项目越界校验（§7.8 规则 4）。
  */
 export const defaultToolFactory: HarnessToolFactory = (context) => {
   if (chatEdition()) return [];
   const providers = availableProviders(context);
+  // 一次 start 一个作用域：越界校验的查询结果只在本回合内缓存（SDD 13 §7.8 规则 4）。
+  const scope = new ProjectScope({
+    ...(context.projectId ? { projectId: context.projectId } : {}),
+    ...(context.viewer ? { viewer: context.viewer } : {}),
+  });
   return (context.permissionMode === "observe"
     ? providers.filter((provider) => provider.name === "observe_video_interval" || provider.name === "submit_video_answer")
-    : providers).map((provider) => provider.create(context));
+    : providers).map((provider) => {
+      const tool = provider.create(context);
+      return PROJECT_GUARDED_TOOL_NAMES.has(tool.name) ? withProjectGuard(tool, scope) : tool;
+    });
 };
 
 const SYSTEM_PROMPT =
@@ -120,6 +136,17 @@ const PROPOSE_PROMPT =
   " To put a region on the image, call propose_annotation — one region per call, only the ones you judge correct. " +
   "Every proposal waits for the user to confirm or reject it; you never confirm your own work, and you should say " +
   "plainly that the annotation is a suggestion.";
+
+const PROJECT_PROMPT =
+  " This conversation is bound to a project folder. Browse it with list_files: read-only, one level at a time, " +
+  "with paths relative to the project root that cannot leave it. Tools that act on the current object only accept " +
+  "objects from this project.";
+
+const OPEN_FILE_PROMPT =
+  " Use open_file to look at a project file yourself: it is read-only, takes a path relative to the project root, " +
+  "and returns the file's metadata and first or representative frame. It does not change what the user has open " +
+  "on stage. run_task and the other current-object tools still act on the user's stage, so when the user wants " +
+  "such an action on a file you opened, ask them to click \"Open on stage\" on its object card first.";
 
 const VIDEO_PROMPT =
   " You are not seeing the video by default. When the user asks about the frame currently shown in the viewer " +
@@ -175,11 +202,24 @@ export const TOOL_PROVIDERS: ToolProvider[] = [
     create: (ctx) => createProposeAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
     promptFragment: () => PROPOSE_PROMPT,
   },
+  // SDD 13 §7.3：只对绑定项目的会话挂载；与查看器焦点无关。
+  {
+    name: LIST_FILES_TOOL_NAME, requires: { project: true }, supports: () => true,
+    create: (ctx) => createListFilesTool({ projectId: ctx.projectId! }) as HarnessTool,
+    promptFragment: () => PROJECT_PROMPT,
+  },
+  {
+    // 返回图像块：无视觉的模型收到的图会被静默替换成占位（参照 SDD 03 D-21），故要求 vision。
+    name: OPEN_FILE_TOOL_NAME, requires: { project: true, vision: true }, supports: () => true,
+    create: (ctx) => createOpenFileTool({ projectId: ctx.projectId! }) as HarnessTool,
+    promptFragment: () => OPEN_FILE_PROMPT,
+  },
 ];
 
 function availableProviders(context: HarnessToolContext): ToolProvider[] {
   return TOOL_PROVIDERS.filter((provider) => {
     if ((provider.name === "observe_video_interval" || provider.name === "submit_video_answer") && !context.videoTurn) return false;
+    if (provider.requires.project && !context.projectId) return false;
     if (provider.requires.vision && !context.connection?.vision) return false;
     if (provider.requires.runtime && !context.runtime) return false;
     if (provider.requires.egress && (!segmentationEgressAllowed() || !process.env.GLAUX_SEG_API_TOKEN?.trim())) return false;
@@ -279,14 +319,23 @@ export class HarnessRegistry {
           (answer) => this.emit(sessionId, { event: "video.answer", data: { session_id: sessionId, command_id: commandId, answer } }))
       : undefined;
     let videoDescription: { duration_ms: number; has_audio: boolean } | undefined;
+    let projectId: string | null;
     try {
+      // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
+      projectId = sessionProjectId(await session.getMetadata());
       videoDescription = videoTurn ? await videoTurn.describe() : undefined;
     } catch (error) {
       runtime.disposeCredential();
       await this.sessions.closeSession(session);
       throw error;
     }
-    const toolContext = { ...options, connection, runtime, ...(videoTurn ? { videoTurn } : {}) };
+    const toolContext: HarnessToolContext = {
+      ...options,
+      connection,
+      runtime,
+      ...(videoTurn ? { videoTurn } : {}),
+      ...(projectId ? { projectId } : {}),
+    };
     const tools = chatEdition() ? [] : this.toolFactory(toolContext);
     const harness = new AgentHarness({
       session,
