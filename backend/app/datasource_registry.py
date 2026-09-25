@@ -382,7 +382,7 @@ def _build_index() -> dict[str, ObjectRef]:
                 log.warning("数据源 %s 列举失败，未进入索引：%s", ds.id, exc)
                 continue
             for oid in ids:
-                # 同 id 多源时首个胜出，与 resolve_root 的「首个 active 源」一致
+                # 同 id 多源时首个胜出（按 list_all 顺序：内置源在前）
                 out.setdefault(oid, ObjectRef(src, ds, oid, src.kind, modality))
     return out
 

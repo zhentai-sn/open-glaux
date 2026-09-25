@@ -83,7 +83,10 @@ def _wsi_ready() -> None:
 
 @router.get("/datasources", response_model=list[DataSourceInfo], tags=["dataset"])
 def datasources() -> list[DataSourceInfo]:
-    """已注册数据源清单（builtin / imported）——前端「数据源」视图 + 市场数据集卡的真相源。"""
+    """已注册数据源清单（builtin / imported / project）。
+
+    前端「数据源」视图与市场数据集卡的真相源。
+    """
     return [DataSourceInfo(**s.info()) for s in dsreg.list_all()]
 
 

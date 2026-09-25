@@ -126,6 +126,7 @@ def root_has_data(modality: str, root: Path) -> bool:
 
 def _available(modality: str) -> bool:
     """某模态数据是否就绪——注册表感知：当前生效源（resolve_root）下有数据即就绪。
+    只用于颈动脉、HC；CT、WSI 按「存在活动数据源」判定（SDD 13 D-26）。
 
     开发者模式下 resolve_root 返回内置源 root（== 本文件的 X_ROOT 默认），行为与改前一致；
     产品模式无源 → None → False。
