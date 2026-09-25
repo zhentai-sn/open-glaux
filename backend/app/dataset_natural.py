@@ -252,12 +252,15 @@ class NaturalSource(SourceBase):
         return upload_store.image_id(source.id, path.name)
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
-        w, h = _probe(_path_in(source, object_id))
+        path = _path_in(source, object_id)
+        w, h = _probe(path)
         return ObjectMeta(
             id=object_id,
             kind=self.kind,
             modality=self.modality,
             source_id=source.id,
+            # 内置演示的冻结 ID 本身可读（SDD 07），留空由前端回退到 id；其余源取源内文件名。
+            display_name="" if _is_builtin_demo(source) else path.name,
             axes=[Axis(name="x", size=w), Axis(name="y", size=h)],
             resources=resources_for(object_id),
             methods=method_refs([]),

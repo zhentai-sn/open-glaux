@@ -130,7 +130,7 @@ status: implemented
   "kind": "image",
   "modality": "natural_image",
   "source_id": "imported-3f2a9c11",
-  "display_name": "",
+  "display_name": "img-5d41402abc4b.jpg",
   "axes": [{ "name": "x", "size": 4032, "spacing": null, "unit": "px" },
            { "name": "y", "size": 3024, "spacing": null, "unit": "px" }],
   "calibration": null,
@@ -142,6 +142,7 @@ status: implemented
 }
 ```
 
+- `display_name` 取源内文件名：项目文件夹里的图为用户原文件名；浏览器上传的图为落盘名 `img-<哈希12>.<ext>`（原始文件名不落盘，规则 6）；内置示例为空串，前端回退到冻结 ID（SDD 07）。
 - `methods` 元素为 `{ name, role }`，`role` 取 `gold` | `agent` | `reference`；通用图像恒为空数组。
 - 数据源展示名只在 `meta.center`，不再有顶层 `center`。
 - `cf`、`voxel_spacing_mm`、`mpp_um`、`dims` 是过渡字段，由服务端从 `axes` / `calibration` 回填，前端类型不声明；删除时点见 SDD 10 §11.3。

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import dataset_natural
+from app import datasource_registry as reg
 from app.main import app
 from app.routers import annotations
 
@@ -28,6 +30,34 @@ def test_natural_images_have_stable_metadata():
         row["modality"] == "natural_image" and row.get("cf") is None and row["methods"] == []
         for row in rows
     )
+
+
+@pytest.fixture
+def isolated(tmp_path, monkeypatch):
+    """导入白名单根与落盘清单指向 tmp；注册表清空。"""
+    monkeypatch.setenv("GLAUX_DATASETS_ROOT", str(tmp_path))
+    monkeypatch.setenv("GLAUX_SOURCES_FILE", str(tmp_path / "sources.json"))
+    reg.init()
+    yield tmp_path
+    reg._SOURCES.clear()
+    reg.invalidate_index()
+
+
+def test_display_name_is_file_name_except_builtin_demo(isolated):
+    """SDD 08 §5.3：导入/项目源的 display_name 取源内文件名；内置演示留空，前端回退到 id。"""
+    folder = isolated / "pics"
+    folder.mkdir()
+    Image.new("RGB", (4, 3), "white").save(folder / "beach.jpg", format="JPEG")
+    Image.new("RGB", (4, 3), "white").save(folder / "hill.png", format="PNG")
+    src = reg.register_folder(folder, "natural_image")
+
+    source = dataset_natural.SOURCE
+    names = [source.describe(src, oid).display_name for oid in source.list_ids(src)]
+    assert names == ["beach.jpg", "hill.png"]
+
+    # 开发者模式下内置示例可见（conftest）
+    demo = next(s for s in reg.active_sources("natural_image") if s.origin == "builtin")
+    assert {source.describe(demo, oid).display_name for oid in source.list_ids(demo)} == {""}
 
 
 def test_natural_images_return_jpeg_bytes():
