@@ -10,6 +10,11 @@ dist/
 venv/
 env/
 
+# 本机凭据（评测驱动读取根目录 .env），不入库
+.env
+.env.*
+!.env.example
+
 # 数据集不入库（CUBS 走下载，见 science-core/README.md）——锚定仓库根，勿误伤 src/data/
 # 注：/data/<dir>/ 仍忽略二进制，但 README.md 重新放行
 /data/*
