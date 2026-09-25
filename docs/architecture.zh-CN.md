@@ -95,6 +95,7 @@ open-glaux/
 ├── docker/                      # 发行镜像构建：Dockerfile（四个 stage）、compose.build.yaml、nginx.conf
 ├── scripts/
 │   ├── dev/                     #   本地联调脚本（run-backend、restart-backend、run-agent-runtime、health）+ 归档的一次性脚本
+│   ├── eval/                    #   视频评测数据准备（TennisTV 下载与切片）
 │   ├── release/                 #   发行打包 package.py 与 launcher/（start·stop 的 sh/cmd/command）
 │   ├── version_matrix.py        #   版本矩阵检查（SDD 01）
 │   └── test_version_matrix.py   #   上述检查的用例（make test-version）
@@ -104,6 +105,7 @@ open-glaux/
 │
 ├── data/                        # 数据集存储（二进制 gitignore，仅跟踪 README 与自然图像示例）
 │   ├── ct/                      #   CT NIfTI（TotalSegmentator）
+│   ├── eval/                    #   视频评测数据（本机使用，不入库）
 │   ├── natural/                 #   自然图像示例 4 张（SDD 07，入库）
 │   └── wsi/                     #   全幅病理切片（StarDist-HE）
 │
@@ -222,6 +224,7 @@ graph LR
 | 子目录 | 内容 |
 | --- | --- |
 | `ct/` | CT NIfTI 体积（TotalSegmentator 演示数据） |
+| `eval/` | 视频评测的题目、原片与片段，由 `scripts/eval/` 生成；视频只在本机使用 |
 | `natural/` | 自然图像示例 4 张 JPEG（SDD 07，逐张记录来源与许可） |
 | `wsi/` | 全幅病理切片（StarDist-HE 数据） |
 
@@ -230,6 +233,7 @@ graph LR
 | 位置 | 内容 |
 | --- | --- |
 | `dev/` | 本地联调脚本（起后端、重启后端、起运行时、健康检查），以及归档的一次性脚本；写死 WSL 路径 |
+| `eval/` | 视频评测数据准备；`tennistv.py` 负责拉题、下载、按帧切片，用法见 `scripts/eval/README.md` |
 | `release/` | `package.py` 生成无源码启动包；`launcher/` 下 start/stop 的 sh、cmd、command 各一份，随包分发 |
 | `version_matrix.py` | 校验根 `VERSION` 与四个组件版本一致（`make version-check`） |
 
