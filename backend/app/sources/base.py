@@ -42,6 +42,7 @@ class Source(Protocol):
     def probe(self, root: Path) -> bool: ...
     def list_ids(self, source: DataSource) -> list[str]: ...
     def is_mine(self, object_id: str) -> bool: ...
+    def object_id_for(self, source: DataSource, path: Path) -> str | None: ...
     def meta(self, source: DataSource, object_id: str) -> ObjectMeta: ...
     def frame(
         self,
@@ -88,6 +89,47 @@ def method_refs(names: list[str], *, gold: tuple[str, ...] = (),
         return "gold" if n in gold else "agent" if n in agent else "reference"
 
     return [{"name": n, "role": role(n)} for n in names]
+
+
+def suffix_matches(formats: tuple[tuple[str, bytes, int], ...], name: str) -> bool:
+    """文件名是否以 ``formats`` 中任一后缀结尾（不区分大小写；多段后缀如 ``.nii.gz`` 同样适用）。
+
+    只看文件名、不读内容——SDD 13 §7.2 规则 2 列目录时标注候选模态即用此判定。
+    """
+    lower = name.lower()
+    return any(lower.endswith(ext.lower()) for ext, _magic, _offset in formats)
+
+
+def magic_matches(formats: tuple[tuple[str, bytes, int], ...], path: Path) -> bool:
+    """按文件名命中的 ``formats`` 行校验文件头魔数；后缀不命中或读不了都算不符。"""
+    lower = path.name.lower()
+    rows = [(magic, off) for ext, magic, off in formats if lower.endswith(ext.lower())]
+    if not rows:
+        return False
+    try:
+        with path.open("rb") as fh:
+            head = fh.read(max(len(m) + off for m, off in rows))
+    except OSError:
+        return False
+    return any(head[off : off + len(m)] == m for m, off in rows)
+
+
+def is_direct_child(source: DataSource, path: Path) -> bool:
+    """``path`` 是否是 ``source.root`` 下一层的普通文件（两边都规范化后比较）。
+
+    ``list_ids(source)`` 只列 ``source.root`` 下一层（SDD 10 D-25），``object_id_for`` 以此
+    判定归属，二者因此同源。
+    """
+    try:
+        return path.is_file() and path.parent.resolve() == Path(source.root).resolve()
+    except OSError:
+        return False
+
+
+def supports_object_id_for(source: Source) -> bool:
+    """该 Source 是否参与按需识别（SDD 13 §7.2 规则 7）：``object_id_for`` 不是缺省实现。"""
+    impl = getattr(type(source), "object_id_for", None)
+    return impl is not None and impl is not SourceBase.object_id_for
 
 
 def resources_for(object_id: str, *, raw: bool = False, tiles: bool = False) -> dict[str, str]:
@@ -163,6 +205,14 @@ class SourceBase:
                     return ds
             except Exception:  # noqa: BLE001 - 单源读失败不影响其余源的判定
                 continue
+        return None
+
+    def object_id_for(self, source: DataSource, path: Path) -> str | None:
+        """文件在此源下的对象 id（SDD 10 §9.2、D-25；SDD 13 按需打开的唯一入口）。
+
+        不属于该源或校验失败返回 ``None``。缺省实现恒为 ``None``：该模态不参与按需识别
+        （P1 的 CT、WSI，SDD 13 §7.2 规则 7），判定见 :func:`supports_object_id_for`。
+        """
         return None
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:

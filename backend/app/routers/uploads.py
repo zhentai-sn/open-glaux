@@ -39,8 +39,13 @@ def upload_formats() -> dict[str, list[str]]:
 async def upload_images(
     files: list[UploadFile] = File(...),
     name: str | None = Form(default=None),
+    project_id: str | None = Form(default=None),
 ) -> UploadResult:
     """把一批文件写入 ``uploads/`` 下的一个数据源。
+
+    ``project_id``：登记的数据源归属该项目（SDD 13 §7.8 规则 5）；项目不存在 404。文件仍落在
+    ``GLAUX_DATASETS_ROOT/uploads/``，不写入项目目录（D-12）；落盘子目录按「项目 + 名称」派生，
+    不同项目的同名上传不会合并成同一个数据源。
 
     模态由受理表推断（``SOURCES[*].formats`` 的后缀与魔数，SDD 10 §4.1），不接受客户端指定
     （SDD 08 D-2）。一批只落一个数据源：模态取第一个受理文件的模态，其余模态的文件按
@@ -53,8 +58,12 @@ async def upload_images(
         # 整体拒绝且不落盘：越限时先写一半再报错，会留下半个数据源，比直接拒更难收拾
         raise HTTPException(422, f"单次最多上传 {config.UPLOAD_MAX_FILES} 个文件")
 
+    project_id = (project_id or "").strip() or None
+    if project_id is not None and reg.get_project(project_id) is None:
+        raise HTTPException(404, f"项目不存在：{project_id}")
+
     source_name = (name or "").strip() or _default_name()
-    target = upload_store.source_dir(source_name)
+    target = upload_store.source_dir(source_name, project_id)
     existing = next((s for s in reg.list_all() if s.root == target.resolve()), None)
     modality = existing.modality if existing is not None else None
 
@@ -125,7 +134,8 @@ async def upload_images(
     from .. import datasource_detect
 
     src = reg.register_folder(
-        target, modality, name=source_name, detect=datasource_detect.detect
+        target, modality, name=source_name, detect=datasource_detect.detect,
+        project_id=project_id,
     )
     derive = SOURCES[modality].derive_id
     accepted = [

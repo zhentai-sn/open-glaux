@@ -140,7 +140,13 @@ def image_size(image_id: str) -> tuple[int, int]:
 
 from .datasource_registry import DataSource  # noqa: E402
 from .schemas import Axis, ObjectMeta  # noqa: E402
-from .sources.base import SourceBase, method_refs, resources_for  # noqa: E402
+from .sources.base import (  # noqa: E402
+    SourceBase,
+    is_direct_child,
+    magic_matches,
+    method_refs,
+    resources_for,
+)
 
 
 class NaturalSource(SourceBase):
@@ -188,6 +194,26 @@ class NaturalSource(SourceBase):
                 continue
             out.append(image_id)
         return out
+
+    def object_id_for(self, source: DataSource, path: Path) -> str | None:
+        """SDD 13 §6.3：``source.root`` 下一层、后缀与魔数均符、可完整探测尺寸的图 → 对象 id。
+
+        判定与 :meth:`list_ids` 同源（同一后缀过滤 + 同一 ``_probe``），故返回的 id 必在该源的
+        列举里。内置演示源按文件名反查 ``ASSETS`` 的冻结 id，与 ``list_ids`` 的 ASSETS 分支一致。
+        """
+        if not (
+            is_direct_child(source, path)
+            and upload_store.is_supported_file(path, MODALITY)
+            and magic_matches(self.formats, path)
+        ):
+            return None
+        try:
+            _probe(path)
+        except FileNotFoundError:
+            return None
+        if _is_builtin_demo(source):
+            return next((i for i, name in ASSETS.items() if name == path.name), None)
+        return upload_store.image_id(source.id, path.name)
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
         rec = image_meta(object_id)

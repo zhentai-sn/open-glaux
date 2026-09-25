@@ -78,13 +78,15 @@ def uploads_root() -> Path:
     return reg.datasets_root() / "uploads"
 
 
-def source_dir(name: str) -> Path:
-    """按数据源**展示名**派生落盘目录。
+def source_dir(name: str, project_id: str | None = None) -> Path:
+    """按数据源**展示名**（与所属项目）派生落盘目录。
 
     同名 → 同目录 → ``register_folder`` 给出同一个 source id，于是「重复上传到同一数据源」是
-    更新而非新建（§10）。名字本身不进路径，只进哈希（D7）。
+    更新而非新建（§10）。名字本身不进路径，只进哈希（D7）。上传归属项目时（SDD 13 §7.8 规则 5）
+    项目 id 一并进哈希，不同项目的同名上传各得一个数据源；未归属时派生结果与改前一致。
     """
-    return uploads_root() / f"u-{_sha1(name, 12)}"
+    key = name if project_id is None else f"{project_id}\0{name}"
+    return uploads_root() / f"u-{_sha1(key, 12)}"
 
 
 def store_name(filename: str, ext: str) -> str:

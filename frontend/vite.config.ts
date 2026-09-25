@@ -48,6 +48,9 @@ export default defineConfig({
         // dev 后端端口可用 GLAUX_BACKEND_PORT 覆盖（spike 工作树与主仓并存时避 8000 冲突）
         target: `http://localhost:${process.env.GLAUX_BACKEND_PORT ?? "8000"}`,
         changeOrigin: true,
+        // 带上原始来源：后端 /fs、/projects 只接受回环来源（SDD 13 §7.1 规则 3），
+        // `vite --host` 对局域网开放时，代理直连地址恒为回环，只能靠 X-Forwarded-For 识别
+        xfwd: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
       "/agent-api": {

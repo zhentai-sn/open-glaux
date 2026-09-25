@@ -247,13 +247,17 @@ class EditRequest(BaseModel):
 
 
 class DataSourceInfo(BaseModel):
-    """一个已注册的数据源（builtin / imported / connector）——``GET/POST /datasources`` 契约。"""
+    """一个已注册的数据源（builtin / imported / connector / project）。
+
+    ``GET/POST /datasources`` 契约。
+    """
 
     id: str
     name: str
     modality: Modality
     root: str
-    origin: Literal["builtin", "imported", "connector"]
+    #: ``project`` = 项目内按需登记的源（SDD 13 §9.3）
+    origin: Literal["builtin", "imported", "connector", "project"]
     calibration: dict = Field(default_factory=dict)
     status: Literal["active", "needs_calibration", "empty", "planned"]
     # SDD 10 §9.3：几何族、展示标签（label_key 优先，label 兜底）与可导入后缀
@@ -263,6 +267,8 @@ class DataSourceInfo(BaseModel):
     importable: list[str] = Field(default_factory=list)
     #: 无 TaskPlugin 模态的能力位默认集（§9.4）；有 TaskPlugin 的模态为空，以 GET /tasks 为准
     default_capabilities: list[str] = Field(default_factory=list)
+    #: 所属项目（SDD 13 §9.3）；空为未归属
+    project_id: str | None = None
 
 
 class UploadAccepted(BaseModel):
@@ -299,6 +305,72 @@ class DatasourceImportRequest(BaseModel):
         default=None, description='标定提示，如 {"mpp":[0.5,0.5]}；缺则 needs_calibration'
     )
     name: str | None = None
+
+
+# --- 项目与目录浏览（SDD 13 §9.1） --------------------------------------------
+
+
+class DirEntry(BaseModel):
+    """目录选择器中的一个目录。``path`` 是后端 POSIX 路径，``display_path`` 是 UI 显示写法。"""
+
+    name: str
+    path: str
+    display_path: str
+    has_children: bool = Field(description="是否含至少一个非隐藏子目录；无读权限时为 false")
+
+
+class DirListing(BaseModel):
+    """``GET /fs/dirs`` 响应：只含子目录，跳过以 ``.`` 开头的条目。``parent`` 在根目录为空。"""
+
+    path: str
+    display_path: str
+    parent: str | None = None
+    entries: list[DirEntry] = Field(default_factory=list)
+
+
+class ProjectView(BaseModel):
+    """一个已登记项目。``status`` 由 ``GET /projects`` 实时判定（§11.1）。"""
+
+    id: str
+    name: str
+    path: str
+    display_path: str
+    created_at: str
+    status: Literal["ok", "missing"]
+
+
+class ProjectCreateRequest(BaseModel):
+    """``POST /projects``：``path`` 接受 POSIX、Windows 盘符、``\\\\wsl.localhost`` 三种写法。"""
+
+    path: str
+
+
+class ProjectEntry(BaseModel):
+    """项目目录树的一个条目（SDD 13 §9.1）。
+
+    ``modality`` 只按后缀判定，是候选值；``object_id`` 仅在所在目录已按该模态登记时非空，由源 id
+    与文件名纯派生、不读文件内容，是提示值——打开仍以 ``POST /projects/{id}/objects`` 的校验为准。
+    """
+
+    name: str
+    path: str = Field(description="项目内相对路径，POSIX 分隔")
+    type: Literal["dir", "file"]
+    modality: Modality | None = None
+    object_id: str | None = None
+
+
+class ProjectEntries(BaseModel):
+    """``GET /projects/{id}/entries``：一层条目，目录在前、名称升序；不截断，``total`` 为条目数。"""
+
+    path: str = Field(description="所列目录的项目内相对路径；根为空串")
+    entries: list[ProjectEntry]
+    total: int
+
+
+class ProjectObjectRequest(BaseModel):
+    """``POST /projects/{id}/objects``：``path`` 是项目内相对路径（POSIX 分隔）。"""
+
+    path: str
 
 
 # --- 模型（扩展=适配器） -----------------------------------------------------

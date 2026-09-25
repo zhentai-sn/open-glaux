@@ -21,7 +21,7 @@ from pathlib import Path
 from . import config, upload_store
 from .datasource_registry import DataSource
 from .schemas import Axis, Calibration, ObjectMeta, Stream
-from .sources.base import SourceBase, resources_for
+from .sources.base import SourceBase, is_direct_child, magic_matches, resources_for
 
 log = logging.getLogger("glaux.video")
 
@@ -243,6 +243,25 @@ class VideoSource(SourceBase):
                 continue  # 损坏或无视频流的文件不进列表
             out.append(oid)
         return out
+
+    def object_id_for(self, source: DataSource, path: Path) -> str | None:
+        """SDD 13 §6.3：``source.root`` 下一层、后缀与魔数均符、容器可探测的视频 → 对象 id。
+
+        判定与 :meth:`list_ids` 同源（同一后缀过滤 + 同一 ``_probe_file``）；
+        PyAV 不可用时恒为 None。
+        """
+        if not (
+            av_available()
+            and is_direct_child(source, path)
+            and path.suffix.lower() in _MIME
+            and magic_matches(self.formats, path)
+        ):
+            return None
+        try:
+            _probe_file(*_key(path))
+        except (ValueError, OSError):
+            return None
+        return object_id(source.id, path.name)
 
     def describe(self, source: DataSource, object_id: str) -> ObjectMeta:
         path = _path_of(source, object_id)

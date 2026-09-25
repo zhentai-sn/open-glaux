@@ -20,10 +20,15 @@
 导入源持久化到 ``sources.json``；内置源不落盘（每次实时从 config 读，避免落盘旧值盖回）。
 护城河延伸：导入无标定的源标 ``needs_calibration``（跑任务时上层 422 硬拒绝，不出假值）。
 模块导入期仍是纯 stdlib + config；``SOURCES`` 在函数内惰性导入（它会导入各数据模块）。
+
+项目（SDD 13 §7.1、D-6）与数据源同存一个 ``sources.json``（``projects`` 键）：项目 = 本机一个目录，
+登记不扫描、不登记数据源；数据源经 ``project_id`` 归属项目，空值为「未归属」。项目内的文件被打开时
+才按「目录 + 模态」登记 ``origin="project"`` 的数据源（:func:`ensure_project_source`，§7.2）。
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
 import json
 import logging
@@ -34,7 +39,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import config
+from . import config, paths
 
 if TYPE_CHECKING:  # pragma: no cover
     from .sources.base import ObjectRef, Source
@@ -85,7 +90,7 @@ class DataSource:
     name: str
     modality: str
     root: Path
-    origin: str  # builtin | imported | connector
+    origin: str  # builtin | imported | connector | project（SDD 13 按需登记）
     calibration: dict = field(default_factory=dict)
     status: str = "active"  # active | needs_calibration | empty | planned
     #: 开发者模式下的合成源（无真实目录，不参与 resolve_root，不落盘）。
@@ -94,6 +99,8 @@ class DataSource:
     provider: str = ""
     license: str = ""
     desc: str = ""
+    #: 所属项目（SDD 13 §9.3）；``None`` = 未归属（既有导入源、上传源、示例源）。
+    project_id: str | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -124,7 +131,47 @@ class DataSource:
             origin=d.get("origin", "imported"),
             calibration=dict(d.get("calibration", {})),
             status=d.get("status", "active"),
+            project_id=d.get("project_id"),  # 旧条目没有该键 → 未归属
         )
+
+
+@dataclass(frozen=True)
+class Project:
+    """一个已登记的项目（SDD 13 §7.1）。``path`` 是写法转换 + ``resolve`` 后的规范化绝对路径。"""
+
+    id: str
+    path: Path
+    created_at: str  # ISO 8601，带时区
+
+    @property
+    def name(self) -> str:
+        """项目名取目录名，不可改；根目录没有目录名时取路径本身。"""
+        return self.path.name or str(self.path)
+
+    @property
+    def status(self) -> str:
+        """实时判定（§11.1）：目录被删除或不可读 → ``missing``。不缓存、不落盘。"""
+        try:
+            ok = self.path.is_dir() and os.access(self.path, os.R_OK | os.X_OK)
+        except OSError:
+            ok = False
+        return "ok" if ok else "missing"
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "path": str(self.path), "created_at": self.created_at}
+
+    def info(self) -> dict:
+        """``ProjectView`` 形状：落盘字段 + 名称、显示写法与实时状态。"""
+        return {
+            **self.to_dict(),
+            "name": self.name,
+            "display_path": paths.display(self.path),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Project:
+        return cls(id=d["id"], path=Path(d["path"]), created_at=str(d.get("created_at", "")))
 
 
 # --- 环境开关 ---------------------------------------------------------------
@@ -186,10 +233,18 @@ def _synthetic_live() -> list[DataSource]:
 _SOURCES: dict[str, DataSource] = {}
 #: 用户显式「加载示例数据」打开的内置源 id（SDD 08 §5.2）。只存 id，源本体仍是 config 实时视图。
 _SAMPLES_ON: set[str] = set()
+#: 已登记项目（SDD 13 §7.1），键为 ``project_id``。
+_PROJECTS: dict[str, Project] = {}
+
+#: ``_SOURCES`` / ``_SAMPLES_ON`` / ``_PROJECTS`` 的读改写与落盘共用的锁（按需登记会并发写）。
+#: 用 RLock：持锁的变更函数内部还要调 :func:`_save_persisted`，后者自身也加锁。
+#: 锁序只允许 ``_index_lock → _state_lock``（``resolve_object`` 持索引锁重建索引时会读源清单），
+#: 故持 ``_state_lock`` 期间不得调 :func:`invalidate_index` / :func:`_invalidate_dataset_caches`。
+_state_lock = threading.RLock()
 
 
 def _load_persisted() -> None:
-    """回读落盘的导入/连接器源与已打开的示例 id。文件缺失/损坏 → 忽略（起空）。"""
+    """回读落盘的导入/连接器源、已打开的示例 id 与项目。文件缺失/损坏 → 忽略（起空）。"""
     fp = sources_file()
     if not fp.is_file():
         return
@@ -210,29 +265,40 @@ def _load_persisted() -> None:
     for sid in raw.get("samples", []):
         if isinstance(sid, str) and sid in known:
             _SAMPLES_ON.add(sid)
+    # 同理：SDD 13 之前的文件没有 "projects" 键 → 无项目
+    for d in raw.get("projects", []):
+        try:
+            prj = Project.from_dict(d)
+        except (KeyError, TypeError):
+            continue
+        _PROJECTS[prj.id] = prj
 
 
 def _save_persisted() -> None:
-    """把导入/连接器源与已打开的示例 id 写盘（原子：写临时文件再 rename）。"""
-    fp = sources_file()
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "sources": [s.to_dict() for s in _SOURCES.values() if s.origin != "builtin"],
-        "samples": sorted(_SAMPLES_ON),
-    }
-    tmp = fp.with_suffix(fp.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-    tmp.replace(fp)
+    """把导入/连接器源、已打开的示例 id 与项目写盘（原子：写临时文件再 rename）。"""
+    with _state_lock:
+        fp = sources_file()
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "sources": [s.to_dict() for s in _SOURCES.values() if s.origin != "builtin"],
+            "samples": sorted(_SAMPLES_ON),
+            "projects": [p.to_dict() for p in _PROJECTS.values()],
+        }
+        tmp = fp.with_suffix(fp.suffix + ".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+        tmp.replace(fp)
 
 
 def init() -> None:
-    """启动装配：回读落盘的导入源与示例开关。
+    """启动装配：回读落盘的导入源、示例开关与项目。
 
     内置源是实时视图无需 seed。幂等（测试/重启可重复调）。
     """
-    _SOURCES.clear()
-    _SAMPLES_ON.clear()
-    _load_persisted()
+    with _state_lock:
+        _SOURCES.clear()
+        _SAMPLES_ON.clear()
+        _PROJECTS.clear()
+        _load_persisted()
     invalidate_index()
 
 
@@ -250,11 +316,14 @@ def list_all() -> list[DataSource]:
     模态不在 ``SOURCES`` 中的导入源（如对应数据模块缺依赖）保留在落盘清单里，但不列出。
     """
     registered = _sources()
+    with _state_lock:  # 只取快照；probe 等文件系统访问放在锁外
+        samples_on = set(_SAMPLES_ON)
+        persisted = dict(_SOURCES)
     merged: dict[str, DataSource] = {}
     for s in _builtin_live():
-        if dev_mode() or s.id in _SAMPLES_ON:
+        if dev_mode() or s.id in samples_on:
             merged[s.id] = s
-    merged.update(_SOURCES)  # 导入源（id 与 builtin 不撞）
+    merged.update(persisted)  # 导入源（id 与 builtin 不撞）
     if dev_mode():
         real_active = {s.modality for s in merged.values() if s.status == "active"}
         for s in _synthetic_live():
@@ -378,10 +447,12 @@ def register_folder(
     calibration: dict | None = None,
     name: str | None = None,
     detect: Callable[[Path, str], dict] | None = None,
+    project_id: str | None = None,
 ) -> DataSource:
     """导入一个文件夹为数据源（落盘持久化）。
 
     - 路径必须存在、是目录、且在 :func:`datasets_root` 白名单下（防任意目录读）。
+    - ``project_id``：浏览器上传到某项目时的归属（SDD 13 §7.8 规则 5）；落盘位置不因此改变。
     - ``modality`` 须是 ``SOURCES`` 的键。
     - 标定：显式 ``calibration`` 优先；否则用 ``detect(root, modality)`` 探测（U3 注入模态探针）；
       两者皆空且该 Source 要求标定 → ``status=needs_calibration``（上层跑任务时 422 硬拒绝）。
@@ -426,9 +497,11 @@ def register_folder(
         origin="imported",
         calibration=cal,
         status=status,
+        project_id=project_id,
     )
-    _SOURCES[src.id] = src
-    _save_persisted()
+    with _state_lock:
+        _SOURCES[src.id] = src
+        _save_persisted()
     _invalidate_dataset_caches()
     return src
 
@@ -445,18 +518,151 @@ def register_builtin_samples() -> list[DataSource]:
     live = {s.id: s for s in _builtin_live() if s.status == "active"}
     if not live:
         return []
-    _SAMPLES_ON.update(live)
-    _save_persisted()
+    with _state_lock:
+        _SAMPLES_ON.update(live)
+        _save_persisted()
     _invalidate_dataset_caches()
     return [live[sid] for sid in sorted(live)]
 
 
 def remove(source_id: str) -> bool:
     """删除一个导入/连接器源（builtin 不可删——它是 config 的实时视图）。返回是否删除。"""
-    s = _SOURCES.get(source_id)
-    if s is None:
-        return False
-    del _SOURCES[source_id]
-    _save_persisted()
+    with _state_lock:
+        if _SOURCES.pop(source_id, None) is None:
+            return False
+        _save_persisted()
     _invalidate_dataset_caches()
     return True
+
+
+# --- 项目（SDD 13 §7.1）------------------------------------------------------
+
+
+def project_id_for(path: Path) -> str:
+    """``project_id = "prj-" + sha1(规范化路径)[:8]``——同一目录重复登记得到同一 id。"""
+    return "prj-" + hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
+
+
+def normalize_project_path(raw: str | Path) -> Path:
+    """写法转换（:func:`paths.to_posix`）→ ``expanduser`` → ``resolve``，得到规范化绝对路径。
+
+    不校验存在性。写法无法转换 → :class:`ValueError`；路径无法解析（如符号链接成环）同样
+    归为 :class:`ValueError`。
+    """
+    p = Path(paths.to_posix(str(raw))).expanduser()
+    try:
+        return p.resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"路径无法解析：{raw}（{e}）") from e
+
+
+def register_project(raw: str | Path) -> tuple[Project, bool]:
+    """登记一个目录为项目；返回 ``(项目, 是否新建)``。
+
+    只登记，不扫描目录、不登记任何数据源（§7.2 规则 1）。以规范化路径为键幂等：同一目录的
+    不同写法、尾斜杠、指向它的符号链接都得到同一项目（§10）。
+
+    - 写法无法转换、路径不是目录 → :class:`ValueError`（上层 422）。
+    - 路径不存在 → :class:`FileNotFoundError`（上层 404）。
+    - 目录不可读 → :class:`PermissionError`（上层 403）。
+    """
+    path = normalize_project_path(raw)
+    if not path.exists():
+        raise FileNotFoundError(f"路径不存在：{path}")
+    if not path.is_dir():
+        raise ValueError(f"路径不是目录：{path}")
+    if not os.access(path, os.R_OK | os.X_OK):
+        raise PermissionError(f"目录不可读：{path}")
+    pid = project_id_for(path)
+    with _state_lock:
+        existing = _PROJECTS.get(pid)
+        if existing is not None:
+            return existing, False
+        created_at = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        prj = Project(id=pid, path=path, created_at=created_at)
+        _PROJECTS[pid] = prj
+        _save_persisted()
+    return prj, True
+
+
+def get_project(project_id: str) -> Project | None:
+    with _state_lock:
+        return _PROJECTS.get(project_id)
+
+
+def list_projects() -> list[Project]:
+    """已登记项目，按登记顺序；``status`` 在读取时实时判定（§11.1）。"""
+    with _state_lock:
+        return list(_PROJECTS.values())
+
+
+def remove_project(project_id: str) -> bool:
+    """注销项目与 ``project_id`` 相同的数据源；不删磁盘文件、不涉及会话（§7.1 规则 6）。
+
+    返回项目是否存在。移除前「无运行中会话」的检查由前端完成（D-16），此处不校验。
+    """
+    with _state_lock:
+        if _PROJECTS.pop(project_id, None) is None:
+            return False
+        owned = [sid for sid, s in _SOURCES.items() if s.project_id == project_id]
+        for sid in owned:
+            del _SOURCES[sid]
+        _save_persisted()
+    if owned:
+        _invalidate_dataset_caches()
+    return True
+
+
+# --- 按需登记（SDD 13 §7.2、D-9、D-11）----------------------------------------
+
+
+def project_source_id(directory: Path, modality: str) -> str:
+    """项目源 id 由 ``(规范化目录, modality)`` 派生（D-11）：同一目录的两个模态互不覆盖。"""
+    h = hashlib.sha1(f"{directory}\0{modality}".encode()).hexdigest()[:8]
+    return f"psrc-{h}"
+
+
+def project_source_spec(project: Project, directory: Path, modality: str) -> DataSource:
+    """未登记的项目源草稿：id、root、归属与正式登记后一致，标定与状态尚未探测。
+
+    按需打开在登记前先用它调 ``Source.object_id_for`` 校验文件（对象 id 只依赖源 id 与文件名），
+    校验不过就不登记，避免为一个损坏文件留下一条数据源。
+    """
+    root = Path(directory).resolve()
+    return DataSource(
+        id=project_source_id(root, modality),
+        name=root.name or str(root),
+        modality=modality,
+        root=root,
+        origin="project",
+        project_id=project.id,
+    )
+
+
+def ensure_project_source(project: Project, directory: Path, modality: str) -> DataSource:
+    """按「目录 + 模态」登记项目源；已登记则直接返回原条目（§7.2 规则 3–4、§10 幂等）。
+
+    标定沿用 ``Source.detect_calibration``（§7.2 规则 6，与 :func:`register_folder` 的 ``detect``
+    注入同一实现）：探测不出且该模态要求标定 → ``needs_calibration``，不出假值。探测在锁外做
+    （视频要解复用），落表前在锁内再查一次，并发打开同目录只登记一条。
+    """
+    spec = project_source_spec(project, directory, modality)
+    with _state_lock:
+        existing = _SOURCES.get(spec.id)
+    if existing is not None:
+        return existing
+    src_impl = _sources()[modality]
+    try:
+        cal = dict(src_impl.detect_calibration(spec.root) or {})
+    except Exception:  # noqa: BLE001 — 探测失败 → 视为无标定
+        cal = {}
+    status = "active" if cal or not src_impl.calibration_required else "needs_calibration"
+    src = DataSource(**{**asdict(spec), "calibration": cal, "status": status})
+    with _state_lock:
+        existing = _SOURCES.get(src.id)
+        if existing is not None:
+            return existing
+        _SOURCES[src.id] = src
+        _save_persisted()
+    _invalidate_dataset_caches()
+    return src
