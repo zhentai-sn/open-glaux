@@ -29,22 +29,23 @@ graph LR
     end
 
     subgraph "Python · 无 LLM SDK"
-        BE["backend<br/>FastAPI :8000<br/>数据源 · 任务 · 标注 · 上传 · 图谱"]
+        BE["backend<br/>FastAPI :8000<br/>数据源 · 项目 · 任务 · 标注 · 上传 · 图谱"]
         SC["science-core<br/>glaux_core（含 tasks.REGISTRY）"]
         MD["models/*<br/>隔离 venv/子进程"]
         AT[("~/glaux_atlas<br/>LanceDB + 图像")]
     end
 
     FE -- "/agent-api/*（对话 · 连接配置 · atlas/describe）" --> AR
-    FE -- "/api/*（查看器数据 · 标注 · 上传 · 图谱）" --> BE
+    FE -- "/api/*（查看器数据 · 项目与目录浏览 · 标注 · 上传 · 图谱）" --> BE
     AR -- "run_task 工具 → POST /task/run" --> BE
+    AR -- "list_files / open_file → /projects/{id}/*" --> BE
     AR -- "AtlasClient → GET /atlas/exemplars/search" --> BE
     BE -- "lancedb" --> AT
     BE -- "import" --> SC
     BE -- "subprocess" --> MD
 ```
 
-Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀；`/agent-api` 转发到 agent-runtime :8010，不改路径。
+Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime :8010，不改路径。
 
 ### Docker 发行包（对话预览版）
 
@@ -137,10 +138,14 @@ open-glaux/
 | 图像库 | Cornerstone.js 3（体积/标注）, OpenSeadragon（WSI 深度缩放）, nifti-reader-js |
 | 布局 | dockview-react（面板拖拽）；`App.tsx` 按 `edition.ts` 在 `ChatShell`（chat）与 `ResearchApp`（full）之间二选一 |
 | 状态（`store/session.ts`） | 唯一观测焦点 `focus: Focus \| null`（`object_id` / `kind` / `index` / `region`），只经 `setFocus` / `setIndex` / `setRegion` 写入；对象表 `objects: Record<modality, ObjectMeta[]>`（缺键 = 未加载，空数组 = 已加载为空）；`activeObject(s)` / `objectsOf(s, m)` 派生。`modality`、`activeModel` 初始为 `null`（SDD 10） |
-| 数据动作（`data/actions.ts`） | `loadObjects(modality, {open?})` 载对象表；`openObject(id, modality?)` 设焦点，按 `TaskView.trigger ?? "manual"` 决定是否自动跑，无 `TaskView` 的模态不调 `/task/run`；`runTask(region?)` 以对象 `calibration` 与 `region` 调 `/task/run`。切模态清空焦点、叠加、工具与工具参数，活动模型随模态重选 |
+| 数据动作（`data/actions.ts`） | `loadObjects(modality, {open?})` 载对象表；`openObject(id, modality?)` 设焦点，按 `TaskView.trigger ?? "manual"` 决定是否自动跑，无 `TaskView` 的模态不调 `/task/run`；`runTask(region?)` 以对象 `calibration` 与 `region` 调 `/task/run`。切模态清空焦点、叠加、工具与工具参数，活动模型随模态重选。`openProjectFile(projectId, path)` 经 `POST /projects/{id}/objects` 按需登记后走 `openObject`；`uploadImages` 带当前会话的 `project_id` |
 | 查看器 | `components/Viewer.tsx` 是引擎的 store 装配入口，按 `ObjectMeta.kind` 查 `ENGINES`：`image` / `volume` / `video` → 共用 `viewer/FrameStackViewer`（CS3D，`z/t` 由 `FrameAxis` 驱动），`slide` → `viewer/PyramidViewer`（OpenSeadragon 原生标注叠加层）；两引擎经 `ViewerProps` 接收帧源、轴、能力位、画笔写入与叠加数据。video 的时间轴由 `timeline` 能力位装配，标注按 `index.t` 回显；缺键显示空态，不读 `TaskView.viewer` |
 | 模态标签 | 取 `/datasources` 元素的 `label_key`（i18n `modality.<m>`）→ `label` → modality 原文（`i18n/modalityLabel.ts`）；切换器可见性取有 active 数据源的模态 |
-| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条" |
+| 会话工作区（`store/sessionWorkspaces.ts`） | 按 `session_id` 各存一份 `modality`、`focus`、任务结果（`metrics` / `primitives` / `source` / `modelVersion`）、`activeModel` 与输入草稿、附件、视频；`agentSessions.select` 切换时换出当前、换入目标，组件仍只读 `useSession`。后台会话的 `tool_execution_end` 只写该会话快照并置未读，未读只存内存。localStorage `glaux.sessionWorkspace.v1` 只持久化 `{modality, focus}`（SDD 13 §9.6） |
+| 项目（`store/projects.ts`） | 缓存 `GET /projects` 列表；localStorage `glaux.projects.known.v1` 记住见过的项目名与路径（项目移除后组头仍显示原名、可按原路径重新打开），`glaux.projects.collapsed.v1` 存组头折叠状态 |
+| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点 |
+| 会话列表 | `components/agent/SessionDrawer.tsx` 按项目分组（分组逻辑在 `sessionGroups.ts`）：项目组、「未归属」组、「<项目名>（已移除）」只读组；会话行状态点（运行中、未读、出错）；Focus 的 `SessionRail` 与 Workbench 共用。`ProjectChip` 在输入区上方显示当前会话项目，空会话可切项目；`FolderPicker` 浏览后端文件系统（`/fs/roots`、`/fs/dirs`）并登记项目 |
+| 文件栏 | 项目会话显示 `components/ProjectTree.tsx` 目录树：展开一层列一层，点击文件经 `POST /projects/{id}/objects` 按需登记后 `openObject`，根下虚拟节点「上传」列本项目上传源；未归属会话保持模态切换器 + `ExplorerTree`，只列 `project_id` 为空的数据源（SDD 13 §7.8） |
 | 图谱（Atlas） | `components/atlas/`：列表 / 详情 / 导入向导（PDF · 网页 · 手动上传，ROI 框选，外发协议勾选）；描述生成走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
 | 国际化 | 中/英双语（`src/i18n/`） |
 | 安全 | 自定义 Vite 插件向 index.html 注入 CSP meta（开发放行 HMR 所需 inline，生产收紧 script-src 'self'） |
@@ -153,6 +158,7 @@ open-glaux/
 | --- | --- |
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
 | 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；`connection/test\|models`；`atlas/describe` |
+| 会话绑定项目 | `POST /sessions` 接受 `project_id`，写入 Pi 会话 `metadata.glaux_project_id`，创建后不可改；未归属会话不写 metadata。`SessionView` / `SessionListItem` 带 `project_id`；空会话按 `project_id`（含 `null`）各复用一个；同 `session_id` 换 `project_id` 返回 409 `idempotency_conflict`。`glaux_session_meta` 表不存项目（SDD 13 §7.6） |
 | 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
@@ -168,6 +174,10 @@ open-glaux/
 | `segment_region` | 调外部分割后端取 mask，runtime 侧转对象像素多边形 | 有焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且 `GLAUX_SEG_API_TOKEN` 非空 |
 | `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认 | 有焦点 |
 | `observe_video_interval` / `submit_video_answer` | Qwen 原生音画区间观察、结构化证据校验与会话记录（SDD 11） | 当前焦点为视频、连接显式选择 `qwen-omni`；`observe` 权限也可挂载 |
+| `list_files` | 经 backend `GET /projects/{id}/entries` 列项目内一层条目（名称、类型、候选模态、已登记的对象 id），单次最多 200 条，超出返回总数 | 会话绑定了项目（SDD 13 §7.3） |
+| `open_file` | 经 backend `POST /projects/{id}/objects` 按需打开项目内文件，取首帧或代表帧返回模型；不改会话焦点，`details` 供前端渲染对象卡片 | 会话绑定了项目且连接支持视觉 |
+
+项目越界守卫（`pi/tools/project-guard.ts`，SDD 13 §7.8 规则 4）：`run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具执行前，经 backend `GET /objects/{id}` 与 `GET /datasources` 核对对象所属数据源的 `project_id` 与会话一致（未归属会话要求为空），参数显式给出的对象 id 一并校验；不一致时返回工具错误、不执行，查询结果在一个回合内缓存。`consult_atlas` 查全局图谱，不经守卫。backend 地址取 `GLAUX_BACKEND_URL`（缺省 `http://127.0.0.1:8000`），须指向本机回环地址，否则 `/projects*` 返回 403。
 
 ### `backend/` — FastAPI 薄壳
 
@@ -176,12 +186,17 @@ open-glaux/
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | Python ≥ 3.12, FastAPI, Pydantic, uv；**不含任何 LLM SDK** |
-| 路由 | 六组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
-| 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404 |
+| 路由 | 八组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）、目录浏览 `/fs`、项目 `/projects`（SDD 13）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
+| 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404。`DataSource.origin` 取 `builtin` / `imported` / `connector` / `project`，`project_id` 为空即「未归属」；注册表读写与落盘共用一把 `RLock` |
+| 项目（SDD 13） | 项目 = 后端文件系统上的一个目录，`project_id = "prj-" + sha1(规范化路径)[:8]`，重复登记幂等；登记不扫描目录。文件被打开时按「目录 + 模态」登记 `origin=project` 的数据源（id `psrc-<sha1(目录\0模态)[:8]>`），依据 `SOURCES[*].formats` 后缀与魔数和 `Source.object_id_for`；P1 只有 `natural_image`、`video` 实现 `object_id_for`，CT、WSI 返回 422 `unsupported_format`。移除项目连带注销其数据源，不删磁盘文件。浏览器上传可带 `project_id`，文件仍落 `GLAUX_DATASETS_ROOT/uploads/` |
+| 项目端点 | `GET /fs/roots`（主目录、`GLAUX_DATASETS_ROOT`、WSL 下各 `/mnt/<盘符>`）、`GET /fs/dirs?path=`（只列子目录）；`GET/POST /projects`、`DELETE /projects/{id}`、`GET /projects/{id}/entries?path=`（列一层，按后缀给候选模态）、`POST /projects/{id}/objects`（按需打开，返回 `ObjectMeta`）。entries / objects 的错误体为 `{detail: {code, message}}`，`code` 取 `project_not_found`、`not_found`、`outside_project`、`not_directory`、`not_file`、`unsupported_format`、`corrupt` |
+| 路径写法（`paths.py`） | 路径参数接受 POSIX、`C:\…`、`\\wsl.localhost\<发行版>\…`（含 `\\wsl$\…`）；WSL 下（以 `WSL_DISTRO_NAME` 判定）后两种转为 `/mnt/c/…` 与 `/…`，发行版不一致返回 422；显示时 `/mnt/<盘符>/…` 写作 `<盘符>:\…` |
+| 回环守卫（`routers/loopback.py`） | `/fs/*` 与 `/projects*` 以 router 级依赖只接受回环来源（`127.0.0.1`、`::1`、`::ffff:127.0.0.1`）；请求带 `X-Forwarded-For` 或 RFC 7239 `Forwarded` 头时逐跳校验，任一跳非回环返回 403。该守卫替代 `GLAUX_DATASETS_ROOT` 白名单对项目目录的限制；白名单仍约束 `POST /datasources` 与上传落盘 |
 | 动作轴 | `detectors/`：`Detector` 协议与 `DETECTORS` 表（键 `TaskPlugin.adapter_kind`：`wall_pair` / `contour` / `volume` / `wsi`），各实现只取数与调模型；`kernel.run_task` 持有公共前缀（解析对象 → `object_kinds` 门控 → `available()` → 选区类型 → 标定）与信封组装 |
 | 表征面 | `routers/objects.py`：SDD 10 的对象、取帧、原始数据、瓦片与编辑；SDD 11 增加 `/clip` 原声短片段和 `/frame-at` 原视频时间关键帧；任务结果字节面保留 `/volume/{id}/labelmap` 与 `/wsi/{id}/verify` |
 | 视频片段 | `dataset_video.py` 从源 PTS 给出时长和按时取帧；`video_clip.py` 生成有界 H.264/AAC MP4 与源指纹映射；上传视频独立限制 512 MiB、10 分钟（SDD 11） |
 | 数据轴 | `sources/`：`Source` 协议、`SourceBase` 与 `SOURCES` 表（键 modality，SDD 10）。每个模态的 `Source` 写在对应数据模块末尾：`dataset.py`（颈动脉）、`hc_dataset.py`、`dataset_ct.py`、`dataset_wsi.py`、`dataset_natural.py`、`dataset_video.py`（PyAV 可选依赖，缺库时 video 不可用） |
+| `sources.json`（`GLAUX_SOURCES_FILE`，缺省 `~/glaux_datasets/sources.json`） | 三个键：`sources`（导入、连接器、项目源；项目源带 `project_id`）、`samples`（已打开的示例源 id）、`projects`（`{id, path, created_at}`）；缺 `projects` 键或 `project_id` 的旧文件按空数组与 `null` 读取；写入先写临时文件再 rename |
 | 分割 | 全部走隔离子进程（`segment_proc.py` / `segment_ts.py` / `segment_wsi.py`） |
 | 图谱（Atlas） | `app/atlas/`：LanceDB 案例表（JSON 列 + ngram FTS）与 sha256 寻址图像目录（`GLAUX_ATLAS_ROOT`，默认 `~/glaux_atlas`）；PyMuPDF / httpx+bs4 抽图；`python -m app.atlas.cli import-dataset` 批量导入 COCO/YOLO/LabelMe |
 | 测试 | pytest + httpx |

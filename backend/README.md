@@ -22,8 +22,11 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | `GET /volume/{id}/labelmap` | `segment_ts` | 任务结果字节面，有意保留 |
 | `GET /wsi/{id}/verify` | `Detector.verify`（`detectors/wsi.py`） | 病理复现验证，有意保留 |
 | `GET /models` `GET /capabilities` | 注册表 | 插件市场 / 能力清单 |
-| `GET/POST /datasources` `DELETE /datasources/{id}` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源 |
-| `POST /uploads/images` | `routers/uploads.py` | 浏览器上传（SDD 08）；模态由 `SOURCES[*].formats` 推断：图像 → `natural_image`，mp4 / webm → `video` |
+| `GET/POST /datasources` `DELETE /datasources/{id}` `POST /datasources/samples` | `datasource_registry` | 数据源；`samples` 挂载内置示例源；元素带 `project_id`（空为未归属），`origin` 含 `project` |
+| `POST /uploads/images` | `routers/uploads.py` | 浏览器上传（SDD 08）；模态由 `SOURCES[*].formats` 推断：图像 → `natural_image`，mp4 / webm → `video`；可带表单字段 `project_id`，登记的数据源归属该项目，落盘仍在 `GLAUX_DATASETS_ROOT/uploads/`（SDD 13） |
+| `GET /fs/roots` `GET /fs/dirs?path=` | `routers/fs.py`、`paths.py` | 目录选择器（SDD 13）：快捷根与单层子目录；路径接受 POSIX、`C:\…`、`\\wsl.localhost\<发行版>\…` 三种写法。仅回环来源 |
+| `GET/POST /projects` `DELETE /projects/{id}` | `routers/projects.py` → `datasource_registry` | 项目登记（SDD 13）：`POST` 按规范化路径幂等（新建 201、已存在 200），不扫描目录；`GET` 实时判定 `status: ok \| missing`；`DELETE` 连带注销项目源，不删磁盘文件。仅回环来源 |
+| `GET /projects/{id}/entries?path=` `POST /projects/{id}/objects` | `routers/projects.py` → `Source.object_id_for` | 按需识别（SDD 13）：列一层并按后缀给候选模态；打开文件时按「目录 + 模态」登记 `origin=project` 的数据源并返回 `ObjectMeta`。错误体 `{detail: {code, message}}`，`code` 为 `outside_project` / `unsupported_format`（P1 的 CT、WSI）/ `corrupt` 等。仅回环来源 |
 | `GET /objects/{id}/clip` `…/frame-at` | `dataset_video.py`、`video_clip.py` | SDD 11 原声音画短片段、PTS 时间映射与关键帧证据；仅视频对象可用 |
 | `/annotations` `/annotations/{id}` `/annotations/{id}/mask` | `routers/annotations.py` | 统一标注（SDD 04） |
 | `/atlas/*`（`exemplars`、`collections`、`tags`、`imports/*`） | `routers/atlas.py` | 图谱：案例库与文献导入（SDD 03） |
@@ -31,6 +34,8 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | ~~`/task/detect` `/correction` `/volume/{id}/segment\|raw\|verify` `/wsi/{id}/dzi\|thumbnail\|region`~~ | 已删（孤儿端点，前端从未调用） | 同上设计 §3.3 后续清理 |
 
 `app/schemas.py` 即契约单一事实源；`glaux_core.tasks.TaskSpec` 是内核入口，pydantic 版在 HTTP 边界做校验。
+
+「仅回环来源」由 `routers/loopback.py` 的 `require_loopback` 以 router 级依赖实现：直连地址与 `X-Forwarded-For`、`Forwarded` 头中的每一跳都须是 `127.0.0.1` 或 `::1`，否则 403。开发态 Vite 代理开启 `xfwd`，经 `vite --host` 从局域网访问时这两组端点返回 403。测试经 `app.dependency_overrides[require_loopback]` 放行。
 
 ## 运行
 

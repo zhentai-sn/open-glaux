@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 13 · 项目文件夹与并行会话
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 契约冻结，可进入 P1 实现规划；SDD 00、01、08、10 的对应条款已同步修订 |
+| 状态 | `implemented`（P1） |
+| 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）未开始；业务验收待补 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 会话管理](../00-reference-agent-conversations/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) · [SDD 08 文件栏](../08-data-import-first-explorer/README.md) · [SDD 10 对象与数据源](../10-object-convergence/README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-25 |
@@ -52,7 +52,7 @@ status: ready
 | 阶段 | 交付 | 覆盖模态 |
 | --- | --- | --- |
 | P1 | 项目登记、目录浏览、按需打开、左侧栏分组、项目胶囊、状态隔离、智能体浏览工具 | `natural_image`、`video` |
-| P2 | CT、WSI 的 Source 改造：去掉 `ct_*`、`slide_*` 文件名约定，`list_ids` 按数据源目录列举，声明 `formats`（§7.2 规则 7） | `ct_abdomen`、`pathology` |
+| P2 | CT、WSI 的 Source 改造：去掉 `ct_*`、`slide_*` 文件名约定，`list_ids` 按数据源目录列举，声明 `formats`（§7.2 规则 7）；`needs_calibration` 的项目源可被 `resolve_object` 解析；同批移除 `ImportPanel` 的服务端文件夹路径框（D-21） | `ct_abdomen`、`pathology` |
 
 阶段目标按以下口径判定：
 
@@ -73,7 +73,7 @@ status: ready
 | 目录选择器路径框 | 手输或粘贴的绝对路径 | 接受 POSIX 路径、Windows 盘符路径、`\\wsl.localhost\<发行版>\…` 路径三种写法（§7.1 规则 8） |
 | 文件栏目录树 | 展开目录、点击文件 | 只触及项目根目录以内 |
 | 项目组头「＋」 | 无 | 在该项目下新建或复用空会话 |
-| 项目组头菜单 | 移除项目 | 移除前该项目下不得有非 `idle` 会话 |
+| 项目组头「移除项目」按钮 | 无 | 移除前该项目下不得有非 `idle` 会话 |
 
 ### 4.2 智能体输入
 
@@ -107,6 +107,8 @@ status: ready
 - `sources.json` 的 `projects` 数组与带 `project_id` 的数据源条目。
 - Pi 会话 `metadata.glaux_project_id`。
 - localStorage `glaux.sessionWorkspace.v1`：各会话的查看对象与模态（§9.6）。
+- localStorage `glaux.projects.known.v1`：见过的项目名与路径，供「（已移除）」组显示原名、重新打开，以及项目列表加载失败时兜底分组。
+- localStorage `glaux.projects.collapsed.v1`：折叠的组。
 
 ## 6. 核心流程
 
@@ -174,11 +176,11 @@ sequenceDiagram
     participant S as SOURCES[modality]
     C->>BE: POST /projects/{id}/objects {path}
     BE->>BE: 校验路径在项目根内、是文件
-    BE->>BE: 按后缀匹配 formats → 候选模态；校验魔数
-    alt 文件所在目录尚未按该模态登记
+    BE->>BE: 按后缀匹配 formats → 候选模态
+    BE->>S: object_id_for(源草稿, path)：父目录、后缀、魔数、可解码
+    alt 校验通过且文件所在目录尚未按该模态登记
         BE->>BE: 登记 DataSource(目录, modality, project_id)
     end
-    BE->>S: object_id_for(source, path)
     BE->>S: describe(source, object_id)
     BE-->>C: ObjectMeta
     Note over C: 前端：openObject(id)<br/>agent-runtime：取观测返回给模型
@@ -217,7 +219,7 @@ sequenceDiagram
 
 1. 项目 = 后端所在文件系统上的一个目录。登记时路径做写法转换（规则 8）、`expanduser`、`resolve`，得到规范化绝对路径。
 2. `project_id = "prj-" + sha1(规范化路径)[:8]`。同一路径重复打开得到同一项目，幂等。
-3. `/fs/*` 与 `/projects*` 只接受回环地址（`127.0.0.1`、`::1`）来源的请求，其他来源返回 403。该约束替代 `GLAUX_DATASETS_ROOT` 白名单对项目目录的限制。
+3. `/fs/*` 与 `/projects*` 只接受回环地址（`127.0.0.1`、`::1`、`::ffff:127.0.0.1`）来源的请求，其他来源返回 403。直连地址、`X-Forwarded-For` 的每一跳、`Forwarded` 头的每个 `for=` 值都须为回环；前端开发服务器的 `/api` 代理开启 `xfwd`，以免 `vite --host` 对局域网开放时经代理绕过（D-22）。该约束替代 `GLAUX_DATASETS_ROOT` 白名单对项目目录的限制。
 4. `GLAUX_DATASETS_ROOT` 白名单仍约束浏览器上传的落盘位置（SDD 08 §7 规则 8）。
 5. 项目名取目录名，不可改；两个项目目录名相同时，组头追加父目录名以区分。
 6. 移除项目只注销项目与其数据源，不删除磁盘文件、不删除会话；UI 明示这一点。
@@ -239,7 +241,7 @@ sequenceDiagram
 
 ### 7.3 智能体浏览工具
 
-1. `list_files` 与 `open_file` 注册在 `TOOL_PROVIDERS`，只对绑定了项目的会话挂载；「未归属」会话不挂载。
+1. `list_files` 与 `open_file` 注册在 `TOOL_PROVIDERS`，只对绑定了项目的会话挂载；「未归属」会话不挂载；`observe` 权限模式不挂载。`open_file` 另要求连接声明视觉能力（无视觉模型收到的图像块会被静默替换，同 SDD 03 D-21）。
 2. `list_files(path?)` 返回一层条目：名称、类型（目录 / 文件）、候选模态、已登记时的对象 id。单次最多返回 200 条，超出时返回总数并提示缩小范围。
 3. `open_file(path)` 调用 §6.3 的端点，成功后经 SDD 10 的观测通道取首帧或代表帧返回给模型，同时返回 `ObjectMeta` 摘要。
 4. `open_file` **不改变**会话的查看焦点；前端在对话内渲染对象卡片，用户点「在舞台打开」后才改焦点（D-18）。
@@ -263,10 +265,11 @@ sequenceDiagram
 
 6. 未读标记只存于内存，刷新后清空。
 7. 搜索按标题跨项目匹配；有搜索词时展开所有命中的组。
-8. 归档会话默认隐藏；侧栏底部「显示归档」开关打开后，归档会话在各自组内以次级样式显示。
+8. 归档会话默认隐藏；侧栏底部「显示归档」开关打开或有搜索词时，归档会话在各自组内以次级样式显示。
 9. 顶部「新建会话」在当前会话所属项目下新建；当前会话属于「未归属」时在「未归属」下新建。
 10. 折叠态 40px 竖条的「＋」语义同规则 9；`title` 显示目标项目名。
 11. 组头可折叠，折叠状态存 localStorage；当前会话所在组不可折叠到隐藏当前会话。
+12. 项目列表加载失败（后端不可用、非回环来源被拒）时，按 `glaux.projects.known.v1` 中见过的项目分组，不判为「已移除」，也不据此置只读。
 
 ### 7.5 项目胶囊
 
@@ -300,8 +303,8 @@ sequenceDiagram
 1. 项目会话的文件栏显示项目目录树（§5.1），替代模态切换器与按模态的对象列表。
 2. 「未归属」会话的文件栏保持 SDD 08 的形态（模态切换器 + 对象列表），作用域是 `project_id` 为空的数据源，即既有导入源、上传源与示例源。
 3. 「最近使用」只显示属于当前作用域的条目；记录本身不按项目拆分存储。
-4. 智能体工具只接受当前会话项目内的对象；越界时工具返回错误，不执行。校验在 agent-runtime 工具执行前完成：对象 `ObjectMeta.source_id` 对应数据源的 `project_id` 须等于会话的 `project_id`。
-5. 浏览器上传的数据源归属当前会话的项目；文件仍落在 `GLAUX_DATASETS_ROOT/uploads/`，不写入项目目录。项目目录树根下的虚拟节点「上传」列出这些文件。
+4. 智能体工具只接受当前会话项目内的对象；越界时工具返回错误，不执行。校验在 agent-runtime 工具执行前完成：对象 `ObjectMeta.source_id` 对应数据源的 `project_id` 须等于会话的 `project_id`。受校验的对象 id 包括查看焦点与工具参数中显式指定的对象（`run_task.image_id`、`submit_video_answer.object_id`）；同一回合内缓存查询结果。
+5. 浏览器上传的数据源归属当前会话的项目；文件仍落在 `GLAUX_DATASETS_ROOT/uploads/`，不写入项目目录，落盘子目录按「项目 + 上传名」派生，不同项目的同名上传互不覆盖。项目目录树根下的虚拟节点「上传」列出这些文件。
 
 ## 8. 涉及对象
 
@@ -344,7 +347,7 @@ sequenceDiagram
 | `frontend/src/store/agentSessions.ts` | `newSession(projectId)`；切换时换入换出；事件按会话路由 |
 | `frontend/src/agent/toolBridge.ts` | `applyToolExecutionEvent` 接受写入目标（前台 store 或会话快照） |
 | `frontend/src/components/SideBar.tsx` | 项目会话渲染 `ProjectTree`，未归属会话保持 `ExplorerTree` |
-| `frontend/src/components/ImportPanel.tsx` | 移除「打开服务端文件夹」路径框，由打开项目取代 |
+| `frontend/src/components/ImportPanel.tsx` | P2 移除「打开服务端文件夹」路径框，由打开项目取代（D-21） |
 
 ## 9. 数据或字段要求
 
@@ -357,8 +360,10 @@ sequenceDiagram
 | GET | `/projects` | — | `ProjectView[]` | — |
 | POST | `/projects` | `{path}` | `ProjectView`；新建 201，已存在 200 | 403；404；422 |
 | DELETE | `/projects/{id}` | — | 204 | 404 |
-| GET | `/projects/{id}/entries?path=` | 项目内相对路径，缺省为根 | `{path, entries: ProjectEntry[], total}` | 404；422 `outside_project` / 非目录 |
-| POST | `/projects/{id}/objects` | `{path}` 项目内相对路径 | `ObjectMeta` | 404；422 `outside_project` / `unsupported_format` / `corrupt` |
+| GET | `/projects/{id}/entries?path=` | 项目内相对路径，缺省为根 | `{path, entries: ProjectEntry[], total}` | 404 `project_not_found` / `not_found`；422 `outside_project` / `not_directory` |
+| POST | `/projects/{id}/objects` | `{path}` 项目内相对路径 | `ObjectMeta` | 404 `project_not_found` / `not_found`；422 `outside_project` / `not_file` / `unsupported_format` / `corrupt` |
+
+`/projects/{id}/*` 的错误体为 `{"detail": {"code", "message"}}`（与 `/atlas` 一致）；其余端点沿用 `{"detail": "<说明>"}`。目录存在但不可读时 `POST /projects` 与 `/fs/dirs` 返回 403；相对路径与 `\\server\share` 类网络共享路径返回 422。
 
 | 类型 | 字段 |
 | --- | --- |
@@ -437,7 +442,7 @@ stateDiagram-v2
 ```
 
 - 「已移除」不是持久状态：项目条目被删除，前端依据会话的 `project_id` 找不到项目来判定。
-- 「路径失效」由 `GET /projects` 实时判定（`status = "missing"`）：组头显示警示，会话可查看、不可发送。
+- 「路径失效」由 `GET /projects` 实时判定（`status = "missing"`）：组头显示警示，会话可查看、不可发送。前端在页面加载、打开项目、移除项目时拉取项目列表；目录恢复后刷新页面即恢复。
 
 ### 11.2 按需登记的数据源
 
@@ -460,7 +465,8 @@ stateDiagram-v2
 ## 12. 审计或事件规则
 
 - 不埋点、不上报。
-- 不新增 SSE 事件类型；前端依据既有事件与 `phase` 推导状态点，依据 `tool_execution_end` 中 `open_file` 的结果渲染对象卡片。
+- 不新增 SSE 事件类型；前端依据既有事件与 `phase` 推导状态点。
+- `open_file` 结果的 `details`（`kind: glaux.object_opened`）进入会话快照，对象卡片随历史持久呈现，与图谱引用卡片同一机制。
 
 ## 13. 异常和人工处理
 
@@ -507,55 +513,57 @@ flowchart LR
 
 ## 15. 验收标准
 
+自查口径：「单测」指自动化用例；「走查」指 2026-09-25 开发侧浏览器走查（隔离后端 + 前端，项目目录含两张 JPEG 与一个 txt）。全量门禁 `make test`：agent-runtime 273、前端 301、backend 439、science-core 213 全部通过。
+
 ### 15.1 项目与按需识别
 
-- [ ] `POST /projects` 用 `C:\cases\liver`、`/mnt/c/cases/liver`、`/mnt/c/cases/liver/` 三种写法各调用一次，得到同一 `project_id`，`sources.json` 中项目不重复。
-- [ ] 打开含 10 万个文件的目录作为项目，`POST /projects` 响应时间与空目录处于同一量级（不扫描）。
-- [ ] `GET /projects/{id}/entries` 对 `.jpg`、`.mp4` 文件返回候选模态，对 `.txt` 返回 `null`，以 `.` 开头的条目不出现。
-- [ ] 打开项目内某 JPEG：返回 `ObjectMeta`，同目录登记一个 `natural_image` 数据源；再打开同目录另一 JPEG，不新增数据源。
-- [ ] 同一目录同时含 JPEG 与 MP4，分别打开后登记两个数据源，互不覆盖。
-- [ ] 路径含 `..` 或符号链接指向项目外时，返回 422 `outside_project`。
-- [ ] 非回环来源请求 `/fs/dirs`、`POST /projects` 返回 403。
-- [ ] 移除项目后磁盘文件不变，会话仍在存储中；重新打开同一路径，会话回到原项目组。
-- [ ] 项目下有运行中会话时，移除操作被拒绝并提示原因。
+- [x] `POST /projects` 用 `C:\cases\liver`、`/mnt/c/cases/liver`、`/mnt/c/cases/liver/` 三种写法各调用一次，得到同一 `project_id`，`sources.json` 中项目不重复。——单测 `test_projects.py`、`test_paths.py`（盘符写法在规范化层断言）
+- [x] 打开含 10 万个文件的目录作为项目，`POST /projects` 响应时间与空目录处于同一量级（不扫描）。——单测以「登记时不枚举目录、不登记数据源」的结构断言代替计时
+- [x] `GET /projects/{id}/entries` 对 `.jpg`、`.mp4` 文件返回候选模态，对 `.txt` 返回 `null`，以 `.` 开头的条目不出现。——单测 `test_project_objects.py`；走查
+- [x] 打开项目内某 JPEG：返回 `ObjectMeta`，同目录登记一个 `natural_image` 数据源；再打开同目录另一 JPEG，不新增数据源。——单测；走查（登记 `psrc-…`，`origin=project`）
+- [x] 同一目录同时含 JPEG 与 MP4，分别打开后登记两个数据源，互不覆盖。——单测
+- [x] 路径含 `..` 或符号链接指向项目外时，返回 422 `outside_project`。——单测
+- [x] 非回环来源请求 `/fs/dirs`、`POST /projects` 返回 403。——单测（含 `X-Forwarded-For`、`Forwarded` 逐跳校验）
+- [x] 移除项目后磁盘文件不变，会话仍在存储中；重新打开同一路径，会话回到原项目组。——单测；走查
+- [x] 项目下有运行中会话时，移除操作被拒绝并提示原因。——单测 `SessionDrawer.test.tsx`
 - [ ] P2：文件名不以 `ct_` 开头的 `.nii.gz`、不以 `slide_` 开头的 `.svs` 可在项目中打开。
 
 ### 15.2 智能体浏览
 
-- [ ] 绑定项目的会话挂载 `list_files`、`open_file`；未归属会话不挂载。
-- [ ] 用户未在舞台打开任何对象时，智能体可通过 `list_files` + `open_file` 找到并描述项目内的一张图像。
-- [ ] `open_file` 后会话焦点不变；对话内出现对象卡片，点「在舞台打开」后焦点变为该对象。
-- [ ] `open_file` 传入项目外路径或不支持的格式，模型收到工具错误，回合继续。
+- [x] 绑定项目的会话挂载 `list_files`、`open_file`；未归属会话不挂载。——单测 `project-tools.test.ts`
+- [ ] 用户未在舞台打开任何对象时，智能体可通过 `list_files` + `open_file` 找到并描述项目内的一张图像。——工具链路单测通过（注入后端响应）；真实模型走查待补
+- [x] `open_file` 后会话焦点不变；对话内出现对象卡片，点「在舞台打开」后焦点变为该对象。——单测 `ObjectCard.test.tsx`、`project-tools.test.ts`
+- [x] `open_file` 传入项目外路径或不支持的格式，模型收到工具错误，回合继续。——单测（harness 级断言 `isError` 与回合继续）
 
 ### 15.3 左侧栏与胶囊
 
-- [ ] 会话按项目分组，组内按更新时间倒序；未归属会话出现在「未归属」组，组内可新建会话。
-- [ ] 组头「＋」在该项目下新建会话；连续点击两次只产生一个空会话。
-- [ ] 空会话的胶囊切换到项目 B 后，侧栏选中项移到 B 组的空会话，草稿随之带过去。
-- [ ] 已发送消息的会话，胶囊不可点击。
-- [ ] 后台会话生成期间显示运行中状态点；完成后显示未读点，选中后消失。
-- [ ] 升级前已有的会话在升级后全部可见、可继续对话，位于「未归属」组。
+- [x] 会话按项目分组，组内按更新时间倒序；未归属会话出现在「未归属」组，组内可新建会话。——单测 `sessionGroups.test.ts`、`SessionDrawer.test.tsx`；走查
+- [x] 组头「＋」在该项目下新建会话；连续点击两次只产生一个空会话。——单测 `session-projects.test.ts`、`SessionDrawer.test.tsx`；走查（胶囊往返复用同一空会话）
+- [x] 空会话的胶囊切换到项目 B 后，侧栏选中项移到 B 组的空会话，草稿随之带过去。——单测 `ProjectChip.test.tsx`、`agentSessions.test.ts`；走查
+- [x] 已发送消息的会话，胶囊不可点击。——单测
+- [x] 后台会话生成期间显示运行中状态点；完成后显示未读点，选中后消失。——单测（store 相位迁移 + 抽屉渲染）；真实并行生成的走查待补
+- [x] 升级前已有的会话在升级后全部可见、可继续对话，位于「未归属」组。——单测（无 metadata 会话 `project_id` 为 null）；走查（既有 15 个会话均在「未归属」）
 
 ### 15.4 状态隔离
 
-- [ ] 会话 A 焦点为对象 X，会话 B 焦点为对象 Y；A 在后台完成 `run_task` 后，B 的查看器与度量卡不变。
-- [ ] 两个会话焦点同为对象 X；A 在后台完成 `run_task` 后，B 的度量卡不变；切回 A 显示 A 的结果。
-- [ ] 在 A 中切换焦点到 Y 后切到 B 发消息，B 本轮 `ViewerContext.focus` 为 B 自己的焦点。
-- [ ] A 中输入草稿与附件，切到 B 时 B 输入框为空；切回 A 草稿与附件恢复。
-- [ ] 刷新页面后，每个会话的焦点对象与模态恢复为刷新前的值。
-- [ ] 切换 20 次会话不触发 `abort`（沿用 `agentSessions.test.ts`）。
+- [x] 会话 A 焦点为对象 X，会话 B 焦点为对象 Y；A 在后台完成 `run_task` 后，B 的查看器与度量卡不变。——单测；走查（注入 A 的 `tool_execution_end`，前台度量不变、A 快照得结果）
+- [x] 两个会话焦点同为对象 X；A 在后台完成 `run_task` 后，B 的度量卡不变；切回 A 显示 A 的结果。——单测
+- [x] 在 A 中切换焦点到 Y 后切到 B 发消息，B 本轮 `ViewerContext.focus` 为 B 自己的焦点。——单测（切换后前台焦点即 B 的快照；`ViewerContext` 只读前台）
+- [x] A 中输入草稿与附件，切到 B 时 B 输入框为空；切回 A 草稿与附件恢复。——单测；走查
+- [x] 刷新页面后，每个会话的焦点对象与模态恢复为刷新前的值。——单测；走查
+- [x] 切换 20 次会话不触发 `abort`（沿用 `agentSessions.test.ts`）。——单测
 
 ### 15.5 项目作用域
 
-- [ ] 项目会话的文件栏显示项目目录树；切到另一项目的会话后，目录树随之切换。
-- [ ] 未归属会话的文件栏为 SDD 08 形态，只列 `project_id` 为空的数据源对象。
-- [ ] 智能体工具收到其他项目对象的 id 时返回错误，不执行任务。
-- [ ] 在项目会话中上传图像，新数据源的 `project_id` 为该项目，出现在目录树「上传」节点下。
+- [ ] 项目会话的文件栏显示项目目录树；切到另一项目的会话后，目录树随之切换。——目录树按需展开、打开文件已走查；两个项目之间切换未走查（`ProjectTree` 以 `project_id` 为 key 重建）
+- [ ] 未归属会话的文件栏为 SDD 08 形态，只列 `project_id` 为空的数据源对象。——已实现，缺自动化用例与走查
+- [x] 智能体工具收到其他项目对象的 id 时返回错误，不执行任务。——单测（焦点与 `run_task.image_id` 两条路径）
+- [ ] 在项目会话中上传图像，新数据源的 `project_id` 为该项目，出现在目录树「上传」节点下。——后端归属单测通过；「上传」节点缺自动化用例与走查
 
 ### 15.6 工程
 
-- [ ] typecheck、前端、agent-runtime、backend 既有测试不回退。
-- [ ] 新增单测覆盖：路径写法转换、项目 id 派生与幂等、按需登记与越界拒绝、`object_id_for`、空会话按项目复用、工作区换入换出、后台事件路由、浏览工具挂载条件。
+- [x] typecheck、前端、agent-runtime、backend 既有测试不回退。——`make test` 全绿；前端 lint 通过；`check-modality-literals.sh` 门禁 0
+- [x] 新增单测覆盖：路径写法转换、项目 id 派生与幂等、按需登记与越界拒绝、`object_id_for`、空会话按项目复用、工作区换入换出、后台事件路由、浏览工具挂载条件。
 - [ ] 业务验收。
 
 ## 16. 决策记录
@@ -582,6 +590,8 @@ flowchart LR
 | D-18 | `open_file` 不改会话焦点，以对话内对象卡片提供「在舞台打开」 | `open_file` 同时切换舞台 | 智能体连续查看多个文件时不抢占用户正在看的画面；`run_task` 等仍以用户焦点为准，行为可预期 | 2026-09-25 |
 | D-19 | 分两阶段：P1 通用图像与视频，P2 改造 CT、WSI 的 Source | 一次交付全部模态 | CT、WSI 现依赖 `ct_*`、`slide_*` 文件名约定与全局根，需先改 Source；P1 不被其阻塞 | 2026-09-25 |
 | D-20 | 「未归属」组允许新建会话 | 首次使用必须先打开文件夹 | 保留无需选目录的快速对话入口 | 2026-09-25 |
+| D-21 | `ImportPanel` 的服务端文件夹路径框推迟到 P2 移除 | P1 即移除 | P1 的按需识别不支持 CT、WSI，提前移除会让这两个模态在 P2 之前没有导入途径 | 2026-09-25 |
+| D-22 | 回环守卫逐跳校验 `X-Forwarded-For` 与 `Forwarded`，前端开发代理开启 `xfwd` | 只看直连地址 | `vite --host` 对局域网开放时，经代理的请求直连地址恒为回环，只看直连会被绕过 | 2026-09-25 |
 
 ## 17. 待确认问题
 

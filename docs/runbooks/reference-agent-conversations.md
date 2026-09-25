@@ -58,6 +58,8 @@ curl http://127.0.0.1:8010/agent-api/v1/health
 | `pi-sessions.sqlite` | Pi | transcript、活动消息树、模型变化、compaction 与命令 receipt |
 | `glaux-meta.sqlite` | Glaux | 标题、归档状态、权限模式与时间字段 |
 
+会话所属项目存在 Pi 会话 `metadata.glaux_project_id`（位于 `pi-sessions.sqlite`），创建时写入、不可改；`glaux-meta.sqlite` 不存项目。项目登记本身由 backend 存在 `sources.json` 的 `projects` 键（见 [datasource-registry.md](datasource-registry.md)）。
+
 可在启动 Runtime 前设置 `GLAUX_AGENT_DATA_DIR` 改用其他目录，设置
 `GLAUX_AGENT_PORT` 改用其他端口。若更改端口，也要同步修改 `frontend/vite.config.ts` 的开发代理。
 
@@ -78,15 +80,56 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - `suggest` / `controlled` / `autonomous`：挂领域工具；逐次批准门控（`beforeToolCall`）尚未落地，`propose_annotation` 的产出恒为建议态，须人工确认。
 - 对话预览版（chat）不挂领域工具，与 `observe` 同效。
 
-完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`（需焦点）。工具经 `TOOL_PROVIDERS` 装配；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
+完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`（需焦点）；绑定项目的会话另挂 `list_files`（列项目内一层，最多 200 条）与 `open_file`（打开项目内文件并看首帧，需视觉，不改用户舞台）。绑定项目的会话中，作用于当前对象的工具只接受本项目的对象，未归属会话只接受 `project_id` 为空的数据源对象，越界时模型收到工具错误。工具经 `TOOL_PROVIDERS` 装配；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
 
 ## 5. 会话管理
 
-- 新建、搜索、切换、重命名、归档、恢复和删除均在右侧栏内完成。
-- 归档会话只读，恢复后可继续对话。
+### 5.1 基本操作
+
+- 新建、搜索、切换、重命名、归档、恢复和删除均在会话栏内完成（Focus 左侧会话栏；Workbench 在智能体面板内）。
+- 归档会话默认隐藏；会话栏底部「显示归档」打开后在各自组内显示。归档会话只读，恢复后可继续对话。
 - 切换会话不会停止其他会话正在进行的生成；只有“停止”按钮会调用 Pi `abort()`。
 - 删除会同时删除 Pi transcript 与 Glaux 元数据，确认后不可恢复。
 - 重新生成只作用于活动路径上最近一条 assistant 回答；UI 不提供分支浏览或历史消息编辑。
+
+### 5.2 打开项目文件夹
+
+项目是 backend 所在文件系统上的一个目录。Glaux 对项目目录只读，打开时不扫描，文件被点击或被智能体打开时才识别。
+
+1. 点会话栏顶部的文件夹按钮「打开文件夹」，或点输入区上方的项目胶囊 →「打开文件夹…」（仅空会话可用）。
+2. 在目录选择器中从快捷根（主目录、`GLAUX_DATASETS_ROOT`、WSL 下的 `C:`、`D:` 等盘符）逐级进入，或在路径框粘贴绝对路径。
+3. 点「打开」：backend 登记项目（同一目录重复打开得到同一项目），并在该项目下新建或复用一个空会话。
+4. 文件栏切换为项目目录树：可识别文件带模态图标，不可识别文件置灰；根下虚拟节点「上传」列出在本项目会话中上传的文件（文件落在 `GLAUX_DATASETS_ROOT/uploads/`，不写入项目目录）。
+
+路径框接受三种写法，backend 统一转换为自身文件系统的 POSIX 路径，同一目录的不同写法得到同一项目：
+
+| 写法 | 示例 | 转换结果（backend 在 WSL 中运行） |
+| --- | --- | --- |
+| POSIX | `/home/me/cases/liver`、`~/cases` | 原样 |
+| Windows 盘符 | `C:\cases\liver` | `/mnt/c/cases/liver` |
+| WSL 网络共享 | `\\wsl.localhost\Ubuntu\home\me\cases`、`\\wsl$\Ubuntu\…` | `/home/me/cases`；发行版与 backend 所在发行版不一致时返回 422 |
+
+- backend 不在 WSL 中运行时，后两种写法返回 422。
+- `/mnt/<盘符>/` 下的项目在界面上显示为 `<盘符>:\…`。
+
+P1 可在项目中打开的模态为通用图像（`natural_image`）与视频（`video`）。CT、WSI 文件在目录树中显示候选模态，点击后提示「该格式将在后续版本支持」（backend 返回 422 `unsupported_format`）；这两个模态仍经导入面板的「打开服务端文件夹（医学数据）」导入，见 [datasource-registry.md](datasource-registry.md)。
+
+### 5.3 按项目组织会话
+
+- 会话栏按项目分组，组内按更新时间倒序；升级前的会话与未绑定项目的会话在「未归属」组，组内可新建会话。
+- 会话在创建时绑定项目，之后不可改。组头「＋」在该项目下新建会话；每个项目最多一个空会话，连点只得到同一个。
+- 对话区顶部「新建会话」与 Focus 竖条的「＋」在当前会话所属项目下新建；竖条「＋」悬停显示目标项目名。
+- 项目胶囊显示当前会话的项目。空会话点胶囊可切到另一项目的空会话，输入草稿、附件与视频随之带过去；会话发出消息后胶囊只读。
+- 会话行状态点：运行中（强调色呼吸点）、已完成未读（强调色实心点，选中后消失，刷新后清空）、出错（`--crit` 色）。
+- 每个会话各有自己的查看对象、任务结果与输入草稿；后台会话的工具结果不改前台舞台。刷新后每个会话的查看对象与模态从 localStorage `glaux.sessionWorkspace.v1` 恢复。
+- 项目会话中，智能体可用 `list_files`、`open_file` 自行查看项目内文件；`open_file` 在对话内显示对象卡片，点「在舞台打开」后才切换舞台。
+
+### 5.4 移除与恢复项目
+
+- 组头「移除项目」：只注销项目及其数据源，不删除磁盘文件、不删除会话。项目下有运行中会话时拒绝移除。
+- 移除后，该项目的会话进入「<项目名>（已移除）」只读组：可查看、可删除，不可发送。组头「重新打开」按原路径登记，会话回到原项目组。
+- 项目目录被删除或不可读时，组头显示警示图标（悬停提示「项目目录不可用」），会话只读；项目状态在页面加载与打开、移除项目时刷新，目录恢复后刷新页面即恢复。
+- 在项目中打开过的目录与此前经「打开服务端文件夹」导入的同一目录是两个数据源，对象 id 不同，旧标注不跟随。
 
 ## 6. 备份与恢复
 
@@ -112,6 +155,19 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 | `command_outcome_unknown` | Runtime 曾在命令 accepted 后异常退出；刷新会话，检查最后已提交消息后再决定重新发送 |
 | `context_overflow` | 检查模型 context metadata；Pi 会先按锁定版本默认策略尝试 compaction |
 | `storage_error` | 停止 Runtime，检查数据目录权限、剩余空间及两个 SQLite 文件是否成对存在 |
+| 目录选择器或打开项目报 403「该端点只接受本机回环地址…」 | 见 §7.1 |
+| 智能体 `list_files` / `open_file` 报 403 | Runtime 的 `GLAUX_BACKEND_URL` 指向了非回环地址；改为 `http://127.0.0.1:8000` 或 `http://localhost:8000` |
+| 智能体工具报 `outside_project` | 路径含 `..`、是绝对路径或经符号链接指向项目外；或当前对象不属于本会话项目。改用项目内相对路径，或在本项目中打开对象 |
+| 打开文件报 `unsupported_format` / `corrupt` | 前者为该模态暂不支持在项目中打开（P1 的 CT、WSI）；后者为文件内容与后缀不符或无法解码 |
+
+### 7.1 局域网访问时 `/fs` 与 `/projects` 返回 403
+
+`/fs/*` 与 `/projects*` 能浏览和登记本机任意目录，不受 `GLAUX_DATASETS_ROOT` 白名单约束，因此 backend 只接受回环地址（`127.0.0.1`、`::1`）来源的请求。
+
+- 以 `vite --host` 对局域网开放后，从其他设备打开 UI：Vite 代理开启了 `xfwd`，backend 按 `X-Forwarded-For` 与 `Forwarded` 头逐跳校验，局域网来源一律 403。
+- 表现：目录选择器报错、无法打开项目；项目列表为空，项目会话显示在「（已移除）」只读组，不可发送。
+- 处理：在 backend 所在机器上用 `http://localhost:5173` 打开 UI。局域网设备只能使用「未归属」会话。
+- 其他 backend 端点不受此守卫影响。
 
 Runtime 异常退出时，只恢复 Pi 已提交的 entry；未提交的流式 token 允许丢失，命令不会自动重放。
 
