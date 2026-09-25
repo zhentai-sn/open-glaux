@@ -2,6 +2,7 @@ import { useEffect, type FunctionComponent } from "react";
 import {
   DockviewReact,
   themeAbyss,
+  themeLight,
   type DockviewApi,
   type DockviewReadyEvent,
   type IDockviewPanelProps,
@@ -15,6 +16,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { SideBar } from "./SideBar";
 import { useI18n } from "../i18n";
 import { useSession } from "../store/session";
+import { useTheme } from "../store/theme";
 
 // VS Code 式可停靠外壳（设计稿 §6/P5b）——四块主区域（侧栏/编辑器/智能体/底部面板）
 // 交给 dockview 托管：可拖拽重排、可停靠、可缩放、布局持久化。活动栏仍是固定左轨（非停靠）。
@@ -88,6 +90,7 @@ function buildDefault(api: DockviewApi) {
 }
 
 export function Shell() {
+  const theme = useTheme((s) => s.theme);
   const onReady = (event: DockviewReadyEvent) => {
     const api = event.api;
     // 恢复用户上次拖拽/缩放的布局；损坏或跨版本 JSON 则清键回默认（版本化 + try/catch 兜底）。
@@ -116,5 +119,5 @@ export function Shell() {
     });
   };
 
-  return <DockviewReact className="dv-host" components={COMPONENTS} theme={themeAbyss} onReady={onReady} />;
+  return <DockviewReact className="dv-host" components={COMPONENTS} theme={theme === "light" ? themeLight : themeAbyss} onReady={onReady} />;
 }

@@ -4,6 +4,7 @@ import { objectsOf, useSession } from "../store/session";
 import { useTaskTools } from "../viewer/useTaskTools";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function StatusBar() {
   const { t, lang, toggle } = useI18n();
@@ -55,6 +56,7 @@ export function StatusBar() {
       <button className="item" onClick={toggle} title="language">
         {lang === "en" ? "EN" : "中"}
       </button>
+      <ThemeToggle className="item" />
     </div>
   );
 }

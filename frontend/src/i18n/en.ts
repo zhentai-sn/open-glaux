@@ -20,6 +20,8 @@ export const en = {
   empty_editor: "Select an image from the Explorer to begin.",
   running: "running…",
   cfg_title: "Model · connection",
+  theme_to_light: "Switch to light theme",
+  theme_to_dark: "Switch to dark theme",
   cfg_key: "API key",
   cfg_key_ph: "sk-ant-… (stored in this browser only)",
   cfg_model: "Model (optional)",

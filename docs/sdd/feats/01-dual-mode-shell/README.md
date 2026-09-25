@@ -40,7 +40,7 @@ status: implemented
 - 删除或重写 Workbench(现 VSCode 式 dockview 布局)。它完整保留,降级为"专家/开发模式"。
 - 任何后端契约、任务管线、agent-runtime 的改动。Focus 模式零新增后端能力。
 - 把插件市场、终端、底部面板迁入 Focus 模式(它们保持 Workbench 独占)。
-- 主题系统 / 亮色主题(另立 SDD)。
+- 主题系统 / 亮色主题(见 [SDD 12](../12-theme-switch/README.md))。
 - 移动端 / 窄屏适配。
 - `uiMode` 的云端同步或多设备一致性(仅本机 localStorage)。
 - 模式切换的使用埋点 / 遥测(暂不做,见 §12)。

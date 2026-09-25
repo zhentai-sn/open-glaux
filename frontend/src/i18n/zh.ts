@@ -19,6 +19,8 @@ export const zh: Record<I18nKey, string> = {
   empty_editor: "从资源管理器选择一张图像开始。",
   running: "运行中…",
   cfg_title: "模型 · 连接",
+  theme_to_light: "切换到浅色主题",
+  theme_to_dark: "切换到深色主题",
   cfg_key: "API 密钥",
   cfg_key_ph: "sk-ant-…（仅存本浏览器）",
   cfg_model: "模型（可选）",

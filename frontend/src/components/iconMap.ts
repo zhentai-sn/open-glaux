@@ -27,6 +27,7 @@ import {
   Image,
   Loader2,
   Menu,
+  Moon,
   MousePointer2,
   PanelLeft,
   Pencil,
@@ -40,6 +41,7 @@ import {
   Sparkles,
   Spline,
   Square,
+  Sun,
   Waves,
   X,
   type LucideIcon,
@@ -110,4 +112,6 @@ export const ICONS = {
   back: ArrowLeft,
   regenerate: RefreshCw,
   archive: Archive,
+  themeLight: Sun, // 主题切换（SDD 12）：图标表示点击后的目标主题
+  themeDark: Moon,
 } as const;

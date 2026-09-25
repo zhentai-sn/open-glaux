@@ -6,6 +6,7 @@ import { ConnectionConfig } from "../agent/ConnectionConfig";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import { OwlLogo } from "../OwlLogo";
+import { ThemeToggle } from "../ThemeToggle";
 import { ModeSwitch } from "./ModeSwitch";
 
 // 只读图像上下文标签（SDD feats/01 v1.2 D14）——顶栏只**显示**「模态 · 当前对象」，
@@ -37,7 +38,7 @@ function ImageContextChip() {
   );
 }
 
-// Focus 顶栏（SDD feats/01 §8）——标识 · 图像上下文（只读，v1.2 D14）· ⚙ 连接配置弹层 · ⇄ 模式切换。
+// Focus 顶栏（SDD feats/01 §8）——标识 · 图像上下文（只读，v1.2 D14）· 主题切换（SDD 12）· ⚙ 连接配置弹层 · ⇄ 模式切换。
 // ⚙ 弹层状态由 FocusShell 托管（空状态示例卡在未配连接时也要能拉起它）。
 export function FocusTopBar({
   configOpen,
@@ -56,6 +57,7 @@ export function FocusTopBar({
       <span className="focus-tagline">· {t(CHAT_EDITION ? "chat_tagline" : "focus_tagline")}</span>
       <span className="focus-topbar-grow" />
       {!CHAT_EDITION && <ImageContextChip />}
+      <ThemeToggle className="focus-iconbtn" />
       <span className="focus-cfg-anchor">
         <button
           className="focus-iconbtn"

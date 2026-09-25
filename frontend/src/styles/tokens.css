@@ -1,6 +1,11 @@
 /* 设计 Token — 设计稿 §2。结构色借 VS Code Dark+，领域色（智能体/边界/语义）自定。
-   语义色（good/warn/crit）与 accent 严格分离。数值一律等宽 + tabular-nums。 */
-:root {
+   语义色（good/warn/crit）与 accent 严格分离。数值一律等宽 + tabular-nums。
+   主题（SDD feats/12）：颜色 token 缺省为深色；<html data-theme="light"> 覆盖为浅色。
+   影像视口（[data-viewer-surface]）重新声明深色值，子树内的浮层控件在两种主题下都按深色渲染。 */
+:root,
+[data-viewer-surface] {
+  color-scheme: dark;
+
   /* 结构底 */
   --editor: #1e1e1e;
   --sidebar: #252526;
@@ -22,8 +27,7 @@
   --faint: #6e7681;
   --bright: #e7e7e7;
 
-  /* 交互蓝 · 状态栏（临时统一紫——与智能体紫 --agent 同系；原 VS Code 蓝 #0e639c。
-     后续主题方案落地时再规范，见 docs 主题 SDD TBD） */
+  /* 交互蓝 · 状态栏（状态栏紫与智能体紫 --agent 同系，两种主题共用） */
   --accent: #0e70c0;
   --accent2: #3794ff;
   --status: #6a3fb0;
@@ -43,6 +47,73 @@
   --warn: #e9b44c;
   --crit: #f76d6d;
 
+  /* 强调底上的前景（智能体紫按钮 / 已启用徽标） */
+  --on-agent: #1a0d2e;
+  --on-good: #052;
+
+  /* 次级结构面 */
+  --edge: #1b1b1b; /* 标题栏底边 */
+  --tab: #2d2d2d; /* 非活动标签页 */
+  --stage: #161616; /* Focus 舞台底 */
+  --surface: #181b20; /* 对话内证据卡 */
+  --file-icon: #8aa9c9;
+  --scroll-thumb: #37373d;
+  --code-bg: rgba(255, 255, 255, 0.07);
+  --code-block: #141414;
+}
+
+/* 浅色主题：结构色借 VS Code Light Modern；领域色取同色相的深一档以保证白底对比度。 */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --editor: #ffffff;
+  --sidebar: #f8f8f8;
+  --activity: #f8f8f8;
+  --titlebar: #f8f8f8;
+  --panel: #f8f8f8;
+
+  --input: #efefef;
+  --line: #e5e5e5;
+  --line2: #d4d4d4;
+  --hover: #ececec;
+  --sel: #d6e8fa;
+  --sel-line: #0078d4;
+
+  --ink: #3b3b3b;
+  --mid: #616161;
+  --faint: #8b8b8b;
+  --bright: #1f1f1f;
+
+  --accent: #005fb8;
+  --accent2: #0078d4;
+  --status: #6a3fb0;
+
+  --agent: #7c4dd6;
+  --agent-dim: rgba(124, 77, 214, 0.1);
+  --agent-line: rgba(124, 77, 214, 0.32);
+
+  --li: #0a76d0;
+  --ma: #d9582b;
+  --roi: #0f9d8a;
+
+  --good: #1e8c55;
+  --warn: #b7791f;
+  --crit: #d64545;
+
+  --on-agent: #ffffff;
+  --on-good: #ffffff;
+
+  --edge: #e5e5e5;
+  --tab: #ececec;
+  --stage: #ececec;
+  --surface: #f8f8f8;
+  --file-icon: #5a7a9a;
+  --scroll-thumb: #c8c8c8;
+  --code-bg: rgba(0, 0, 0, 0.06);
+  --code-block: #f3f3f3;
+}
+
+:root {
   /* 排版 */
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
