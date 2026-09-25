@@ -11,7 +11,7 @@ status: living
 
 1. 后端安装 `video` 可选依赖（PyAV），运行完整版的 frontend、agent-runtime 和 backend。
 2. 在会话连接设置中选择 OpenAI 兼容、模型 `qwen3.8-omni-flash`，填写用户 workspace 所在地域、以 `/compatible-mode/v1` 结尾的 HTTPS 地址和用户自己的 API Key。
-3. 在「音画适配器」中显式选择 `Qwen3.8-Omni-Flash`。普通视觉能力探测不能代替此项。地址若仍为 `/api/v1`，模型 Chat Completions 调用会失败。
+3. 在「设置 → 模型与连接」的「音视频理解」中显式选择 `Qwen3.8-Omni-Flash`。普通视觉能力探测不能代替此项。地址若仍为 `/api/v1`，模型 Chat Completions 调用会失败。
 
 一期不接入 MiMo 或语音转写。其他连接在视频焦点下会提示不支持音画联合问答，普通对话仍可使用。
 
@@ -29,7 +29,7 @@ status: living
 | `unsupported_codec` | 转为上述容器和编码后重传；无音轨的视频仍可做纯视觉问答 |
 | `too_large` | 核对视频 512 MiB 上限与 `GLAUX_VIDEO_UPLOAD_MAX_BYTES` 配置 |
 | `clip_too_large` | 将观察区间缩短后重试；系统不会为压缩而丢弃声音 |
-| 该连接不支持音画联合问答 | 检查模型 ID、音画适配器和 `/compatible-mode/v1` 地址 |
+| 该连接不支持音画联合问答 | 检查模型 ID、音视频理解设置和 `/compatible-mode/v1` 地址 |
 | 源视频不可用或已变化 | 恢复原源文件；新上传内容不能冒充旧证据 |
 
 视频媒体正文和 API Key 不写入会话 SQLite、日志或 SSE；会话保存对象、源文件指纹和证据时间等元数据。

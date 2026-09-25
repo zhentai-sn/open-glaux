@@ -126,3 +126,76 @@ describe("ConnectionConfig · 上下文元数据预填", () => {
     expect(useSession.getState().connection.model).toBe("custom/model");
   });
 });
+
+describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("glaux.lang", "zh");
+    useSession.getState().setConnection({
+      provider: "openai_compatible",
+      baseUrl: "",
+      apiKey: "",
+      model: "",
+      mediaAdapter: "none",
+      contextWindow: DEFAULT_CONTEXT_WINDOW,
+      maxTokens: DEFAULT_MAX_TOKENS,
+      models: undefined,
+      lastTest: undefined,
+    });
+  });
+
+  const status = () => screen.getByRole("status");
+
+  it("未填地址 → 尚未配置；填了未测 → 未测试", () => {
+    setup();
+    expect(status()).toHaveTextContent("尚未配置");
+    expect(status()).toHaveTextContent("填写服务地址后测试连接");
+    fireEvent.change(screen.getByLabelText("服务地址"), { target: { value: "http://localhost:1234/v1" } });
+    expect(status()).toHaveTextContent("未测试");
+  });
+
+  it("测试通过 → 已连接；再改模型 → 结论失效回到未测试", async () => {
+    vi.spyOn(agentRuntimeApi, "testConnection").mockResolvedValue({ ok: true, model_count: 3 } as never);
+    useSession.getState().setConnection({ baseUrl: "http://localhost:1234/v1", model: "m1" });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "测试连接" }));
+    await waitFor(() => expect(status()).toHaveTextContent("已连接 · m1"));
+    expect(screen.getByRole("button", { name: "重新测试" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("模型（可选）"), { target: { value: "m2" } });
+    expect(status()).toHaveTextContent("未测试");
+    expect(useSession.getState().connection.lastTest).toBeUndefined();
+  });
+
+  it("测试抛错 → 连接失败并显示原因", async () => {
+    vi.spyOn(agentRuntimeApi, "testConnection").mockRejectedValue(new Error("ECONNREFUSED"));
+    useSession.getState().setConnection({ baseUrl: "http://localhost:1234/v1" });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "测试连接" }));
+    await waitFor(() => expect(status()).toHaveTextContent("连接失败"));
+    expect(status()).toHaveTextContent("ECONNREFUSED");
+  });
+
+  it("密钥可切换明文；切到 Anthropic 隐藏服务地址、能力与高级", () => {
+    setup();
+    const key = screen.getByLabelText("API 密钥") as HTMLInputElement;
+    expect(key.type).toBe("password");
+    fireEvent.click(screen.getByRole("button", { name: "显示密钥" }));
+    expect(key.type).toBe("text");
+
+    expect(screen.getByLabelText("服务地址")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Anthropic" }));
+    expect(useSession.getState().connection.provider).toBe("anthropic");
+    expect(screen.queryByLabelText("服务地址")).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "音视频理解" })).toBeNull();
+    expect(screen.queryByLabelText("上下文窗口")).toBeNull();
+  });
+
+  it("最大输出不小于上下文窗口 → 高级组自动展开并标红", () => {
+    useSession.getState().setConnection({ contextWindow: 4096, maxTokens: 8192 });
+    setup();
+    expect(document.querySelector("details.cfg-advanced")).toHaveAttribute("open");
+    expect(screen.getByLabelText("最大输出 Token")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("最大输出须小于上下文窗口。")).toBeInTheDocument();
+  });
+});

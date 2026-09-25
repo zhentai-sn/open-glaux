@@ -40,8 +40,10 @@ export interface ComposerVideo {
 }
 
 /** 探不到上游元数据时的兜底（2026-08-19 决议，SDD 00 §4）——预填而非静默代入，用户可改。 */
-export const DEFAULT_CONTEXT_WINDOW = 128_000;
-export const DEFAULT_MAX_TOKENS = 8_192;
+export const DEFAULT_CONTEXT_WINDOW = 200_000;
+export const DEFAULT_MAX_TOKENS = 32_768;
+/** 2026-09-25 前的默认组合；载入时原样命中即视为未改过的预填值，换成当前默认。 */
+const LEGACY_DEFAULTS = { contextWindow: 128_000, maxTokens: 8_192 } as const;
 
 const CONNECTION_DEFAULTS: Connection = {
   provider: "anthropic",
@@ -64,6 +66,13 @@ function loadConnection(): Connection {
       // 老版本存过 null（当时必填、初始为空）——载入时补回默认值，免得用户又被逼着填。
       if (merged.contextWindow === null) merged.contextWindow = DEFAULT_CONTEXT_WINDOW;
       if (merged.maxTokens === null) merged.maxTokens = DEFAULT_MAX_TOKENS;
+      if (
+        merged.contextWindow === LEGACY_DEFAULTS.contextWindow &&
+        merged.maxTokens === LEGACY_DEFAULTS.maxTokens
+      ) {
+        merged.contextWindow = DEFAULT_CONTEXT_WINDOW;
+        merged.maxTokens = DEFAULT_MAX_TOKENS;
+      }
       return merged;
     } catch {
       /* 损坏 → 落回默认 + 迁移 */

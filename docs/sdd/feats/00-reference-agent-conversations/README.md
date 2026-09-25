@@ -101,7 +101,8 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
   **UI 层（2026-08-19 决议）反过来负责让用户不必手填**：拉取模型时尽力探测上游元数据
   （Ollama `/api/show` 的 `model_info.*.context_length`；OpenAI 兼容 `/models` 条目上的
   `context_length` / `max_context_length` / `max_output_tokens` 等常见字段），探到即预填选定模型的值；
-  探不到则预填默认 `context_window=128000`、`max_tokens=8192`。预填值**始终可见且可改**，
+  探不到则预填默认 `context_window=200000`、`max_tokens=32768`（本机存储中恰为旧默认组合 128000/8192 的，
+  载入时迁移为新默认）。预填值**始终可见且可改**，
   因此送到 runtime 的仍是用户可核对的显式值——不是静默猜测。
 - Glaux 不直接读写 Pi SQLite 内部表；所有 transcript、消息树和 compaction 操作必须通过 Pi Session/Harness API。
 
@@ -551,7 +552,7 @@ erDiagram
 - [x] Pi 内置目录已知模型可直接生成；自定义模型缺少 `context_window`/`max_tokens` 时返回
   `model_metadata_required`，不得使用 Glaux 自定义默认值。
 - [x] 连接设置里选中一个 OpenAI 兼容模型后，上下文窗口/最大输出**已自动带值**（探到上游元数据用探测值，
-  否则 128000/8192），用户不改任何数字即可发起对话；两个字段仍可见可改。
+  否则 200000/32768），用户不改任何数字即可发起对话；两个字段仍可见可改。
 - [ ] 编辑器、左侧栏、底部面板及 Dock 布局行为无回归。
 - [ ] Agent 面板仍位于右侧 Dock，默认宽度为 `340px`，用户调整后的 Dock 布局可恢复。
 - [x] Python FastAPI、`science-core` 与现有 `/task/*` 行为无需修改即可通过既有测试。

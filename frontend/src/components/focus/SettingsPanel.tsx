@@ -7,6 +7,7 @@ import { DEFAULT_ACCENT, useTheme, type Theme } from "../../store/theme";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
+import { Segmented } from "../Segmented";
 
 // 设置面板（SDD feats/01 v1.7 D23）——占据右侧工作区，左列分区导航、右列当前分区内容。
 // 分区只做呈现编排：连接写 session.connection（ConnectionConfig），主题写 useTheme，语言写 I18nProvider。
@@ -15,36 +16,6 @@ const SECTIONS: { id: SectionId; label: I18nKey; icon: LucideIcon }[] = [
   { id: "connection", label: "settings_connection", icon: ICONS.settingsConnection },
   { id: "appearance", label: "settings_appearance", icon: ICONS.settingsAppearance },
 ];
-
-/** 单选分段控件：选项少且互斥（主题、语言），比下拉少一次点击。 */
-function Segmented<V extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: V;
-  options: { value: V; label: string }[];
-  onChange: (v: V) => void;
-}) {
-  return (
-    <div className="settings-seg" role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          className={value === o.value ? "on" : ""}
-          onClick={() => onChange(o.value)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function SettingRow({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
   return (

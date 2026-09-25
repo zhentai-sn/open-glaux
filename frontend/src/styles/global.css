@@ -63,7 +63,6 @@ button {
 .session-item,
 .cfgbtn,
 .cfgqbtn,
-.cfgopt,
 .cfgclose,
 .agent-iconbtn,
 .agent-regenerate,
@@ -556,47 +555,6 @@ button.row { font-size: 13px; }
   text-transform: uppercase;
   color: var(--mid);
 }
-.cfgopt {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 8px;
-  border: 1px solid var(--line2);
-  border-radius: 6px;
-  cursor: pointer;
-}
-.cfgopt.on {
-  border-color: var(--agent-line);
-  background: var(--agent-dim);
-}
-.cfgopt input {
-  margin-top: 2px;
-  accent-color: var(--agent);
-}
-.cfgnm {
-  font-size: 12.5px;
-  color: var(--bright);
-  font-weight: 600;
-}
-.cfgdesc {
-  font-size: 11px;
-  color: var(--mid);
-  margin-top: 2px;
-  line-height: 1.4;
-}
-.cfgvlm {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 2px;
-}
-.cfgrow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-  color: var(--faint);
-}
 .cfgin {
   width: 100%;
   background: var(--input);
@@ -611,34 +569,6 @@ button.row { font-size: 13px; }
   outline: none;
   border-color: var(--agent-line);
 }
-.cfgnote {
-  font-size: 10.5px;
-  color: var(--faint);
-}
-.cfgsel {
-  background: var(--input);
-  border: 1px solid var(--line2);
-  color: var(--ink);
-  padding: 5px 6px;
-  border-radius: 5px;
-  font-size: 12px;
-  font-family: var(--mono);
-  max-width: 60%;
-}
-.cfgsel:focus {
-  outline: none;
-  border-color: var(--agent-line);
-}
-.cfgquick {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.cfgqlbl {
-  font-size: 11px;
-  color: var(--faint);
-}
 .cfgqbtn {
   font-size: 11px;
   color: var(--ink);
@@ -650,10 +580,6 @@ button.row { font-size: 13px; }
 .cfgqbtn:hover {
   border-color: var(--agent-line);
   background: var(--agent-dim);
-}
-.cfgacts {
-  display: flex;
-  gap: 6px;
 }
 .cfgbtn {
   flex: 1;
@@ -671,24 +597,6 @@ button.row { font-size: 13px; }
 .cfgbtn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.cfgstat {
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-family: var(--mono);
-}
-.cfgstat.good {
-  color: var(--good);
-  background: rgba(78, 201, 138, 0.14);
-}
-.cfgstat.warn {
-  color: var(--warn);
-  background: rgba(233, 180, 76, 0.14);
-}
-.cfgstat.crit {
-  color: var(--crit);
-  background: rgba(247, 109, 109, 0.14);
 }
 .cfgclose {
   position: absolute;
@@ -1962,10 +1870,6 @@ canvas {
   color: var(--bright);
   background: var(--input);
 }
-.cfgsel-wide {
-  width: 100%;
-  max-width: none;
-}
 .cfgnum {
   width: 120px;
 }
@@ -2929,7 +2833,8 @@ body.resizing .focus-rail { transition: none; }
 .settings-nav-item:hover { background: var(--hover); color: var(--bright); }
 .settings-nav-item.on { background: var(--input); color: var(--bright); }
 .settings-body { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 28px 28px; }
-.settings-body > * { max-width: 760px; } /* 铺满宽屏时限制行宽，标题与控件不被拉到两端 */
+/* 导航贴左，内容列限宽 760px 并在剩余宽度内水平居中（D25）；各子块同宽，左缘对齐 */
+.settings-body > * { max-width: 760px; margin-left: auto; margin-right: auto; }
 .settings-body h2 { font-size: 16px; font-weight: 600; color: var(--bright); margin-bottom: 6px; }
 .settings-desc { font-size: 12px; color: var(--faint); margin-bottom: 16px; }
 .settings-row {
@@ -2981,17 +2886,70 @@ body.resizing .focus-rail { transition: none; }
 .settings-accent-hex { font-size: var(--font-sm); color: var(--mid); min-width: 58px; }
 .settings-link { padding: 0; font-size: var(--font-sm); color: var(--accent2); }
 .settings-link:hover { text-decoration: underline; }
-/* 连接表单嵌进面板：去掉浮层外观，放宽字号与间距 */
-.cfgpanel { display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
-.cfgpanel .cfgrow { font-size: 12px; color: var(--mid); }
+/* ---- 模型与连接表单（SDD feats/01 D26）：状态卡 + 服务 / 模型 / 能力 / 高级四组；
+   浮层（.cfgpop）标签叠在控件上方，设置面板（.cfgpanel）左标签右控件 ---- */
+.cfg-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-lg);
+  background: var(--editor);
+}
+.cfg-status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.cfg-status.unset .cfg-status-dot { background: var(--warn); }
+.cfg-status.ok { border-color: color-mix(in srgb, var(--good) 35%, transparent); background: color-mix(in srgb, var(--good) 8%, transparent); }
+.cfg-status.ok .cfg-status-dot { background: var(--good); }
+.cfg-status.fail { border-color: color-mix(in srgb, var(--crit) 35%, transparent); background: color-mix(in srgb, var(--crit) 8%, transparent); }
+.cfg-status.fail .cfg-status-dot { background: var(--crit); }
+.cfg-status-text { flex: 1; min-width: 0; }
+.cfg-status-title { font-size: var(--font-base); color: var(--bright); overflow-wrap: anywhere; }
+.cfg-status-meta { margin-top: 2px; font-size: var(--font-sm); color: var(--faint); overflow-wrap: anywhere; }
+.cfg-status-btn { flex: none; }
+.cfg-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.cfg-group-title { margin: 0; font-size: var(--font-xs); font-weight: 500; color: var(--faint); letter-spacing: 0.02em; }
+.cfg-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.cfg-label { font-size: var(--font-sm); color: var(--mid); }
+.cfg-control { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.cfg-control > .cfgin:not(.cfgnum),
+.cfg-inwrap,
+.cfg-inline { width: 100%; }
+.cfg-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; line-height: 1.5; color: var(--faint); }
+.cfg-hint .cfglink { font-size: inherit; }
+.cfg-inwrap { position: relative; }
+.cfg-inwrap .cfgin { padding-right: 30px; }
+.cfg-inbtn { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); display: flex; padding: 2px; color: var(--faint); }
+.cfg-inbtn:hover { color: var(--bright); }
+.cfg-inline { display: flex; gap: var(--space-2); }
+.cfg-inline .cfgin { flex: 1; min-width: 0; }
+.cfg-inline-btn { flex: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cfg-tone.good { color: var(--good); }
+.cfg-tone.warn { color: var(--warn); }
+.cfg-tone.crit { color: var(--crit); }
+.cfgin[aria-invalid="true"] { border-color: var(--crit); }
+.cfg-advanced { display: block; }
+.cfg-advanced > summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; }
+.cfg-advanced > summary::-webkit-details-marker { display: none; }
+.cfg-advanced > summary:hover { color: var(--mid); }
+.cfg-adv-summary { font-weight: 400; letter-spacing: 0; }
+.cfg-adv-chevron { transition: transform var(--motion-fast) var(--ease-out); }
+.cfg-advanced[open] .cfg-adv-chevron { transform: rotate(180deg); }
+.cfg-advanced > .cfg-field { margin-top: var(--space-2); }
+.cfgpop { max-height: calc(100vh - 80px); overflow-y: auto; gap: 12px; }
+.cfgpanel { display: flex; flex-direction: column; gap: 22px; }
+.cfgpanel .cfg-field { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.cfgpanel .cfg-label { padding-top: 7px; }
 .cfgpanel .cfgin { font-size: 12.5px; padding: 7px 9px; }
-.cfgpanel .cfgnote { font-size: 11.5px; }
+.cfgpanel .cfgnum { width: 160px; }
 @container (max-width: 520px) {
   .settings-layout { flex-direction: column; }
   .settings-nav { width: auto; flex-direction: row; flex-wrap: wrap; padding: 8px 10px; border-right: none; border-bottom: 1px solid var(--line); }
   .settings-nav-title { display: none; }
   .settings-body { padding: 16px; }
   .settings-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .cfgpanel .cfg-field { display: flex; flex-direction: column; gap: var(--space-1); }
+  .cfgpanel .cfg-label { padding-top: 0; }
 }
 .focus-side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .focus-side-body > * { flex: 1; min-height: 0; }

@@ -70,7 +70,7 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 
 - Anthropic：填写模型和 API Key；Base URL 使用 Provider 默认值。
 - OpenAI-compatible：填写 Base URL、模型和 API Key；Ollama 与 LM Studio 可使用快填。
-- 自定义 OpenAI-compatible 模型的 Context Window 与 Max Output Tokens 在拉取模型时自动带入，上游未自报时落默认 `128000 / 8192`，仍可手改；校验规则不变：`context_window >= 1024`，`max_tokens >= 1` 且 `max_tokens < context_window`（详见 [agent-connection.md](agent-connection.md)）。
+- 自定义 OpenAI-compatible 模型的 Context Window 与 Max Output Tokens 在拉取模型时自动带入，上游未自报时落默认 `200000 / 32768`，仍可手改；校验规则不变：`context_window >= 1024`，`max_tokens >= 1` 且 `max_tokens < context_window`（详见 [agent-connection.md](agent-connection.md)）。
 
 权限模式决定领域工具的可用性，缺省 `controlled`：
 
