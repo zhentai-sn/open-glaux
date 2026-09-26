@@ -5,6 +5,7 @@
  * - 单次最多交给模型 200 条；超出时文本写明总数并提示缩小范围，避免大目录撑爆上下文。
  * - 只对绑定了项目的会话挂载（§7.3 规则 1），项目 id 由 harness 从 Pi 会话 metadata 读出，
  *   不由模型指定。
+ * - 工具说明提示候选模态为 `-` 的文件可用 `read_file` 读取（SDD 14 §7.4 规则 6）。
  */
 
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
@@ -76,9 +77,11 @@ export function createListFilesTool(
     label: "List project files",
     description:
       "List one level of the project folder bound to this conversation (read-only). Returns directories and files " +
-      "with their candidate modality (guessed from the extension; \"-\" means Glaux cannot open it) and whether the " +
+      "with their candidate modality (guessed from the extension; \"-\" means Glaux cannot open it as a visual object such as an image, video, CT volume or slide) " +
+      "and whether the " +
       "file is already opened as a Glaux object. Paths are relative to the project root and cannot leave it. " +
-      `At most ${LIST_FILES_LIMIT} entries are returned; list a subdirectory to narrow down.`,
+      `At most ${LIST_FILES_LIMIT} entries are returned; list a subdirectory to narrow down. ` +
+      "Files with candidate modality \"-\" may be text (reports, notes, JSON, configs, scripts); read them with read_file.",
     parameters: ListFilesParams,
     async execute(_toolCallId, params, signal) {
       const url = new URL(`${base}/projects/${encodeURIComponent(options.projectId)}/entries`);
