@@ -33,9 +33,13 @@ make -j3 dev
 
 | 进程 | 默认地址 | 用途 |
 | --- | --- | --- |
-| Vite | `http://localhost:5173` | Glaux UI；代理 `/api` 与 `/agent-api` |
+| Vite | `http://127.0.0.1:5173` | Glaux UI；代理 `/api` 与 `/agent-api` |
 | FastAPI | `http://127.0.0.1:8000` | 现有影像与领域任务 API |
 | Agent Runtime | `http://127.0.0.1:8010` | Pi Session、Harness、REST/SSE |
+
+- dev 期访问 `localhost:5173` 的页面导航会被 307 到 `127.0.0.1:5173`（`vite.config.ts` 的 `glaux-loopback-ipv4`）。
+  原因：Windows 先把 localhost 解析为 `::1`，WSL mirrored 网络不转发 `::1`，每次建连多等约 200 ms，WSI 瓦片加载明显变慢。
+- 浏览器本地存储按源隔离：首次改用 `127.0.0.1` 时，模型连接配置、「最近使用」等本地设置需重新填写。
 
 Runtime 健康检查：
 
@@ -172,7 +176,7 @@ CT、WSI 在界面中只经打开项目接入；导入面板只有浏览器上�
 
 - 以 `vite --host` 对局域网开放后，从其他设备打开 UI：Vite 代理开启了 `xfwd`，backend 按 `X-Forwarded-For` 与 `Forwarded` 头逐跳校验，局域网来源一律 403。
 - 表现：目录选择器报错、无法打开项目；项目列表为空，项目会话显示在「（已移除）」只读组，不可发送。
-- 处理：在 backend 所在机器上用 `http://localhost:5173` 打开 UI。局域网设备只能使用「未归属」会话。
+- 处理：在 backend 所在机器上用 `http://127.0.0.1:5173` 打开 UI。局域网设备只能使用「未归属」会话。
 - 其他 backend 端点不受此守卫影响。
 
 Runtime 异常退出时，只恢复 Pi 已提交的 entry；未提交的流式 token 允许丢失，命令不会自动重放。

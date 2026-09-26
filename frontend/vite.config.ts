@@ -39,8 +39,27 @@ function cspMeta(): Plugin {
   };
 }
 
+// dev：把 `localhost` 的页面导航 307 到 `127.0.0.1`。Windows 把 localhost 先解析为 ::1，
+// WSL mirrored 网络不转发 ::1，每次建连先等约 200 ms 再回退 IPv4，WSI 瓦片逐块叠加这段延迟。
+// 页面落到 127.0.0.1 后，/api 等相对请求随之走 IPv4。只改导航，不改 fetch / HMR。
+function loopbackIpv4(): Plugin {
+  return {
+    name: "glaux-loopback-ipv4",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const m = /^localhost(:\d+)?$/i.exec(req.headers.host ?? "");
+        const isNavigation = req.method === "GET" && req.headers["sec-fetch-mode"] === "navigate";
+        if (!m || !isNavigation) return next();
+        res.statusCode = 307;
+        res.setHeader("Location", `http://127.0.0.1${m[1] ?? ""}${req.url ?? "/"}`);
+        res.end();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), cspMeta()],
+  plugins: [react(), cspMeta(), loopbackIpv4()],
   server: {
     port: 5173,
     proxy: {
