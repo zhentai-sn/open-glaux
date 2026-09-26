@@ -345,6 +345,15 @@ export function objectsOf(
 }
 
 /** 焦点对象的元数据——组件需要对象信息时一律经此反查，不在 store 里另存一份（§7 规则 4）。 */
+/**
+ * 文件浏览器打开对象或文件时让位（SDD 01 §7 第 9 条、D28）：Focus 下会话列表展开则收起为竖条，
+ * 其余布局不变。Workbench 不改写 focusLayout；对话内卡片的打开不调用本函数。
+ */
+export function collapseSessionList(): void {
+  const s = useSession.getState();
+  if (s.uiMode === "focus" && s.focusLayout.railOpen) s.setFocusLayout({ railOpen: false });
+}
+
 export function activeObject(s: Pick<SessionState, "objects" | "modality" | "focus">): ObjectMeta | null {
   const f = s.focus;
   if (!f) return null;

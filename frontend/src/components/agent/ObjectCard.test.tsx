@@ -34,6 +34,7 @@ describe("ObjectCard", () => {
 
   it("点「在舞台打开」才改焦点并展开舞台", async () => {
     const open = vi.spyOn(actions, "openObject").mockResolvedValue(undefined);
+    useSession.getState().setFocusLayout({ railOpen: true });
     render(
       <I18nProvider>
         <ObjectCard payload={parseObjectOpened(details)!} />
@@ -43,6 +44,8 @@ describe("ObjectCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open on stage" }));
     await waitFor(() => expect(open).toHaveBeenCalledWith("nat-1", "natural_image"));
     expect(useSession.getState().focusLayout).toMatchObject({ rightOpen: true, sideView: "stage" });
+    // 对话内卡片打开不收起会话列表（SDD 01 §7 第 9 条、D28）
+    expect(useSession.getState().focusLayout.railOpen).toBe(true);
   });
 
   it("对象已在舞台时按钮禁用", () => {

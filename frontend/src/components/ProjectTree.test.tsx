@@ -71,6 +71,29 @@ describe("ProjectTree", () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith("prj-a", "photos/cat.jpg"));
   });
 
+  // SDD 01 §7 第 9 条（v1.8）：文件浏览器打开即收起会话列表，其余布局不变；Workbench 不改写
+  it("Focus 下打开图像或文本文件时收起会话列表，其余布局不变", async () => {
+    vi.spyOn(actions, "openProjectFile").mockResolvedValue(objectMeta({ id: "nat-1", modality: "natural_image" }));
+    const layout = { ...useSession.getState().focusLayout, railOpen: true, browserView: "files" as const, sideW: 700 };
+    useSession.setState({ uiMode: "focus", focusLayout: layout });
+    renderTree();
+    fireEvent.click(await screen.findByText("photos"));
+    fireEvent.click(await screen.findByText("cat.jpg"));
+    expect(useSession.getState().focusLayout).toEqual({ ...layout, railOpen: false });
+    useSession.setState({ focusLayout: layout });
+    fireEvent.click(screen.getByText("readme.txt"));
+    expect(useSession.getState().focusLayout).toEqual({ ...layout, railOpen: false });
+  });
+
+  it("Workbench 下打开文件不改写 focusLayout.railOpen", async () => {
+    const layout = { ...useSession.getState().focusLayout, railOpen: true };
+    useSession.setState({ uiMode: "workbench", focusLayout: layout });
+    renderTree();
+    fireEvent.click(await screen.findByText("readme.txt"));
+    expect(useSession.getState().focusLayout.railOpen).toBe(true);
+    useSession.setState({ uiMode: "focus" });
+  });
+
   it("不支持的格式行内提示", async () => {
     vi.spyOn(actions, "openProjectFile").mockRejectedValue(new ApiError(422, "no", "unsupported_format"));
     renderTree();

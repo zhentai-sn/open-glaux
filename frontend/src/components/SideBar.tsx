@@ -17,7 +17,7 @@ import { datasourceOf, displayName } from "../data/objectInfo";
 import { ImportPanel } from "./ImportPanel";
 import { useI18n, type I18nKey } from "../i18n";
 import { useModalityLabel } from "../i18n/modalityLabel";
-import { activeObject, objectsOf, useSession } from "../store/session";
+import { activeObject, collapseSessionList, objectsOf, useSession } from "../store/session";
 import { AtlasView } from "./atlas/AtlasView";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
@@ -71,7 +71,10 @@ function RecentList({ scope }: { scope: string | null }) {
     return (projectOfObject(obj) ?? null) === scope;
   });
   if (!items.length) return null;
-  const open = (modality: string, id: string) => void openObject(id, modality as Modality);
+  const open = (modality: string, id: string) => {
+    collapseSessionList();
+    void openObject(id, modality as Modality);
+  };
   return (
     <>
       <div className="sec">{t("exp_recent")}</div>
@@ -255,7 +258,10 @@ function ExplorerTree() {
               id={displayName(m)}
               depth={1}
               selected={focusId === m.id}
-              onSelect={() => void openObject(m.id)}
+              onSelect={() => {
+                collapseSessionList();
+                void openObject(m.id);
+              }}
             />
           ))}
           {rest > 0 && (

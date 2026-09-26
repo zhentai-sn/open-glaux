@@ -7,7 +7,7 @@ import { displayName } from "../data/objectInfo";
 import { useI18n } from "../i18n";
 import { useModalityLabel } from "../i18n/modalityLabel";
 import { useProjects } from "../store/projects";
-import { useSession } from "../store/session";
+import { collapseSessionList, useSession } from "../store/session";
 import { documentErrorKey } from "./DocumentView";
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
@@ -39,7 +39,9 @@ function TextLeaf({ entry, depth }: { entry: ProjectEntry; depth: number }) {
         aria-pressed={selected}
         aria-busy={busy || undefined}
         onClick={() => {
-          if (!busy) openProjectDocument(entry.path);
+          if (busy) return;
+          collapseSessionList();
+          openProjectDocument(entry.path);
         }}
       >
         <span className="tw" />
@@ -69,6 +71,7 @@ function FileLeaf({ projectId, entry, depth }: { projectId: string; entry: Proje
 
   const open = async () => {
     if (busy) return;
+    collapseSessionList();
     setBusy(true);
     setError(null);
     try {
@@ -237,7 +240,10 @@ function UploadsNode({ projectId }: { projectId: string }) {
             className={"row" + (focusId === o.id ? " sel" : "")}
             style={indent(1)}
             aria-pressed={focusId === o.id}
-            onClick={() => void openObject(o.id, o.modality)}
+            onClick={() => {
+              collapseSessionList();
+              void openObject(o.id, o.modality);
+            }}
           >
             <span className="tw" />
             <Icon icon={ICONS.file} size="sm" className="ico fico" />
