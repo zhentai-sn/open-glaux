@@ -27,6 +27,7 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | `GET /fs/roots` `GET /fs/dirs?path=` | `routers/fs.py`、`paths.py` | 目录选择器（SDD 13）：快捷根与单层子目录；路径接受 POSIX、`C:\…`、`\\wsl.localhost\<发行版>\…` 三种写法。仅回环来源 |
 | `GET/POST /projects` `DELETE /projects/{id}` | `routers/projects.py` → `datasource_registry` | 项目登记（SDD 13）：`POST` 按规范化路径幂等（新建 201、已存在 200），不扫描目录；`GET` 实时判定 `status: ok \| missing`；`DELETE` 连带注销项目源，不删磁盘文件。仅回环来源 |
 | `GET /projects/{id}/entries?path=` `POST /projects/{id}/objects` | `routers/projects.py` → `Source.object_id_for` | 按需识别（SDD 13）：列一层并按后缀给候选模态；打开文件时按「目录 + 模态」登记 `origin=project` 的数据源并返回 `ObjectMeta`。错误体 `{detail: {code, message}}`，`code` 为 `outside_project` / `unsupported_format`（后缀无候选模态）/ `corrupt`（内容与后缀不符）等。仅回环来源 |
+| `GET /projects/{id}/text?path=` | `routers/projects.py` → `textfile.py` | 项目内文本文件只读读取（SDD 14）：按内容判定编码（UTF-8、带 BOM 的 UTF-16、GB18030），按行区间与字节上限（≤ 1 MiB）返回；`hidden_path`、`binary` 为 422。仅回环来源 |
 | `GET /objects/{id}/clip` `…/frame-at` | `dataset_video.py`、`video_clip.py` | SDD 11 原声音画短片段、PTS 时间映射与关键帧证据；仅视频对象可用 |
 | `/annotations` `/annotations/{id}` `/annotations/{id}/mask` | `routers/annotations.py` | 统一标注（SDD 04） |
 | `/atlas/*`（`exemplars`、`collections`、`tags`、`imports/*`） | `routers/atlas.py` | 图谱：案例库与文献导入（SDD 03） |

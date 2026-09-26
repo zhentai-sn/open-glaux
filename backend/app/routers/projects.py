@@ -5,10 +5,13 @@
 错误语义：非回环或目录不可读 403；不存在 404；非目录或写法无法转换 422。移除前「无运行中会话」
 的检查由前端完成（D-16）。
 
-``entries`` / ``objects`` 两个端点的错误体为 ``{"detail": {"code", "message"}}``
+``GET /projects/{id}/text`` 只读预览与分段读取项目内文本文件（SDD 14 §7.2），不登记数据源、
+不写文件。
+
+``entries`` / ``objects`` / ``text`` 三个端点的错误体为 ``{"detail": {"code", "message"}}``
 （与 ``/atlas`` 同形），``code`` 供前端与 agent-runtime 工具机读：``project_not_found``、
-``not_found``、``outside_project``、``not_directory``、``not_file``、``unsupported_format``、
-``corrupt``。
+``not_found``、``outside_project``、``hidden_path``、``not_directory``、``not_file``、
+``unsupported_format``、``corrupt``、``binary``。
 """
 
 from __future__ import annotations
@@ -19,12 +22,14 @@ from pathlib import Path, PurePosixPath
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from .. import datasource_registry as dsreg
+from .. import textfile
 from ..schemas import (
     ObjectMeta,
     ProjectCreateRequest,
     ProjectEntries,
     ProjectEntry,
     ProjectObjectRequest,
+    ProjectText,
     ProjectView,
 )
 from ..sources import SOURCES
@@ -44,6 +49,8 @@ _HTTP_BY_CODE = {
     "not_file": 422,
     "unsupported_format": 422,
     "corrupt": 422,
+    "hidden_path": 422,
+    "binary": 422,
 }
 
 
@@ -216,3 +223,61 @@ def projects_open_object(project_id: str, req: ProjectObjectRequest) -> ObjectMe
         _ref, obj = resolve_object_meta(oid)
         return obj
     raise _err("corrupt", f"文件内容与后缀不符或无法解码：{target.name}")
+
+
+# --- 文本预览与读取（SDD 14 §7.2）-------------------------------------------------
+
+
+def _hidden(parts: tuple[str, ...]) -> bool:
+    """任一段以 ``.`` 开头即隐藏（D-4）；``..`` 留给 :func:`_inside` 判越界。"""
+    return any(p.startswith(".") and p != ".." for p in parts)
+
+
+@router.get("/{project_id}/text", response_model=ProjectText)
+def projects_text(
+    project_id: str,
+    path: str = Query(..., description="项目内相对路径（POSIX 分隔）"),
+    start_line: int = Query(1, ge=1, description="起始行，从 1 起"),
+    max_lines: int | None = Query(None, ge=1, le=100000, description="行数上限；缺省不限"),
+    max_bytes: int = Query(
+        1048576, ge=1, le=1048576, description="正文字节上限（UTF-8 计），缺省 1 MiB"
+    ),
+) -> ProjectText:
+    """按行区间与字节上限读取项目内一个文本文件（SDD 14 §7.1、§7.2）。
+
+    校验顺序：项目 → 隐藏路径 → 越界 → 存在 → 普通文件 → 读样本 → 文本判定。隐藏判定同时看请求路径
+    与解析后的项目内路径，指向隐藏文件的符号链接同样拒绝。只读：不登记数据源、不写文件（规则 9）。
+    """
+    prj = _project(project_id)
+    pure = PurePosixPath(path)
+    if _hidden(pure.parts):
+        raise _err("hidden_path", f"隐藏路径不可读：{path}")
+    target = _inside(prj, path)
+    if _hidden(target.relative_to(prj.path.resolve()).parts):
+        raise _err("hidden_path", f"隐藏路径不可读：{path}")
+    if not target.exists():
+        raise _err("not_found", f"文件不存在：{path}")
+    if not target.is_file():
+        raise _err("not_file", f"路径不是文件：{path}")
+    try:
+        with target.open("rb") as f:
+            sample = f.read(textfile.SAMPLE_BYTES)
+        encoding = textfile.detect_encoding(sample)
+        if encoding is None:
+            raise _err("binary", f"不是文本文件：{path}")
+        size = target.stat().st_size
+        got = textfile.read_lines(target, encoding, start_line, max_lines, max_bytes)
+    except PermissionError as e:
+        raise HTTPException(403, f"无读权限：{path}") from e
+    return ProjectText(
+        path=pure.as_posix(),
+        name=pure.name,
+        size=size,
+        encoding=encoding,  # type: ignore[arg-type]
+        start_line=got.start_line,
+        end_line=got.end_line,
+        text=got.text,
+        eof=got.eof,
+        total_lines=got.total_lines,
+        line_truncated=got.line_truncated,
+    )

@@ -373,6 +373,25 @@ class ProjectObjectRequest(BaseModel):
     path: str
 
 
+class ProjectText(BaseModel):
+    """``GET /projects/{id}/text``：按行区间与字节上限读取的一段文本（SDD 14 §9.1）。
+
+    ``text`` 换行统一为 ``\\n``、不含行号；未读到任何行时 ``end_line = start_line - 1``；
+    ``total_lines`` 仅 ``eof`` 为真时给出；``line_truncated`` 表示最后一行因字节上限被截断。
+    """
+
+    path: str = Field(description="项目内相对路径，POSIX 分隔")
+    name: str
+    size: int
+    encoding: Literal["utf-8", "utf-8-sig", "utf-16", "gb18030"]
+    start_line: int
+    end_line: int
+    text: str
+    eof: bool
+    total_lines: int | None = None
+    line_truncated: bool = False
+
+
 # --- 模型（扩展=适配器） -----------------------------------------------------
 
 
