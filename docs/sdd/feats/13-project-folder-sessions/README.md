@@ -13,7 +13,7 @@ status: implemented
 | 当前阶段 | P1（通用图像、视频）已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；P2（CT、WSI）已实现并通过自动化门禁与开发侧浏览器走查；业务验收待补 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 会话管理](../00-reference-agent-conversations/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) · [SDD 08 文件栏](../08-data-import-first-explorer/README.md) · [SDD 10 对象与数据源](../10-object-convergence/README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-25 |
+| 最后更新 | 2026-09-26 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -29,7 +29,7 @@ status: implemented
 4. **左侧栏**的分组结构、会话状态指示与操作入口；**输入区项目胶囊**与左侧栏的联动。
 5. **会话状态隔离**：查看对象、工具结果、输入草稿按会话各存一份，后台会话的事件不写入前台界面。
 6. **项目作用域**：文件栏与智能体只触及当前会话所属项目的数据。
-7. **智能体的项目浏览工具**：`list_files`、`open_file`。
+7. **智能体的项目浏览工具**：`list_files`、`open_file`。文本文件的预览与 `read_file` 归 [SDD 14](../14-project-text-preview/README.md)。
 
 ## 2. 本 SDD 不负责什么
 
@@ -99,7 +99,7 @@ status: implemented
 - 每个会话行左侧有状态点：运行中、已完成未读、出错、空闲（§7.4 规则 5）。
 - 输入区上方的项目胶囊：文件夹图标 + 当前会话所属项目名；悬停显示完整路径。
 - 目录选择器对话框：快捷根、面包屑、子目录列表、路径输入框、「打开」按钮。
-- 项目会话的文件栏：项目目录树；可识别文件带模态图标，不可识别文件置灰；根下有虚拟节点「上传」列出本项目的上传文件。
+- 项目会话的文件栏：项目目录树；可识别文件带模态图标，无候选模态的文件可点击以文本预览（SDD 14）；根下有虚拟节点「上传」列出本项目的上传文件。
 - 智能体调用 `open_file` 后，对话内出现对象卡片，含文件名、模态与「在舞台打开」按钮。
 
 ### 5.2 系统输出
@@ -258,6 +258,7 @@ sequenceDiagram
 4. `open_file` **不改变**会话的查看焦点；前端在对话内渲染对象卡片，用户点「在舞台打开」后才改焦点（D-18）。
 5. `run_task` 等作用于「当前对象」的工具仍以会话焦点为准，行为不变。
 6. 两个工具的错误（越界、不支持的格式、文件损坏）以工具错误返回模型，不中断回合。
+7. 同一挂载条件下另有只读工具 `read_file`，按行区间读取项目内文本文件；契约见 SDD 14 §7.4。`list_files` 的工具说明提示候选模态为 `-` 的文件可用 `read_file` 读取。
 
 ### 7.4 左侧栏
 
@@ -428,8 +429,9 @@ sequenceDiagram
 | `metrics` / `primitives` / `source` / `modelVersion` | 同名字段 | 否 |
 | `activeModel` | `activeModel` | 否 |
 | `composerDraft` / `composerAttachments` / `composerVideo` | 同名字段 | 否 |
+| `document` | `document`（SDD 14 §9.4） | 是 |
 
-localStorage 键 `glaux.sessionWorkspace.v1`：`{[session_id]: {modality, focus}}`。会话删除时删除对应条目；读取失败或值非法时按空工作区处理。
+localStorage 键 `glaux.sessionWorkspace.v1`：`{[session_id]: {modality, focus, document}}`。会话删除时删除对应条目；读取失败或值非法时按空工作区处理；缺 `document` 的旧条目按 `null` 读取。
 
 ## 10. 幂等规则
 
@@ -484,7 +486,7 @@ stateDiagram-v2
 | 场景 | 处理 |
 | --- | --- |
 | 目录不存在或无读权限 | 选择器内提示，不关闭对话框 |
-| 项目内没有可识别的文件 | 目录树照常显示，文件全部置灰；智能体 `list_files` 返回的候选模态均为空 |
+| 项目内没有可识别的文件 | 目录树照常显示，文件均可尝试以文本预览（SDD 14）；智能体 `list_files` 返回的候选模态均为空 |
 | 打开的文件后缀可识别但魔数不符 | 422 `corrupt`；文件栏行内提示，智能体收到工具错误 |
 | 打开 CT、WSI 文件（P1 期间） | 422 `unsupported_format`，提示该模态将在 P2 支持 |
 | 数据源需要标定 | 状态 `needs_calibration`，沿用 SDD 08 处理 |

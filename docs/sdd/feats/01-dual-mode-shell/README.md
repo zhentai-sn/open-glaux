@@ -11,11 +11,11 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented`（v1.7 设置面板占据右侧工作区、入口在左侧栏底部，顶栏去掉图像上下文 chip 与主题按钮 2026-09-25 实现完成、自查见 §15 v1.7；v1.6 舞台 / 文件 / 图谱入口统一收进左侧栏、右侧栏去掉标签条与折叠竖条 2026-09-25 实现完成、自查见 §15 v1.6；v1.5 图谱升为一级入口、与舞台互换右侧工作区，工作台入口缺省关闭 2026-09-25 实现完成、自查见 §15 v1.5；v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-09-25 |
+| 最近更新 | 2026-09-26 |
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
-§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，不计入本 SDD 的 `implemented` 范围。
+§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，标注 SDD 14 的条目随 [SDD 14](../14-project-text-preview/README.md) 实现，均不计入本 SDD 的 `implemented` 范围。
 
 进入 `accepted` 的依据(2026-08-13):产品维护者在真实数据环境(CUBS + 参考智能体)交互评审通过并确认阶段性验收;评审期间提出的空状态布局还原、状态行下移、Markdown 渲染、上下文环形图、徽标等打磨项均已实现并复验。§15 验收项全部通过。
 
@@ -204,6 +204,7 @@ flowchart TD
 | 复用不改 | 各 Viewer | 语义零改动;仅被新壳组合 |
 | 改动(SDD 13) | `SessionDrawer` | 重写为项目分组列表,Focus 与 Workbench 共用;契约见 SDD 13 §7.4 |
 | 新增(SDD 13) | `ProjectChip` / `FolderPicker` / `ProjectTree` | 输入区项目胶囊、目录选择器、项目目录树;项目会话的文件浏览器列渲染 `ProjectTree`,未归属会话仍渲染 `ExplorerView`;契约见 SDD 13 §7.5、§7.8 |
+| 改动(SDD 14) | `StagePanel` / `Editor` | `document` 非空时渲染 `DocumentView` 覆盖层,查看器保持挂载;契约见 SDD 14 §7.3 |
 | 改动(v1.7) | `ConnectionConfig` | 增 `variant: "popover" \| "panel"`;`panel` 去掉浮层外框、标题与关闭钮,嵌入设置面板「模型与连接」分区;按 D26 重排为状态卡 + 服务 / 模型 / 能力 / 高级四组,连接字段与存储不变 |
 | 新增(v1.7) | `Segmented` | 分段单选控件,设置面板与连接表单共用 |
 | 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时对话状态行、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
@@ -230,7 +231,7 @@ flowchart TD
 - **右侧工作区(v1.5;v1.7 增 `settings`)**:`FocusLayout` 增 `sideView: "stage" | "atlas" | "settings"`(缺省 `stage`),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump;`sideView` 非法值按下述迁移规则推断,否则回 `stage`。设置面板的当前分区是组件内状态,不持久化(每次打开缺省「模型与连接」)。
   - 迁移:v1.4 的 `browserView:"atlas"` 或更早的 `rightView:"atlas"` → `sideView:"atlas"`、`browserView:null`;`sideView` 缺失或非法 → 按前述规则推断,否则 `stage`;`browserView` 仅 `"files"` 保留,其余 → `null`(旧 `rightView:"files"` 仍迁为 `"files"`)。
   - 两字段正交:切到图谱不改写 `browserView`,回到舞台时文件列恢复原开合。
-- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排);v1.5 起为 `rightOpen && sideView==="stage"`。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。
+- 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排);v1.5 起为 `rightOpen && sideView==="stage"`。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。会话级 `document` 非空时,文档视图覆盖在查看器或占位之上(SDD 14 §7.3)。
 - 其余展示字段全部复用现有 store,零新增领域字段。
 - 新增 i18n 键(mode 名称、空状态文案、示例卡、舞台工具提示)在实现计划中列全,中英齐备(G9)。
 
