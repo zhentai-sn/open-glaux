@@ -119,7 +119,10 @@ class DataSource:
             "label_key": src.label_key,
             # 浏览器上传受理的后缀；不接受上传的 Source 为空（SDD 13 §7.2 规则 13）
             "importable": (
-                [ext for ext, _magic, _offset in src.formats] if src.browser_upload else []
+                # 同一后缀可声明多个魔数，去重保序
+                list(dict.fromkeys(ext for ext, _magic, _offset in src.formats))
+                if src.browser_upload
+                else []
             ),
             "default_capabilities": default_capabilities(self.modality),
         }

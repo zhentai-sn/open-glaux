@@ -27,20 +27,24 @@ from . import config
 _ALIAS = {".jpeg": ".jpg"}
 
 
-def _formats() -> dict[str, tuple[bytes, int, str]]:
-    """后缀 → (魔数, offset, modality)，按 SOURCES 登记顺序汇总；同后缀先登记者胜出。
+def _formats() -> dict[str, tuple[tuple[tuple[bytes, int], ...], str]]:
+    """后缀 → ((魔数, offset), …) 与 modality，按 SOURCES 登记顺序汇总；同后缀先登记的模态胜出。
 
+    同一模态可为一个后缀声明多个魔数（如 TIFF 的小端 / 大端），命中任一即可。
     只汇总 ``browser_upload`` 为真的 Source（SDD 13 §7.2 规则 13、D-23）：CT、WSI 声明了
     ``formats`` 供项目识别，但医学卷仍不走浏览器上传。
     """
     from .sources import SOURCES  # 延迟导入：SOURCES 会导入各数据模块
 
-    out: dict[str, tuple[bytes, int, str]] = {}
+    out: dict[str, tuple[tuple[tuple[bytes, int], ...], str]] = {}
     for modality, src in SOURCES.items():
         if not src.browser_upload:
             continue
         for ext, magic, offset in src.formats:
-            out.setdefault(ext.lower(), (magic, offset, modality))
+            key = ext.lower()
+            magics, owner = out.get(key, ((), modality))
+            if owner == modality:
+                out[key] = ((*magics, (magic, offset)), modality)
     return out
 
 
@@ -51,7 +55,9 @@ def accepted_extensions() -> list[str]:
 
 def magic_prefix_len() -> int:
     """判定魔数需要读的文件头字节数。"""
-    return max((len(m) + off for m, off, _ in _formats().values()), default=0)
+    return max(
+        (len(m) + off for magics, _ in _formats().values() for m, off in magics), default=0
+    )
 
 
 def upload_max_bytes(filename: str) -> int:
@@ -65,7 +71,7 @@ def upload_max_bytes(filename: str) -> int:
 def modality_of(filename: str) -> str | None:
     """按后缀推断上传文件的模态；不受理的后缀 → None。"""
     hit = _formats().get(Path(filename).suffix.lower())
-    return hit[2] if hit else None
+    return hit[1] if hit else None
 
 
 #: 通用拒绝原因（SDD 08 §9.2）；视频解码与时长原因见 SDD 11 §13。
@@ -181,8 +187,8 @@ def classify(filename: str, head: bytes, size: int) -> tuple[str, str]:
         return ("reject", REASON_UNSUPPORTED)
     if size > upload_max_bytes(filename):
         return ("reject", REASON_TOO_LARGE)
-    magic, offset, _modality = fmt
-    if head[offset : offset + len(magic)] != magic:
+    magics, _modality = fmt
+    if not any(head[offset : offset + len(magic)] == magic for magic, offset in magics):
         # 扩展名合法但内容不是——改名的文本文件、截断的图，都落这里
         return ("reject", REASON_CORRUPT)
     return ("accept", _ALIAS.get(ext, ext))
@@ -196,4 +202,4 @@ def is_supported_file(path: Path, modality: str | None = None) -> bool:
     if not path.is_file():
         return False
     fmt = _formats().get(path.suffix.lower())
-    return fmt is not None and (modality is None or fmt[2] == modality)
+    return fmt is not None and (modality is None or fmt[1] == modality)

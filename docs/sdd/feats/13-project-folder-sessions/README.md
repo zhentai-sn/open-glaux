@@ -244,7 +244,7 @@ sequenceDiagram
 7. Source 参与按需识别须满足：声明 `formats`；`list_ids(source)` 只列 `source.root` 下的对象；不依赖文件名前缀；实现 `object_id_for(source, path)`。P1 满足者为 `natural_image`、`video`；`ct_abdomen`、`pathology` 在 P2 改造后满足（SDD 10 协议修订，见 §14）。
 8. 目录列举跳过以 `.` 开头的条目；符号链接解析后落在项目根以外的条目不列出。
 9. 路径参数含 `..` 或解析后越出项目根，返回 422 `outside_project`。
-10. **文件识别**：CT 接受 `.nii.gz`（gzip 魔数 `1f 8b`，解压后为 NIfTI-1 单文件头）与 `.nii`（偏移 344 处为 `n+1\0`）；WSI 接受单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`，以 OpenSlide 能识别格式为准。多文件切片格式不接受（§2）。
+10. **文件识别**：CT 接受 `.nii.gz`（gzip 魔数 `1f 8b`，解压后为 NIfTI-1 单文件头）与 `.nii`（偏移 344 处为 `n+1\0`）；WSI 接受单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif`，以 OpenSlide 能识别格式为准。多文件切片格式不接受（§2）。通用图像另接受 `.tif`、`.tiff`：同后缀按规则 5 先由 WSI 判定，OpenSlide 不能识别的普通 TIFF（如超声、显微单帧图）按通用图像打开，取首帧。
 11. **对象 id**：内置示例源（`ct-demo`、`wsi-demo`）保留既有 id 与文件名约定（`ct_001`、`slide_001`）；导入源（SDD 08）与项目源一律按「数据源 id + 文件名」派生，形如 `ct-<源哈希8>-<文件哈希8>`、`wsi-<源哈希8>-<文件哈希8>`，与通用图像、视频同规则（D-25）。
 12. **按 id 取文件**：按 id 读取体数据、切片、瓦片、原始文件与任务输入时，一律经 `resolve_object` 找到所属数据源，再在该源目录下定位文件；不再经「首个活动源」的全局根。内置源与导入源、项目源可以并存，互不遮蔽。
 13. **浏览器上传资格独立于 `formats`**：`SourceBase` 增 `browser_upload`（缺省真），CT、WSI 为假；上传受理表与 `importable` 只汇总 `browser_upload` 为真的 Source，医学卷仍不走浏览器上传（SDD 08 D-5，D-23）。
@@ -487,7 +487,7 @@ stateDiagram-v2
 | --- | --- |
 | 目录不存在或无读权限 | 选择器内提示，不关闭对话框 |
 | 项目内没有可识别的文件 | 目录树照常显示，文件均可尝试以文本预览（SDD 14）；智能体 `list_files` 返回的候选模态均为空 |
-| 打开的文件后缀可识别但魔数不符 | 422 `corrupt`；文件栏行内提示，智能体收到工具错误 |
+| 打开的文件后缀可识别但魔数不符，或所有候选模态都无法解码 | 422 `corrupt`；文件栏行内提示「无法识别的文件内容」，智能体收到工具错误 |
 | 打开 CT、WSI 文件（P1 期间） | 422 `unsupported_format`，提示该模态将在 P2 支持 |
 | 数据源需要标定 | 状态 `needs_calibration`，沿用 SDD 08 处理 |
 | 项目目录在运行期被删除 | 见 §11.1「路径失效」 |
@@ -542,7 +542,8 @@ flowchart LR
 - [x] P2：文件名不以 `ct_` 开头的 `.nii.gz` 与 `.nii`、不以 `slide_` 开头的 `.svs` 可在项目中打开，舞台可显示（CT 切层、WSI 瓦片）。——单测 `test_project_ct_wsi.py`；走查（`patient A.nii.gz`、`patient B.nii`、`tissue A.svs`）
 - [x] P2：内置示例源开启时，项目源与导入源的 CT、WSI 仍可列出与读取，内置对象 id 保持 `ct_001`、`slide_001`。——单测（三源同名文件并存）；走查（内置 `ct_001` 与项目 CT 同屏切换）
 - [x] P2：只有项目源时，`/tasks` 中 CT、WSI 任务的方法可用，`/task/run` 能以项目对象为输入运行（无标定的 WSI 返回 422）。——单测；走查（两个项目 CT 打开即触发 TotalSegmentator 实跑，结果按派生 id 缓存）
-- [x] P2：浏览器上传 `.nii`、`.nii.gz`、`.svs`、`.tiff` 仍被拒为 `unsupported_type`。——单测
+- [x] P2：浏览器上传 `.nii`、`.nii.gz`、`.svs` 仍被拒为 `unsupported_type`；`.tiff` 按通用图像受理。——单测
+- [x] 项目中的普通单层 TIFF（OpenSlide 不能识别）按 `natural_image` 打开，切片 TIFF 仍按 `pathology` 打开。——单测 `test_project_ct_wsi.py`；走查（CUBS `tech_001.tiff`）
 - [x] P2：缺 mpp 的切片在项目中可打开浏览，`calibration` 为空。——单测（手写 generic tiled TIFF）
 - [x] P2：文件栏导入面板不再有服务端文件夹路径框。——前端改动与测试（`895cede`）
 

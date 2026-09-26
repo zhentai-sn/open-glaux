@@ -137,7 +137,7 @@ export const en = {
   ptree_more: "Show {n} more",
   ptree_uploads: "Uploads",
   ptree_unsupported_format: "Unsupported file format",
-  ptree_corrupt: "The file is corrupt or does not match its extension",
+  ptree_corrupt: "Unrecognized file content (corrupt, or an unsupported format variant)",
   objcard_label: "The agent viewed {name}",
   objcard_viewed: "Viewed by the agent",
   objcard_open_stage: "Open on stage",

@@ -267,15 +267,63 @@ def test_wsi_svs_copy_with_other_name(tmp_path):
 @needs_openslide
 def test_wsi_rejects_unrecognized_and_multifile(tmp_path):
     prj = _project(tmp_path)
-    Image.new("RGB", (32, 32), (1, 2, 3)).save(prj.path / "plain.tiff")  # 条带 TIFF，非切片
     (prj.path / "fake.svs").write_bytes(b"II*\x00" + b"\0" * 64)
+    (prj.path / "broken.tiff").write_bytes(b"II*\x00" + b"\0" * 64)  # 切片与普通图都解不开
     (prj.path / "case.mrxs").write_bytes(b"\0" * 16)
-    for name in ("plain.tiff", "fake.svs"):
+    for name in ("fake.svs", "broken.tiff"):
         r = _open(prj, name)
         assert (r.status_code, _code(r)) == (422, "corrupt"), name
     r = _open(prj, "case.mrxs")
     assert (r.status_code, _code(r)) == (422, "unsupported_format")
     assert _project_sources(prj) == []
+
+
+def _big_endian_gray_tiff(w: int, h: int) -> bytes:
+    """手写大端（``MM\\0*``）、未压缩、单条带的 8 位灰度 TIFF——PIL 只写小端。"""
+    entries = [  # (tag, type, count, value)；type 3 = SHORT，4 = LONG
+        (256, 3, 1, w), (257, 3, 1, h), (258, 3, 1, 8), (259, 3, 1, 1), (262, 3, 1, 1),
+        (273, 4, 1, 0), (277, 3, 1, 1), (278, 3, 1, h), (279, 4, 1, w * h),
+    ]
+    ifd_size = 2 + 12 * len(entries) + 4
+    pixels_at = 8 + ifd_size
+    out = bytearray(b"MM\x00*" + struct.pack(">I", 8) + struct.pack(">H", len(entries)))
+    for tag, typ, count, value in entries:
+        value = pixels_at if tag == 273 else value
+        packed = struct.pack(">HH", value, 0) if typ == 3 else struct.pack(">I", value)
+        out += struct.pack(">HHI", tag, typ, count) + packed
+    out += struct.pack(">I", 0) + bytes(range(256)) * (w * h // 256) + bytes(w * h % 256)
+    return bytes(out)
+
+
+@needs_openslide
+@pytest.mark.parametrize("variant", ["L", "RGB", "big-endian"])
+def test_plain_tiff_opens_as_natural_image(tmp_path, variant):
+    """OpenSlide 不能识别的普通 TIFF 落到通用图像（SDD 13 §7.2 规则 5、10），取图解码为 PNG。"""
+    prj = _project(tmp_path)
+    if variant == "big-endian":
+        data = _big_endian_gray_tiff(40, 30)
+    else:
+        buf = io.BytesIO()
+        Image.new(variant, (40, 30), 128).save(buf, format="TIFF")
+        data = buf.getvalue()
+    (prj.path / "scan.tiff").write_bytes(data)
+    r = _open(prj, "scan.tiff")
+    assert r.status_code == 200, r.text
+    meta = r.json()
+    assert meta["modality"] == "natural_image" and meta["display_name"] == "scan.tiff"
+    assert [a["size"] for a in meta["axes"]] == [40, 30]
+    frame = client.get(f"/objects/{meta['id']}/frame")
+    assert frame.status_code == 200 and frame.headers["content-type"] == "image/png"
+
+
+@needs_openslide
+def test_tiled_tiff_still_opens_as_pathology_beside_plain_tiff(tmp_path):
+    prj = _project(tmp_path)
+    _tiled_tiff(prj.path / "tissue.tif")
+    Image.new("L", (20, 20), 9).save(prj.path / "scan.tif")
+    assert _open(prj, "tissue.tif").json()["modality"] == "pathology"
+    assert _open(prj, "scan.tif").json()["modality"] == "natural_image"
+    assert sorted(s.modality for s in _project_sources(prj)) == ["natural_image", "pathology"]
 
 
 def test_wsi_formats_accept_tiff_and_bigtiff_magics(tmp_path):
@@ -441,16 +489,15 @@ def test_browser_upload_rejects_medical_volumes():
         ("files", ("vol.nii", nii, "application/octet-stream")),
         ("files", ("vol.nii.gz", gzip.compress(nii), "application/gzip")),
         ("files", ("slide.svs", b"II*\x00" + b"\0" * 32, "application/octet-stream")),
-        ("files", ("slide.tiff", b"II*\x00" + b"\0" * 32, "image/tiff")),
     ]
     r = client.post("/uploads/images", files=files, data={"name": "mixed"})
     assert r.status_code == 200, r.text
     reasons = {x["filename"]: x["reason"] for x in r.json()["rejected"]}
-    assert reasons == dict.fromkeys(
-        ("vol.nii", "vol.nii.gz", "slide.svs", "slide.tiff"), "unsupported_type"
-    )
+    assert reasons == dict.fromkeys(("vol.nii", "vol.nii.gz", "slide.svs"), "unsupported_type")
     exts = set(client.get("/uploads/formats").json()["extensions"])
-    assert not exts & {".nii", ".gz", ".nii.gz", ".svs", ".tif", ".tiff"}
+    assert not exts & {".nii", ".gz", ".nii.gz", ".svs"}
+    # .tif/.tiff 以通用图像进受理表（普通 TIFF），不以病理进表（SDD 08 §7 规则 5）
+    assert {".tif", ".tiff"} <= exts
     rows = {s["modality"]: s for s in client.get("/datasources").json()}
     assert rows["natural_image"]["importable"]
 

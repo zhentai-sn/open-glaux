@@ -67,7 +67,8 @@ def test_datasources_carry_kind_label_importable():
         assert row["kind"] == src.kind
         assert row["label"] == src.label and row["label_key"] == f"modality.{row['modality']}"
         # 不接受浏览器上传的 Source（CT、WSI）importable 为空（SDD 13 §7.2 规则 13）
-        expected = [ext for ext, _, _ in src.formats] if src.browser_upload else []
+        exts = list(dict.fromkeys(ext for ext, _, _ in src.formats))
+        expected = exts if src.browser_upload else []
         assert row["importable"] == expected
 
 
@@ -80,12 +81,17 @@ def test_upload_magic_table_derives_from_formats():
             head = b"\0" * offset + magic + b"\0" * 8
             verdict, _ = upload_store.classify(f"f{ext}", head, 10)
             assert verdict == "accept" and upload_store.modality_of(f"f{ext}") == modality
-    assert upload_store.classify("f.tiff", b"II*\0", 10) == ("reject", "unsupported_type")
-    # 声明了 formats 但不接受上传的 Source：后缀不进受理表
-    exts = set(upload_store.accepted_extensions())
-    for src in SOURCES.values():
+    assert upload_store.classify("f.bmp", b"BM\0\0", 10) == ("reject", "unsupported_type")
+    # 同后缀多个魔数（TIFF 小端 / 大端）命中任一即受理
+    for head in (b"II*\0", b"MM\0*"):
+        assert upload_store.classify("f.tiff", head, 10) == ("accept", ".tiff")
+    assert upload_store.modality_of("f.tif") == "natural_image"
+    # 声明了 formats 但不接受上传的 Source：它的后缀不以它的模态进受理表；
+    # 同后缀可经其他接受上传的 Source 进表（.tif/.tiff 归通用图像）
+    for modality, src in SOURCES.items():
         if not src.browser_upload:
-            assert src.formats and not {ext for ext, _, _ in src.formats} & exts
+            assert src.formats
+            assert all(upload_store.modality_of(f"f{ext}") != modality for ext, _, _ in src.formats)
 
 
 # --- ObjectMeta 形状 --------------------------------------------------------------

@@ -45,7 +45,7 @@ status: implemented
 ## 3. 当前阶段目标
 
 - 无任何活动数据源时，Explorer 首屏是导入引导，而不是四个演示数据集。
-- 用户可以在浏览器里直接把 JPEG / PNG 拖进 Explorer 完成导入，无需接触服务端文件系统。
+- 用户可以在浏览器里直接把 JPEG / PNG / TIFF 拖进 Explorer 完成导入，无需接触服务端文件系统。
 - 上传后的图像与仓库自带演示图走**同一条** `/images` / `/image/{id}` 契约，Agent Runtime 无需改动即可取到。
 - 模态切换器只显示「当前真的有数据」的模态；选中通用图像时有对应 tab 高亮（修复现存不一致）。
 - 开发者仍可通过 `GLAUX_DEV_MODE=1` 或「加载示例数据」一键回到今天的演示状态。
@@ -56,7 +56,7 @@ status: implemented
 
 | 入口 | 输入 | 约束 |
 | --- | --- | --- |
-| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `GET /uploads/formats` 返回的受理表内（当前为 JPEG / PNG / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
+| 拖拽 / 文件选择器 | 一批本地图像或视频文件 | 后缀在 `GET /uploads/formats` 返回的受理表内（当前为 JPEG / PNG / TIFF / MP4 / WebM）；图像单文件 ≤ 32 MiB，视频单文件 ≤ 512 MiB 且最长 10 分钟；单次 ≤ 20 个文件。视频的编码与时间校验见 [SDD 11](../11-video-understanding-harness/README.md) |
 | 加载示例数据 | 无 | 仅注册 `config` 内置根中**确实有数据**的模态 |
 | 最近使用 | 无 | 从浏览器本地记录读取 |
 
@@ -97,14 +97,14 @@ status: implemented
     "kind": "image",
     "label": "Natural images",
     "label_key": "modality.natural_image",
-    "importable": [".jpg", ".jpeg", ".png"],
+    "importable": [".jpg", ".jpeg", ".png", ".tif", ".tiff"],
     "default_capabilities": ["bbox", "polygon"]
   },
   "accepted": [
     { "id": "nat-3f2a9c11-8b1d0e42", "filename": "IMG_0042.JPG", "bytes": 2483910 }
   ],
   "rejected": [
-    { "filename": "scan.tiff", "reason": "unsupported_type" }
+    { "filename": "scan.bmp", "reason": "unsupported_type" }
   ]
 }
 ```
@@ -259,7 +259,7 @@ sequenceDiagram
 2. 模态切换器只显示至少有一个 `status=active` 数据源的模态；候选少于 2 个时不渲染切换器（沿用现状）。
 3. `natural_image` 在任务注册表中没有 `TaskPlugin`，不得为它伪造任务；其标签与其他模态同一规则，取 `/datasources` 的 `label_key` → `label` → modality 原文。
 4. 无任何活动数据源时，Explorer 只渲染空态，**不得**调用 `/images` / `/volumes` / `/slides` / `/task/run`。
-5. 上传只接受受理表内的类型，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。受理表由 `SOURCES[*].formats` 汇总（SDD 10 §4.1）：JPEG / PNG → `natural_image`，MP4 / WebM → `video`。
+5. 上传只接受受理表内的类型，且必须同时通过扩展名与文件头魔数校验；魔数不符按 `corrupt` 拒绝。受理表由 `SOURCES[*].formats` 汇总（SDD 10 §4.1）：JPEG / PNG / TIFF（经典 TIFF 魔数，BigTIFF 不受理）→ `natural_image`，MP4 / WebM → `video`。TIFF 以首帧作为图像，浏览器不能直接显示，取图时解码后返回 PNG。
 6. **客户端文件名一律不进入文件系统路径。** 服务端为每个接受的文件生成落盘名与图像 ID；原始文件名只回显在响应与 UI 中：上传时取其 basename（去掉 `/`、`\` 前的目录部分与控制字符，截断到 255 字符）写入该源目录的 `.glaux-names.json`，只作 `display_name` 的展示字符串。该清单只在 `uploads/` 下的源中读取，项目文件夹与服务端文件夹导入源不读。
 7. 上传对象的 ID 由「数据源 id + 源内相对文件名」确定性派生：通用图像形如 `nat-<source_hash8>-<file_hash8>`，视频形如 `vid-<source_hash8>-<file_hash8>`；同一文件重复列举得到同一 ID。
 8. 上传目录必须落在 `datasets_root()/uploads/` 下，并复用 `register_folder` 的白名单校验；越界一律 422。
@@ -406,7 +406,7 @@ stateDiagram-v2
 后端：
 
 - [x] `POST /uploads/images` 上传 2 个合法 JPEG 后返回 `accepted` 两条、`rejected` 空，且 `source.status=active`。
-- [x] 上传 `.tiff` 返回 `rejected[].reason=unsupported_type`；上传改名为 `.jpg` 的文本文件返回 `reason=corrupt`。
+- [x] 上传 `.bmp` 返回 `rejected[].reason=unsupported_type`，上传单层 `.tiff` 按 `natural_image` 受理；上传改名为 `.jpg` 的文本文件返回 `reason=corrupt`。
 - [x] 上传单个超过 `GLAUX_UPLOAD_MAX_BYTES` 的文件返回 `reason=too_large`，且不落盘。
 - [x] 单次上传超过 `GLAUX_UPLOAD_MAX_FILES` 个文件返回 422，且 `uploads/` 下无新增文件。
 - [x] 客户端文件名为 `../../etc/passwd` 时，落盘路径仍在 `datasets_root()/uploads/` 下，返回 ID 匹配 `^nat-[0-9a-f]{8}-[0-9a-f]{8}$`。

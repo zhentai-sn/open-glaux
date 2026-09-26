@@ -54,7 +54,7 @@ status: living
 两个入口：
 
 1. **拖拽图片或视频 / 选择文件…**：浏览器上传，图像单个 ≤ 32 MiB，视频单个 ≤ 512 MiB、最长 10 分钟；一次最多 20 个（`POST /uploads/images`）。
-   后端按后缀加魔数推断模态：JPEG / PNG → `natural_image`，MP4 / WebM → `video`（需 PyAV）；一批只落一个
+   后端按后缀加魔数推断模态：JPEG / PNG / TIFF → `natural_image`，MP4 / WebM → `video`（需 PyAV）；一批只落一个
    数据源，模态取第一个受理文件的模态，其余模态的文件按 `unsupported_type` 拒收。前端文件选择器与拖拽预检读
    `GET /uploads/formats` 的后缀清单。
 2. **加载示例数据**：注册仓库自带的示例源（`POST /datasources/samples`）；幂等，内置根都没数据时返回空。
@@ -129,6 +129,7 @@ curl -s -X POST localhost:8000/projects/prj-1a2b3c4d/objects \
 | `pathology` | 单文件 TIFF 族 `.svs`、`.tif`、`.tiff`、`.ndpi`、`.scn`、`.bif` | TIFF / BigTIFF 魔数，且 OpenSlide 能识别格式 | `wsi-<源哈希8>-<文件名哈希8>` |
 
 - 多文件切片格式不接受。
+- `.tif`、`.tiff` 先按 `pathology` 判定；OpenSlide 不能识别的普通 TIFF（如超声、显微单帧图）按 `natural_image` 打开，取首帧，取图时解码为 PNG。
 - 内置示例源 `ct-demo`、`wsi-demo` 保留文件名约定 `ct_NNN.nii.gz`、`slide_NNN.<后缀>` 与既有 id `ct_001`、`slide_001`，
   其他文件名不进内置源；项目源与导入源不受该约定约束。
 - 按 id 取体数据、切片、瓦片、原始文件与任务输入一律经 `resolve_object` 定位所属数据源，内置源、导入源、项目源并存互不遮蔽。
@@ -159,7 +160,7 @@ curl -s -X POST localhost:8000/projects/prj-1a2b3c4d/objects \
 
 ## 范围
 
-- **完整可用**：浏览器上传通用图像（JPEG / PNG）；WSI、CT 经项目打开或 `POST /datasources` 导入端到端（列表 / 浏览 / 跑任务 / 删除）。
+- **完整可用**：浏览器上传通用图像（JPEG / PNG / TIFF）；WSI、CT 经项目打开或 `POST /datasources` 导入端到端（列表 / 浏览 / 跑任务 / 删除）。
 - **WSI 复现核验**：`GET /wsi/{id}/verify` 的参考文件只对内置示例源提供，导入源与项目源的切片返回 422。
 - **视频逐帧可用**：video 的上传 / 文件夹导入、列表（`GET /images?modality=video`，含音轨声明 `streams[]`）、
   `GET /objects/{id}/frame?t=N` 取帧；前端按 `timeline` 能力位显示时间轴，可在当前帧画 bbox / polygon / 画笔，标注以 `index.t` 落库并按帧回显；agent 从同一焦点帧取观测。PyAV 是可选依赖：

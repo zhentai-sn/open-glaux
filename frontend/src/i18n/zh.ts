@@ -141,7 +141,7 @@ export const zh: Record<I18nKey, string> = {
   ptree_more: "再显示 {n} 项",
   ptree_uploads: "上传",
   ptree_unsupported_format: "不支持的文件格式",
-  ptree_corrupt: "文件损坏或与扩展名不符",
+  ptree_corrupt: "无法识别的文件内容（可能已损坏，或是不支持的格式变体）",
   objcard_label: "智能体查看了 {name}",
   objcard_viewed: "智能体已查看",
   objcard_open_stage: "在舞台打开",

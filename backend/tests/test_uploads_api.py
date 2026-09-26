@@ -65,15 +65,28 @@ def test_reject_reasons():
     r = _post(
         [
             ("files", ("ok.jpg", _jpeg(), "image/jpeg")),
-            ("files", ("scan.tiff", b"II*\x00rest", "image/tiff")),
+            ("files", ("scan.bmp", b"BM\x00\x00rest", "image/bmp")),
             ("files", ("fake.jpg", b"not an image at all", "image/jpeg")),
         ],
         name="混合批",
     )
     assert r.status_code == 200, r.text
     reasons = {x["filename"]: x["reason"] for x in r.json()["rejected"]}
-    assert reasons == {"scan.tiff": "unsupported_type", "fake.jpg": "corrupt"}
+    assert reasons == {"scan.bmp": "unsupported_type", "fake.jpg": "corrupt"}
     assert len(r.json()["accepted"]) == 1
+
+
+def test_upload_tiff_as_natural_image():
+    """普通 TIFF 按通用图像受理（SDD 08 §7 规则 5），取图解码为 PNG。"""
+    buf = io.BytesIO()
+    Image.new("L", (12, 10), 90).save(buf, format="TIFF")
+    r = _post([("files", ("us scan.tiff", buf.getvalue(), "image/tiff"))], name="TIFF 批")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"]["modality"] == "natural_image" and not body["rejected"]
+    object_id = body["accepted"][0]["id"]
+    frame = client.get(f"/objects/{object_id}/frame")
+    assert frame.status_code == 200 and frame.headers["content-type"] == "image/png"
 
 
 def test_too_large_not_written(monkeypatch, tmp_path):
@@ -92,7 +105,7 @@ def test_too_many_files_rejected_wholesale(monkeypatch, tmp_path):
 
 
 def test_all_rejected_creates_no_source():
-    r = _post([("files", ("x.tiff", b"II*\x00", "image/tiff"))], name="全拒")
+    r = _post([("files", ("x.bmp", b"BM\x00\x00", "image/bmp"))], name="全拒")
     assert r.status_code == 422
     assert [s for s in reg.list_all() if s.origin == "imported"] == []
 

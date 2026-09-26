@@ -25,6 +25,11 @@ MODALITY = "natural_image"
 _JPEG_MAGIC = b"\xff\xd8\xff"
 _EXIF_ORIENTATION = 0x0112
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# 经典 TIFF（小端 / 大端）；BigTIFF 不受理——普通单帧图用不到，且 PIL 支持有限（SDD 08 §7 规则 5）
+_TIFF_MAGICS = (b"II*\x00", b"MM\x00*")
+_MAGICS = (_JPEG_MAGIC, _PNG_MAGIC, *_TIFF_MAGICS)
+_PIL_FORMATS = ("JPEG", "PNG", "TIFF")
+_TIFF_SUFFIXES = (".tif", ".tiff")
 
 # 内置演示资产：顺序即文件栏顺序与 API 稳定顺序（SDD 07 §4.1，ID 已冻结，勿改）。
 ASSETS: dict[str, str] = {
@@ -116,13 +121,16 @@ def _read_bytes(path: Path) -> bytes:
         data = path.read_bytes()
     except OSError as exc:
         raise FileNotFoundError(f"通用图像不存在：{path.name}") from exc
-    if not (data.startswith(_JPEG_MAGIC) or data.startswith(_PNG_MAGIC)):
+    if not data.startswith(_MAGICS):
         raise FileNotFoundError(f"通用图像格式无效：{path.name}")
     return data
 
 
 def media_type(path: Path) -> str:
-    return "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    suffix = path.suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    return "image/tiff" if suffix in _TIFF_SUFFIXES else "image/jpeg"
 
 
 def list_ids() -> list[str]:
@@ -163,12 +171,13 @@ def image_jpeg(image_id: str) -> bytes:
 def _probe(path: Path) -> tuple[int, int]:
     try:
         with Image.open(path) as image:
-            if image.format not in ("JPEG", "PNG"):
+            if image.format not in _PIL_FORMATS:
                 raise FileNotFoundError(f"通用图像格式无效：{path.name}")
             size = image.size
             image.verify()
             return size
-    except (OSError, ValueError) as exc:
+    # 超出 PIL 像素上限的图（DecompressionBombError 不是 OSError）按损坏处理，不让取图 500
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise FileNotFoundError(f"通用图像不存在或损坏：{path.name}") from exc
 
 
@@ -196,7 +205,14 @@ class NaturalSource(SourceBase):
     modality = MODALITY
     kind = "image"
     label = "Natural images"
-    formats = ((".jpg", _JPEG_MAGIC, 0), (".jpeg", _JPEG_MAGIC, 0), (".png", _PNG_MAGIC, 0))
+    formats = (
+        (".jpg", _JPEG_MAGIC, 0),
+        (".jpeg", _JPEG_MAGIC, 0),
+        (".png", _PNG_MAGIC, 0),
+        # 普通单层 TIFF；同后缀的切片 TIFF 由 pathology 先认领
+        # （SOURCES 顺序，SDD 13 §7.2 规则 5、10）
+        *((ext, magic, 0) for ext in _TIFF_SUFFIXES for magic in _TIFF_MAGICS),
+    )
     calibration_required = False
 
     def probe(self, root: Path) -> bool:
@@ -273,6 +289,9 @@ class NaturalSource(SourceBase):
     def encoded(self, source, object_id, index):
         path = _path_in(source, object_id)
         _probe(path)
+        # 浏览器不能直接显示 TIFF：解码后返回 PNG（SDD 10 §5.2）
+        if path.suffix.lower() in _TIFF_SUFFIXES:
+            return None
         # 带 EXIF 方向的图：浏览器按方向旋转显示，与对象坐标（PIL 原始朝向）不符，改走 render
         with Image.open(path) as im:
             if im.getexif().get(_EXIF_ORIENTATION, 1) != 1:

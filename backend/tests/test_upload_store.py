@@ -22,7 +22,9 @@ PNG = b"\x89PNG\r\n\x1a\n"
         ("a.jpg", JPEG, 10, ("accept", ".jpg")),
         ("a.JPEG", JPEG, 10, ("accept", ".jpg")),  # 大小写与 .jpeg 都归一到 .jpg
         ("a.png", PNG, 10, ("accept", ".png")),
-        ("scan.tiff", b"II*\x00", 10, ("reject", us.REASON_UNSUPPORTED)),
+        ("scan.bmp", b"BM\x00\x00", 10, ("reject", us.REASON_UNSUPPORTED)),
+        ("scan.tiff", b"II*\x00", 10, ("accept", ".tiff")),
+        ("scan.tif", b"MM\x00*", 10, ("accept", ".tif")),
         ("noext", JPEG, 10, ("reject", us.REASON_UNSUPPORTED)),
         ("a.jpg", JPEG, config.UPLOAD_MAX_BYTES + 1, ("reject", us.REASON_TOO_LARGE)),
         ("text.jpg", b"hello wo", 10, ("reject", us.REASON_CORRUPT)),  # 改名的文本文件
@@ -34,8 +36,8 @@ def test_classify(filename, head, size, expected):
 
 
 def test_classify_order_type_before_size():
-    """类型判定先于大小：一个超大的 .tiff 报 unsupported_type，而不是 too_large。"""
-    assert us.classify("x.tiff", b"II*\x00", config.UPLOAD_MAX_BYTES * 2) == (
+    """类型判定先于大小：一个超大的 .bmp 报 unsupported_type，而不是 too_large。"""
+    assert us.classify("x.bmp", b"BM\x00\x00", config.UPLOAD_MAX_BYTES * 2) == (
         "reject",
         us.REASON_UNSUPPORTED,
     )
