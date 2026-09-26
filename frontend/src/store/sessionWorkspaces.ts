@@ -2,13 +2,14 @@
 // 组件照旧读 useSession；切换会话时由 agentSessions 调 save / restore 换入换出（D-8）。
 // 后台会话的 run_task 结果写进它自己的快照，不碰前台查看器（§7.7 规则 5）。
 import { api } from "../api/client";
-import type { Focus, Measure, Modality, Primitive } from "../api/types";
+import type { DocumentRef, Focus, Measure, Modality, Primitive } from "../api/types";
 import type { Attachment } from "../agent/attachments";
 import { activeObject, useSession, type ComposerVideo, type Source } from "./session";
 
 export interface SessionWorkspace {
   modality: Modality | null;
   focus: Focus | null;
+  document: DocumentRef | null; // SDD 14 §9.4
   metrics: Record<string, Measure> | null;
   primitives: Primitive[];
   source: Source;
@@ -19,10 +20,13 @@ export interface SessionWorkspace {
   composerVideo: ComposerVideo | null;
 }
 
-/** 只持久化 modality 与 focus：刷新后恢复每个会话看的对象；结果与草稿随页面生命周期（§9.6）。 */
+/**
+ * 只持久化 modality、focus 与 document：刷新后恢复每个会话看的对象与文档；结果与草稿随页面生命周期
+ * （§9.6、SDD 14 §9.4）。旧条目缺 document 时按 null 读取，不升版本号。
+ */
 const STORAGE_KEY = "glaux.sessionWorkspace.v1";
 
-type Persisted = Record<string, { modality: Modality | null; focus: Focus | null }>;
+type Persisted = Record<string, { modality: Modality | null; focus: Focus | null; document: DocumentRef | null }>;
 
 const snapshots = new Map<string, SessionWorkspace>();
 let currentId: string | null = null;
@@ -31,6 +35,7 @@ function emptyWorkspace(modality: Modality | null): SessionWorkspace {
   return {
     modality,
     focus: null,
+    document: null,
     metrics: null,
     primitives: [],
     source: "agent",
@@ -54,6 +59,10 @@ function isFocus(value: unknown): value is Focus {
   );
 }
 
+function isDocumentRef(value: unknown): value is DocumentRef {
+  return !!value && typeof value === "object" && typeof (value as Record<string, unknown>).path === "string";
+}
+
 function readPersisted(): Persisted {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as unknown;
@@ -61,10 +70,11 @@ function readPersisted(): Persisted {
     const out: Persisted = {};
     for (const [id, entry] of Object.entries(raw as Record<string, unknown>)) {
       if (!entry || typeof entry !== "object") continue;
-      const { modality, focus } = entry as Record<string, unknown>;
+      const { modality, focus, document } = entry as Record<string, unknown>;
       out[id] = {
         modality: typeof modality === "string" ? modality : null,
         focus: isFocus(focus) ? focus : null,
+        document: isDocumentRef(document) ? { path: document.path } : null,
       };
     }
     return out;
@@ -89,6 +99,7 @@ function capture(): SessionWorkspace {
   return {
     modality: s.modality,
     focus: s.focus,
+    document: s.document,
     metrics: s.metrics,
     primitives: s.primitives,
     source: s.source,
@@ -106,7 +117,7 @@ export function saveWorkspace(sessionId: string): void {
 }
 
 /**
- * 把该会话的快照换入前台（§6.5 第 3、4 步）。没有内存快照时取持久化的 modality / focus；
+ * 把该会话的快照换入前台（§6.5 第 3、4 步）。没有内存快照时取持久化的 modality / focus / document；
  * 都没有时为空工作区并保留当前模态。焦点对象已不在对象表中则清空焦点。
  */
 export async function restoreWorkspace(sessionId: string): Promise<void> {
@@ -116,7 +127,7 @@ export async function restoreWorkspace(sessionId: string): Promise<void> {
   const ws =
     snapshots.get(sessionId) ??
     (stored
-      ? { ...emptyWorkspace(stored.modality ?? before.modality), focus: stored.focus }
+      ? { ...emptyWorkspace(stored.modality ?? before.modality), focus: stored.focus, document: stored.document }
       : emptyWorkspace(before.modality));
   snapshots.delete(sessionId); // 前台即真相；再次切走时重新 save
 
@@ -127,6 +138,9 @@ export async function restoreWorkspace(sessionId: string): Promise<void> {
   useSession.setState({
     modality: ws.modality,
     focus: ws.focus,
+    // 文档正文不持久化：DocumentView 按 path 重新请求，读不到时自行置空（SDD 14 §7.5 规则 2）
+    document: ws.document,
+    documentError: null,
     metrics: ws.metrics,
     primitives: ws.primitives,
     source: ws.source,
@@ -202,11 +216,11 @@ export function resetWorkspacesForTest(): void {
   currentId = null;
 }
 
-// 前台会话的 modality / focus 变化即时持久化，刷新后可恢复（§9.6）。
+// 前台会话的 modality / focus / document 变化即时持久化，刷新后可恢复（§9.6、SDD 14 §9.4）。
 useSession.subscribe((s, prev) => {
-  if (!currentId || (s.focus === prev.focus && s.modality === prev.modality)) return;
+  if (!currentId || (s.focus === prev.focus && s.modality === prev.modality && s.document === prev.document)) return;
   const id = currentId;
   writePersisted((all) => {
-    all[id] = { modality: s.modality, focus: s.focus };
+    all[id] = { modality: s.modality, focus: s.focus, document: s.document };
   });
 });

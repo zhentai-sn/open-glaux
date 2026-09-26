@@ -22,6 +22,8 @@ export function FocusSidePanel() {
   const browserW = useSession((s) => s.focusLayout.browserW);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
   const activeId = useSession((s) => s.focus?.object_id ?? null);
+  // 按引用比较：再次点击同一文本文件也会写入新的 document 引用，窄屏下同样要切回舞台
+  const doc = useSession((s) => s.document);
 
   // ---- 实测侧栏宽度：分栏判定与分隔条上界都读它 ----
   // 不读持久化的 sideW——它为 null（未拖过）时没有像素真相值，只有量出来的才是真的。
@@ -51,13 +53,17 @@ export function FocusSidePanel() {
 
   // 窄屏降级态才保留「在文件浏览器选图 → 回舞台」（D17）：分栏态下两者同屏，
   // 自动切换只会把用户正在用的列表抢走，正是 D16 要消除的症状。
+  // 打开文本文件预览（SDD 14 §7.3）同理：文档视图在舞台上，不切回舞台就看不到。
   const prevActive = useRef(activeId);
+  const prevDoc = useRef(doc);
   useEffect(() => {
-    if (prevActive.current !== activeId && !split && browserView === "files" && activeId) {
+    const opened = (prevActive.current !== activeId && activeId) || (prevDoc.current !== doc && doc);
+    if (opened && !split && browserView === "files") {
       setFocusLayout({ browserView: null });
     }
     prevActive.current = activeId;
-  }, [activeId, split, browserView, setFocusLayout]);
+    prevDoc.current = doc;
+  }, [activeId, doc, split, browserView, setFocusLayout]);
 
   // 收起时整栏不渲染：重新打开走左侧栏入口或 Ctrl/Cmd+\（v1.6 D22）。
   if (!rightOpen) return null;

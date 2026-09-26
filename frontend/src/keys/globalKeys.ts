@@ -61,7 +61,9 @@ function isEditable(el: Element | null): boolean {
 }
 
 // R3：焦点在查看器表面或页面主体（点击画布后的常态）→ 视为查看器上下文；焦点在具体控件上则不是。
+// 文档视图覆盖舞台时工具条不显示（SDD 14 §7.3 规则 9），工具单键与 Esc 复位也不作用于被覆盖的查看器。
 function inViewerContext(el: Element | null): boolean {
+  if (useSession.getState().document) return false;
   if (!el || el === document.body) return true;
   return !!el.closest("[data-viewer-surface]");
 }

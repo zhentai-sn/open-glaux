@@ -5,6 +5,7 @@ import type {
   Annotation,
   Capability,
   DataSource,
+  DocumentRef,
   Focus,
   Index,
   Measure,
@@ -259,6 +260,12 @@ interface SessionState {
   recentItems: RecentItem[]; // SDD 08 §9.4：最近打开过的对象（本地持久化）
   // SDD 10 §9.1：唯一观测焦点 + 按模态分组的对象表（缺键 = 未加载，空数组 = 已加载为空）。
   focus: Focus | null;
+  // SDD 14 §7.3 / D-7：正在预览的项目文本文件，覆盖在查看器之上，与 focus 并存且不改变 focus。
+  document: DocumentRef | null;
+  // SDD 14 §7.3 规则 10：最近一次文档读取失败（目录树据此显示行内错误）；一次性字段，不入会话工作区。
+  documentError: { path: string; code: string } | null;
+  // 文档正文请求进行中（目录树 aria-busy、防重复请求，SDD 14 §10）；瞬态，不入会话工作区。
+  documentLoading: boolean;
   objects: Record<string, ObjectMeta[]>;
   metrics: Record<string, Measure> | null; // 泛型度量（多模态·TaskOutput.metrics）——面板/状态栏/卡片真相源
   primitives: Primitive[]; // 泛型几何原语（多模态·TaskOutput.primitives）——查看器渲染真相源
@@ -300,6 +307,9 @@ interface SessionState {
   activateModel: (id: string) => void;
   /** 焦点的唯一写入口（§7 规则 4）：setFocus 整体替换，setIndex / setRegion 只改一维。 */
   setFocus: (f: Focus | null) => void;
+  setDocument: (d: DocumentRef | null) => void;
+  setDocumentError: (e: { path: string; code: string } | null) => void;
+  setDocumentLoading: (v: boolean) => void;
   setIndex: (p: Index) => void;
   setRegion: (r: Region | null) => void;
   setObjects: (modality: string, list: ObjectMeta[]) => void;
@@ -365,6 +375,9 @@ export const useSession = create<SessionState>((set) => ({
   dsState: "loading",
   recentItems: readRecent(),
   focus: null,
+  document: null,
+  documentError: null,
+  documentLoading: false,
   objects: {},
   metrics: null,
   primitives: [],
@@ -441,7 +454,13 @@ export const useSession = create<SessionState>((set) => ({
       activeModel: id,
       models: s.models.map((m) => ({ ...m, active: m.id === id })),
     })),
-  setFocus: (f) => set({ focus: f }),
+  // SDD 14 §7.3 规则 8：设置新的非空焦点即打开了视觉对象，文档视图随之关闭。
+  // 置 null 不清：restoreWorkspace 在焦点对象失效时 setFocus(null)，不能误清刚恢复的文档。
+  setFocus: (f) =>
+    set((s) => (f && f.object_id !== s.focus?.object_id ? { focus: f, document: null } : { focus: f })),
+  setDocument: (d) => set({ document: d }),
+  setDocumentError: (e) => set({ documentError: e }),
+  setDocumentLoading: (v) => set({ documentLoading: v }),
   setIndex: (p) => set((s) => (s.focus ? { focus: { ...s.focus, index: { ...s.focus.index, ...p } } } : {})),
   setRegion: (r) =>
     set((s) =>

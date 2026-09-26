@@ -109,15 +109,21 @@ export async function loadObjects(modality: Modality, opts: { open?: string } = 
     if (target !== s.focus?.object_id) await openObject(target);
     return;
   }
-  if (list.length) await openObject(list[0].id);
+  // 自动打开首个对象是装配动作，不是用户打开对象：保留刷新后刚恢复的文档视图（SDD 14 §7.5）
+  if (list.length) await openObject(list[0].id, undefined, { keepDocument: true });
   else s.setFocus(null);
 }
 
 /**
  * 打开一个对象（SDD 10 §6.2）：设焦点（缺省索引、无选区）、清叠加，按 TaskView.trigger 决定是否自动跑。
  * 无 TaskView 的模态即 manual（D-18 显式 no-task 契约）。对象所属模态尚未加载时给出 ``modality``。
+ * ``keepDocument`` 只供装配路径使用：设焦点但不关闭文档视图。
  */
-export async function openObject(id: string, modality?: Modality): Promise<void> {
+export async function openObject(
+  id: string,
+  modality?: Modality,
+  opts: { keepDocument?: boolean } = {},
+): Promise<void> {
   let s = useSession.getState();
   let obj = findObject(s, id);
   if (!obj && modality) {
@@ -128,7 +134,12 @@ export async function openObject(id: string, modality?: Modality): Promise<void>
   if (!obj) return;
   if (obj.modality !== s.modality) enterModality(obj.modality);
   noteRecent(obj);
+  // SDD 14 §7.3 规则 8：打开视觉对象即关闭文档视图。setFocus 只在焦点对象变化时清空 document，
+  // 重新打开当前焦点对象（文档覆盖在它之上时）由这里补上。
+  const keep = opts.keepDocument ? useSession.getState().document : null;
+  useSession.getState().setDocument(null);
   useSession.getState().setFocus({ object_id: id, kind: obj.kind, index: defaultIndex(obj), region: null });
+  if (keep) useSession.getState().setDocument(keep);
   clearOverlays();
   const trigger = taskViewFor(useSession.getState(), obj)?.trigger ?? "manual";
   if (trigger === "on_open") await runTask();
@@ -235,6 +246,21 @@ export async function openProjectFile(projectId: string, path: string): Promise<
     .setObjects(meta.modality, at < 0 ? [...list, meta] : list.map((o, i) => (i === at ? meta : o)));
   if (seq === openSeq) await openObject(meta.id);
   return meta;
+}
+
+/**
+ * 在舞台预览项目内文本文件（SDD 14 §6.1）：只写会话级 document，不改 focus；正文由 DocumentView 按
+ * 当前会话的项目请求。同一文件正在加载时不重复发起（§10）；已加载时重新打开即重新读取（§13）。
+ */
+export function openProjectDocument(path: string): void {
+  const s = useSession.getState();
+  if (s.document?.path === path && s.documentLoading) return;
+  useSession.setState({ document: { path }, documentError: null });
+}
+
+/** 关闭文档视图，舞台回到 focus 对象或占位（SDD 14 §11.1）。 */
+export function closeDocument(): void {
+  useSession.getState().setDocument(null);
 }
 
 /** 上传一批本地文件 → 刷新数据源 → 进入其模态并打开首个受理的对象。返回结果供 UI 列出被拒项。 */

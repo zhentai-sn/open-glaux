@@ -199,6 +199,15 @@ describe("FocusSidePanel v1.4 · 窄屏降级", () => {
     expect(screen.getByTestId("stage-view")).toHaveTextContent("stage:tech_401");
   });
 
+  it("降级态下打开文本预览自动切回舞台（SDD 14 §7.3）", () => {
+    stubSideWidth(500);
+    useSession.setState({ document: null });
+    ui();
+    act(() => useSession.setState({ document: { path: "notes/a.md" } }));
+    expect(useSession.getState().focusLayout.browserView).toBeNull();
+    expect(screen.getByTestId("stage-view")).toBeInTheDocument();
+  });
+
   it("迟滞：640–663 停在降级，≥664 才恢复分栏，且 browserView 不被改写", () => {
     stubSideWidth(500);
     ui();

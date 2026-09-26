@@ -17,6 +17,7 @@ import type {
   ObjectMeta,
   Primitive,
   ProjectEntries,
+  ProjectText,
   ProjectView,
   TaskOutput,
   TaskSpec,
@@ -68,18 +69,25 @@ async function get<T>(path: string): Promise<T> {
   return r.json() as Promise<T>;
 }
 
-/** 与 get 相同，但失败时带出后端 detail——目录浏览要把「不存在 / 无权限」原样告诉用户。 */
+/**
+ * 与 get 相同，但失败时带出后端 detail——目录浏览要把「不存在 / 无权限」原样告诉用户。
+ * 错误体为 ``{detail:{code,message}}``（SDD 13 §9.1）时同时带出 code。
+ */
 async function getDetailed<T>(path: string): Promise<T> {
   const r = await fetch(BASE + path);
   if (!r.ok) {
     let detail = `${r.status}`;
+    let code: string | undefined;
     try {
       const j = await r.json();
-      if (j?.detail) detail = String(j.detail);
+      if (j?.detail && typeof j.detail === "object" && !Array.isArray(j.detail)) {
+        detail = String(j.detail.message ?? detail);
+        code = typeof j.detail.code === "string" ? j.detail.code : undefined;
+      } else if (j?.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
     } catch {
       /* 非 JSON 错误体 */
     }
-    throw new ApiError(r.status, detail);
+    throw new ApiError(r.status, detail, code);
   }
   return r.json() as Promise<T>;
 }
@@ -137,6 +145,18 @@ export const api = {
     ),
   openProjectObject: (id: string, path: string) =>
     post<ObjectMeta>(`/projects/${encodeURIComponent(id)}/objects`, { path }),
+  /** SDD 14 §9.1：按行区间与字节上限读项目内文本文件；失败抛 ApiError（code 为 binary / hidden_path 等）。 */
+  projectText: (
+    id: string,
+    path: string,
+    opts: { startLine?: number; maxLines?: number; maxBytes?: number } = {},
+  ) => {
+    const q = new URLSearchParams({ path });
+    if (opts.startLine != null) q.set("start_line", String(opts.startLine));
+    if (opts.maxLines != null) q.set("max_lines", String(opts.maxLines));
+    if (opts.maxBytes != null) q.set("max_bytes", String(opts.maxBytes));
+    return getDetailed<ProjectText>(`/projects/${encodeURIComponent(id)}/text?${q.toString()}`);
+  },
   objects: (modality: Modality) =>
     get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
   /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */

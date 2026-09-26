@@ -1,3 +1,4 @@
+import { DocumentView } from "./DocumentView";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
@@ -17,6 +18,8 @@ export function Editor() {
   const loading = useSession((s) => s.loading);
   const setTool = useSession((s) => s.setTool);
   const modelVersion = useSession((s) => s.modelVersion);
+  // SDD 14 §7.3 规则 9：文档视图覆盖编辑区，查看器保持挂载；ViewerChrome 隐藏
+  const docOpen = useSession((s) => s.document !== null);
 
   // 当前对象的任务（注册表）——标签从这里来；工具栏/选项条由 ViewerChrome 统一渲染，不再 if 模态。
   const tv = useSession((s) => currentTaskView(s));
@@ -48,7 +51,7 @@ export function Editor() {
         <span style={{ color: "var(--ink)" }}>{image ?? "—"}</span>
       </div>
 
-      <div className="editor" data-viewer-surface>
+      <div className={"editor" + (docOpen ? " doc-open" : "")} data-viewer-surface>
         {image ? (
           <>
             <ErrorBoundary label="canvas"><Viewer /></ErrorBoundary>
@@ -64,6 +67,7 @@ export function Editor() {
         ) : (
           <div className="empty">{t("empty_editor")}</div>
         )}
+        {docOpen && <DocumentView />}
       </div>
     </div>
   );

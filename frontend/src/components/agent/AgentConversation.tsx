@@ -20,6 +20,7 @@ import type { PermissionMode } from "../../agent/runtime/types";
 import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
 import { ObjectCard, parseObjectOpened } from "./ObjectCard";
+import { FileCard, parseFileRead } from "./FileCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
@@ -343,6 +344,18 @@ export function AgentConversation() {
                   <OwlLogo size={18} />
                 </div>
                 <ObjectCard payload={opened} />
+              </div>
+            );
+          }
+          // 文件卡片：read_file 的工具结果（SDD 14 §7.4 规则 7），是否在舞台预览由人来点
+          const fileRead = parseFileRead(toolDetails);
+          if (!CHAT_EDITION && fileRead) {
+            return (
+              <div className="turn assistant tool" key={`file-${index}-${fileRead.path}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <FileCard payload={fileRead} />
               </div>
             );
           }

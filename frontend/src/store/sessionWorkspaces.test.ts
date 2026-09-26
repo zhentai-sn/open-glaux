@@ -111,6 +111,66 @@ describe("session workspaces", () => {
     expect(useSession.getState().focus).toBeNull();
   });
 
+  // SDD 14 §7.5、§9.4：document 是会话级字段
+  it("document 随会话换入换出，documentError 不跨会话", async () => {
+    const { useSession, ws } = await fresh();
+    await ws.restoreWorkspace("a");
+    useSession.setState({ focus: focusOf("x"), document: { path: "notes/a.md" } });
+    ws.saveWorkspace("a");
+
+    await ws.restoreWorkspace("b");
+    expect(useSession.getState().document).toBeNull();
+    useSession.setState({ document: { path: "src/b.py" }, documentError: { path: "c.zip", code: "binary" } });
+    ws.saveWorkspace("b");
+
+    await ws.restoreWorkspace("a");
+    expect(useSession.getState().document).toEqual({ path: "notes/a.md" });
+    expect(useSession.getState().focus?.object_id).toBe("x");
+    expect(useSession.getState().documentError).toBeNull();
+    ws.saveWorkspace("a");
+    await ws.restoreWorkspace("b");
+    expect(useSession.getState().document).toEqual({ path: "src/b.py" });
+  });
+
+  it("document 即时持久化，刷新后恢复", async () => {
+    const first = await fresh();
+    await first.ws.restoreWorkspace("a");
+    first.useSession.getState().setDocument({ path: "notes/a.md" });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).a.document).toEqual({ path: "notes/a.md" });
+
+    const second = await fresh();
+    await second.ws.restoreWorkspace("a");
+    expect(second.useSession.getState().document).toEqual({ path: "notes/a.md" });
+  });
+
+  it("焦点对象失效时清空焦点但保留恢复的 document", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ a: { modality: "natural_image", focus: focusOf("gone"), document: { path: "a.md" } } }),
+    );
+    const { useSession, ws } = await fresh();
+    await ws.restoreWorkspace("a");
+    expect(useSession.getState().focus).toBeNull();
+    expect(useSession.getState().document).toEqual({ path: "a.md" });
+  });
+
+  it("旧条目缺 document 按 null 读取；非法 document 同样为 null", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        a: { modality: "natural_image", focus: focusOf("x") },
+        b: { modality: "natural_image", focus: null, document: { path: 3 } },
+      }),
+    );
+    const { useSession, ws } = await fresh();
+    await ws.restoreWorkspace("a");
+    expect(useSession.getState().focus?.object_id).toBe("x");
+    expect(useSession.getState().document).toBeNull();
+    ws.saveWorkspace("a");
+    await ws.restoreWorkspace("b");
+    expect(useSession.getState().document).toBeNull();
+  });
+
   it("删除会话时清掉快照与持久化条目", async () => {
     const { useSession, ws } = await fresh();
     await ws.restoreWorkspace("a");

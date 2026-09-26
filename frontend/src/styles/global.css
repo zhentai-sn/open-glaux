@@ -1614,8 +1614,7 @@ canvas {
 .project-chip-menu button:hover { background: var(--hover); }
 .project-chip-menu .project-chip-open { border-top: 1px solid var(--line); margin-top: 3px; padding-top: 8px; }
 
-/* 项目目录树（SDD 13 §5.1）：沿用文件栏 .row；不可识别文件置灰 */
-.ptree-unknown { cursor: default; opacity: 0.5; }
+/* 项目目录树（SDD 13 §5.1）：沿用文件栏 .row；无候选模态的文件以文本预览（SDD 14 §7.3） */
 .ptree-faint { color: var(--faint); }
 .ptree-error .nm { color: var(--crit); white-space: normal; }
 
@@ -1644,6 +1643,74 @@ canvas {
 }
 .object-card button:hover:not(:disabled) { background: var(--agent-dim); }
 .object-card button:disabled { color: var(--faint); border-color: var(--line2); }
+.object-card-error { color: var(--crit); }
+
+/* 文档视图（SDD 14 §7.3）：绝对定位覆盖舞台 / 编辑区，查看器保持挂载；层级高于查看器角标，低于弹层 */
+.focus-stage.doc-open { position: relative; }
+.focus-stage.doc-open > .focus-stage-tools,
+.focus-stage.doc-open > .focus-stage-metrics,
+.editor.doc-open > .etools,
+.editor.doc-open > .chrome-options { visibility: hidden; }
+.docview {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
+  background: var(--editor);
+}
+.docview-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  font-size: 12px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--line);
+}
+.docview-head .fico { color: var(--file-icon); flex: none; }
+.docview-name { flex: none; max-width: 40%; overflow: hidden; color: var(--bright); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.docview-meta { min-width: 0; overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.docview-grow { flex: 1; }
+.docview-head .settings-seg { flex: none; padding: 1px; border-radius: 6px; }
+.docview-head .settings-seg button { padding: 2px 9px; font-size: 11.5px; border-radius: 5px; }
+.docview-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--mid);
+  border-radius: 5px;
+}
+.docview-close:hover { color: var(--bright); background: var(--hover); }
+.docview-trunc {
+  flex: none;
+  padding: 4px 12px;
+  color: var(--warn);
+  font-size: 11.5px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.docview-body { flex: 1; min-height: 0; overflow: auto; }
+.docview-body.code { overflow: hidden; }
+.docview-loading { display: flex; align-items: center; gap: 6px; padding: 16px; color: var(--faint); font-size: 12px; }
+.docview-md { max-width: 860px; margin: 0 auto; padding: 20px 28px 48px; }
+.docview-md .md { font-size: 13.5px; line-height: 1.7; }
+.docview-md .md h1 { font-size: 20px; }
+.docview-md .md h2 { font-size: 17px; }
+.docview-md .md h3, .docview-md .md h4 { font-size: 14.5px; }
+.docview-md .md pre code { font-size: 12px; }
+.docview-link { color: var(--mid); text-decoration: underline dotted; }
+.docview-img-alt { color: var(--faint); font-style: italic; }
+.codeview { height: 100%; }
+.codeview .cm-editor { height: 100%; }
+.codeview-plain { margin: 0; padding: 8px 12px; overflow: auto; font: 12.5px/1.55 var(--mono); white-space: pre; }
 
 /* 目录选择器（SDD 13 §5.1） */
 .sheet.folder-picker { width: min(92vw, 640px); display: flex; flex-direction: column; gap: var(--space-3); }

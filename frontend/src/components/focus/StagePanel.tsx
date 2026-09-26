@@ -8,6 +8,7 @@ import { useTaskTools } from "../../viewer/useTaskTools";
 import { CHROME_SEGMENTS } from "../../viewer/chromeSegments";
 import { frameAxisFor } from "../../viewer/contract";
 import type { ClassSpec, Primitive } from "../../api/types";
+import { DocumentView } from "../DocumentView";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Icon } from "../Icon";
 import { FALLBACK_ICON, ICONS, TOOL_ICON } from "../iconMap";
@@ -18,6 +19,8 @@ import { useCompactToolbar } from "./useCompactToolbar";
 // 图像舞台（SDD feats/01 §8）——Focus 的一等区域：同步核对回路的落点（纲领 G4）。
 // 复用查看器引擎与任务注册表工具（同 Editor 的派生规则），不复用 tabs/breadcrumb 等 IDE chrome。
 // 角标承接 StatusBar 的仪器信息（图名 · 标定 · 坐标 · 来源，D8）；度量摘要卡为 v0 落点（SDD §7-4）。
+// SDD 14 §7.3 规则 9：document 非空时文档视图覆盖整个舞台，查看器保持挂载；工具条与度量摘要隐藏但保留布局，
+// 画布尺寸不变，关闭后缩放与窗位不受影响。
 export function StagePanel() {
   const { t, lang } = useI18n();
   const obj = useSession((s) => activeObject(s));
@@ -29,6 +32,8 @@ export function StagePanel() {
   const metrics = useSession((s) => s.metrics);
   const source = useSession((s) => s.source);
   const modelVersion = useSession((s) => s.modelVersion);
+  const docOpen = useSession((s) => s.document !== null);
+  const stageClass = "focus-stage" + (docOpen ? " doc-open" : "");
 
   const image = obj ? displayName(obj) : null;
   const tv = useSession((s) => currentTaskView(s));
@@ -64,17 +69,18 @@ export function StagePanel() {
   // v1.1（SDD 01 D13）：无活动图不再整块消失，显示占位引导（下一步去「文件」标签选图；v1.2/D14 起顶栏不再选图）
   if (!image) {
     return (
-      <section className="focus-stage" aria-label={t("focus_stage")}>
+      <section className={stageClass} aria-label={t("focus_stage")}>
         <div className="focus-stage-empty">
           <Icon icon={ICONS.file} size="lg" />
           <p>{t("focus_stage_empty")}</p>
         </div>
+        {docOpen && <DocumentView />}
       </section>
     );
   }
 
   return (
-    <section className="focus-stage" aria-label={t("focus_stage")}>
+    <section className={stageClass} aria-label={t("focus_stage")}>
       <div ref={toolsRef} className={"focus-stage-tools" + (compact ? " compact" : "")} role="toolbar">
         {tools.map((tl) => (
           <button
@@ -119,6 +125,7 @@ export function StagePanel() {
           {modelVersion && ` · ${modelVersion}`}
         </span>
       </div>
+      {docOpen && <DocumentView />}
     </section>
   );
 }

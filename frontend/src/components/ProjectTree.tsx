@@ -2,20 +2,59 @@ import { useEffect, useState } from "react";
 
 import { ApiError, api } from "../api/client";
 import type { ObjectMeta, ProjectEntry } from "../api/types";
-import { openObject, openProjectFile } from "../data/actions";
+import { openObject, openProjectDocument, openProjectFile } from "../data/actions";
 import { displayName } from "../data/objectInfo";
 import { useI18n } from "../i18n";
 import { useModalityLabel } from "../i18n/modalityLabel";
 import { useProjects } from "../store/projects";
 import { useSession } from "../store/session";
+import { documentErrorKey } from "./DocumentView";
 import { Icon } from "./Icon";
 import { ICONS } from "./iconMap";
 
 // 项目目录树（SDD 13 §5.1、§7.2、§7.8 规则 1）：打开项目不扫描，展开一层列一层；
-// 可识别文件（按后缀有候选模态）点击后由后端校验并按需登记，再走 openObject。
+// 可识别文件（按后缀有候选模态）点击后由后端校验并按需登记，再走 openObject；
+// 其余文件点击后以文本在舞台预览（SDD 14 §7.3）。
 const BATCH = 200; // 单层条目过多时分批渲染（§13）
 
 const indent = (depth: number) => ({ paddingLeft: depth * 12 + 4 });
+
+/**
+ * 无候选模态的文件（SDD 14 §7.3 规则 1）：点击即以文本在舞台预览，是否为文本由后端按内容判定。
+ * 选中态看会话的 document；读取失败的错误由 DocumentView 写入 store 的 documentError，在此行内显示。
+ */
+function TextLeaf({ entry, depth }: { entry: ProjectEntry; depth: number }) {
+  const { t } = useI18n();
+  const selected = useSession((s) => s.document?.path === entry.path);
+  const busy = useSession((s) => s.documentLoading && s.document?.path === entry.path);
+  const errorCode = useSession((s) => (s.documentError?.path === entry.path ? s.documentError.code : null));
+
+  return (
+    <>
+      <button
+        type="button"
+        className={"row" + (selected ? " sel" : "")}
+        style={indent(depth)}
+        title={entry.path}
+        aria-pressed={selected}
+        aria-busy={busy || undefined}
+        onClick={() => {
+          if (!busy) openProjectDocument(entry.path);
+        }}
+      >
+        <span className="tw" />
+        <Icon icon={busy ? ICONS.spinner : ICONS.file} size="sm" className="ico fico" />
+        <span className="nm">{entry.name}</span>
+        {selected && <Icon icon={ICONS.check} size="sm" className="dot" />}
+      </button>
+      {errorCode && (
+        <div className="row ptree-error" style={indent(depth + 1)} role="alert">
+          <span className="nm">{t(documentErrorKey(errorCode))}</span>
+        </div>
+      )}
+    </>
+  );
+}
 
 function FileLeaf({ projectId, entry, depth }: { projectId: string; entry: ProjectEntry; depth: number }) {
   const { t } = useI18n();
@@ -26,15 +65,7 @@ function FileLeaf({ projectId, entry, depth }: { projectId: string; entry: Proje
   const [openedId, setOpenedId] = useState<string | null>(entry.object_id);
   const selected = !!openedId && openedId === focusId;
 
-  if (!entry.modality) {
-    return (
-      <div className="row ptree-unknown" style={indent(depth)} title={t("ptree_unsupported")}>
-        <span className="tw" />
-        <Icon icon={ICONS.file} size="sm" className="ico fico" />
-        <span className="nm">{entry.name}</span>
-      </div>
-    );
-  }
+  if (!entry.modality) return <TextLeaf entry={entry} depth={depth} />;
 
   const open = async () => {
     if (busy) return;

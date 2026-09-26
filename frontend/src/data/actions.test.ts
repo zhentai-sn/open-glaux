@@ -156,6 +156,15 @@ describe("loadObjects（§11.1 切模态即清空）", () => {
     await loadObjects("ct_abdomen");
     expect(useSession.getState().focus?.index).toEqual({ z: 7 });
   });
+
+  it("无焦点时自动打开首个对象不关闭文档视图；用户打开对象则关闭（SDD 14 §7.3 规则 8、§7.5）", async () => {
+    useSession.setState({ document: { path: "notes/a.md" } });
+    await loadObjects("ct_abdomen");
+    expect(useSession.getState().focus?.object_id).toBe("ct_001");
+    expect(useSession.getState().document).toEqual({ path: "notes/a.md" });
+    await openObject("ct_001");
+    expect(useSession.getState().document).toBeNull();
+  });
 });
 
 describe("defaultIndex", () => {

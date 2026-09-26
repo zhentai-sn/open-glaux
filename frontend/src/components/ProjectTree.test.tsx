@@ -1,11 +1,12 @@
 // SDD 13 §7.2 / §7.8：项目目录树按需展开，点击可识别文件经后端校验后打开。
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, api } from "../api/client";
 import * as actions from "../data/actions";
 import { I18nProvider } from "../i18n";
 import { useProjects } from "../store/projects";
+import { useSession } from "../store/session";
 import { objectMeta } from "../test/fixtures";
 import { ProjectTree } from "./ProjectTree";
 
@@ -31,6 +32,7 @@ describe("ProjectTree", () => {
     localStorage.setItem("glaux.lang", "en");
     vi.restoreAllMocks();
     useProjects.setState({ projects: [project], loaded: true });
+    useSession.setState({ document: null, documentError: null, documentLoading: false });
     vi.spyOn(api, "projectEntries").mockImplementation(async (_id, path = "") =>
       path === ""
         ? {
@@ -69,12 +71,40 @@ describe("ProjectTree", () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith("prj-a", "photos/cat.jpg"));
   });
 
-  it("不支持的格式行内提示，不可识别文件不可点", async () => {
+  it("不支持的格式行内提示", async () => {
     vi.spyOn(actions, "openProjectFile").mockRejectedValue(new ApiError(422, "no", "unsupported_format"));
     renderTree();
     fireEvent.click(await screen.findByText("scan.nii.gz"));
     expect(await screen.findByRole("alert")).toHaveTextContent("Unsupported file format");
-    expect(screen.getByText("readme.txt").closest("button")).toBeNull();
+  });
+
+  // SDD 14 §7.3 规则 1、10
+  it("无候选模态的文件可点击，以文本打开并显示选中态", async () => {
+    const openFile = vi.spyOn(actions, "openProjectFile");
+    renderTree();
+    const row = (await screen.findByText("readme.txt")).closest("button")!;
+    expect(row).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(row);
+    expect(useSession.getState().document).toEqual({ path: "readme.txt" });
+    expect(openFile).not.toHaveBeenCalled();
+    expect(row).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("文档加载中时行显示 aria-busy 且不重复打开", async () => {
+    renderTree();
+    const row = (await screen.findByText("readme.txt")).closest("button")!;
+    act(() => useSession.setState({ document: { path: "readme.txt" }, documentLoading: true }));
+    expect(row).toHaveAttribute("aria-busy", "true");
+    const before = useSession.getState().document;
+    fireEvent.click(row);
+    expect(useSession.getState().document).toBe(before);
+  });
+
+  it("读取失败的错误显示在对应行内", async () => {
+    renderTree();
+    await screen.findByText("readme.txt");
+    act(() => useSession.setState({ documentError: { path: "readme.txt", code: "binary" } }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Not a text file");
   });
 
   it("项目目录失效时显示提示而非目录树", () => {

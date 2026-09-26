@@ -179,6 +179,29 @@ export interface ProjectEntries {
   total: number;
 }
 
+/** SDD 14 §9.1：项目内文本文件的一段（按行区间与字节上限读取）。 */
+export interface ProjectText {
+  path: string;
+  name: string;
+  size: number;
+  encoding: "utf-8" | "utf-8-sig" | "utf-16" | "gb18030";
+  start_line: number;
+  /** 未读到任何行时为 start_line - 1。 */
+  end_line: number;
+  /** 换行已统一为 \n，不含行号。 */
+  text: string;
+  eof: boolean;
+  /** 仅 eof 为真时给出。 */
+  total_lines: number | null;
+  /** 最后一行因字节上限被截断（§7.2 规则 5）。 */
+  line_truncated: boolean;
+}
+
+/** SDD 14 §9.3：会话正在预览的文档；项目由会话绑定决定，不重复存。 */
+export interface DocumentRef {
+  path: string;
+}
+
 export interface ProjectView {
   id: string;
   name: string;
