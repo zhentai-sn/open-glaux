@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 14 · 项目文本文件预览与读取
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 契约冻结，待实现；上游 SDD 13、SDD 01 的修订已同步 |
+| 状态 | `implemented` |
+| 当前阶段 | 已实现并通过自动化门禁与开发侧浏览器走查，自查见 §15；真实模型走查、Workbench 走查与业务验收待补 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 13 项目文件夹与并行会话](../13-project-folder-sessions/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) · [SDD 10 对象与数据源](../10-object-convergence/README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-26 |
@@ -150,19 +150,19 @@ sequenceDiagram
 ### 7.2 读取端点
 
 1. 路径校验沿用 SDD 13 的 `_inside`：含 `..`、绝对路径或解析后越出项目根返回 422 `outside_project`。
-2. 路径中任一段以 `.` 开头返回 422 `hidden_path`，与目录列举跳过隐藏条目一致（D-4）。
+2. 路径中任一段以 `.` 开头返回 422 `hidden_path`，与目录列举跳过隐藏条目一致（D-4）；`..` 不在此列，按规则 1 判越界。请求路径与解析符号链接后的项目内路径都做该检查，指向隐藏文件的符号链接同样拒绝。
 3. 目标不存在返回 404 `not_found`；不是普通文件返回 422 `not_file`。
 4. 从 `start_line` 起顺序读取，直到满足任一条件：已读 `max_lines` 行、再读一行将超过 `max_bytes`（按 UTF-8 编码后的字节计）、到达文件末尾。
-5. 单行本身超过 `max_bytes` 时，截取该行前 `max_bytes` 字节（按字符边界），`end_line` 等于该行，`line_truncated` 为真。
+5. 本次第一行的正文（不含换行）超过 `max_bytes` 时，截取该行前 `max_bytes` 字节（按字符边界），`end_line` 等于该行，`line_truncated` 为真，本次读取到此为止。
 6. `max_bytes` 取值 1～1 MiB，缺省 1 MiB；`max_lines` 取值 1～100000，缺省不按行数限制；`start_line` ≥ 1。超出范围返回 422。
 7. `start_line` 超过文件总行数时返回空 `text`，`eof` 为真，`total_lines` 为实际行数。
-8. `total_lines` 只在本次读到文件末尾时给出，否则为 `null`；端点不为计数而额外扫描全文件。
+8. `eof` 表示 `end_line` 之后已无行；`total_lines` 只在 `eof` 为真时给出，否则为 `null`；端点不为计数而额外扫描全文件。
 9. 端点不登记数据源、不写任何文件。
 
 ### 7.3 用户预览
 
 1. 项目目录树中 `modality` 为空的文件可点击，点击即以文本打开；`modality` 非空的文件行为不变（SDD 13 §6.3）。
-2. 预览请求 `max_bytes = 1 MiB`、不限行数；`eof` 为假时显示截断提示「文件超过 1 MiB，只显示前 1 MiB」。
+2. 预览请求 `max_bytes = 1 MiB`、不限行数；`eof` 为假或 `line_truncated` 为真时显示截断提示「文件过大，只显示前 1 MiB」。
 3. 渲染方式按扩展名（大小写不敏感）：
 
    | 扩展名 | 渲染 |
@@ -177,7 +177,10 @@ sequenceDiagram
 7. Markdown 渲染不解析原始 HTML；`http:`、`https:` 链接在新标签页打开并带 `rel="noopener noreferrer"`；其他链接与相对路径图片只显示文字（alt 文本），不发请求。
 8. 文档视图不改变 `focus`。打开任一视觉对象（目录树、「最近使用」、对象卡片、智能体结果）时，`document` 置空，舞台显示该对象。
 9. 文档视图覆盖在查看器之上，查看器保持挂载，关闭后缩放、窗位、帧索引不变；文档视图打开期间舞台工具栏与度量摘要不显示。
-10. 读取失败（`binary`、`not_found` 等）时 `document` 置空，目录树行内显示错误。
+10. 读取失败（`binary`、`not_found` 等）时 `document` 置空，目录树行内显示错误；由文件卡片发起的读取失败显示在卡片内。
+11. Focus 右侧栏处于窄屏降级态（文件列占满整栏）时，打开文本预览自动切回舞台，与选图的行为一致（SDD 01 D17）。
+12. 文档视图打开期间，舞台工具单键与 `Esc` 复位不作用于被覆盖的查看器。
+13. 启动或切换数据源时自动打开首个对象是装配动作，不关闭已恢复的文档视图；只有用户打开对象才关闭。
 
 ### 7.4 智能体工具
 
@@ -222,7 +225,9 @@ sequenceDiagram
 | `frontend/src/components/agent/AgentConversation.tsx` | 渲染文件卡片 |
 | `frontend/src/components/ProjectTree.tsx` | 非模态文件可点击，选中态与行内错误 |
 | `frontend/src/components/focus/StagePanel.tsx`、`frontend/src/components/Editor.tsx` | `document` 非空时渲染 `DocumentView` |
-| `frontend/src/store/session.ts`、`frontend/src/store/sessionWorkspaces.ts` | `document` 字段与换入换出、持久化 |
+| `frontend/src/components/focus/FocusSidePanel.tsx` | 窄屏降级态打开文本预览切回舞台（§7.3 规则 11） |
+| `frontend/src/keys/globalKeys.ts` | 文档视图打开时屏蔽舞台工具单键与 `Esc` 复位（§7.3 规则 12） |
+| `frontend/src/store/session.ts`、`frontend/src/store/sessionWorkspaces.ts` | `document` 字段与换入换出、持久化；瞬态字段 `documentError`、`documentLoading` 不入工作区 |
 | `frontend/src/data/actions.ts` | `openProjectDocument`、`closeDocument`；打开视觉对象时清空 `document` |
 | `frontend/src/api/client.ts`、`frontend/src/api/types.ts` | `projectText`、`ProjectText` |
 | `frontend/package.json` | 新增 `@codemirror/state`、`@codemirror/view`、`@codemirror/language`、`@codemirror/search`、`@codemirror/lang-json`、`@codemirror/lang-python`、`@codemirror/lang-markdown`、`@codemirror/lang-yaml`、`@codemirror/lang-javascript`、`@lezer/highlight` |
@@ -246,8 +251,8 @@ sequenceDiagram
 | `encoding` | `"utf-8" \| "utf-8-sig" \| "utf-16" \| "gb18030"` | §7.1 规则 2 |
 | `start_line` | `int` | 本次起始行，从 1 起 |
 | `end_line` | `int` | 本次最后一行；未读到任何行时为 `start_line - 1` |
-| `text` | `string` | 换行统一为 `\n`；不含行号 |
-| `eof` | `bool` | 是否读到文件末尾 |
+| `text` | `string` | 各行拼接，每行保留行尾 `\n`（文件末行无换行时除外）；换行统一为 `\n`；不含行号 |
+| `eof` | `bool` | `end_line` 之后是否已无行 |
 | `total_lines` | `int \| null` | 仅 `eof` 为真时给出 |
 | `line_truncated` | `bool` | 最后一行是否因字节上限被截断（§7.2 规则 5） |
 
@@ -349,53 +354,53 @@ flowchart LR
 
 ### 15.1 文本判定与端点
 
-- [ ] UTF-8、UTF-8 BOM、UTF-16 LE BOM、GB18030 编码的文件返回正确的 `encoding` 与正文。
-- [ ] 含 NUL 字节的文件、PNG、ZIP 返回 422 `binary`。
-- [ ] 样本边界恰好切断 UTF-8 多字节字符的文件仍判为 `utf-8`。
-- [ ] 路径含 `..`、指向项目外的符号链接返回 422 `outside_project`；`.env`、`.git/config` 返回 422 `hidden_path`。
-- [ ] 1000 行文件以 `start_line=401&max_lines=400` 读取，返回第 401～800 行，`eof` 为假，`total_lines` 为 `null`；以 `start_line=801` 读取，返回第 801～1000 行，`eof` 为真，`total_lines` 为 1000。
-- [ ] 5 MiB 文件以 `max_bytes=1048576` 读取，返回正文不超过 1 MiB，`eof` 为假。
-- [ ] 单行 3 MiB 的文件以缺省参数读取，`line_truncated` 为真，正文不超过 1 MiB。
-- [ ] 空文件返回 `text=""`、`total_lines=0`、`eof=true`。
-- [ ] `\r\n` 换行的文件返回的正文不含 `\r`，行数与 `\n` 换行版本一致。
-- [ ] 非回环来源请求返回 403。
-- [ ] 读取后 `sources.json` 不变，项目目录内无新文件。
+- [x] UTF-8、UTF-8 BOM、UTF-16 LE BOM、GB18030 编码的文件返回正确的 `encoding` 与正文。——单测 `test_project_text.py`；走查（GB18030 报告）
+- [x] 含 NUL 字节的文件、PNG、ZIP 返回 422 `binary`。——单测；走查（`.zip`、`.jpg`）
+- [x] 样本边界恰好切断 UTF-8 多字节字符的文件仍判为 `utf-8`。——单测
+- [x] 路径含 `..`、指向项目外的符号链接返回 422 `outside_project`；`.env`、`.git/config` 返回 422 `hidden_path`。——单测（含指向 `.env` 的符号链接）；走查（`.env`、`../etc/passwd`）
+- [x] 1000 行文件以 `start_line=401&max_lines=400` 读取，返回第 401～800 行，`eof` 为假，`total_lines` 为 `null`；以 `start_line=801` 读取，返回第 801～1000 行，`eof` 为真，`total_lines` 为 1000。——单测
+- [x] 5 MiB 文件以 `max_bytes=1048576` 读取，返回正文不超过 1 MiB，`eof` 为假。——单测
+- [x] 单行 3 MiB 的文件以缺省参数读取，`line_truncated` 为真，正文不超过 1 MiB。——单测
+- [x] 空文件返回 `text=""`、`total_lines=0`、`eof=true`。——单测
+- [x] `\r\n` 换行的文件返回的正文不含 `\r`，行数与 `\n` 换行版本一致。——单测
+- [x] 非回环来源请求返回 403。——单测
+- [x] 读取后 `sources.json` 不变，项目目录内无新文件。——单测
 
 ### 15.2 用户预览
 
-- [ ] 目录树中 `.md`、`.py`、`.json`、`.txt`、`.yaml`、无扩展名文本文件可点击，舞台显示文档视图；`.jpg`、`.mp4` 点击行为与 SDD 13 一致。
-- [ ] `.md` 显示为排版文档，表格与任务列表（GFM）正确渲染；切换「源码」显示原文与行号。
-- [ ] Markdown 内嵌 `<script>` 与 `<img src=x onerror=…>` 不执行、不渲染为元素；相对路径图片不产生网络请求。
-- [ ] `.json` 未截断时按缩进格式化显示；非法 JSON 按原文显示，不报错。
-- [ ] `.py` 有语法高亮与行号；编辑器内 `Ctrl+F` 可查找；正文不可编辑。
-- [ ] 大于 1 MiB 的文件显示截断提示。
-- [ ] 点击 `.zip` 行内提示「不是文本文件」，舞台保持原状。
-- [ ] 焦点为图像 X 时打开文档，再点「关闭」，舞台回到 X，缩放与窗位不变。
-- [ ] 文档视图打开时点击目录树中的图像，舞台显示该图像。
-- [ ] Focus 与 Workbench 两种模式下行为一致。
-- [ ] 深色、浅色主题下代码视图颜色随主题切换。
-- [ ] 首屏 JS 包不包含 CodeMirror（构建产物中 CodeMirror 位于独立分块）。
+- [x] 目录树中 `.md`、`.py`、`.json`、`.txt`、`.yaml`、无扩展名文本文件可点击，舞台显示文档视图；`.jpg`、`.mp4` 点击行为与 SDD 13 一致。——单测 `ProjectTree.test.tsx`；走查（`.md`、`.py`、`.json`、`.txt`、`.yaml`、`NOTES`、`.jpg`）
+- [x] `.md` 显示为排版文档，表格与任务列表（GFM）正确渲染；切换「源码」显示原文与行号。——走查（1 个表格、2 个任务项、源码视图 20 行行号）
+- [x] Markdown 内嵌 `<script>` 与 `<img src=x onerror=…>` 不执行、不渲染为元素；相对路径图片不产生网络请求。——单测 `DocumentView.test.tsx`；走查（无 `script`、`img` 元素，无 `figs/a.png` 请求，外链带 `noopener noreferrer`）
+- [x] `.json` 未截断时按缩进格式化显示；非法 JSON 按原文显示，不报错。——单测；走查（`labels.json`、`bad.json`）
+- [x] `.py` 有语法高亮与行号；编辑器内 `Ctrl+F` 可查找；正文不可编辑。——走查（高亮 token、`contenteditable=false`、`Ctrl+F` 打开查找栏并聚焦）
+- [x] 大于 1 MiB 的文件、单行超过 1 MiB 的文件均显示截断提示。——单测（两种情况）；走查（2 MiB `big.log`）
+- [x] 点击 `.zip` 行内提示「不是文本文件」，舞台保持原状。——单测；走查
+- [x] 焦点为图像 X 时打开文档，再点「关闭」，舞台回到 X，缩放与窗位不变。——走查（关闭后同一 `canvas` 元素仍在，查看器未重建）
+- [x] 文档视图打开时点击目录树中的图像，舞台显示该图像。——单测 `actions.test.ts`；走查
+- [ ] Focus 与 Workbench 两种模式下行为一致。——Focus 走查通过；Workbench 入口缺省关闭，`Editor` 覆盖层已实现，未走查
+- [x] 深色、浅色主题下代码视图颜色随主题切换。——走查（切换 `data-theme` 后编辑器背景与前景色随之变化）
+- [x] 首屏 JS 包不包含 CodeMirror（构建产物中 CodeMirror 位于独立分块）。——构建产物检查（CodeMirror 与 Lezer 只在经动态 `import()` 加载的分块）
 
 ### 15.3 智能体
 
-- [ ] 绑定项目的会话挂载 `read_file`；「未归属」会话与 `observe` 模式不挂载。
-- [ ] 连接未声明视觉能力时 `read_file` 仍挂载。
-- [ ] 读取 1000 行文件：首次返回 400 行并提示续读起点；按提示续读两次后读完，末次写明总行数。
-- [ ] 读取 `.env`、二进制文件、项目外路径时模型收到工具错误，回合继续。
-- [ ] `read_file` 后会话 `focus` 与 `document` 不变；对话内出现文件卡片，点「在舞台打开」后舞台显示该文件。
-- [ ] 真实模型走查：项目内放一份含测量要求的 `README.md`，用户只说「按项目说明做」，智能体用 `list_files` + `read_file` 读到说明并据此行动。
+- [x] 绑定项目的会话挂载 `read_file`；「未归属」会话与 `observe` 模式不挂载。——单测 `project-tools.test.ts`
+- [x] 连接未声明视觉能力时 `read_file` 仍挂载。——单测
+- [x] 读取 1000 行文件：首次返回 400 行并提示续读起点；按提示续读两次后读完，末次写明总行数。——单测
+- [x] 读取 `.env`、二进制文件、项目外路径时模型收到工具错误，回合继续。——单测（harness 级断言 `isError` 与回合继续）
+- [x] `read_file` 后会话 `focus` 与 `document` 不变；对话内出现文件卡片，点「在舞台打开」后舞台显示该文件。——单测 `FileCard.test.tsx`、`project-tools.test.ts`
+- [ ] 真实模型走查：项目内放一份含测量要求的 `README.md`，用户只说「按项目说明做」，智能体用 `list_files` + `read_file` 读到说明并据此行动。——工具链路单测通过；待维护者在已配置模型的环境走查
 
 ### 15.4 会话隔离
 
-- [ ] 会话 A 预览 `a.md`、会话 B 预览 `b.py`；来回切换，舞台显示各自文档。
-- [ ] 刷新页面后，各会话的 `document` 恢复并重新加载正文。
-- [ ] 旧版本写入的 `glaux.sessionWorkspace.v1` 条目（无 `document`）正常读取。
-- [ ] 切回会话时文档已被删除，舞台回到视觉对象或占位引导，不报未捕获异常。
+- [x] 会话 A 预览 `a.md`、会话 B 预览 `b.py`；来回切换，舞台显示各自文档。——单测 `sessionWorkspaces.test.ts`；走查（项目会话与未归属会话来回切换）
+- [x] 刷新页面后，各会话的 `document` 恢复并重新加载正文。——单测；走查
+- [x] 旧版本写入的 `glaux.sessionWorkspace.v1` 条目（无 `document`）正常读取。——单测
+- [x] 切回会话时文档已被删除，舞台回到视觉对象或占位引导，不报未捕获异常。——单测（读取失败清空 `document`，`focus` 不变）
 
 ### 15.5 工程
 
-- [ ] typecheck、lint、前端、agent-runtime、backend 既有测试不回退；`check-modality-literals.sh` 门禁 0。
-- [ ] 新增单测覆盖：编码判定、行区间与字节上限、隐藏路径与越界、`read_file` 输出格式与挂载条件、`document` 换入换出与持久化、扩展名到渲染方式的分派。
+- [x] typecheck、lint、前端、agent-runtime、backend 既有测试不回退；`check-modality-literals.sh` 门禁 0。——backend 492、agent-runtime 288、前端 340 全部通过；lint、build 通过；门禁 0
+- [x] 新增单测覆盖：编码判定、行区间与字节上限、隐藏路径与越界、`read_file` 输出格式与挂载条件、`document` 换入换出与持久化、扩展名到渲染方式的分派。——backend 33、agent-runtime 16、前端约 33 个用例
 - [ ] 业务验收。
 
 ## 16. 决策记录

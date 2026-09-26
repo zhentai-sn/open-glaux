@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 14 项目文本文件预览与读取 · 实施计划

@@ -80,7 +80,7 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - `suggest` / `controlled` / `autonomous`：挂领域工具；逐次批准门控（`beforeToolCall`）尚未落地，`propose_annotation` 的产出恒为建议态，须人工确认。
 - 对话预览版（chat）不挂领域工具，与 `observe` 同效。
 
-完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`（需焦点）；绑定项目的会话另挂 `list_files`（列项目内一层，最多 200 条）与 `open_file`（打开项目内文件并看首帧，需视觉，不改用户舞台）。绑定项目的会话中，作用于当前对象的工具只接受本项目的对象，未归属会话只接受 `project_id` 为空的数据源对象，越界时模型收到工具错误。工具经 `TOOL_PROVIDERS` 装配；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
+完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`（需焦点）；绑定项目的会话另挂 `list_files`（列项目内一层，最多 200 条）、`open_file`（打开项目内文件并看首帧，需视觉，不改用户舞台）与 `read_file`（按行区间读取项目内文本文件，单次至多 400 行或 64 KiB，隐藏路径与二进制拒绝）。绑定项目的会话中，作用于当前对象的工具只接受本项目的对象，未归属会话只接受 `project_id` 为空的数据源对象，越界时模型收到工具错误。工具经 `TOOL_PROVIDERS` 装配；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
 
 ## 5. 会话管理
 
@@ -128,7 +128,7 @@ CT、WSI 在界面中只经打开项目接入；导入面板只有浏览器上�
 - 项目胶囊显示当前会话的项目。空会话点胶囊可切到另一项目的空会话，输入草稿、附件与视频随之带过去；会话发出消息后胶囊只读。
 - 会话行状态点：运行中（强调色呼吸点）、已完成未读（强调色实心点，选中后消失，刷新后清空）、出错（`--crit` 色）。
 - 每个会话各有自己的查看对象、任务结果与输入草稿；后台会话的工具结果不改前台舞台。刷新后每个会话的查看对象与模态从 localStorage `glaux.sessionWorkspace.v1` 恢复。
-- 项目会话中，智能体可用 `list_files`、`open_file` 自行查看项目内文件；`open_file` 在对话内显示对象卡片，点「在舞台打开」后才切换舞台。
+- 项目会话中，智能体可用 `list_files`、`open_file`、`read_file` 自行查看项目内文件；`open_file` 在对话内显示对象卡片，`read_file` 显示文件卡片，点「在舞台打开」后才切换舞台。
 
 ### 5.4 移除与恢复项目
 
@@ -162,7 +162,7 @@ CT、WSI 在界面中只经打开项目接入；导入面板只有浏览器上�
 | `context_overflow` | 检查模型 context metadata；Pi 会先按锁定版本默认策略尝试 compaction |
 | `storage_error` | 停止 Runtime，检查数据目录权限、剩余空间及两个 SQLite 文件是否成对存在 |
 | 目录选择器或打开项目报 403「该端点只接受本机回环地址…」 | 见 §7.1 |
-| 智能体 `list_files` / `open_file` 报 403 | Runtime 的 `GLAUX_BACKEND_URL` 指向了非回环地址；改为 `http://127.0.0.1:8000` 或 `http://localhost:8000` |
+| 智能体 `list_files` / `open_file` / `read_file` 报 403 | Runtime 的 `GLAUX_BACKEND_URL` 指向了非回环地址；改为 `http://127.0.0.1:8000` 或 `http://localhost:8000` |
 | 智能体工具报 `outside_project` | 路径含 `..`、是绝对路径或经符号链接指向项目外；或当前对象不属于本会话项目。改用项目内相对路径，或在本项目中打开对象 |
 | 打开文件报 `unsupported_format` / `corrupt` | 前者为后缀不属于任何可识别模态；后者为文件内容与后缀不符或无法解码（含 OpenSlide 不认识的 TIFF） |
 
