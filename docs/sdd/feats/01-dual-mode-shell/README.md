@@ -183,7 +183,7 @@ flowchart TD
 | --- | --- | --- |
 | 新增 | `FocusShell` | 纯布局壳:FocusTopBar + SessionRail + 对话列 + StagePanel;自身无领域逻辑 |
 | 新增 | `FocusTopBar` | 标识 + 图像上下文标签(v1.2:**只读**,显示「模态标签 · `focus.object_id`」,模态标签取 `/datasources` 的 `label_key` → `label` → modality 原文(SDD 10 D-22);点击 = `setFocusLayout({rightOpen:true, sideView:"stage", browserView:"files"})`,自身不写 `focus`)+ ⚙ 弹层(内嵌 ConnectionConfig)+ ⇄ 切换(仅开放工作台时) |
-| 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,以「对象」指称数据:1「测量目标结构」、2「定位并标注目标」、3「先小批试跑核对」;点击时连接可用即发送该卡 prompt,未配模型则在右侧打开设置面板(v1.7) |
+| 新增 | `FocusShell` 空状态示例卡 | `EXAMPLES` 为静态 i18n 键列表(`focus_example_{1,2,3}_{title,desc,meta,prompt}`),不按模态或数据集生成;三张卡文案领域中性,分别对应纲领所列通用模型不会自动给出的能力:1「盘点数据」(浏览项目文件夹,列出数据、模态与可做的分析)、2「带单位测量」、3「结论附出处」(依据定位到图像区域或视频时间点);点击时连接可用即发送该卡 prompt,未配模型则在右侧打开设置面板(v1.7) |
 | 新增 | `SessionRail` | SessionDrawer 的薄壳:默认收窄,点击展开;SessionDrawer 内部的分组与交互归 SDD 13 |
 | 新增 | `StagePanel` | 按 modality 选用现有 Viewer / VolumeViewer / WsiViewer;顶部工具条为现有 `Tool` 集子集(cursor/editli/editma/roi/reset),按钮为图标 + 文字,宽度放不下(按钮全宽 + 选项段 + 提示至少 160px)时只留图标、文字改由 `title` 提示;空间不足时先截断绘制提示,再压缩选项段;角落显示图名 · 标定 · 坐标(承接 StatusBar 信息,D8);v1.1 起作为右侧栏"舞台"标签内容,无活动图时显示占位引导 |
 | 新增(v1.1) | `FocusSidePanel` | 右侧栏壳:标签条(舞台 / 文件 / 图谱)+ 折叠按钮 + 折叠态 40px 图标竖条;按 `focusLayout.rightView` 渲染 StagePanel / `ExplorerView` / `AtlasView compact`;宽度沿用现有舞台列;自身无领域逻辑 |

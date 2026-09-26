@@ -20,7 +20,7 @@
 - 导入面板的上传 `accept` 与预筛取 `/datasources[].importable` 并集，无数据源时只校验大小；文件夹导入的模态候选取 `object_kinds` 含 `volume` 或 `slide` 的任务。
 - 「最近使用」持久化键升为 `glaux.recent.v2`，条目增 `kind`；首次读取时从 `glaux.recent.v1` 单向迁移（按冻结的 v1 模态表推断 `kind`，推断不出的条目丢弃）并删除 v1 键。
 - Agent Viewer Context 新增 `collection`、`object`（`id` / `kind` / `axes` / `calibration`）与 `focus`；`image_id` / `modality` / `cubs_cf` / `roi_box` 作为过渡字段保留；无 `TaskView` 的对象不带 `task` / `method` / `cubs_cf`。
-- Focus 空状态示例卡改为领域中性文案：「测量目标结构」「定位并标注目标」「先小批试跑核对」，以「对象」取代「图像」；舞台占位文案同改。
+- Focus 空状态示例卡改为领域中性文案：「盘点数据」「带单位测量」「结论附出处」；舞台占位文案以「对象」取代「图像」。
 - 前端类型 `Modality` / `TaskType` 放宽为 `string`；`ObjectMeta.methods` 改为 `MethodRef[]`（`{name, role}`）。
 
 ### Removed
