@@ -16,7 +16,7 @@ status: ready
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) |
 | 波次口径 | 本 SDD 冻结的契约覆盖 W0～W7；波次编号与审计 §8.2 一一对应，不另行划分 |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-09-25 |
+| 最后更新 | 2026-09-27 |
 
 §4.1、§9.2 中 `object_id_for` 与项目源相关的条款（D-25）由 [SDD 13](../13-project-folder-sessions/README.md) 引入，随 SDD 13 实现，不计入本 SDD 的波次范围。
 
@@ -45,7 +45,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 - **不做 `image_id` → `object_id` 改名**：`TaskSpec.image_id` 与 `AnnotationIn.image_id` 是 [SDD 04](../04-unified-annotation-toolbox/README.md) 冻结的写契约与落盘字段名（D-8）。
 - **不规范化既有对象 id**：不改 `tech_` / `hc_` / `ct_` / `slide_` / `natural_` / `nat-` 的拼写与前缀，只建注册表索引（D-7）。
 - **不重写 science-core 既有实现**：measurement 纯函数、`segmentation/base.py` 的 `Adapter` ABC、Detection/Measurement/TaskOutput 三信封结构均不动；后端 `Detector` 与 `Adapter` 同名字空间但不继承（D-12）。
-- **不新建公共验证器端点**：不做 `POST /task/verify`，不搬迁复现验证按钮，只把 `GET /wsi/{slide_id}/verify` 的实现收进 `Detector.verify`（见 §5.3）。
+- **不新建公共验证器端点**：不做 `POST /task/verify`，只把 `GET /wsi/{slide_id}/verify` 的实现收进 `Detector.verify`（见 §5.3）；复现验证的前端入口位置归 [SDD 04](../04-unified-annotation-toolbox/README.md) §7.5（工具条动作段）。
 - **不做实时视频播放、转码与流媒体**：第一版是逐帧 StackViewport，零新引擎。
 - **不定义视频理解的观测形状**：时间以秒寻址、长视频的分层导航、音画按时间区间同步交付、模型时序发现的记录原语，均不在本 SDD 范围。本 SDD 只负责把音轨**声明**出来并保留取流入口（D-23），消费形状另立 SDD 11「视频理解 harness」，见 §17。
 - **不把非模态插件纳入范围**：工作台、舞台、图谱、分割与测量工具的插件化与对象抽象正交，落点是 `edition.ts`、`ToolProvider`、`CHROME_SEGMENTS`，另立 SDD。
@@ -216,7 +216,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | `GET /annotations`、`POST /annotations` | 保留 | 第三轴只用 `index`；列表用 `index_from`／`index_to` 过滤，旧 `z` 输入返回 422 |
 | `POST /uploads/images` | 保留 | 魔数表来源改为 `SOURCES[*].formats` |
 | `GET /image/{id}` | **有意保留** | 通用图像的既有直取面，前缀判别改 `resolve_object`、删 mock 合成回退；不退 alias、不设删除时点 |
-| `GET /wsi/{slide_id}/verify` | **有意保留** | 路径与前端按钮位置不动，内部实现收进 `Detector.verify`；不新立 `POST /task/verify` |
+| `GET /wsi/{slide_id}/verify` | **有意保留** | 路径不动，内部实现收进 `Detector.verify`；不新立 `POST /task/verify`；前端入口位置归 SDD 04 §7.5 |
 | `GET /volume/{id}/labelmap?task=&method=` | **有意保留** | 任务结果字节面，不属 `/objects` 表征族；URL 由任务输出的 `ref` 模板下发（`backend/app/kernel.py:157`、`backend/app/routers/api.py:273`），前端不拼路径；不退 alias、不设删除时点 |
 
 `GET /volumes`、`GET /slides`、`GET /volume/{id}`、`POST /volume/{id}/mask-edit` 与 `GET /wsi/{id}/tile/{level}/{col}/{row}` 已在 W7 删除，返回 404；对应请求改用本节的 `/images` 与 `/objects` 端点。
@@ -559,8 +559,9 @@ export interface Focus { object_id: string; kind: ObjectKind; index: Index; regi
 export interface ReferenceFrame { object_id: string; index: Index; origin: [number, number]; scale: number; width: number; height: number }
 
 export interface TaskView {
-  task: string; modality: string; object_kinds: ObjectKind[]; tools: ToolDef[];
-  capabilities: string[];           // 开放集：bbox|polygon|brush|wall|voi|z_scroll|timeline|verify
+  task: string; modality: string; object_kinds: ObjectKind[];
+  capabilities: string[];           // 模式工具：bbox|polygon|brush|wall（SDD 04 §9.3）
+  actions: string[];                // 任务动作：rerun|verify（SDD 04 §9.3）
   trigger: "on_open" | "on_region" | "manual"; classes?: ClassSpec[];
   metrics: MetricDef[]; overlays: OverlaySpec[];
 }
@@ -597,7 +598,7 @@ export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView 
 export const ENGINES: Partial<Record<ObjectKind, ComponentType<ViewerProps>>> = { image: FrameStackViewer, volume: FrameStackViewer, video: FrameStackViewer, slide: PyramidViewer };
 export const axisFor = (o: ObjectMeta): "z" | "t" | null => o.axes.find(a => a.name === "z" || a.name === "t")?.name ?? null;
 export const PAINTERS: Record<string, Painter>;
-export const CHROME_SEGMENTS: { cap: string; Seg: ComponentType }[];              // voi→VoiSeg, timeline→TimelineSeg, brush→BrushSeg
+export const CHROME_SEGMENTS: { id: string; Seg: ComponentType }[];               // 模式选项段 BrushSeg（按工具）+ 视图段 VoiSeg / FrameAxisSeg（按对象）；外壳经 useEditorChrome 消费（SDD 04 §7.5）
 export function registerTaskTool(name: string, ToolClass: unknown, activate: (tg: unknown) => void): void;
 
 // ---- agent-runtime ----
@@ -735,7 +736,8 @@ science-core 中各 `Primitive` 有 `at: Index | None = None`，`Detection` 只�
 | `TaskSpec.image_id` | `str` | 是 | **字段名保留 `image_id`，不得改写为 `object_id`**（D-8） | 长期 |
 | `TaskView.object_kinds` | `ObjectKind[]` | 是 | 对象几何族与任务不符时由 `run_task` 公共前缀①拒绝 | 长期 |
 | `TaskView.trigger` | `on_open \| on_region \| manual` | 是 | 缺省 `manual`；`openObject` 只在 `on_open` 时自动跑任务 | 长期 |
-| `TaskView.capabilities` | `string[]` | 是（可为空） | 开放集 `bbox\|polygon\|brush\|wall\|voi\|z_scroll\|timeline\|verify`；驱动 `CHROME_SEGMENTS` 与工具过滤 | 长期 |
+| `TaskView.capabilities` | `string[]` | 是（可为空） | 取值 `bbox\|polygon\|brush\|wall`，只驱动模式工具过滤；视图段由 `ObjectMeta.kind` / `axes` 推导（SDD 04 §7.5） | 长期 |
+| `TaskView.actions` | `string[]` | 是 | 取值 `rerun\|verify`；驱动工具条动作段（SDD 04 §9.3） | 长期 |
 | `EditRequest.base_seq` | `int` | 是 | 乐观并发基线，语义与 `dataset_ct.guarded_patch_labelmap` 既有实现一致 | 长期 |
 | `EditOp.index` / `class_id` / `mode` / `mask_png` | — | 是 | `index` 定位被编辑的切片/帧 | 长期 |
 | `AnnotationIn.image_id` | `str` | 是 | **字段名保留**（D-8），与 `annotations/store.py` 的列名一致 | 长期 |
@@ -758,16 +760,16 @@ science-core 中各 `Primitive` 有 `at: Index | None = None`，`Detection` 只�
 | `Source.kind` | 默认能力位 |
 | --- | --- |
 | `image` | `bbox`、`polygon` |
-| `volume` | `bbox`、`polygon`、`z_scroll` |
+| `volume` | `bbox`、`polygon` |
 | `slide` | `bbox`、`polygon` |
-| `video` | `bbox`、`polygon`、`timeline`、`brush` |
+| `video` | `bbox`、`polygon`、`brush` |
 
-据此，`natural_image`（`kind=image`）得 `[bbox, polygon]`，`video`（`kind=video`）得 `[bbox, polygon, timeline, brush]`。`video` 的 `brush` 是 W6「视频能标」的必要位：画笔经 `useBrushBuffer` + `annotationMaskSink.commit(mask, dims, {t})` 落库，`bridge.ts` 零改；无此位则画笔按钮不出现，W6 门禁不可达。
+据此，`natural_image`（`kind=image`）得 `[bbox, polygon]`，`video`（`kind=video`）得 `[bbox, polygon, brush]`。帧轴（`z` 层滑块、`t` 时间轴）与窗宽窗位由对象推导，不在默认集中（SDD 04 §7.5 规则 4）。`video` 的 `brush` 是 W6「视频能标」的必要位：画笔经 `useBrushBuffer` + `annotationMaskSink.commit(mask, dims, {t})` 落库，`bridge.ts` 零改；无此位则画笔按钮不出现，W6 门禁不可达。
 
 四条约束：
 
 - 有 `TaskPlugin` 的模态一律以 `TaskPlugin.capabilities` 为准，默认集不参与合并，避免出现第二份能力清单。
-- 默认集不含 `voi`、`wall`、`verify`：这三位需要任务侧的窗宽窗位、壁线原语或验证器，无任务时无处取值；`brush` 只在 `kind=video` 下给出，落点是 `annotationMaskSink`（标注路径），不涉及任务结果编辑。
+- 默认集只含模式工具 id（SDD 04 §7.5 规则 3），且不含 `wall`：壁线形变需要任务侧壁线原语，无任务时无处取值；`brush` 只在 `kind=video` 下给出，落点是 `annotationMaskSink`（标注路径），不涉及任务结果编辑。
 - 默认集是「无 `TaskPlugin` 对象」的兜底，不是任务能力的第二事实源（§7 规则 19 的唯一例外）：判定点在 `datasource_registry.default_capabilities(modality)`——该模态有 `TaskPlugin` 时 `default_capabilities` 为空、整体以 `GET /tasks` 的 `TaskPlugin.capabilities` 为准，否则整体取默认集，两者永不合并。
 - 默认集的推导函数位于 backend，前端与 agent-runtime 只消费下发结果，不复算。
 
@@ -998,7 +1000,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 
 - [ ] `REGISTRY` 中不存在 `natural_image`、`video` 的空行（D-18）；`GET /tasks` 返回的 `TaskView` 数量等于 `REGISTRY` 行数。
 - [ ] 无任务模态：`openObject(id)` 的触发判定为 `trigger = task?.trigger ?? "manual"`，测试断言未发起 `POST /task/run`。
-- [ ] `TaskView.capabilities` 为开放集，CT 行含 `voi`、`z_scroll`，WSI 行含 `verify`；前端工具过滤等于 `ALWAYS ∪ capabilities`，无 `isCt` 之类的模态判断。
+- [ ] `TaskView.capabilities` 只含模式工具 id，WSI 行的 `actions` 含 `verify`；前端工具过滤等于 `{cursor} ∪ capabilities`，CT 的窗宽窗位与层滑块由 `ObjectMeta` 推导，无 `isCt` 之类的模态判断（SDD 04 §7.5、§9.3）。
 - [ ] `TaskPlugin.viewer` 与 `/tasks` 响应里的 `viewer` 字段均不存在；引擎仍从 `ObjectKind` 选择。
 
 #### I. `/objects` 表征面与保留面
@@ -1033,9 +1035,9 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 | --- | --- | --- |
 | 缺引擎空态 | 新模态已在 `SOURCES` 注册但 `ENGINES` 无对应 `ObjectKind` → 切换器选中该模态 → 打开任一对象 | 舞台渲染「查看器引擎尚未接入」空态，中英文两语均无缺 key；无未捕获错误；侧栏与最近使用仍可用 |
 | 无数据空态 | 未设 `GLAUX_DEV_MODE`、无任何数据源 → 首屏 | 空态卡加导入入口；不出现任何合成对象；未发起 `/images`、`/task/run` |
-| 视频端到端 | 导入 mp4 → 切换器选 video → 逐帧滚动 → 某帧画 bbox 提交 → 刷新重开 → 交由 agent 调 `view_current_image` / `propose_annotation` | 时间轴出现且仅在 `capabilities` 含 `timeline` 时出现；角标显示 `coords.t`；标注落库的 `index.t` 与提交帧一致；重开后原语只在对应帧显示；agent 取到的帧与界面一致 |
-| CT 逐层画笔 | 打开 CT 对象 → 滚动到第 N 层 → 画笔提交 → 撤销 → 重提交 | 提交经 `MaskSink`，`base_seq` 冲突时给出可理解提示；层号与 `focus.index.z` 一致；VOI 控件按 `capabilities` 出现 |
-| WSI ROI 与验证 | 打开 slide → 缩放到某 level → 框选 ROI → 运行任务 → 点验证 | ROI 写入 `focus.region`，信息条经 `ViewerChrome` 泛型 metrics 渲染，无引擎私有 UI；验证按钮位置与 `GET /wsi/{slide_id}/verify` 路径未变 |
+| 视频端到端 | 导入 mp4 → 切换器选 video → 逐帧滚动 → 某帧画 bbox 提交 → 刷新重开 → 交由 agent 调 `view_current_image` / `propose_annotation` | 时间轴出现且仅在对象 `axes` 含 `t` 时出现；角标显示 `coords.t`；标注落库的 `index.t` 与提交帧一致；重开后原语只在对应帧显示；agent 取到的帧与界面一致 |
+| CT 逐层画笔 | 打开 CT 对象 → 滚动到第 N 层 → 画笔提交 → 撤销 → 重提交 | 提交经 `MaskSink`，`base_seq` 冲突时给出可理解提示；层号与 `focus.index.z` 一致；VOI 控件在对象 `kind=volume` 时出现 |
+| WSI ROI 与验证 | 打开 slide → 缩放到某 level → 框选 ROI → 运行任务 → 点验证 | ROI 写入 `focus.region`，信息条经 `ViewerChrome` 泛型 metrics 渲染，无引擎私有 UI；验证按钮位于工具条动作段（SDD 04 §7.5），`GET /wsi/{slide_id}/verify` 路径未变 |
 | 壁线工具与键位 | 打开 IMT 任务对象 → `w` 键 → 画壁线 | 壁线工具经 `registerTaskTool` 注册后仍可用，快捷键与 SDD 05 键表一致 |
 | 引擎合并回归（W4 合并后） | smoke 测试只验接线不验像素，合并后按 2D 壁线 5 条 / CT 逐层画笔 5 条 / WSI ROI 5 条手工走查 | 逐条签字，结果进执行记录 record，不进本活文档 |
 | 双语与标签 | 中英文切换 → 模态切换器、空态、导入结果、错误文案 | 模态标签走 `label_key` 加兜底 `label`，无单语硬编码；无缺 key |

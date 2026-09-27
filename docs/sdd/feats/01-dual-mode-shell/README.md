@@ -11,11 +11,11 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented`（v1.8 在文件浏览器打开对象或文件时自动收起会话列表 2026-09-26 实现完成、自查见 §15 v1.8；v1.7 设置面板占据右侧工作区、入口在左侧栏底部，顶栏去掉图像上下文 chip 与主题按钮 2026-09-25 实现完成、自查见 §15 v1.7；v1.6 舞台 / 文件 / 图谱入口统一收进左侧栏、右侧栏去掉标签条与折叠竖条 2026-09-25 实现完成、自查见 §15 v1.6；v1.5 图谱升为一级入口、与舞台互换右侧工作区，工作台入口缺省关闭 2026-09-25 实现完成、自查见 §15 v1.5；v1.4 舞台常驻 + 浏览器分栏 2026-08-31 实现完成、自查见 §15 v1.4；v1.3 三栏宽度可拖拽 2026-08-19 实现完成、自查见 §15 v1.3；v1.2 顶栏只读上下文标签 2026-08-19 `implemented`、自查见 §15 v1.2；v1.1 右侧栏同为 `implemented`；v1 于 2026-08-13 `accepted`） |
 | 创建日期 | 2026-08-13 |
-| 最近更新 | 2026-09-26 |
+| 最近更新 | 2026-09-27 |
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
-§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，标注 SDD 14 的条目随 [SDD 14](../14-project-text-preview/README.md) 实现，均不计入本 SDD 的 `implemented` 范围。
+§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，标注 SDD 14 的条目随 [SDD 14](../14-project-text-preview/README.md) 实现，标注 SDD 04 v1.1 的条目随 [SDD 04](../04-unified-annotation-toolbox/README.md) v1.1 实现，均不计入本 SDD 的 `implemented` 范围。
 
 进入 `accepted` 的依据(2026-08-13):产品维护者在真实数据环境(CUBS + 参考智能体)交互评审通过并确认阶段性验收;评审期间提出的空状态布局还原、状态行下移、Markdown 渲染、上下文环形图、徽标等打磨项均已实现并复验。§15 验收项全部通过。
 
@@ -207,6 +207,7 @@ flowchart TD
 | 新增(SDD 13) | `ProjectChip` / `FolderPicker` / `ProjectTree` | 输入区项目胶囊、目录选择器、项目目录树;项目会话的文件浏览器列渲染 `ProjectTree`,未归属会话仍渲染 `ExplorerView`;契约见 SDD 13 §7.5、§7.8 |
 | 改动(v1.8) | `ProjectTree` / `SideBar.ExplorerView` / `RecentList` | 文件浏览器内的打开动作先调 `collapseSessionList()`(Focus 下收起会话列表,§7 第 9 条) |
 | 改动(SDD 14) | `StagePanel` / `Editor` | `document` 非空时渲染 `DocumentView` 覆盖层,查看器保持挂载;契约见 SDD 14 §7.3 |
+| 改动(SDD 04 v1.1) | `StagePanel` | 工具条与读数条的装配改读 `useEditorChrome`,段顺序为模式 → 绘制提示 → 模式选项 → 视图 → 弹性占位 → 动作 → 运行中指示,读数条在工具条下方;`onTool` 不再处理 `reset`;紧凑模式判据不变;契约见 SDD 04 §6.4、§7.5 |
 | 改动(v1.7) | `ConnectionConfig` | 增 `variant: "popover" \| "panel"`;`panel` 去掉浮层外框、标题与关闭钮,嵌入设置面板「模型与连接」分区;按 D26 重排为状态卡 + 服务 / 模型 / 能力 / 高级四组,连接字段与存储不变 |
 | 新增(v1.7) | `Segmented` | 分段单选控件,设置面板与连接表单共用 |
 | 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时对话状态行、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
