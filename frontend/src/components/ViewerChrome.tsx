@@ -1,50 +1,36 @@
-// Workbench 查看器工具栏；工具与选项段均由当前对象能力位装配。
-import { useMemo } from "react";
-
+// Workbench 查看器工具条：经 useEditorChrome 装配（SDD 04 §7.5 规则 9）。
+// 沿用画布浮层布局：右上工具块 = 模式 + 分隔线 + 动作；顶部居中块 = 提示 + 模式选项 + 视图。
+// 读数由底部面板承载，这里不渲染读数条（D-27）。
 import { useI18n } from "../i18n";
-import { activeObject, useSession, type Tool } from "../store/session";
-import { CHROME_SEGMENTS } from "../viewer/chromeSegments";
-import { frameAxisFor } from "../viewer/contract";
-import { useTaskTools } from "../viewer/useTaskTools";
-import type { ClassSpec, Primitive } from "../api/types";
+import { useSession } from "../store/session";
+import { ChromeSegments, chromeHintText, hasSegments } from "../viewer/chromeSegments";
+import { useEditorChrome } from "../viewer/editorChrome";
+import { EditorActions } from "./EditorActions";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
-import { TOOL_HINT } from "./toolHint";
 
-type VolMaskPrim = Extract<Primitive, { kind: "volume_mask" }>;
-
-export function ViewerChrome({ onTool }: { onTool: (id: Tool) => void }) {
+export function ViewerChrome() {
   const { t, lang } = useI18n();
-  const tool = useSession((s) => s.tool);
-  const options = useSession((s) => s.toolOptions);
-  const setOptions = useSession((s) => s.setToolOptions);
-  const primitives = useSession((s) => s.primitives);
-  const object = useSession((s) => activeObject(s));
-  const focus = useSession((s) => s.focus);
-  const setIndex = useSession((s) => s.setIndex);
-  const { capabilities, tools } = useTaskTools();
-  const classes = useMemo<ClassSpec[]>(() => {
-    const volume = primitives.find((p): p is VolMaskPrim => p.kind === "volume_mask");
-    return volume?.classes ?? [];
-  }, [primitives]);
-  const segments = CHROME_SEGMENTS.filter((entry) => capabilities.includes(entry.cap) && entry.visible(tool));
-  const axis = frameAxisFor(object, focus, setIndex);
-  const hintKey = TOOL_HINT[tool] ?? null;
+  const setTool = useSession((s) => s.setTool);
+  const chrome = useEditorChrome();
+  const hint = chromeHintText(chrome, t, lang);
 
   return (
     <>
       <div className="etools" role="toolbar">
-        {tools.map((entry) => (
-          <button key={entry.id} className="etool" aria-pressed={tool === entry.id} onClick={() => onTool(entry.id)}>
+        {chrome.tools.map((entry) => (
+          <button key={entry.id} className="etool" aria-pressed={chrome.tool === entry.id} onClick={() => setTool(entry.id)}>
             <Icon icon={TOOL_ICON[entry.id] ?? FALLBACK_ICON} size="sm" />
-            <span className="tip">{entry.label[lang]}</span>
+            <span className="tip">{t(entry.label)}</span>
           </button>
         ))}
+        {chrome.actions.length > 0 && <span className="etool-sep" aria-hidden="true" />}
+        <EditorActions chrome={chrome} variant="workbench" />
       </div>
-      {(hintKey || segments.length > 0) && (
+      {(hint || hasSegments(chrome)) && (
         <div className="chrome-options">
-          {hintKey && <span className="chrome-hint">{t(hintKey)}</span>}
-          {segments.map(({ cap, Seg }) => <Seg key={cap} tool={tool} options={options} setOptions={setOptions} classes={classes} axis={axis} />)}
+          {hint && <span className="chrome-hint">{hint}</span>}
+          <ChromeSegments chrome={chrome} />
         </div>
       )}
     </>

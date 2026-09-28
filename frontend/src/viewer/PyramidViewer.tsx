@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OpenSeadragon, makeWsiTileSource, makeWsiViewer } from "./openseadragon";
-import { api } from "../api/client";
 import { createAnnotation, loadAnnotations, patchAnnotation } from "../annotation/bridge";
 import { bboxFromPoints, isRoiTooSmall, moveVertex, withinScreenRadius } from "./wsiGeometry";
 import { axisSize } from "../data/objectInfo";
@@ -39,8 +38,6 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
   const [polygon, setPolygon] = useState<[number, number][]>([]);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [, setViewportEpoch] = useState(0);
-  const [verify, setVerify] = useState<{ f1: number; count_pred: number; count_ref: number } | null>(null);
-  const [verifying, setVerifying] = useState(false);
 
   const objectId = object.id;
   // 当前 ROI = 焦点的 box 选区（level-0 px）
@@ -305,20 +302,6 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
     setEditDraft(draft);
   };
 
-  const onVerify = async () => {
-    if (!objectId || verifying) return;
-    setVerifying(true);
-    try {
-      const r = await api.wsiVerify(objectId);
-      setVerify({ f1: r.f1, count_pred: r.count_pred, count_ref: r.count_ref });
-    } catch {
-      notify("crit", getT()("wsi_verify_unavailable"));
-    } finally {
-      setVerifying(false);
-    }
-  };
-  const f1Tone = verify ? (verify.f1 >= 0.95 ? "good" : verify.f1 >= 0.85 ? "warn" : "bad") : "";
-
   const drawing = tool === "bbox" || tool === "polygon";
   // 核 overlay 只读；SVG 标注层在绘制态接管指针，光标态仅顶点手柄接管。
 
@@ -393,17 +376,6 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
           </g>
         )}
       </svg>
-      {/* 复现验证（右上） */}
-      <div className="pyramid-verify">
-        <button onClick={onVerify} disabled={verifying} className="pyramid-verify-btn">
-          {getT()(verifying ? "wsi_verifying" : "wsi_verify")}
-        </button>
-        {verify && (
-          <span className={`pyramid-verify-result ${f1Tone}`}>
-            F1 {verify.f1.toFixed(2)} ({verify.count_pred}/{verify.count_ref})
-          </span>
-        )}
-      </div>
     </div>
   );
 }

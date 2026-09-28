@@ -15,8 +15,6 @@ status: implemented
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-09-27 |
 
-§7、§9、§14 中标注 SDD 04 v1.1 的条目（键位声明来源、`Esc` 语义，D-9）随 [SDD 04](../04-unified-annotation-toolbox/README.md) v1.1 实现，不计入本 SDD 的 `implemented` 范围。
-
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
 ## 1. 本 SDD 负责什么
@@ -85,7 +83,7 @@ flowchart TD
 
 - **R1 单一监听器**：全局快捷键只有一个 `window` keydown 监听点（顶层 effect），卸载时移除。组件内不得各自监听全局键。
 - **R2 输入优先**：焦点在 `input`/`textarea`/`[contenteditable]` 时，除 `Esc` 外一律放行，绝不 `preventDefault`——不干扰打字与输入法组合。
-- **R3 工具键需上下文**：无修饰单键（V/R/P/W/B）仅当**焦点落在查看器表面 `[data-viewer-surface]` 或页面主体 `body`（点击画布后的常态），且非可编辑元素**，并且当前 `useTaskTools()` 返回的工具声明含该键时才生效；焦点在具体交互控件（侧栏按钮、输入框等）上时放行。
+- **R3 工具键需上下文**：无修饰单键（V/R/P/W/B）仅当**焦点落在查看器表面 `[data-viewer-surface]` 或页面主体 `body`（点击画布后的常态），且非可编辑元素**，并且该键对应的工具在当前对象上已启用（`modeToolsFor()`，SDD 04 v1.1）时才生效；焦点在具体交互控件（侧栏按钮、输入框等）上时放行。
 - **R4 键位数据化**：工具→键位映射由工具声明携带（随 04 的工具集变化自动跟随），**不在分发器里硬编码具体工具名**（见 §16 D-2）。键位由前端 `TOOL_CATALOG` 随工具显示元数据一并声明，与任务无关（SDD 04 v1.1，D-9）；当前对象可用哪些工具仍以能力位为准（有任务读 `TaskView.capabilities`，无任务读 `/datasources.default_capabilities`）。
 - **R5 避开浏览器保留键**：不绑定 `Cmd/Ctrl+N/T/W/J/Q` 等浏览器强占组合；全局组合键选用可安全 `preventDefault` 的键（见 §17 待定表）。
 - **R6 幂等/可逆**：面板/模式/侧栏类快捷键为切换（toggle）或幂等设值，重复按行为可预期（§10）。

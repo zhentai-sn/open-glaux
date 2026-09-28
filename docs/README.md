@@ -171,7 +171,7 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 | [01-dual-mode-shell](sdd/feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1 `accepted`） | 双模式外壳 Focus / Workbench |
 | [02-agent-image-annotation](sdd/feats/02-agent-image-annotation/README.md) | `implemented` | 智能体图像标注能力 |
 | [03-atlas](sdd/feats/03-atlas/README.md) | `implemented`（v1.2 会话内 `consult_atlas`） | Atlas · 图谱（人工策展的图文案例库） |
-| [04-unified-annotation-toolbox](sdd/feats/04-unified-annotation-toolbox/README.md) | `ready`（v1.1 编辑区四类模型待实现；v1 `implemented`） | 统一图像标注工具箱（bbox/polygon/brush） |
+| [04-unified-annotation-toolbox](sdd/feats/04-unified-annotation-toolbox/README.md) | `implemented`（v1.1 编辑区四类模型） | 统一图像标注工具箱（bbox/polygon/brush） |
 | [05-keyboard-shortcuts-a11y](sdd/feats/05-keyboard-shortcuts-a11y/README.md) | `implemented` | 键盘可达性与全局快捷键 |
 | [06-icon-system](sdd/feats/06-icon-system/README.md) | `implemented` | 统一图标系统 |
 | [07-natural-image-sam-demo](sdd/feats/07-natural-image-sam-demo/README.md) | `implemented`（建议态 UI 待验收） | 自然图像 SAM 演示集合 |

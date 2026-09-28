@@ -63,9 +63,10 @@ def test_tasks_registry_exposed():
     assert imt["adapter_kind"] == "wall_pair" and "viewer" not in imt
     assert imt["modality"] == "carotid_imt" and by_id["fetal_hc"]["modality"] == "fetal_hc"
     assert any(m["key"] == "IMT_mean" for m in imt["metrics"])
-    assert {t["id"] for t in imt["tools"]} >= {"cursor", "bbox", "polygon", "wall", "brush"}
-    # SDD 04 能力位下发；SDD 10 起为开放集，故断言「至少含」而非逐项相等
-    assert set(imt["capabilities"]) >= {"bbox", "polygon", "brush", "wall"}
+    # SDD 04 §9.3：工具显示元数据归前端目录，/tasks 只下发能力位与动作
+    assert "tools" not in imt
+    assert imt["capabilities"] == ["bbox", "polygon", "brush", "wall"]
+    assert imt["actions"] == ["rerun"]
     assert imt["overlays"][0]["role"] == "LI"
     hc = by_id["fetal_hc"]
     assert hc["adapter_kind"] == "contour"
@@ -83,7 +84,9 @@ def test_every_task_row_contract():
         assert r["modality"] in reg.MODALITIES, r["task"]
         assert r["adapter_kind"], r["task"]
         assert r["metrics"] and all(m["key"] and m["unit"] for m in r["metrics"]), r["task"]
-        assert {t["id"] for t in r["tools"]} >= {"cursor"}, r["task"]
+        assert "tools" not in r, r["task"]
+        assert set(r["capabilities"]) <= {"bbox", "polygon", "brush", "wall"}, r["task"]
+        assert r["actions"] and set(r["actions"]) <= {"rerun", "verify"}, r["task"]
 
 
 def test_capabilities_registry_four_layers():

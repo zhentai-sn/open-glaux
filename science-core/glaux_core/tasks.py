@@ -1,7 +1,7 @@
 """任务注册表（多模态脊柱）——「环境能做什么」的单一事实源。
 
 把「一个模态的一个任务」打包成一行契约 :class:`TaskPlugin`：适配器几何族（``adapter_kind``）、
-测量原语（``measure`` 可调用）、面板度量、查看器与标注工具、overlay 画法。驱动层、后端端点、
+测量原语（``measure`` 可调用）、面板度量、工具能力位与任务动作、overlay 画法。驱动层、后端端点、
 前端渲染、（将来的）智能体工具列表**只读注册表、无分支**：
 
     加一种任务 = 在 :data:`REGISTRY` 登记一行 + 写一个 ``measure`` + 实现一个 ``Adapter``。
@@ -93,17 +93,6 @@ class MetricDef:
 
 
 @dataclass(frozen=True)
-class ToolDef:
-    """一个标注工具（替代前端硬编码的 IMT_TOOLS / HC_TOOLS）。"""
-
-    id: str
-    glyph: str
-    label_en: str
-    label_zh: str
-    key: str | None = None
-
-
-@dataclass(frozen=True)
 class OverlaySpec:
     """一种 primitive 的画法：语义角色 + 颜色 + 是否可编辑。"""
 
@@ -116,17 +105,18 @@ class OverlaySpec:
 class TaskPlugin:
     """一个任务族的完整契约——元数据 + 行为 + 渲染。新增模态在 :data:`REGISTRY` 登记一行。
 
-    SDD 04：``tools`` 改用统一工具集合（cursor/bbox/polygon/brush/reset）；新增
-    ``capabilities``（引擎能力位：该任务可用的通用标注工具）与 ``on_commit``
-    （标注落库后的任务联动钩子，如 WSI bbox → run_task）。
+    SDD 04：
+    - ``capabilities``：该任务启用的模式工具，取值 ``bbox``/``polygon``/``brush``/``wall``；
+      工具的标签、图标、键位由前端工具目录提供，任务不重命名工具（D-21）。
+    - ``actions``：工具条动作段的一次性命令，取值 ``rerun``/``verify``（D-22）。
+    - ``on_commit``：标注落库后的任务联动钩子（如 WSI bbox → run_task）。
+    窗宽窗位与帧轴由对象 ``kind`` / ``axes`` 推导，不进能力位（D-23）。
 
     SDD 10：
     - ``object_kinds``：该任务可作用的对象几何族（ObjectKind：``image``/``volume``/``slide``/
       ``video``）；``run_task`` 用它门控，不做 modality 相等比较（D-13）。
     - ``trigger``：``on_open``（打开对象即跑）/ ``on_region``（框选后跑）/ ``manual``。
     - ``classes``：任务产出的类别表（与 overlays 同步）。
-    - ``capabilities``：开放集字符串（``bbox``/``polygon``/``brush``/``wall``/``voi``/
-      ``z_scroll``/``timeline``/``verify``），驱动前端工具过滤。
     """
 
     task: TaskType
@@ -138,9 +128,9 @@ class TaskPlugin:
     default_method: str  # 缺省适配器名
     measure: Callable[[Detection, CalibrationResult], Measurement]
     metrics: tuple[MetricDef, ...]  # 面板度量字段（顺序即展示序）
-    tools: tuple[ToolDef, ...]
     overlays: tuple[OverlaySpec, ...]
-    capabilities: tuple[str, ...] = ()  # 开放集能力位（SDD 04/10），见类 docstring
+    capabilities: tuple[str, ...] = ()  # 模式工具能力位（SDD 04 §9.3），见类 docstring
+    actions: tuple[str, ...] = ("rerun",)  # 任务动作（SDD 04 §9.3）
     on_commit: dict | None = None  # SDD 04：标注落库后钩子，如 {"bbox": {"action": "run_task"}}
     object_kinds: tuple[str, ...] = ()  # SDD 10：ObjectKind（image|volume|slide|video）
     trigger: str = "manual"  # SDD 10：on_open | on_region | manual
@@ -239,14 +229,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("IMT_max", "mm", "IMT max", "最大 IMT"),
             MetricDef("IMT_pdm", "mm", "IMT (sym. PDM)", "IMT（对称 PDM）"),
         ),
-        tools=(
-            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
-            ToolDef("wall", "≈", "Wall edit", "壁线编辑", key="w"),
-            ToolDef("brush", "✎", "Brush", "画笔", key="b"),
-            ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
-        ),
         overlays=(
             OverlaySpec("LI", "#4FB0FF", editable=True),
             OverlaySpec("MA", "#FF8A5B", editable=True),
@@ -275,13 +257,6 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("OFD", "mm", "Occipitofrontal diameter", "枕额径"),
             MetricDef("area", "mm²", "Ellipse area", "椭圆面积"),
         ),
-        tools=(
-            ToolDef("cursor", "▸", "Select / Pan", "选择 / 平移", key="v"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
-            ToolDef("brush", "✎", "Brush", "画笔", key="b"),
-            ToolDef("reset", "⟲", "Re-detect", "重新检测"),
-        ),
         overlays=(
             OverlaySpec("skull", "#C39BFF", editable=False),
         ),
@@ -290,7 +265,7 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
         trigger="on_open",
     ),
     # P6 楔子：CT 肝+双肾分割（3 类）。几何族 "volume" 走 VolumeMask Primitive；后端
-    # _detect_for_spec 的 "volume" 分支派发到 segment_ts.subprocess；tools 含 brush。
+    # _detect_for_spec 的 "volume" 分支派发到 segment_ts.subprocess；能力位含 brush。
     TaskType.TOTALSEG_LIVER_KIDNEY: TaskPlugin(
         task=TaskType.TOTALSEG_LIVER_KIDNEY,
         adapter_kind="volume",
@@ -311,26 +286,19 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("rk_volume_mm3", "mm³", "R kidney volume", "右肾体积"),
             MetricDef("rk_hu_mean", "HU", "R kidney mean HU", "右肾平均 HU"),
         ),
-        tools=(
-            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
-            ToolDef("bbox", "▭", "Bounding box", "框标注", key="r"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
-            ToolDef("brush", "✎", "Brush edit", "画笔编辑", key="b"),
-            ToolDef("reset", "⟲", "Reset to model", "重置为模型输出"),
-        ),
         overlays=(
             OverlaySpec("liver", "#FF8A5B", editable=True),
             OverlaySpec("lk", "#4FB0FF", editable=True),
             OverlaySpec("rk", "#4FB0FF", editable=True),
         ),
-        capabilities=("bbox", "polygon", "brush", "voi", "z_scroll"),
+        capabilities=("bbox", "polygon", "brush"),
         object_kinds=("volume",),
         trigger="on_open",
         classes=LIVER_KIDNEY_CLASSES,
     ),
     # P7 楔子：病理 WSI 细胞核检测 + 计数/密度。几何族 "wsi" 走 PointSet Primitive；后端
     # _detect_for_spec 新加 "wsi" 分支派发到 segment_wsi.subprocess（ROI 抽块 + 质心去重）。
-    # 查看器按对象 kind 选用 OpenSeadragon；tools 含 ROI 框选。
+    # 查看器按对象 kind 选用 OpenSeadragon；bbox 落库即触发核检测（on_commit）。
     TaskType.NUCLEI_DETECTION: TaskPlugin(
         task=TaskType.NUCLEI_DETECTION,
         adapter_kind="wsi",
@@ -348,16 +316,11 @@ REGISTRY: dict[TaskType, TaskPlugin] = {
             MetricDef("nuclei_density_mm2", "个/mm²", "Nuclei density", "核密度"),
             MetricDef("roi_area_mm2", "mm²", "ROI area", "ROI 面积"),
         ),
-        tools=(
-            ToolDef("cursor", "▸", "Pan / Zoom", "平移 / 缩放", key="v"),
-            ToolDef("bbox", "▭", "Select ROI", "框选 ROI", key="r"),
-            ToolDef("polygon", "⬠", "Polygon", "多边形标注", key="p"),
-            ToolDef("reset", "⟲", "Re-detect", "重新检测"),
-        ),
         overlays=(
             OverlaySpec("nucleus", "#7BE0AD", editable=False),
         ),
-        capabilities=("bbox", "polygon", "verify"),  # brush 无服务端落点，禁用（SDD 04 §7.1）
+        capabilities=("bbox", "polygon"),  # brush 无服务端落点，禁用（SDD 04 §7.1）
+        actions=("rerun", "verify"),
         on_commit={"bbox": {"action": "run_task"}},  # bbox 落库后触发核检测（SDD 04 §7.3）
         object_kinds=("slide",),
         trigger="on_region",
@@ -387,19 +350,11 @@ def plugin_to_view(plugin: TaskPlugin) -> dict:
             {"key": m.key, "unit": m.unit, "label": {"en": m.label_en, "zh": m.label_zh}}
             for m in plugin.metrics
         ],
-        "tools": [
-            {
-                "id": t.id,
-                "glyph": t.glyph,
-                "label": {"en": t.label_en, "zh": t.label_zh},
-                **({"key": t.key} if t.key else {}),
-            }
-            for t in plugin.tools
-        ],
         "overlays": [
             {"role": o.role, "color": o.color, "editable": o.editable} for o in plugin.overlays
         ],
         "capabilities": list(plugin.capabilities),
+        "actions": list(plugin.actions),
         "on_commit": plugin.on_commit,
         "object_kinds": list(plugin.object_kinds),
         "trigger": plugin.trigger,

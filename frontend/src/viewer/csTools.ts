@@ -156,7 +156,7 @@ export function activateTool(
     }
     tg.setToolActive(BrushTool.toolName, PRIMARY);
   } else {
-    // cursor / reset / 能力位外的工具 → 平移（兜底，永不卡死交互）
+    // cursor / 能力位外的工具 → 平移（兜底，永不卡死交互）
     tg.setToolActive(PanTool.toolName, PRIMARY);
   }
 }

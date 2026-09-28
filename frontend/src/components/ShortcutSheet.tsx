@@ -10,7 +10,7 @@ export function ShortcutSheet() {
   const open = useSession((s) => s.shortcutSheetOpen);
   const setOpen = useSession((s) => s.setShortcutSheet);
   const state = useSession((s) => s);
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const rows = shortcutRowsFor(state);
 
   if (!open) return null;
@@ -30,7 +30,7 @@ export function ShortcutSheet() {
               <div className="sheet-group-title">{t(SHORTCUT_GROUP_LABEL[g])}</div>
               {rows.filter((r) => r.group === g).map((r) => (
                 <div key={r.keys} className={`sheet-row${r.disabled ? " disabled" : ""}`} aria-disabled={r.disabled || undefined}>
-                  <span className="sheet-label">{r.label ? t(r.label) : r.text?.[lang]}</span>
+                  <span className="sheet-label">{t(r.label)}</span>
                   <kbd className="sheet-keys mono">{r.keys}</kbd>
                 </div>
               ))}

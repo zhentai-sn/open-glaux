@@ -9,6 +9,7 @@
 - 会话 store 新增唯一观测焦点 `focus`（`object_id` / `kind` / `index` / `region`，写入口 `setFocus` / `setIndex` / `setRegion`）与按模态分组的对象表 `objects`；派生选择器 `activeObject` / `objectsOf`（SDD 10 W3）。
 - 数据动作收敛为 `loadObjects(modality, {open?})`、`openObject(id, modality?)`、`runTask(region?)`。
 - 查看器按 `ObjectMeta.kind` 选引擎；无对应引擎的 kind 渲染「查看器引擎尚未接入：{kind}」空态。
+- 编辑区按模式、视图、动作、读数四类装配（`useEditorChrome`，SDD 04 §7.5）：工具条右段新增任务动作「重新运行」与 WSI「复现验证」，复现结果显示在舞台读数条；CT 新增「层 i/n」滑块，与滚轮翻层同步。
 
 ### Changed
 
@@ -22,12 +23,15 @@
 - Agent Viewer Context 新增 `collection`、`object`（`id` / `kind` / `axes` / `calibration`）与 `focus`；`image_id` / `modality` / `cubs_cf` / `roi_box` 作为过渡字段保留；无 `TaskView` 的对象不带 `task` / `method` / `cubs_cf`。
 - Focus 空状态示例卡改为领域中性文案：「盘点数据」「带单位测量」「结论附出处」；舞台占位文案以「对象」取代「图像」。
 - 前端类型 `Modality` / `TaskType` 放宽为 `string`；`ObjectMeta.methods` 改为 `MethodRef[]`（`{name, role}`）。
+- 模式工具的标签与键位统一取前端工具目录，任务不再重命名工具（「选择 / 平移」「框标注」在所有对象上一致）；窗宽窗位与帧轴由对象 `kind` / `axes` 推导，不再读能力位。
+- 查看器上下文中按 `Esc` 回到「选择 / 平移」，速查面板的 `Esc` 行常驻（SDD 05 D-9）。
 
 ### Removed
 
 - **不兼容（0.x 破坏性变更）**：store 字段 `activeImage` / `activeVolume` / `activeSlide` / `wsiRoi`、对象列表 `images` / `naturalImages` / `volumes` / `slides` 与 `imageMeta` 删除，改读 `focus` / `objects`。
 - **不兼容（0.x 破坏性变更）**：动作 `switchModality` / `loadImages` / `loadNaturalImages` / `selectImage` / `selectNaturalImage` / `selectVolume` / `selectSlide` / `runCurrentTask` / `runWsiTask` 删除，改用 `loadObjects` / `openObject` / `runTask`。
 - 查看器的 `raster_2d` 兜底。
+- 工具条的「重置」按钮（无任务对象上点击无效果）；WSI 画布内的复现验证浮层。改由工具条动作段承载（SDD 04 D-22、D-24）。
 - 文件树中按数据集写死的目录（`images` / `slides` / `natural-images`、`LIMA-Profiles` / `ellipse-profiles` / `labelmaps` / `detections`、`CF`、`Folds`）。
 - 前端 `ObjectMeta` 类型不再声明过渡字段 `cf` / `voxel_spacing_mm` / `mpp_um` / `dims`，读取即类型检查失败。
 

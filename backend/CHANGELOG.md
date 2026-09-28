@@ -14,7 +14,7 @@
 - 动作轴注册表 `DETECTORS`（`app/detectors/`，SDD 10 W2）：四个几何族各一个 `Detector`；`POST /task/run` 的公共前缀（解析对象、`object_kinds` 门控、可用性、选区类型、标定）只在 `kernel.run_task` 出现一次。
 - `/objects` 表征面：`GET /objects/{id}`、`GET /objects/{id}/frame`（`X-Glaux-Frame` 响应头，slide 取帧按 level + level-0 roi）、`/raw`、`/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits`（`base_seq` 乐观并发）。
 - `TaskSpec` 新增 `calibration` 与 `region`；`POST /task/measure` 收 `calibration`（CT 的 voxel 标定重测可用）。
-- `GET /tasks` 每行新增 `object_kinds`、`trigger`、`classes`；CT 行能力位增 `voi`、`z_scroll`，WSI 行增 `verify`。
+- `GET /tasks` 每行新增 `object_kinds`、`trigger`、`classes`、`actions`（任务动作 `rerun` / `verify`，SDD 04 §9.3）。
 - 标注：`AnnotationIn.index`（`z` 为一版别名）、`GET /annotations` 的 `index_from` / `index_to`、kind 增 `point`（仅存储）；标注库带 `PRAGMA user_version` 迁移（0 → 1）。
 
 ### Changed
@@ -30,6 +30,7 @@
 - 标注的第三轴索引（`z` / `index`）按对象的轴范围校验，越界 422。
 - **不兼容（0.x 破坏性变更）**：`ObjectMeta.methods` 由 `string[]` 改为 `[{name, role}]`，`role` 取 `gold` / `agent` / `reference`（SDD 10 W3）。
 - **不兼容（0.x 破坏性变更）**：`ObjectMeta` 删除顶层 `center`，数据源展示名只在 `meta.center`。
+- **不兼容（0.x 破坏性变更）**：`GET /tasks` 删除 `tools`；`capabilities` 与 `GET /datasources` 的 `default_capabilities` 只含模式工具 `bbox` / `polygon` / `brush` / `wall`，`volume` 默认集去掉 `z_scroll`，`video` 去掉 `timeline`（SDD 04 §9.3）。
 
 ### Fixed
 

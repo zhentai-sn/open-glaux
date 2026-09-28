@@ -62,8 +62,10 @@ def test_tasks_carry_object_kinds_trigger_classes():
     assert len(rows) == len(REGISTRY)
     for r in rows.values():
         assert r["object_kinds"] and r["trigger"] in {"on_open", "on_region", "manual"}
-    assert {"voi", "z_scroll"} <= set(rows["totalseg_liver_kidney"]["capabilities"])
-    assert "verify" in rows["nuclei_detection"]["capabilities"]
+    # SDD 04 D-23：窗宽窗位与层滑块由对象推导；复现验证是任务动作
+    assert not {"voi", "z_scroll"} & set(rows["totalseg_liver_kidney"]["capabilities"])
+    assert "verify" in rows["nuclei_detection"]["actions"]
+    assert "verify" not in rows["nuclei_detection"]["capabilities"]
     assert rows["nuclei_detection"]["trigger"] == "on_region"
     assert rows["totalseg_liver_kidney"]["classes"]
 
@@ -313,8 +315,9 @@ def test_default_capabilities_only_for_modalities_without_task():
         if modality in task_modalities:
             assert caps == []  # 有任务行即以 TaskPlugin.capabilities 为准，不合并
         else:
-            assert caps and set(caps) <= {"bbox", "polygon", "z_scroll", "timeline", "brush"}
+            # SDD 04 §7.5 规则 3：只含模式工具；无任务时无壁线原语，故不含 wall
+            assert caps and set(caps) <= {"bbox", "polygon", "brush"}
     assert reg.default_capabilities("natural_image") == ["bbox", "polygon"]
-    assert reg.default_capabilities("video") == ["bbox", "polygon", "timeline", "brush"]
+    assert reg.default_capabilities("video") == ["bbox", "polygon", "brush"]
     for row in client.get("/datasources").json():
         assert row["default_capabilities"] == reg.default_capabilities(row["modality"])

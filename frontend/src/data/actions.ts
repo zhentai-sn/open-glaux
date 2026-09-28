@@ -4,6 +4,7 @@
 // 不推送智能体发言（静默载入）；智能体对话走 agent-runtime 会话（store/agentSessions）。
 import { api } from "../api/client";
 import type { Index, Modality, ObjectMeta, Region, TaskSpec, TaskView, UploadResult } from "../api/types";
+import { getT } from "../i18n";
 import { useAgentSessions } from "../store/agentSessions";
 import { activeObject, TOOL_OPTIONS_DEFAULTS, useSession } from "../store/session";
 import { pushRecent, pruneRecent } from "./recent";
@@ -306,7 +307,27 @@ export async function removeDataSource(id: string): Promise<void> {
   await loadInitialObjects();
 }
 
-/** 重跑当前对象的任务（切模型 / Reset 用）；on_region 任务无选区时为空操作。 */
+/** 重跑当前对象的任务（切模型 / 「重新运行」动作用）；on_region 任务无选区时为空操作。 */
 export async function reRunActiveModel(): Promise<void> {
   await runTask();
+}
+
+/**
+ * 「复现验证」动作（SDD 04 §7.5 规则 7）：结果写 store `verification`，由读数条呈现；
+ * 结果回来前已切走对象则丢弃。不可用时提示并清空结果。
+ */
+export async function verifyActiveObject(): Promise<void> {
+  const obj = activeObject(useSession.getState());
+  if (!obj) return;
+  try {
+    const r = await api.wsiVerify(obj.id);
+    const now = useSession.getState();
+    if (now.focus?.object_id !== obj.id) return;
+    now.setVerification({ f1: r.f1, count_pred: r.count_pred, count_ref: r.count_ref });
+  } catch {
+    const now = useSession.getState();
+    if (now.focus?.object_id !== obj.id) return;
+    now.setVerification(null);
+    now.notify("crit", getT()("wsi_verify_unavailable"));
+  }
 }

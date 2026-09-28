@@ -215,11 +215,13 @@ def test_registry_rows_object_kinds_trigger_classes():
     ct = REGISTRY[TaskType.TOTALSEG_LIVER_KIDNEY]
     assert ct.object_kinds == ("volume",) and ct.trigger == "on_open"
     assert ct.classes == LIVER_KIDNEY_CLASSES
-    assert ct.capabilities == ("bbox", "polygon", "brush", "voi", "z_scroll")
+    assert ct.capabilities == ("bbox", "polygon", "brush")
+    assert ct.actions == ("rerun",)
     wsi = REGISTRY[TaskType.NUCLEI_DETECTION]
     assert wsi.object_kinds == ("slide",) and wsi.trigger == "on_region"
     assert wsi.classes == NUCLEI_CLASSES
-    assert wsi.capabilities == ("bbox", "polygon", "verify")
+    assert wsi.capabilities == ("bbox", "polygon")
+    assert wsi.actions == ("rerun", "verify")
 
 
 def test_registry_invariants():
@@ -236,11 +238,12 @@ def test_registry_invariants():
 def test_plugin_to_view_new_keys_and_legacy_keys():
     legacy = {
         "task", "adapter_kind", "modality", "label", "default_method",
-        "metrics", "tools", "overlays", "capabilities", "on_commit",
+        "metrics", "overlays", "capabilities", "on_commit",
     }
     for plugin in REGISTRY.values():
         view = plugin_to_view(plugin)
         assert legacy <= set(view)
+        assert "tools" not in view and view["actions"] == list(plugin.actions)
         assert view["object_kinds"] == list(plugin.object_kinds)
         assert view["trigger"] == plugin.trigger
         assert len(view["classes"]) == len(plugin.classes)

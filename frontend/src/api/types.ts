@@ -328,12 +328,8 @@ export interface TaskMetricDef {
   label: Bilingual;
 }
 
-export interface TaskToolDef {
-  id: string;
-  glyph: string;
-  label: Bilingual;
-  key?: string;
-}
+/** SDD 04 §9.3：工具条动作段的一次性命令。 */
+export type TaskAction = "rerun" | "verify";
 
 export interface TaskOverlaySpec {
   role: string;
@@ -348,10 +344,11 @@ export interface TaskView {
   label: Bilingual;
   default_method: string;
   metrics: TaskMetricDef[];
-  tools: TaskToolDef[];
   overlays: TaskOverlaySpec[];
-  /** SDD 04：引擎能力位——该任务可用的通用标注工具（wsi 无 brush）。 */
+  /** SDD 04 §9.3：该任务启用的模式工具（bbox / polygon / brush / wall）；wsi 无 brush。 */
   capabilities: string[];
+  /** SDD 04 §9.3：任务动作（rerun / verify）。 */
+  actions: TaskAction[];
   /** SDD 04：标注落库后的任务联动钩子（如 WSI bbox → run_task）；无则 null。 */
   on_commit?: Record<string, { action: string }> | null;
   /** SDD 10：任务接受的几何族（run_task 门控，D-13）。 */

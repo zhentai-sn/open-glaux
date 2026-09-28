@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import type { DataSource, ObjectMeta, TaskOutput, TaskView } from "../api/types";
 import { TOOL_OPTIONS_DEFAULTS, activeObject, useSession } from "../store/session";
 import { objectMeta, taskFields } from "../test/fixtures";
-import { defaultIndex, loadObjects, openObject, openProjectFile, runTask } from "./actions";
+import { defaultIndex, loadObjects, openObject, openProjectFile, runTask, verifyActiveObject } from "./actions";
 
 const INITIAL = useSession.getState();
 
@@ -25,7 +25,7 @@ function task(t: TaskView["task"], modality: string): TaskView {
     label: { en: t, zh: t },
     default_method: "",
     metrics: [],
-    tools: [],
+    actions: ["rerun"],
     overlays: [],
     capabilities: [],
     on_commit: null,
@@ -214,5 +214,38 @@ describe("openProjectFile（SDD 13 §6.3）", () => {
     await first;
     expect(useSession.getState().focus?.object_id).toBe("nat-b");
     expect(useSession.getState().objects.natural_image?.map((o) => o.id)).toEqual(["nat-b", "nat-a"]);
+  });
+});
+
+describe("verifyActiveObject（SDD 04 §7.5 规则 7）", () => {
+  const REPORT = { f1: 0.93, precision: 0.9, recall: 0.96, tp: 93, count_pred: 103, count_ref: 97, roi: [0, 0, 1, 1], note: "" };
+
+  it("成功：结果写 store.verification", async () => {
+    await openObject("slide_001", "pathology");
+    vi.spyOn(api, "wsiVerify").mockResolvedValue(REPORT);
+    await verifyActiveObject();
+    expect(useSession.getState().verification).toEqual({ f1: 0.93, count_pred: 103, count_ref: 97 });
+  });
+
+  it("结果回来前已切走对象：丢弃，不写到新对象", async () => {
+    await openObject("slide_001", "pathology");
+    let resolve!: (v: typeof REPORT) => void;
+    vi.spyOn(api, "wsiVerify").mockReturnValue(new Promise((r) => { resolve = r; }));
+    const pending = verifyActiveObject();
+    vi.spyOn(api, "taskRun").mockResolvedValue(OUT);
+    await openObject("ct_001", "ct_abdomen");
+    resolve(REPORT);
+    await pending;
+    expect(useSession.getState().verification).toBeNull();
+  });
+
+  it("不可用：清空结果并给出提示", async () => {
+    await openObject("slide_001", "pathology");
+    useSession.getState().setVerification({ f1: 1, count_pred: 1, count_ref: 1 });
+    vi.spyOn(api, "wsiVerify").mockRejectedValue(new Error("422"));
+    await verifyActiveObject();
+    const s = useSession.getState();
+    expect(s.verification).toBeNull();
+    expect(s.notices[s.notices.length - 1]?.tone).toBe("crit");
   });
 });

@@ -24,16 +24,14 @@ describe("useGlobalKeys（SDD feats/05）", () => {
   beforeEach(() => {
     localStorage.clear();
     const object = objectMeta({ id: "test-image", modality: "carotid_imt" });
+    // 键位来自前端工具目录（SDD 05 D-9），任务只声明能力位
     const task = {
       task: "far_wall_cca_imt",
       modality: "carotid_imt",
-      tools: [
-        { id: "cursor", key: "v" }, { id: "bbox", key: "r" }, { id: "polygon", key: "p" },
-        { id: "wall", key: "w" }, { id: "brush", key: "b" }, { id: "reset" },
-      ],
       capabilities: ["bbox", "polygon", "wall", "brush"],
+      actions: ["rerun"],
       ...taskFields("carotid_imt"),
-    } as TaskView;
+    } as unknown as TaskView;
     useSession.setState({
       uiMode: "focus",
       tool: "cursor",
@@ -112,7 +110,23 @@ describe("useGlobalKeys（SDD feats/05）", () => {
     expect(e.defaultPrevented).toBe(false); // Workbench 侧栏 dockview 自管，放行
   });
 
-  it("? 开合速查面板；Esc 优先关面板，否则复位工具", () => {
+  it("速查面板工具行来自目录：Esc 行常驻，无任务对象上也存在", () => {
+    const rows = shortcutRowsFor(useSession.getState()).filter((row) => row.group === "tool");
+    expect(rows.map((row) => row.keys)).toEqual(["V", "R", "P", "B", "W", "Esc"]);
+    expect(rows.find((row) => row.keys === "Esc")?.label).toBe("sc_esc_cursor");
+    const object = objectMeta({ id: "natural-1", modality: "natural_image" });
+    useSession.setState({
+      modality: "natural_image",
+      tasks: [],
+      objects: { natural_image: [object] },
+      focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
+    });
+    const bare = shortcutRowsFor(useSession.getState()).filter((row) => row.group === "tool");
+    expect(bare.some((row) => row.keys === "Esc")).toBe(true);
+    expect(bare.find((row) => row.keys === "R")?.disabled).toBe(true);
+  });
+
+  it("? 开合速查面板；Esc 优先关面板，否则回到选择 / 平移", () => {
     render(createElement(Harness));
     press({ key: "?" });
     expect(useSession.getState().shortcutSheetOpen).toBe(true);
@@ -121,9 +135,11 @@ describe("useGlobalKeys（SDD feats/05）", () => {
     press({ key: "Escape" });
     expect(useSession.getState().shortcutSheetOpen).toBe(false);
     expect(useSession.getState().tool).toBe("bbox");
-    // 面板已关，再 Esc 复位工具
+    // 面板已关，再 Esc 回到 cursor，不触发任何动作（SDD 05 D-9）
+    const loadingBefore = useSession.getState().loading;
     press({ key: "Escape" });
-    expect(useSession.getState().tool).toBe("reset");
+    expect(useSession.getState().tool).toBe("cursor");
+    expect(useSession.getState().loading).toBe(loadingBefore);
   });
 
   it("Esc 优先关图像放大层,再关速查面板,最后复位工具", () => {

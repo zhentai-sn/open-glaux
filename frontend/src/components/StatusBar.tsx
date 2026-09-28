@@ -1,7 +1,7 @@
 import { currentTaskView } from "../data/actions";
 import { useI18n } from "../i18n";
 import { objectsOf, useSession } from "../store/session";
-import { useTaskTools } from "../viewer/useTaskTools";
+import { useModeTools } from "../viewer/editorChrome";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, TOOL_ICON } from "./iconMap";
 import { ThemeToggle } from "./ThemeToggle";
@@ -19,8 +19,8 @@ export function StatusBar() {
   // 头条度量（首个注册表度量）——状态栏泛型展示，不再硬写「IMT … mm」。
   const tv = useSession((s) => currentTaskView(s));
   const head = (metrics && ((tv && metrics[tv.metrics[0]?.key]) || Object.values(metrics)[0])) || null;
-  // SDD 04：工具文案改查注册表（删 TOOL_LABEL/TOOL_GLYPH 硬编码表）；图标走 SDD 06 的 TOOL_ICON
-  const toolDef = useTaskTools().tools.find((x) => x.id === tool);
+  // SDD 04 §7.5：工具文案取模式工具目录（任务不重命名工具）；图标走 SDD 06 的 TOOL_ICON
+  const toolDef = useModeTools().tools.find((x) => x.id === tool);
 
   return (
     <div className="status">
@@ -32,7 +32,7 @@ export function StatusBar() {
       </span>
       <span className="item">
         <Icon icon={TOOL_ICON[tool] ?? FALLBACK_ICON} size="sm" />{" "}
-        <span>{toolDef ? toolDef.label[lang] : t("tl_cursor")}</span>
+        <span>{t(toolDef ? toolDef.label : "tl_cursor")}</span>
       </span>
       <span className="sp" />
       <span className="item mono">

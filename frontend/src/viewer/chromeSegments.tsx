@@ -1,17 +1,11 @@
-import type { ComponentType } from "react";
-
 import type { ClassSpec } from "../api/types";
 import { useI18n } from "../i18n";
-import type { ToolOptions } from "../store/session";
+import { useSession } from "../store/session";
 import type { FrameAxis } from "./contract";
+import type { EditorChrome } from "./editorChrome";
 
-export interface ChromeSegmentProps {
-  tool: string;
-  options: ToolOptions;
-  classes: ClassSpec[];
-  axis: FrameAxis;
-  setOptions(patch: Partial<{ brush: Partial<ToolOptions["brush"]>; voi: Partial<ToolOptions["voi"]> }>): void;
-}
+// 编辑区选项段（SDD 04 §7.5）：模式选项（随当前模式）与视图（随对象）。
+// 显示与否由 useEditorChrome 判定，这里只渲染；两种外壳共用。
 
 const CT_PRESETS = [
   { key: "abd", i18n: "chrome_preset_abd", ww: 400, wl: 40 },
@@ -20,9 +14,10 @@ const CT_PRESETS = [
   { key: "bone", i18n: "chrome_preset_bone", ww: 1800, wl: 400 },
 ] as const;
 
-function BrushSeg({ options, classes, setOptions }: ChromeSegmentProps) {
+function BrushSeg({ classes }: { classes: ClassSpec[] }) {
   const { t, lang } = useI18n();
-  const brush = options.brush;
+  const brush = useSession((s) => s.toolOptions.brush);
+  const setOptions = useSession((s) => s.setToolOptions);
   return (
     <div className="chrome-seg">
       <button className="chrome-btn" aria-pressed={brush.mode === "paint"} onClick={() => setOptions({ brush: { mode: "paint" } })}>{t("chrome_brush_paint")}</button>
@@ -40,9 +35,11 @@ function BrushSeg({ options, classes, setOptions }: ChromeSegmentProps) {
   );
 }
 
-function VoiSeg({ options, setOptions }: ChromeSegmentProps) {
+// 预设对全部 volume 显示（D-26）。
+function VoiSeg() {
   const { t } = useI18n();
-  const voi = options.voi;
+  const voi = useSession((s) => s.toolOptions.voi);
+  const setOptions = useSession((s) => s.setToolOptions);
   return (
     <div className="chrome-seg">
       {CT_PRESETS.map((p) => (
@@ -63,27 +60,51 @@ function VoiSeg({ options, setOptions }: ChromeSegmentProps) {
   );
 }
 
-function TimelineSeg({ axis }: ChromeSegmentProps) {
+// z 与 t 共用一个滑块（规则 4）；与滚轮翻层写同一 focus.index。
+function FrameAxisSeg({ axis }: { axis: Exclude<FrameAxis, { kind: "none" }> }) {
   const { t } = useI18n();
-  if (axis.kind !== "t") return null;
   const count = Math.max(1, axis.count);
   const index = Math.max(0, Math.min(count - 1, axis.index));
+  const label = t(axis.kind === "t" ? "chrome_timeline" : "chrome_slice");
   return (
-    <div className="chrome-seg" data-testid="timeline-seg">
+    <div className="chrome-seg" data-testid="frame-axis-seg">
       <label className="chrome-range">
-        {t("chrome_timeline")}
-        <input type="range" min={0} max={count - 1} value={index} aria-label={t("chrome_timeline")}
+        {label}
+        <input type="range" min={0} max={count - 1} value={index} aria-label={label}
           onChange={(event) => axis.onIndex(Number(event.target.value))} />
       </label>
-      <span className="mono">{t("chrome_frame")} {index + 1}/{count}</span>
-      {axis.fps && <span className="mono">{(index / axis.fps).toFixed(2)} s</span>}
+      <span className="mono">{t(axis.kind === "t" ? "chrome_frame" : "chrome_slice")} {index + 1}/{count}</span>
+      {axis.kind === "t" && axis.fps && <span className="mono">{(index / axis.fps).toFixed(2)} s</span>}
     </div>
   );
 }
 
-/** 能力位驱动的选项段注册面。新能力只需登记组件，不修改外壳条件分支。 */
-export const CHROME_SEGMENTS: Array<{ cap: string; visible: (tool: string) => boolean; Seg: ComponentType<ChromeSegmentProps> }> = [
-  { cap: "brush", visible: (tool) => tool === "brush", Seg: BrushSeg },
-  { cap: "voi", visible: () => true, Seg: VoiSeg },
-  { cap: "timeline", visible: () => true, Seg: TimelineSeg },
-];
+export function hasSegments({ brushOptions, voi, axis }: Pick<EditorChrome, "brushOptions" | "voi" | "axis">): boolean {
+  return brushOptions || voi || axis.kind !== "none";
+}
+
+/** 模式选项段 + 视图段；两者皆空时返回 null。 */
+export function ChromeSegments({ chrome }: { chrome: EditorChrome }) {
+  const { brushOptions, classes, voi, axis } = chrome;
+  if (!hasSegments(chrome)) return null;
+  return (
+    <>
+      {brushOptions && <BrushSeg classes={classes} />}
+      {voi && <VoiSeg />}
+      {axis.kind !== "none" && <FrameAxisSeg axis={axis} />}
+    </>
+  );
+}
+
+/** 当前模式的绘制提示；on_commit 派生的「松手后运行」追加在后（规则 1）。 */
+export function chromeHintText(
+  chrome: Pick<EditorChrome, "hint" | "commitTask">,
+  t: ReturnType<typeof useI18n>["t"],
+  lang: ReturnType<typeof useI18n>["lang"],
+): string | null {
+  const parts = [
+    chrome.hint ? t(chrome.hint) : null,
+    chrome.commitTask ? t("chrome_hint_run_on_commit", { task: chrome.commitTask[lang] }) : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}

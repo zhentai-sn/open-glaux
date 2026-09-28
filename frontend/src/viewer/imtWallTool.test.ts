@@ -46,7 +46,7 @@ function task(): TaskView {
     label: { en: "IMT", zh: "IMT" },
     default_method: "caroSegDeep",
     metrics: [],
-    tools: [],
+    actions: ["rerun"],
     overlays: [{ role: "LI", color: "#4FB0FF", editable: true }],
     capabilities: ["bbox", "polygon", "brush", "wall"],
     on_commit: null,

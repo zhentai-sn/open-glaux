@@ -9,7 +9,7 @@ import { PAINTERS } from "../viewer/overlay/painters";
 import { frameAxisFor, type ViewerEngine } from "../viewer/contract";
 import { frameSourceFor } from "../viewer/frameSources";
 import { annotationMaskSink, editMaskSink } from "../viewer/maskSinks";
-import { useTaskTools } from "../viewer/useTaskTools";
+import { useModeTools } from "../viewer/editorChrome";
 
 // 查看器接缝（SDD 10 §7 规则 2、D-11）——引擎只由对象几何决定：按 ObjectMeta.kind 查表，
 // 引擎由对象 kind 选择。本组件是查看器树中唯一读 store 处，当前对象与焦点经 props 下传。
@@ -32,7 +32,7 @@ export function Viewer() {
   const setIndex = useSession((s) => s.setIndex);
   const setCoords = useSession((s) => s.setCoords);
   const notify = useSession((s) => s.notify);
-  const { task, capabilities } = useTaskTools();
+  const { task, capabilities } = useModeTools();
   const source = useMemo(() => object ? frameSourceFor(object) : null, [object]);
   const maskSink = useMemo(() => {
     if (!object) return null;
@@ -73,7 +73,7 @@ export function Viewer() {
   }
   const axis = frameAxisFor(object, focus, setIndex);
   return <Engine object={object} focus={focus} task={task} capabilities={capabilities} source={source!} axis={axis}
-    voi={capabilities.includes("voi") ? toolOptions.voi : null} primitives={primitives} annotations={annotations}
+    voi={object.kind === "volume" ? toolOptions.voi : null} primitives={primitives} annotations={annotations}
     tool={tool} toolOptions={toolOptions} maskSink={maskSink!} painters={PAINTERS} onCoords={onCoords}
     onRegion={onRegion} notify={notify} />;
 }

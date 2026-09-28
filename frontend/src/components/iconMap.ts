@@ -41,6 +41,7 @@ import {
   RotateCcw,
   Scale,
   Settings,
+  ShieldCheck,
   Sparkles,
   Spline,
   Square,
@@ -51,22 +52,27 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { TaskAction } from "../api/types";
 import type { Tool } from "../store/session";
 
 // 领域概念 → 图标（SDD feats/06 §5）——单一真相源；渲染点不内联散写。
 // 未知键回退 FALLBACK_ICON（替代旧 ◇），不崩不空白。
 export const FALLBACK_ICON: LucideIcon = Diamond;
 
-// 工具（与 SDD 05 键位映射同源，D-2）× SDD 06 线性图标。
-// SDD 04 统一工具集（cursor/bbox/polygon/brush/reset）+ 任务专属编辑 wall（IMT 壁线）：
-// 旧的 editli/editma 曾并入 polygon，现由 wall 单独承接（polygon 归还给自由多边形）。
+// 模式工具（SDD 04 §7.5）× SDD 06 线性图标；标签与键位在 viewer/toolCatalog。
+// 统一工具集 cursor/bbox/polygon/brush + 任务专属编辑 wall（IMT 壁线）。
 export const TOOL_ICON: Partial<Record<Tool, LucideIcon>> = {
   cursor: MousePointer2,
   bbox: Square, // 框选
   polygon: Spline, // 自由多边形轮廓
   wall: Waves, // 壁线形变（LI/MA 双线）
   brush: Brush, // 涂抹（掩膜）
-  reset: RotateCcw,
+};
+
+// 任务动作（SDD 04 §7.5）：工具条动作段的一次性命令。
+export const ACTION_ICON: Record<TaskAction, LucideIcon> = {
+  rerun: RotateCcw,
+  verify: ShieldCheck,
 };
 
 // 能力类型（插件市场四要素）

@@ -241,7 +241,8 @@ def image(image_id: str) -> Response:
 def tasks() -> list[dict]:
     """任务注册表——前端据此渲染模态切换/工具栏/测量字段，不再硬编码 if 模态。
 
-    这是多模态前端的**单一真相源**：viewer 引擎、工具集、度量字段、overlay 画法全从这里来。
+    这是多模态前端的**单一真相源**：模式工具能力位、任务动作、度量字段、overlay 画法全从这里来；
+    工具的标签、图标、键位归前端工具目录（SDD 04 §9.3）。
     """
     if not KERNEL_OK:
         raise HTTPException(503, "任务注册表需 science-core（未装配）")

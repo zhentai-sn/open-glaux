@@ -1,56 +1,69 @@
-// ViewerChrome 测试（SDD 04 T8）——引擎能力位过滤 + i18n 键齐备。
+// ViewerChrome 测试（SDD 04 §7.5、§15 v1.1）——模式工具、视图段、动作段按四类模型装配。
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ViewerChrome } from "./ViewerChrome";
 import { I18nProvider } from "../i18n";
 import { en } from "../i18n/en";
 import { zh } from "../i18n/zh";
 import { TOOL_OPTIONS_DEFAULTS, useSession, type Tool } from "../store/session";
-import type { TaskView } from "../api/types";
+import type { DataSource, ObjectMeta, TaskAction, TaskView } from "../api/types";
 import { dsFields, objectMeta, taskFields } from "../test/fixtures";
 
-const UNIFIED_TOOLS = [
-  { id: "cursor", glyph: "▸", label: { en: "Select / Pan", zh: "选择 / 平移" } },
-  { id: "bbox", glyph: "▭", label: { en: "Bounding box", zh: "框标注" } },
-  { id: "polygon", glyph: "⬠", label: { en: "Polygon", zh: "多边形标注" } },
-  { id: "wall", glyph: "≈", label: { en: "Wall edit", zh: "壁线编辑" } },
-  { id: "brush", glyph: "✎", label: { en: "Brush", zh: "画笔" } },
-  { id: "reset", glyph: "⟲", label: { en: "Reset to model", zh: "重置为模型输出" } },
-];
+vi.mock("../data/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../data/actions")>()),
+  reRunActiveModel: vi.fn(async () => {}),
+  verifyActiveObject: vi.fn(async () => {}),
+}));
 
-function makeTask(modality: TaskView["modality"], capabilities: string[]): TaskView {
+const TASK_OF: Record<string, string> = {
+  pathology: "nuclei_detection",
+  ct_abdomen: "totalseg_liver_kidney",
+  carotid_imt: "far_wall_cca_imt",
+  fetal_hc: "fetal_hc",
+};
+
+function makeTask(modality: string, capabilities: string[], actions: TaskAction[] = ["rerun"], extra: Partial<TaskView> = {}): TaskView {
   return {
-    task: modality === "pathology" ? "nuclei_detection" : modality === "ct_abdomen" ? "totalseg_liver_kidney" : "far_wall_cca_imt",
+    task: TASK_OF[modality],
     adapter_kind: "contour",
     modality,
-    label: { en: "T", zh: "T" },
+    label: { en: `Task ${modality}`, zh: `任务 ${modality}` },
     default_method: "m",
     metrics: [],
-    tools: UNIFIED_TOOLS,
     overlays: [],
     capabilities,
+    actions,
     on_commit: null,
     ...taskFields(modality),
+    ...extra,
   };
 }
 
-function mount(modality: TaskView["modality"], capabilities: string[], tool: Tool = "cursor") {
-  const object = objectMeta({ id: `${modality}-test`, modality });
+function source(modality: string, capabilities: string[]): DataSource {
+  return {
+    id: "test-source", name: modality, modality, root: "", origin: "imported", calibration: {}, status: "active",
+    ...dsFields(modality), default_capabilities: capabilities,
+  };
+}
+
+function mountObject(object: ObjectMeta, tasks: TaskView[], datasources: DataSource[] = [], tool: Tool = "cursor", index = {}) {
   useSession.setState({
-    modality,
-    tasks: [makeTask(modality, capabilities)],
-    objects: { [modality]: [object] },
-    focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
+    modality: object.modality,
+    tasks,
+    datasources,
+    objects: { [object.modality]: [object] },
+    focus: { object_id: object.id, kind: object.kind, index, region: null },
     tool,
     toolOptions: { brush: { ...TOOL_OPTIONS_DEFAULTS.brush }, voi: { ...TOOL_OPTIONS_DEFAULTS.voi } },
     primitives: [],
+    loading: false,
   });
-  return render(
-    <I18nProvider>
-      <ViewerChrome onTool={() => {}} />
-    </I18nProvider>,
-  );
+  return render(<I18nProvider><ViewerChrome /></I18nProvider>);
+}
+
+function mount(modality: string, capabilities: string[], tool: Tool = "cursor", actions: TaskAction[] = ["rerun"], extra: Partial<TaskView> = {}) {
+  return mountObject(objectMeta({ id: `${modality}-test`, modality }), [makeTask(modality, capabilities, actions, extra)], [], tool);
 }
 
 beforeEach(() => {
@@ -58,83 +71,100 @@ beforeEach(() => {
   useSession.setState({ annotations: [] });
 });
 
-// 按钮内容 = lucide 图标（SDD 06）+ .tip 文案（注册表 label，SDD 04）；
-// 断言走文案，不再断言 glyph 字符——字符渲染已随 SDD 06 退役。
-describe("引擎能力位过滤", () => {
-  it("视频时间轴只在能力位声明时出现，并写入焦点 t", () => {
-    const object = objectMeta({ id: "vid-1", modality: "video", axes: [{ name: "x", size: 64 }, { name: "y", size: 48 }, { name: "t", size: 12, spacing: 40, unit: "ms" }] });
-    const source = { id: object.source_id, name: "Video", modality: "video", root: "", origin: "imported" as const, calibration: {}, status: "active" as const, ...dsFields("video") };
-    useSession.setState({ modality: "video", tasks: [], objects: { video: [object] }, focus: { object_id: object.id, kind: "video", index: { t: 0 }, region: null }, datasources: [{ ...source, default_capabilities: ["bbox", "polygon", "timeline", "brush"] }] });
-    const view = render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
-    const slider = screen.getByRole("slider", { name: "Timeline" });
-    fireEvent.change(slider, { target: { value: "7" } });
-    expect(useSession.getState().focus?.index.t).toBe(7);
-    expect(screen.getByText("Frame 8/12")).toBeTruthy();
-    view.unmount();
-
-    useSession.setState({ datasources: [{ ...source, default_capabilities: ["bbox", "polygon", "brush"] }] });
-    render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
-    expect(screen.queryByRole("slider", { name: "Timeline" })).toBeNull();
+describe("模式工具（规则 1～3）", () => {
+  it("六类对象上 cursor 与 bbox 标签一致，任务不重命名工具", () => {
+    for (const modality of ["pathology", "ct_abdomen", "carotid_imt", "fetal_hc"]) {
+      const view = mount(modality, ["bbox", "polygon"]);
+      expect(screen.getByText(en.tl_cursor)).toBeTruthy();
+      expect(screen.getByText(en.tl_bbox)).toBeTruthy();
+      view.unmount();
+    }
+    for (const modality of ["natural_image", "video"]) {
+      const view = mountObject(objectMeta({ id: `${modality}-1`, modality }), [], [source(modality, ["bbox", "polygon"])]);
+      expect(screen.getByText(en.tl_cursor)).toBeTruthy();
+      expect(screen.getByText(en.tl_bbox)).toBeTruthy();
+      view.unmount();
+    }
   });
 
-  it("无 TaskView 时显示数据源默认标注工具", () => {
-    const object = objectMeta({ id: "natural-1", modality: "natural_image" });
-    useSession.setState({
-      modality: "natural_image",
-      tasks: [],
-      objects: { natural_image: [object] },
-      focus: { object_id: object.id, kind: object.kind, index: {}, region: null },
-      datasources: [{
-        id: object.source_id,
-        name: "Natural",
-        modality: "natural_image",
-        root: "",
-        origin: "imported",
-        calibration: {},
-        status: "active",
-        ...dsFields("natural_image"),
-        default_capabilities: ["bbox", "polygon"],
-      }],
-    });
-    render(<I18nProvider><ViewerChrome onTool={() => {}} /></I18nProvider>);
-    expect(screen.getByText("Bounding box")).toBeTruthy();
-    expect(screen.getByText("Polygon")).toBeTruthy();
-    expect(screen.queryByText("Brush")).toBeNull();
-  });
-
-  it("WSI（capabilities 无 brush/wall）不渲染画笔与壁线按钮，bbox/polygon 在", () => {
+  it("未启用的工具不渲染；WSI 无画笔与壁线", () => {
     mount("pathology", ["bbox", "polygon"]);
-    expect(screen.queryByText("Brush")).toBeNull();
-    expect(screen.queryByText("Wall edit")).toBeNull();
-    expect(screen.getByText("Bounding box")).toBeTruthy();
-    expect(screen.getByText("Polygon")).toBeTruthy();
-    expect(screen.getByText("Select / Pan")).toBeTruthy(); // cursor 恒在
-    expect(screen.getByText("Reset to model")).toBeTruthy(); // reset 恒在
+    expect(screen.queryByText(en.tl_brush)).toBeNull();
+    expect(screen.queryByText(en.tl_wall)).toBeNull();
+    expect(screen.getByText(en.tl_polygon)).toBeTruthy();
   });
 
-  it("CT（capabilities 含 brush）渲染画笔按钮", () => {
-    mount("ct_abdomen", ["bbox", "polygon", "brush"]);
-    expect(screen.getByText("Brush")).toBeTruthy();
-  });
-
-  it("VOI 选项只由能力位决定", () => {
-    const withVoi = mount("ct_abdomen", ["bbox", "voi"]);
-    expect(screen.getByTitle("WW 400 / WL 40")).toBeTruthy();
-    withVoi.unmount();
-    mount("ct_abdomen", ["bbox"]);
-    expect(screen.queryByTitle("WW 400 / WL 40")).toBeNull();
-  });
-
-  it("raster_2d 四能力齐备（IMT 含壁线编辑）", () => {
+  it("IMT 四个模式工具齐备", () => {
     mount("carotid_imt", ["bbox", "polygon", "brush", "wall"]);
-    expect(screen.getByText("Bounding box")).toBeTruthy();
-    expect(screen.getByText("Polygon")).toBeTruthy();
-    expect(screen.getByText("Brush")).toBeTruthy();
-    expect(screen.getByText("Wall edit")).toBeTruthy();
+    for (const label of [en.tl_bbox, en.tl_polygon, en.tl_brush, en.tl_wall]) expect(screen.getByText(label)).toBeTruthy();
   });
 });
 
-// 提示必须与直线 SplineROI 和 WSI SVG 的逐点绘制交互一致。
+describe("动作段（规则 5～7）", () => {
+  it("无任务对象（通用图像、视频）没有任何动作按钮", () => {
+    mountObject(objectMeta({ id: "natural-1", modality: "natural_image" }), [], [source("natural_image", ["bbox", "polygon"])]);
+    expect(screen.queryByLabelText(en.act_rerun)).toBeNull();
+    expect(screen.queryByLabelText(en.act_verify)).toBeNull();
+  });
+
+  it("有任务对象显示「重新运行」；WSI 另有「复现验证」", () => {
+    mount("carotid_imt", ["bbox"]);
+    expect(screen.getByLabelText(en.act_rerun)).toBeTruthy();
+    expect(screen.queryByLabelText(en.act_verify)).toBeNull();
+  });
+
+  it("on_region 任务无选区时「重新运行」禁用并提示先框选", async () => {
+    mount("pathology", ["bbox", "polygon"], "cursor", ["rerun", "verify"]);
+    const rerun = screen.getByLabelText(en.act_rerun) as HTMLButtonElement;
+    expect(rerun.disabled).toBe(true);
+    expect(screen.getByText(en.act_rerun_need_region)).toBeTruthy();
+    const verify = screen.getByLabelText(en.act_verify) as HTMLButtonElement;
+    expect(verify.disabled).toBe(false);
+    fireEvent.click(verify);
+    const { verifyActiveObject } = await import("../data/actions");
+    expect(verifyActiveObject).toHaveBeenCalledTimes(1);
+  });
+
+  it("有选区时「重新运行」可点，点击不改变当前模式", async () => {
+    mount("pathology", ["bbox", "polygon"], "bbox", ["rerun", "verify"]);
+    useSession.getState().setRegion({ kind: "box", x0: 0, y0: 0, x1: 100, y1: 100 });
+    const rerun = await screen.findByLabelText(en.act_rerun) as HTMLButtonElement;
+    expect(rerun.disabled).toBe(false);
+    fireEvent.click(rerun);
+    const { reRunActiveModel } = await import("../data/actions");
+    expect(reRunActiveModel).toHaveBeenCalled();
+    expect(useSession.getState().tool).toBe("bbox");
+  });
+});
+
+describe("视图段（规则 4）", () => {
+  it("CT：窗宽窗位与层滑块；滑块写入焦点 z", () => {
+    mount("ct_abdomen", ["bbox", "polygon", "brush"]);
+    expect(screen.getByTitle("WW 400 / WL 40")).toBeTruthy();
+    const slider = screen.getByRole("slider", { name: en.chrome_slice });
+    fireEvent.change(slider, { target: { value: "5" } });
+    expect(useSession.getState().focus?.index.z).toBe(5);
+    expect(screen.getByText(`${en.chrome_slice} 6/32`)).toBeTruthy();
+  });
+
+  it("视频：帧滑块与秒数，写入焦点 t；无窗宽窗位", () => {
+    const object = objectMeta({ id: "vid-1", modality: "video", axes: [{ name: "x", size: 64 }, { name: "y", size: 48 }, { name: "t", size: 12, spacing: 40, unit: "ms" }] });
+    mountObject(object, [], [source("video", ["bbox", "polygon", "brush"])], "cursor", { t: 0 });
+    const slider = screen.getByRole("slider", { name: en.chrome_timeline });
+    fireEvent.change(slider, { target: { value: "7" } });
+    expect(useSession.getState().focus?.index.t).toBe(7);
+    expect(screen.getByText(`${en.chrome_frame} 8/12`)).toBeTruthy();
+    expect(screen.getByText("0.28 s")).toBeTruthy();
+    expect(screen.queryByTitle("WW 400 / WL 40")).toBeNull();
+  });
+
+  it("2D 图像无帧轴与窗宽窗位", () => {
+    mount("carotid_imt", ["bbox"]);
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByTitle("WW 400 / WL 40")).toBeNull();
+  });
+});
+
 describe("绘制提示", () => {
   it("polygon 态提示逐点点击与首点闭合", () => {
     mount("carotid_imt", ["bbox", "polygon", "brush", "wall"], "polygon");
@@ -148,25 +178,28 @@ describe("绘制提示", () => {
     expect(screen.getByText(en.chrome_hint_wall)).toBeTruthy();
     expect(en.chrome_hint_wall).not.toBe(en.chrome_hint_polygon);
   });
+
+  it("on_commit 派生提示：WSI bbox 追加「松手后运行」与任务标签", () => {
+    mount("pathology", ["bbox", "polygon"], "bbox", ["rerun", "verify"], { on_commit: { bbox: { action: "run_task" } } });
+    expect(screen.getByText(`${en.chrome_hint_bbox} · Runs Task pathology on release`)).toBeTruthy();
+  });
 });
 
 describe("i18n 键", () => {
-  it("chrome_* 键中英齐备且对齐", () => {
+  it("编辑区键中英齐备", () => {
     const keys = [
-      "chrome_hint_bbox",
-      "chrome_hint_polygon",
-      "chrome_hint_wall",
-      "chrome_brush_paint",
-      "chrome_brush_erase",
-      "chrome_brush_radius",
-      "chrome_preset_abd",
-      "chrome_preset_med",
-      "chrome_preset_lung",
-      "chrome_preset_bone",
+      "tl_cursor", "tl_bbox", "tl_polygon", "tl_brush", "tl_wall",
+      "chrome_hint_bbox", "chrome_hint_polygon", "chrome_hint_wall", "chrome_hint_run_on_commit",
+      "chrome_brush_paint", "chrome_brush_erase", "chrome_brush_radius",
+      "chrome_preset_abd", "chrome_preset_med", "chrome_preset_lung", "chrome_preset_bone",
+      "chrome_timeline", "chrome_frame", "chrome_slice",
+      "act_rerun", "act_rerun_need_region", "act_verify", "act_verifying", "readout_verify", "sc_esc_cursor",
     ] as const;
     for (const k of keys) {
       expect(en[k], `en.${k}`).toBeTruthy();
       expect(zh[k], `zh.${k}`).toBeTruthy();
     }
+    expect(zh.tl_cursor).toBe("选择 / 平移");
+    expect(zh.tl_bbox).toBe("框标注");
   });
 });

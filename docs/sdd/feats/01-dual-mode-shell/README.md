@@ -15,7 +15,7 @@ status: implemented
 | 目标阶段 | 前端外壳分层:为非技术研究者提供 Codex 式对话优先界面,现有 VSCode 式布局降级为专家模式 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 
-§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，标注 SDD 14 的条目随 [SDD 14](../14-project-text-preview/README.md) 实现，标注 SDD 04 v1.1 的条目随 [SDD 04](../04-unified-annotation-toolbox/README.md) v1.1 实现，均不计入本 SDD 的 `implemented` 范围。
+§2、§5.1、§8 中标注 SDD 13 的条目随 [SDD 13](../13-project-folder-sessions/README.md) 实现，标注 SDD 14 的条目随 [SDD 14](../14-project-text-preview/README.md) 实现，均不计入本 SDD 的 `implemented` 范围。
 
 进入 `accepted` 的依据(2026-08-13):产品维护者在真实数据环境(CUBS + 参考智能体)交互评审通过并确认阶段性验收;评审期间提出的空状态布局还原、状态行下移、Markdown 渲染、上下文环形图、徽标等打磨项均已实现并复验。§15 验收项全部通过。
 

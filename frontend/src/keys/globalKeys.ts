@@ -2,9 +2,9 @@ import { CHAT_EDITION, WORKBENCH_ENABLED } from "../edition";
 import { useEffect } from "react";
 
 import type { I18nKey } from "../i18n";
-import type { Bilingual } from "../api/types";
 import { activeObject, useSession } from "../store/session";
-import { taskToolsFor } from "../viewer/useTaskTools";
+import { modeToolsFor } from "../viewer/editorChrome";
+import { ALWAYS_TOOL, TOOL_CATALOG } from "../viewer/toolCatalog";
 
 // 全局快捷键（SDD feats/05）——单一 window keydown 分发器 + 速查数据源。
 // 铁律：只调 store 已有动作，不新增契约（D-1/D-2）。键位见 SDD §7.1 / §16 D-5~D-7。
@@ -19,8 +19,7 @@ export type ShortcutGroup = "tool" | "shell" | "help";
 export interface ShortcutRow {
   group: ShortcutGroup;
   keys: string;
-  label?: I18nKey;
-  text?: Bilingual;
+  label: I18nKey;
   disabled?: boolean;
 }
 const SHELL_SHORTCUT_ROWS: ShortcutRow[] = [
@@ -35,17 +34,18 @@ export const SHORTCUT_ROWS = CHAT_EDITION
 
 type ToolState = Pick<ReturnType<typeof useSession.getState>, "tasks" | "datasources" | "objects" | "modality" | "focus">;
 
+// 工具行来自模式工具目录（SDD 05 D-9）：当前对象未启用的置灰；Esc 回光标常驻。
 export function shortcutRowsFor(state: ToolState): ShortcutRow[] {
   if (CHAT_EDITION) return SHORTCUT_ROWS;
-  const { declaredTools, tools } = taskToolsFor(activeObject(state), state.tasks, state.datasources);
+  const { tools } = modeToolsFor(activeObject(state), state.tasks, state.datasources);
   const available = new Set(tools.map((tool) => tool.id));
-  const toolRows: ShortcutRow[] = declaredTools.filter((tool) => tool.key).map((tool) => ({
+  const toolRows: ShortcutRow[] = TOOL_CATALOG.map((tool) => ({
     group: "tool",
-    keys: tool.key!.toUpperCase(),
-    text: tool.label,
+    keys: tool.key.toUpperCase(),
+    label: tool.label,
     disabled: !available.has(tool.id),
   }));
-  if (declaredTools.some((tool) => tool.id === "reset")) toolRows.push({ group: "tool", keys: "Esc", label: "tl_reset" });
+  toolRows.push({ group: "tool", keys: "Esc", label: "sc_esc_cursor" });
   return [...toolRows, ...SHORTCUT_ROWS];
 }
 export const SHORTCUT_GROUP_LABEL: Record<ShortcutGroup, I18nKey> = {
@@ -77,7 +77,7 @@ export function useGlobalKeys() {
       const st = useSession.getState();
 
       // Esc：图像放大层最先关闭（它盖在最上层），其次速查面板；
-      // 否则（非编辑 + 查看器上下文）复位工具（D-7）
+      // 否则（非编辑 + 查看器上下文）回到选择 / 平移，不触发任何动作（D-7、D-9）
       if (e.key === "Escape") {
         if (st.imagePreview) {
           st.setImagePreview(null);
@@ -86,7 +86,7 @@ export function useGlobalKeys() {
           st.setShortcutSheet(false);
           e.preventDefault();
         } else if (!CHAT_EDITION && !isEditable(el) && inViewerContext(el)) {
-          st.setTool("reset");
+          st.setTool(ALWAYS_TOOL);
           e.preventDefault();
         }
         return;
@@ -131,8 +131,8 @@ export function useGlobalKeys() {
 
       // 工具单键（无修饰，需查看器上下文 R3）
       if (!CHAT_EDITION && !mod && !e.altKey && inViewerContext(el)) {
-        const tool = taskToolsFor(activeObject(st), st.tasks, st.datasources).tools.find(
-          (candidate) => candidate.key?.toLowerCase() === e.key.toLowerCase(),
+        const tool = modeToolsFor(activeObject(st), st.tasks, st.datasources).tools.find(
+          (candidate) => candidate.key === e.key.toLowerCase(),
         );
         if (tool) {
           st.setTool(tool.id);

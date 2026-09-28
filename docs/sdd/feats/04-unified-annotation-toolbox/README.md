@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 统一图像标注工具箱（Unified Annotation Toolbox）
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready`（v1.1 编辑区四类模型契约冻结，待实现；v1 范围 `implemented`，浏览器走查验收待补） |
-| 当前阶段 | v1：代码完成并与 SDD 对齐，浏览器走查按 §15 v1 逐项过（自动化浏览器渲染进程冻结，待人工恢复）。v1.1：§7.5 与 §9.3 契约冻结，D-20～D-27 已确认，开放问题为零，SDD 01 / 05 / 10 已同步修订 |
+| 状态 | `implemented`（v1.1 编辑区四类模型 2026-09-27 实现完成、自查见 §15 v1.1；v1 浏览器走查验收待补） |
+| 当前阶段 | v1：代码完成并与 SDD 对齐，浏览器走查按 §15 v1 逐项过（自动化浏览器渲染进程冻结，待人工恢复）。v1.1：代码、自动化门禁与开发侧浏览器走查完成，待业务验收 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
 | 承接需求 | [脑暴 20260816-02 · 统一图像标注工具箱](../../../brainstorms/20260816-02-unified-annotation-toolbox.zh-CN.md)（D-1～D-7 已拍板） |
 | 实现计划 | v1.1：[编辑区四类模型实施计划](../../../plans/2026-09-27-editor-chrome-model-plan.md) |
@@ -184,10 +184,10 @@ flowchart LR
 
 | 类别 | 定义 | 取值 | 事实来源 | 位置 | 交互形态 |
 | --- | --- | --- | --- | --- | --- |
-| 模式 | 互斥、持续到切换为止的指针模式 | `cursor` `bbox` `polygon` `brush` `wall` | 启用集：`TaskView.capabilities`，无任务读 `DataSource.default_capabilities`；显示元数据：`TOOL_CATALOG` | 工具条左段 | 切换按钮，`aria-pressed` |
+| 模式 | 互斥、持续到切换为止的指针模式 | `cursor` `bbox` `polygon` `brush` `wall` | 启用集：`TaskView.capabilities`，无任务读 `DataSource.default_capabilities`；标签、键位、提示：`TOOL_CATALOG`；图标：`TOOL_ICON`（SDD 06） | 工具条左段 | 切换按钮，`aria-pressed` |
 | 模式选项 | 当前模式的参数 | 画笔：涂 / 擦、类别、半径 | 当前模式 + `classes` | 紧随模式段，仅对应模式激活时显示 | 按钮、下拉、滑块 |
 | 视图 | 只改显示、不改数据的状态 | 窗宽窗位（预设 + WW / WL）、帧轴（`z` 或 `t`） | `ObjectMeta.kind`、`ObjectMeta.axes` | 工具条中段 | 滑块、预设按钮 |
-| 动作 | 一次性命令，调后端 | `rerun` `verify` | `TaskView.actions`；显示元数据与处理函数：`ACTION_CATALOG` | 工具条右段（弹性占位之后） | 普通按钮，无选中态；执行中禁用 |
+| 动作 | 一次性命令，调后端 | `rerun` `verify` | `TaskView.actions`；标签、处理函数、不可执行原因：`ACTION_CATALOG`；图标：`ACTION_ICON`（SDD 06） | 工具条右段（弹性占位之后） | 普通按钮，无选中态；执行中或不可执行时禁用，原因经 `title` 呈现 |
 | 读数 | 任务输出与出处 | 度量、来源角标、复现结果 | `TaskView.metrics` + store `metrics` / `source` / `verification` | 工具条下方独立一行 | 只读 |
 
 规则：
@@ -203,7 +203,7 @@ flowchart LR
 6. `rerun`：以当前 `focus.region` 与活动模型重跑任务，不清标注（§11）；标签统一「重新运行」。`trigger == "on_region"` 且无 region 时按钮禁用，`title` 提示先框选。v1 的「重置为模型输出」「重新检测」标签一并改为「重新运行」；不提供不重跑的「恢复模型输出」（D-25）。
 7. `verify`：调 `GET /wsi/{slide_id}/verify`，结果写 store `verification`，读数条显示「复现 F1 x.xx（pred/ref）」；不可用时 Notice `wsi_verify_unavailable`，读数条不显示复现结果。
 8. 查看器引擎（`FrameStackViewer`、`PyramidViewer`）只渲染画布与画布内几何，不渲染工具条元素（D-24）。
-9. Workbench 与 Focus 经 `useEditorChrome` 取四类元素，外壳只负责布局；紧凑模式（只留图标）判据不变（SDD 01 §8）。读数条只在 Focus 舞台渲染，Workbench 读数由底部面板承载（D-27）。
+9. Workbench 与 Focus 经 `useEditorChrome` 取四类元素，外壳只负责布局；紧凑模式（只留图标）判据不变（SDD 01 §8）。读数条只在 Focus 舞台渲染，Workbench 读数由底部面板承载（D-27）。Workbench 沿用画布浮层布局：右上工具块为模式段、分隔线、动作段，顶部居中块为提示、模式选项段与视图段。
 10. 切换对象时 `verification` 清空，`tool` 回 `cursor`。
 11. 查看器上下文中按 `Esc` 执行 `setTool("cursor")`，不触发任何动作（SDD 05 D-7）。
 
@@ -217,9 +217,10 @@ flowchart LR
 | ViewerChrome | `frontend/src/components/` | 统一工具栏 / 选项条 / 信息条（主题 CSS + i18n） |
 | TaskPlugin | `science-core/glaux_core/tasks.py` | 引擎能力位 + `on_commit` + `actions`（v1.1）声明；`tools` 字段删除（v1.1）；`plugin_to_view` 同步下发 |
 | `DEFAULT_CAPABILITIES` | `backend/app/sources/base.py` | v1.1 去掉 `z_scroll`、`timeline`，只含模式工具 id |
-| `TOOL_CATALOG` / `ACTION_CATALOG` | `frontend/src/viewer/` | v1.1 新增：工具 id → 图标、i18n 标签键、`key`；动作 id → 图标、i18n 标签键、处理函数；替代 `TaskPlugin.tools[]` 与 `GENERIC_TOOLS` |
+| `TOOL_CATALOG` / `ACTION_CATALOG` | `frontend/src/viewer/toolCatalog.ts`、`actionCatalog.ts` | v1.1 新增：工具 id → i18n 标签键、`key`、绘制提示；动作 id → i18n 标签键、处理函数、不可执行原因；替代 `TaskPlugin.tools[]`、`GENERIC_TOOLS` 与 `toolHint.ts`。图标仍在 `components/iconMap.ts` 的 `TOOL_ICON` / `ACTION_ICON`（SDD 06 单一图标源） |
+| `EditorActions` / `ReadoutBar` | `frontend/src/components/EditorActions.tsx`、`components/focus/ReadoutBar.tsx` | v1.1 新增：动作段（两种外壳共用，按钮直接作为工具条子元素，保证紧凑判据按 `.focus-tool` 计宽）；读数条（度量、复现结果、来源） |
 | `useEditorChrome` | `frontend/src/viewer/` | v1.1 新增：合并 `useTaskTools` 与两处外壳中的选项段、`classes`、帧轴计算，输出四类元素 |
-| `CHROME_SEGMENTS` | `frontend/src/viewer/chromeSegments.tsx` | v1.1 拆为模式选项段（按工具）与视图段（按对象） |
+| `ChromeSegments` | `frontend/src/viewer/chromeSegments.tsx` | v1.1 取代按能力位登记的 `CHROME_SEGMENTS`：渲染模式选项段（画笔）与视图段（窗宽窗位、z / t 帧轴），显隐由 `useEditorChrome` 判定 |
 | `PyramidViewer` | `frontend/src/viewer/PyramidViewer.tsx` | v1.1 删除画布内复现验证按钮与结果 |
 | `globalKeys` | `frontend/src/keys/globalKeys.ts` | v1.1：`Esc` 改 `setTool("cursor")`；速查面板的 `Esc` 行常驻，不再依赖声明了 `reset` |
 | IMT 形变手柄工具 | `frontend/src/viewer/`（CS3D 自定义 BaseTool） | 领域特化，扩展 tools 框架 |
@@ -410,15 +411,21 @@ stateDiagram-v2
 
 ### v1.1 编辑区四类模型
 
-- [ ] 通用图像、视频、CT、WSI、IMT、HC 六类对象上，`cursor` 标签均为「选择 / 平移」，`bbox` 均为「框标注」；同一工具 id 的图标与快捷键一致。
-- [ ] 通用图像与视频的工具条无动作段；逐个点击工具条按钮，不存在无可见效果的按钮。
-- [ ] 有任务对象的工具条右段有「重新运行」；WSI 未框选时该按钮禁用且 `title` 提示先框选。
-- [ ] WSI「复现验证」位于工具条动作段，画布内无按钮；结果显示在读数条；切换到其他对象后结果消失。
-- [ ] WSI 选中 `bbox` 时绘制提示含「松手后运行」与任务标签。
-- [ ] CT 工具条显示「层 i/n」滑块，拖动滑块与滚轮翻层后 `focus.index.z` 一致；视频显示「帧 i/n」与秒数；2D 图像无帧轴与窗宽窗位。
-- [ ] `GET /tasks` 响应不含 `tools`，`capabilities` 只含 `bbox` `polygon` `brush` `wall`，`actions` 与 §9.3 注册表取值一致；`GET /datasources` 的 `default_capabilities` 只含模式工具 id。
-- [ ] `ViewerChrome` 与 `StagePanel` 不直接引用 `CHROME_SEGMENTS`、`frameAxisFor`、`useTaskTools`，只消费 `useEditorChrome`。
-- [ ] 快捷键 v / r / p / b / w 在六类对象上的行为与 v1 一致（SDD 05 回归）；选中任一模式工具后按 `Esc`，`tool` 为 `cursor` 且未发起 `POST /task/run`。
+- [x] 通用图像、视频、CT、WSI、IMT、HC 六类对象上，`cursor` 标签均为「选择 / 平移」，`bbox` 均为「框标注」；同一工具 id 的图标与快捷键一致。——浏览器走查通用图像、视频、CT、WSI、IMT；六类由 `ViewerChrome.test` 覆盖
+- [x] 通用图像与视频的工具条无动作段；逐个点击工具条按钮，不存在无可见效果的按钮。——浏览器走查 + `ViewerChrome.test`、`editorChrome.test`
+- [x] 有任务对象的工具条右段有「重新运行」；WSI 未框选时该按钮禁用且 `title` 提示先框选。——浏览器走查（Focus 与 Workbench）+ `ViewerChrome.test`
+- [x] WSI「复现验证」位于工具条动作段，画布内无按钮；结果显示在读数条；切换到其他对象后结果消失。——浏览器走查按钮位置与不可用提示；成功写入、切走丢弃、失败清空由 `actions.test`、`ReadoutBar.test`、`editorChrome.test` 覆盖
+- [x] WSI 选中 `bbox` 时绘制提示含「松手后运行」与任务标签。——浏览器走查 + `ViewerChrome.test`
+- [x] CT 工具条显示「层 i/n」滑块，拖动滑块与滚轮翻层后 `focus.index.z` 一致；视频显示「帧 i/n」与秒数；2D 图像无帧轴与窗宽窗位。——浏览器走查（滑块与滚轮双向同步）+ `ViewerChrome.test`
+- [x] `GET /tasks` 响应不含 `tools`，`capabilities` 只含 `bbox` `polygon` `brush` `wall`，`actions` 与 §9.3 注册表取值一致；`GET /datasources` 的 `default_capabilities` 只含模式工具 id。——实测端点 + backend `test_api` / `test_objects`、science-core `test_tasks`
+- [x] `ViewerChrome` 与 `StagePanel` 不直接引用 `CHROME_SEGMENTS`、`frameAxisFor`、`useTaskTools`，只消费 `useEditorChrome`。——代码审阅；`CHROME_SEGMENTS` 与 `useTaskTools` 已删除
+- [x] 快捷键 v / r / p / b / w 在六类对象上的行为与 v1 一致（SDD 05 回归）；选中任一模式工具后按 `Esc`，`tool` 为 `cursor` 且未发起 `POST /task/run`。——`globalKeys.test` + 浏览器走查 WSI 上 `Esc`
+
+v1.1 自查（2026-09-27）：
+
+- 已完成：上述九项；门禁为 science-core `pytest` 213 项、backend `pytest` 499 项与 `ruff`、`check-modality-literals --strict`、frontend `lint`、`test` 362 项、`build`。
+- 未完成：无。
+- 无法在开发走查中验证：HC 任务对象与 WSI 复现验证成功路径。项目会话的文件栏只列项目目录，内置 HC 数据集与带 reference 的 `slide_001` 需在未归属会话中打开；两者由单元测试覆盖，留待业务验收人工确认。
 
 ## 16. 决策记录
 

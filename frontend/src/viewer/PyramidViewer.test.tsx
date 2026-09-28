@@ -75,6 +75,8 @@ describe("PyramidViewer", () => {
     h.createAnnotation.mockImplementation(async (input: { image_id: string; primitive: unknown }) => ({ id: "saved-1", ...input }));
     const { container } = render(<PyramidViewer {...props()} />);
     await waitFor(() => expect(h.viewer.open).toHaveBeenCalledOnce());
+    // SDD 04 D-24：引擎只渲染画布与画布内几何，复现验证在工具条动作段
+    expect(container.querySelector("button")).toBeNull();
     const overlay = container.querySelector(".wsi-annotation-overlay")!;
     fireEvent.pointerDown(overlay, { pointerId: 1, clientX: 10, clientY: 20 });
     fireEvent.pointerMove(overlay, { pointerId: 1, clientX: 70, clientY: 80 });

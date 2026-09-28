@@ -11,7 +11,7 @@ const IMT_TASK: TaskView = {
   label: { en: "IMT", zh: "IMT" },
   default_method: "caroSegDeep",
   metrics: [],
-  tools: [],
+  actions: ["rerun"],
   overlays: [],
   capabilities: ["bbox", "polygon", "brush"],
   on_commit: null,

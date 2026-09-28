@@ -29,7 +29,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 1. **六个跨层名词的定义权**：`ObjectMeta`、`Focus`、`Calibration`、`Region`、`ReferenceFrame`、`Index` 的字段、取值与三端同名镜像规则（见 §9）。
 2. **`ObjectKind` 与 `modality` 的分界**：`kind` 是几何族（引擎、解码与校验的分派键），`modality` 是数据集路由键，二者不得互相顶替（见 §7）。
 3. **三张后端表**：`SOURCES`（键 modality，数据轴）、`DETECTORS`（键 adapter_kind，动作轴）、`REGISTRY`（键 task，任务轴，只追加 `object_kinds` / `trigger` / `classes` 三个字段，不新增行）的职责切分。
-4. **四个前端注册面**：`ENGINES`（键 `ObjectKind`）、`PAINTERS`、`CHROME_SEGMENTS`、`registerTaskTool`，以及 runtime 的 `TOOL_PROVIDERS`。
+4. **三个前端注册面**：`ENGINES`（键 `ObjectKind`）、`PAINTERS`、`registerTaskTool`，以及 runtime 的 `TOOL_PROVIDERS`；编辑区选项段由对象与当前模式推导，不设注册面（[SDD 04](../04-unified-annotation-toolbox/README.md) §7.5）。
 5. **`/objects` 表征面**：`GET /objects/{id}`、`GET /objects/{id}/frame`、`GET /objects/{id}/raw`、`GET /objects/{id}/tiles/{level}/{col}/{row}`、`POST /objects/{id}/edits` 五个端点及其错误语义（见 §5、§13）。
 6. **两个动作的语义**：`openObject(id)` 与 `runTask(region?)`，含 `trigger = task?.trigger ?? "manual"` 的显式 no-task 契约（D-18）。
 7. **过渡物删除**：旧四字段、旧端点 alias 与 `ViewerContext` 旧字段映射已在 W7 清除（D-10），不得复活。
@@ -48,7 +48,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 - **不新建公共验证器端点**：不做 `POST /task/verify`，只把 `GET /wsi/{slide_id}/verify` 的实现收进 `Detector.verify`（见 §5.3）；复现验证的前端入口位置归 [SDD 04](../04-unified-annotation-toolbox/README.md) §7.5（工具条动作段）。
 - **不做实时视频播放、转码与流媒体**：第一版是逐帧 StackViewport，零新引擎。
 - **不定义视频理解的观测形状**：时间以秒寻址、长视频的分层导航、音画按时间区间同步交付、模型时序发现的记录原语，均不在本 SDD 范围。本 SDD 只负责把音轨**声明**出来并保留取流入口（D-23），消费形状另立 SDD 11「视频理解 harness」，见 §17。
-- **不把非模态插件纳入范围**：工作台、舞台、图谱、分割与测量工具的插件化与对象抽象正交，落点是 `edition.ts`、`ToolProvider`、`CHROME_SEGMENTS`，另立 SDD。
+- **不把非模态插件纳入范围**：工作台、舞台、图谱、分割与测量工具的插件化与对象抽象正交，落点是 `edition.ts`、`ToolProvider`、编辑区装配 `useEditorChrome`（SDD 04 §7.5），另立 SDD。
 - **不处理与模态无关的既有债**：net-guard SSRF、edition 门控本身、atlas 选择器、会话压缩不在本 SDD 范围。
 - **不重做文档摸排，也不把过程证据写进活文档**：grep 基线、git diff 零改清单、手工回归签字表一律进执行记录 record，本 SDD 正文只写最新结论。
 
@@ -455,7 +455,7 @@ flowchart LR
 | `frontend/src/components/focus/StagePanel.tsx` | 随 `CHROME_SEGMENTS` 与 `useTaskTools()` 调整装配，不改布局 | 扩展 |
 | `frontend/src/components/Editor.tsx` | 工具过滤白名单改读能力位 | 扩展 |
 | `frontend/src/components/iconMap.ts` | `TOOL_ICON` 改 `Partial`，`Tool` 放宽为 `string` | 扩展 |
-| `frontend/src/components/toolHint.ts` | 提示按 `TaskView.tools` 生成 | 扩展 |
+| `frontend/src/components/toolHint.ts` | 提示按 `TaskView.tools` 生成；SDD 04 v1.1 并入 `viewer/toolCatalog.ts` 后删除 | 扩展 |
 | `frontend/src/keys/globalKeys.ts` | `TOOL_KEYS` 随 `Tool` 放宽；`SHORTCUT_ROWS` 按当前 `TaskView.tools` 生成 | 扩展 |
 | `frontend/src/i18n/zh.ts`、`frontend/src/i18n/en.ts` | 删 `natural_images` 等逐模态键，抽 `useModalityLabel`；新增「查看器引擎尚未接入」 | 扩展 |
 | `frontend/src/agent/useConversation.ts` | `toViewerContext` 只产出 `{collection, task, method, object, focus}` | 重构 |
@@ -598,7 +598,7 @@ export interface ViewerProps { object: ObjectMeta; focus: Focus; task: TaskView 
 export const ENGINES: Partial<Record<ObjectKind, ComponentType<ViewerProps>>> = { image: FrameStackViewer, volume: FrameStackViewer, video: FrameStackViewer, slide: PyramidViewer };
 export const axisFor = (o: ObjectMeta): "z" | "t" | null => o.axes.find(a => a.name === "z" || a.name === "t")?.name ?? null;
 export const PAINTERS: Record<string, Painter>;
-export const CHROME_SEGMENTS: { id: string; Seg: ComponentType }[];               // 模式选项段 BrushSeg（按工具）+ 视图段 VoiSeg / FrameAxisSeg（按对象）；外壳经 useEditorChrome 消费（SDD 04 §7.5）
+export function useEditorChrome(): EditorChrome;                                    // 编辑区四类元素：模式 / 视图 / 动作 / 读数（SDD 04 §7.5）；外壳只负责布局
 export function registerTaskTool(name: string, ToolClass: unknown, activate: (tg: unknown) => void): void;
 
 // ---- agent-runtime ----
@@ -922,7 +922,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 - **[01-dual-mode-shell](../01-dual-mode-shell/README.md)**（`implemented`，**本 SDD 为上游**）：其 §8 的 Focus 模式示例卡文案改为领域中立措辞、以「对象」替代「图像」，`EXAMPLES` 仍是静态 i18n 键（动态生成属推迟项）。外壳结构、`uiMode`、栏宽与布局壳不在本 SDD 范围。注意 SDD 01 的「Focus 模式」是外壳形态，与本 SDD 的 `Focus` 类型同名不同物。
 - **[02-agent-image-annotation](../02-agent-image-annotation/README.md)**（`implemented`，**本 SDD 为上游，且需其反向修订**）：`ViewerContext` 收敛为五字段、新增观测通道（`fetchObservation` 经 `GET /objects/{id}/frame` 取图并回 `ReferenceFrame`）、`run_task` 工具透传 `calibration` / `region`、`propose_annotation` 携 `index`、身份措辞改「visual analysis harness」、新增 `ToolProvider` 与 `SegmenterPort` 注册面。其 D-9 与 §17 Q3 的「不需要视口元数据」立场随本 SDD 撤回；D-8「尺寸从 PNG/JPEG 字节头读」由 `X-Glaux-Frame` 的 `width`／`height` 取代；其 §12 details 表中 `glaux.annotation_proposed` 的 `z` 改为 `index`。
 - **[03-atlas](../03-atlas/README.md)**（`implemented`，**无调用关系，仅名字空间约束**）：`AtlasDescription.modality` 语义为成像方法，与本 SDD 的 `ObjectMeta.modality`（数据集路由键）、`ObjectKind`（几何族）三者不互换；runtime 侧用 `collection` 承接数据集键以避撞名。图谱的卡片载体与选择器逻辑不在本 SDD 范围。
-- **[04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)**（`implemented`，**互为上下游**）：画笔写契约（`MaskSink` 两实现 + `POST /objects/{id}/edits`）由**本 SDD 承载**，其 §7.4「CT brush 例外」在 W2 提交里同步改写为该契约的引用，与下列其余各项同待遇，不作为本 SDD 转 `ready` 的前置（D-6）。本 SDD 对其为**上游**：`Annotation.index` 语义定稿为 `volume`=z / `video`=t / `slide`=level，`_KINDS` 与存储迁移按 §9.5，`capabilities` 放宽为开放集并与 `CHROME_SEGMENTS` 对应，`Tool` 放宽为 `string`，任务专属工具经 `registerTaskTool` 注册且路径仍在 `frontend/src/viewer/`。其 §7.1 的「工具栏显示 = 引擎能力 ∩ 任务推荐」由 `ALWAYS = {cursor, reset}` 与 `TaskView.capabilities` 的并集取代，引擎级能力声明（`raster_2d`／`volume_3d`／`wsi` 三键）随 `capabilities` 开放集一并作废；其 §2 的「点标注为非目标」不变，本 SDD 只扩 `_KINDS` 的存储取值域。其「labelmap 是任务结果非标注」立场不变，`AnnotationIn.image_id` 字段名不改（D-8）；`GET /volume/{id}/labelmap` 作为任务结果字节面有意保留（见 §5.3）。
+- **[04-unified-annotation-toolbox](../04-unified-annotation-toolbox/README.md)**（`implemented`，**互为上下游**）：画笔写契约（`MaskSink` 两实现 + `POST /objects/{id}/edits`）由**本 SDD 承载**，其 §7.4「CT brush 例外」在 W2 提交里同步改写为该契约的引用，与下列其余各项同待遇，不作为本 SDD 转 `ready` 的前置（D-6）。本 SDD 对其为**上游**：`Annotation.index` 语义定稿为 `volume`=z / `video`=t / `slide`=level，`_KINDS` 与存储迁移按 §9.5，`capabilities` 的取值与编辑区装配以 SDD 04 §7.5、§9.3 为准，`Tool` 放宽为 `string`，任务专属工具经 `registerTaskTool` 注册且路径仍在 `frontend/src/viewer/`。其 §7.1 的「工具栏显示 = 引擎能力 ∩ 任务推荐」由 `ALWAYS = {cursor, reset}` 与 `TaskView.capabilities` 的并集取代，引擎级能力声明（`raster_2d`／`volume_3d`／`wsi` 三键）随 `capabilities` 开放集一并作废；其 §2 的「点标注为非目标」不变，本 SDD 只扩 `_KINDS` 的存储取值域。其「labelmap 是任务结果非标注」立场不变，`AnnotationIn.image_id` 字段名不改（D-8）；`GET /volume/{id}/labelmap` 作为任务结果字节面有意保留（见 §5.3）。
 - **[05-keyboard-shortcuts-a11y](../05-keyboard-shortcuts-a11y/README.md)**（`implemented`，**本 SDD 为上游**）：`TOOL_KEYS` 随 `Tool` 放宽为 `string`，`wall` 等任务专属键位由任务声明而非核心写死，`SHORTCUT_ROWS` 按当前 `TaskView.tools` 生成；其 §7 键位表需同提交更新。可达性规则本身不变。
 - **[06-icon-system](../06-icon-system/README.md)**（`implemented`，**本 SDD 为上游，影响面最小**）：`TOOL_ICON` 改为 `Partial` 映射以容纳开放集工具名；未登记图标的工具走既有兜底。`KIND_ICON` / `TAB_ICON` 与图标单一真相源的约定不变。
 - **[07-natural-image-sam-demo](../07-natural-image-sam-demo/README.md)**（`implemented`，**本 SDD 为上游**）：`natural_image` 由「特例模态」改述为「无 `TaskView` 的模态」，走 §13 的显式 no-task 契约与通用空态，能力位默认集见 §9.4；`SegmentationClient` 改为 `SegmenterPort` 的首个实现。逐条对照：其 §1 冻结的 Viewer Context 契约改指向本 SDD §9.1 的五字段 `ViewerContext`；§5.3／§9.3 的 `naturalImages`／`activeImage` 随 §9.1 的 `objects` + `focus` 作废；§7 规则 3「选择自然图像必须清空 `activeVolume`／`activeSlide`／ROI」由 §11.1 的「切对象即重置」取代；§7 规则 6 的 `raster_2d` 兜底由 D-11 的「`ENGINES` 缺键渲染空态」取代。
@@ -1015,7 +1015,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 #### J. 根本目标：第七个模态不必改核心
 
 - [ ] **新增一个 Source 的核心改动只有一行登记**：新建 `backend/app/dataset_<modality>.py`（Source 实现）、`backend/app/sources/__init__.py` 的 `_MODULES` 加一行，另加依赖文件 `backend/pyproject.toml` 与 `backend/uv.lock`（仅当引入新依赖）；`Modality` 放宽为 `str` 之前另需在 `schemas.py` 的 Literal 追加一值。以 `backend/app/dataset_video.py` 为实测样本，其余改动不含 `datasource_registry.py`、`config.py`、`caches.py`、`annotations/*`、`upload_store.py`、`routers/*`、`kernel.py`、`schemas.py`。
-- [ ] **前端零专属代码**：新模态在模态切换器出现、可打开、可滚动索引、可画标注，`git diff --name-only frontend/src` 除注册表一行（`ENGINES`/`PAINTERS`/`CHROME_SEGMENTS`，视是否需要新几何族）外无改动；`kind` 已有引擎时该行也不需要。
+- [ ] **前端零专属代码**：新模态在模态切换器出现、可打开、可滚动索引、可画标注，`git diff --name-only frontend/src` 除注册表一行（`ENGINES`/`PAINTERS`，视是否需要新几何族）外无改动；`kind` 已有引擎时该行也不需要。
 - [ ] **删源用例（D-14）**：从 `SOURCES` 删除任一 Source 后，三端均可启动、`make test` 中与该模态无关的用例全绿，且该模态同时从 `GET /datasources`、`GET /images?modality=`、模态切换器、上传魔数表四处消失，无残留分支。
 - [ ] **字面量门禁**：`make check-literals` 使用 `--strict`，在 `frontend/src`（除 `plugins/`）与 `backend/app`（除 `sources/`、`detectors/`）上命中数为 0，并在 `make test` 前置。
 - [ ] `Modality` / `TaskType` 放宽为 `str` 之后，上述门禁仍为 0（先清零再放宽，D-14）。

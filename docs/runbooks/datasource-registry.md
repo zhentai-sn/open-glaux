@@ -163,7 +163,7 @@ curl -s -X POST localhost:8000/projects/prj-1a2b3c4d/objects \
 - **完整可用**：浏览器上传通用图像（JPEG / PNG / TIFF）；WSI、CT 经项目打开或 `POST /datasources` 导入端到端（列表 / 浏览 / 跑任务 / 删除）。
 - **WSI 复现核验**：`GET /wsi/{id}/verify` 的参考文件只对内置示例源提供，导入源与项目源的切片返回 422。
 - **视频逐帧可用**：video 的上传 / 文件夹导入、列表（`GET /images?modality=video`，含音轨声明 `streams[]`）、
-  `GET /objects/{id}/frame?t=N` 取帧；前端按 `timeline` 能力位显示时间轴，可在当前帧画 bbox / polygon / 画笔，标注以 `index.t` 落库并按帧回显；agent 从同一焦点帧取观测。PyAV 是可选依赖：
+  `GET /objects/{id}/frame?t=N` 取帧；对象 `axes` 含 `t` 时前端显示时间轴，可在当前帧画 bbox / polygon / 画笔，标注以 `index.t` 落库并按帧回显；agent 从同一焦点帧取观测。PyAV 是可选依赖：
   `uv pip install -e ".[video]"`（`make install-backend` 已含），缺库时 video 模态不可用、其余模态不受影响。
 - **暂 config-rooted**：carotid（CUBS 需 images+CF+LIMA-Profiles 三子目录）、HC（真/合成路由）——
   仅作内置示例源出现，导入后续（见计划 §2）。

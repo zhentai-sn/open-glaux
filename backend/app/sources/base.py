@@ -162,11 +162,12 @@ def resources_for(object_id: str, *, raw: bool = False, tiles: bool = False) -> 
 
 #: 无 TaskPlugin 模态的能力位默认集，按 ``Source.kind`` 定表（SDD 10 §9.4）。只作兜底：
 #: 模态有 TaskPlugin 时整体取 ``TaskPlugin.capabilities``，两者永不合并。
+#: 取值只含模式工具（SDD 04 §7.5 规则 3）；帧轴与窗宽窗位由对象 ``axes`` / ``kind`` 推导。
 DEFAULT_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "image": ("bbox", "polygon"),
-    "volume": ("bbox", "polygon", "z_scroll"),
+    "volume": ("bbox", "polygon"),
     "slide": ("bbox", "polygon"),
-    "video": ("bbox", "polygon", "timeline", "brush"),
+    "video": ("bbox", "polygon", "brush"),
 }
 
 

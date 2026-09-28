@@ -66,14 +66,12 @@ def test_registry_covers_all_task_types():
         assert callable(plugin.measure)
 
 
-def test_task_tool_keys_are_declared_on_registry_tools():
+def test_registry_capabilities_and_actions_vocabulary():
+    """SDD 04 §9.3：能力位只含模式工具，动作只含 rerun / verify；工具显示元数据不随任务下发。"""
     for plugin in REGISTRY.values():
-        view = plugin_to_view(plugin)
-        keyed = {tool["id"]: tool["key"] for tool in view["tools"] if "key" in tool}
-        assert keyed["cursor"] == "v"
-        assert keyed["bbox"] == "r"
-        assert keyed["polygon"] == "p"
-        assert "key" not in next(tool for tool in view["tools"] if tool["id"] == "reset")
+        assert set(plugin.capabilities) <= {"bbox", "polygon", "brush", "wall"}, plugin.task
+        assert plugin.actions and set(plugin.actions) <= {"rerun", "verify"}, plugin.task
+        assert "tools" not in plugin_to_view(plugin)
 
 
 def test_task_for_signals_routes():
@@ -134,11 +132,10 @@ def test_plugin_to_view_is_json_native_without_callable():
     assert view["adapter_kind"] == "wall_pair"
     assert view["modality"] == "carotid_imt"
     assert [m["key"] for m in view["metrics"]] == ["IMT_mean", "IMT_max", "IMT_pdm"]
-    # wall 是 IMT 专属的壁线形变工具；polygon 归自由多边形，两者不再共用一个工具位
-    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "wall", "brush", "reset"}
     assert view["overlays"][0] == {"role": "LI", "color": "#4FB0FF", "editable": True}
-    # SDD 04：能力位与钩子随 view 下发
+    # SDD 04：能力位、动作与钩子随 view 下发；wall 是 IMT 专属的壁线形变工具
     assert view["capabilities"] == ["bbox", "polygon", "brush", "wall"]
+    assert view["actions"] == ["rerun"]
     assert view["on_commit"] is None
     assert "measure" not in view  # 不下发可调用
     json.dumps(view)  # JSON-native
@@ -156,9 +153,9 @@ def test_plugin_to_view_totalseg_liver_kidney():
         "rk_volume_mm3", "rk_hu_mean",
     }
     assert {m["key"] for m in view["metrics"]} == expected_keys
-    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "brush", "reset"}
-    # SDD 10：CT 追加 voi / z_scroll 能力位
-    assert view["capabilities"] == ["bbox", "polygon", "brush", "voi", "z_scroll"]
+    # SDD 04 D-23：窗宽窗位与层滑块由对象推导，不进能力位
+    assert view["capabilities"] == ["bbox", "polygon", "brush"]
+    assert view["actions"] == ["rerun"]
     assert view["on_commit"] is None
     roles = {o["role"] for o in view["overlays"]}
     assert roles == {"liver", "lk", "rk"}
@@ -186,10 +183,9 @@ def test_plugin_to_view_nuclei_detection():
     assert {m["key"] for m in view["metrics"]} == {
         "nuclei_count", "nuclei_density_mm2", "roi_area_mm2",
     }
-    assert {t["id"] for t in view["tools"]} == {"cursor", "bbox", "polygon", "reset"}
-    # SDD 04：wsi 无 brush 能力位；bbox 落库后触发核检测
-    # SDD 10：WSI 追加 verify 能力位
-    assert view["capabilities"] == ["bbox", "polygon", "verify"]
+    # SDD 04：wsi 无 brush 能力位；bbox 落库后触发核检测；复现验证是任务动作
+    assert view["capabilities"] == ["bbox", "polygon"]
+    assert view["actions"] == ["rerun", "verify"]
     assert view["on_commit"] == {"bbox": {"action": "run_task"}}
     assert {o["role"] for o in view["overlays"]} == {"nucleus"}
     assert view["overlays"][0]["editable"] is False  # v0 无核编辑

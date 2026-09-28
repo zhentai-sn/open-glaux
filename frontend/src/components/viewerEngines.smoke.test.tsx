@@ -239,7 +239,8 @@ function task(modality: string, viewer: string): TaskView {
     default_method: "test-model",
     modality,
     viewer,
-    capabilities: ["bbox", "polygon", "brush", ...(modality === "ct_abdomen" ? ["voi"] : [])],
+    capabilities: ["bbox", "polygon", "brush"], // 窗宽窗位由对象 kind=volume 推导，不经能力位（SDD 04 D-23）
+    actions: ["rerun"],
     overlays: [],
     ...taskFields(modality),
   } as unknown as TaskView;
@@ -475,7 +476,7 @@ describe("FrameStackViewer（video）接线冒烟", () => {
     useSession.setState({
       modality: "video",
       tasks: [],
-      datasources: [{ id: object.source_id, name: "Video", modality: "video", root: "", origin: "imported", calibration: {}, status: "active", ...dsFields("video"), default_capabilities: ["bbox", "polygon", "timeline", "brush"] }],
+      datasources: [{ id: object.source_id, name: "Video", modality: "video", root: "", origin: "imported", calibration: {}, status: "active", ...dsFields("video"), default_capabilities: ["bbox", "polygon", "brush"] }],
     });
     focusOn(object);
     act(() => useSession.getState().setIndex({ t: 0 }));

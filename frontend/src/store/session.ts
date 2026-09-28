@@ -223,6 +223,13 @@ export const TOOL_OPTIONS_DEFAULTS: ToolOptions = {
   voi: { ww: 400, wl: 40 }, // CT 腹部软组织窗（与 nifti loader 默认一致）
 };
 
+/** SDD 04 §9.3：WSI 复现验证结果（`GET /wsi/{slide_id}/verify`）。 */
+export interface Verification {
+  f1: number;
+  count_pred: number;
+  count_ref: number;
+}
+
 /**
  * 查看器侧的一条即时提示（错误 / 提示）——单槽，最新覆盖最旧，由 <Notice/> 在两种外壳里渲染。
  * 取代已退役的旧聊天状态 `messages/pushAgent`（那条通道自 SDD 01 起无 UI 渲染，错误会静默丢失）。
@@ -272,6 +279,7 @@ interface SessionState {
   source: Source; // 当前叠加来源（agent 模型产出 / human 人工修正）
   modelVersion: string; // 当前结果的模型版本（供卡片/输出栏展示）
   loading: boolean; // 分割/测量进行中
+  verification: Verification | null; // SDD 04 §7.5 规则 7：焦点对象的复现验证结果；切换对象即清空
   coords: { x: number; y: number } & Index; // 画布光标坐标 + 当前索引（状态栏读出）
 
   // VLM 连接（智能体连接配置）
@@ -318,6 +326,7 @@ interface SessionState {
   setSource: (s: Source) => void;
   setModelVersion: (v: string) => void;
   setLoading: (v: boolean) => void;
+  setVerification: (v: Verification | null) => void;
   setCoords: (x: number, y: number, index?: Index) => void;
   setConnection: (patch: Partial<Connection>) => void;
   setComposerDraft: (v: string) => void;
@@ -393,6 +402,7 @@ export const useSession = create<SessionState>((set) => ({
   source: "agent",
   modelVersion: "",
   loading: false,
+  verification: null,
   coords: { x: 0, y: 0 },
 
   connection: loadConnection(),
@@ -465,8 +475,11 @@ export const useSession = create<SessionState>((set) => ({
     })),
   // SDD 14 §7.3 规则 8：设置新的非空焦点即打开了视觉对象，文档视图随之关闭。
   // 置 null 不清：restoreWorkspace 在焦点对象失效时 setFocus(null)，不能误清刚恢复的文档。
+  // SDD 04 §7.5 规则 10：换了对象，复现验证结果随之清空。
   setFocus: (f) =>
-    set((s) => (f && f.object_id !== s.focus?.object_id ? { focus: f, document: null } : { focus: f })),
+    set((s) =>
+      f && f.object_id !== s.focus?.object_id ? { focus: f, document: null, verification: null } : { focus: f },
+    ),
   setDocument: (d) => set({ document: d }),
   setDocumentError: (e) => set({ documentError: e }),
   setDocumentLoading: (v) => set({ documentLoading: v }),
@@ -483,6 +496,7 @@ export const useSession = create<SessionState>((set) => ({
   setSource: (v) => set({ source: v }),
   setModelVersion: (v) => set({ modelVersion: v }),
   setLoading: (v) => set({ loading: v }),
+  setVerification: (v) => set({ verification: v }),
   setCoords: (x, y, index) => set({ coords: { x, y, ...(index ?? {}) } }),
   setConnection: (patch) =>
     set((s) => {

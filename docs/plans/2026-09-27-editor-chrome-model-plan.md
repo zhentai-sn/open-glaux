@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 04 v1.1 编辑区四类模型 · 实施计划
@@ -136,3 +136,10 @@ W1 与 W2 改动分属不同目录，可并行；W3 在 W2 之后。W1～W3 同�
 | 删除 `TOOL_ICON` 影响其他图标引用 | 以 `tsc -b` 报错为准逐处改读 `TOOL_CATALOG` |
 | 紧凑模式在动作段加入后更早触发 | 走查时在 Focus 默认栏宽下检查 CT（选项最多）是否只留图标；若回归，按 SDD 01 §8 的截断顺序先截提示 |
 | `global.css` 有无关未提交改动 | 提交时按变更块暂存，只带本计划的样式改动 |
+
+## 实施偏差
+
+- 图标：`TOOL_ICON` 保留在 `components/iconMap.ts`，新增 `ACTION_ICON`；工具目录只含标签、键位、提示。原因：SDD 06 规定 `iconMap.ts` 是图标单一来源。
+- 动作段：`EditorActions` 直接返回按钮片段，不包 `div`，使 `useCompactToolbar` 按 `.focus-tool` 计宽，避免紧凑态来回切换；按钮带 `aria-label`，不可执行原因只放 `title`。
+- Workbench：沿用画布浮层布局，模式与动作在右上工具块（分隔线隔开），提示与选项段在顶部居中块；已写入 SDD 04 §7.5 规则 9。
+- 浏览器走查：另起 backend 8027 与 frontend 5198（`.claude/launch.json` 的 `backend-sdd04v11` / `frontend-sdd04v11`），不影响本机常驻的 8000 / 5173。HC 任务对象与复现验证成功路径在项目会话中不可达，由单元测试覆盖（SDD 04 §15 v1.1 自查）。

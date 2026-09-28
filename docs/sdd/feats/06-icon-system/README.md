@@ -13,7 +13,7 @@ status: implemented
 | 当前阶段 | 已实现并通过开发验证（66 前端测试含 4 项 Icon 用例；包体 gzip +6.7KB）；待业务验收回 accepted |
 | 关联主 SDD | [前端设计纲领 G7/G11/G12](../../../designs/frontend-design-charter.zh-CN.md) · [前端品质提升路线图](../../../roadmaps/20260818-frontend-quality-roadmap.zh-CN.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-08-19 |
+| 最后更新 | 2026-09-27 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -48,7 +48,7 @@ status: implemented
 
 | 输入 | 说明 |
 | --- | --- |
-| 领域数据 | `tool.id`（cursor/bbox/polygon/brush/reset，SDD 04 统一工具集）、`capability.kind`（skill/model/dataset/…）、`FocusRightView`（stage/files/atlas）等——映射为图标名的键 |
+| 领域数据 | `tool.id`（cursor/bbox/polygon/brush/wall，SDD 04 模式工具）、`TaskAction`（rerun/verify，SDD 04 任务动作）、`capability.kind`（skill/model/dataset/…）、`FocusRightView`（stage/files/atlas）等——映射为图标名的键 |
 | 图标库 | 选定库（推荐 `lucide-react`，见 §16 D-1）提供的 SVG 图标组件集 |
 | 设计 token | 新增 `--icon-sm/md/lg` 尺寸阶（见 §9） |
 
@@ -57,7 +57,7 @@ status: implemented
 | 输出 | 约束 |
 | --- | --- |
 | `Icon` 组件渲染 | 输出 `<svg>`，`width/height` = token，`stroke/fill` = `currentColor`；`aria-hidden` 或 `aria-label` |
-| 概念映射表 | `TOOL_ICON` / `KIND_ICON` / `TAB_ICON` / 通用 `ICONS` 常量——单一真相源 |
+| 概念映射表 | `TOOL_ICON` / `ACTION_ICON` / `KIND_ICON` / `TAB_ICON` / 通用 `ICONS` 常量——单一真相源 |
 | 无后端输出、无接口变更、无事件 | 纯前端呈现层 |
 
 ## 6. 核心流程

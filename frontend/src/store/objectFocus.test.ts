@@ -34,7 +34,7 @@ function task(t: TaskView["task"], modality: Modality): TaskView {
     label: { en: t, zh: t },
     default_method: "",
     metrics: [],
-    tools: [],
+    actions: ["rerun"],
     overlays: [],
     capabilities: [],
     on_commit: null,
