@@ -146,7 +146,7 @@ open-glaux/
 | 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点；`FileCard` 渲染 `read_file` 结果（`glaux.file_read`），点「在舞台打开」预览该文件 |
 | 会话列表 | `components/agent/SessionDrawer.tsx` 按项目分组（分组逻辑在 `sessionGroups.ts`）：项目组、「未归属」组、「<项目名>（已移除）」只读组；会话行状态点（运行中、未读、出错）；Focus 的 `SessionRail` 与 Workbench 共用。`ProjectChip` 在输入区上方显示当前会话项目，空会话可切项目；`FolderPicker` 浏览后端文件系统（`/fs/roots`、`/fs/dirs`）并登记项目 |
 | 文件栏 | 项目会话显示 `components/ProjectTree.tsx` 目录树：展开一层列一层，点击文件经 `POST /projects/{id}/objects` 按需登记后 `openObject`，无候选模态的文件点击后以文本预览：`components/DocumentView.tsx` 覆盖在舞台（Focus）或编辑区（Workbench）之上，查看器保持挂载，Markdown 用 `react-markdown` 渲染，其余文本用懒加载的 CodeMirror 6 只读视图（`components/CodeView.tsx`），读取 `GET /projects/{id}/text`（SDD 14）；根下虚拟节点「上传」列本项目上传源；未归属会话保持模态切换器 + `ExplorerTree`，只列 `project_id` 为空的数据源（SDD 13 §7.8） |
-| 图谱（Atlas） | `components/atlas/`：列表 / 详情 / 导入向导（PDF · 网页 · 手动上传，ROI 框选，外发协议勾选）；描述生成走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
+| 图谱（Atlas） | `components/atlas/`：上传入口（图片 · PDF · 网页，上传即入库）、生成描述确认条、列表（多选批量操作）/ 详情（字段编辑、重新框选、添加区域、外发协议勾选）；描述生成经用户确认后走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
 | 国际化 | 中/英双语（`src/i18n/`） |
 | 安全 | 自定义 Vite 插件向 index.html 注入 CSP meta（开发放行 HMR 所需 inline，生产收紧 script-src 'self'） |
 

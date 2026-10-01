@@ -1,14 +1,14 @@
 """Atlas · 图谱 REST（SDD 03 §5.2；前缀 ``/atlas``）。
 
-- 导入暂存：``POST /imports/pdf`` · ``POST /imports/url`` · ``GET /imports/{id}`` ·
-  ``GET /imports/{id}/figures/{n}``（PNG）· ``DELETE /imports/{id}``
-- 案例：``POST /exemplars``（批量创建，幂等）· ``GET /exemplars`` · ``GET /exemplars/search`` ·
-  ``GET /exemplars/{id}`` · ``GET /exemplars/{id}/image|crop`` ·
+- 上传即入库：``POST /uploads``（multipart）· ``POST /uploads/url``
+- 案例：``POST /exemplars``（批量创建，幂等；CLI 与测试用）· ``GET /exemplars`` ·
+  ``GET /exemplars/search`` · ``GET /exemplars/{id}`` · ``GET /exemplars/{id}/image|crop`` ·
+  ``PATCH /exemplars/{id}`` · ``POST /exemplars/{id}/regions`` ·
   ``PUT /exemplars/{id}/description`` · ``POST /exemplars/{id}/retire|restore`` ·
   ``DELETE /exemplars/{id}`` · ``POST /exemplars/referenced``
-- ``GET /tags``（频次，供导入联想）
+- ``GET /tags``（频次，供编辑联想）· ``GET /collections``
 
-错误码 → HTTP：NOT_FOUND 404 · CONSENT_REQUIRED/TAGS_REQUIRED/BAD_* 422 · REFERENCED 409 ·
+错误码 → HTTP：NOT_FOUND 404 · CONSENT_REQUIRED/BAD_* 422 · REFERENCED 409 · UPLOAD_TOO_LARGE 413 ·
 NO_FIGURES_FOUND 422 · FETCH_BLOCKED 400 · FETCH_FAILED 502 · Atlas 不可用 503。
 """
 
@@ -17,11 +17,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from ..atlas import service
-from ..atlas.importer import ExemplarInput
+from ..atlas.importer import ExemplarInput, UploadResult
+from ..atlas.importer import UploadFile as AtlasUpload
 from ..atlas.parse_pdf import NoFiguresFound
 from ..atlas.parse_web import FetchBlocked, FetchFailed
 from ..atlas.store import AtlasError
@@ -32,15 +33,18 @@ router = APIRouter(prefix="/atlas", tags=["atlas"])
 _HTTP_BY_CODE = {
     "NOT_FOUND": 404,
     "REFERENCED": 409,
+    "UPLOAD_TOO_LARGE": 413,
     "CONSENT_REQUIRED": 422,
-    "TAGS_REQUIRED": 422,
     "BAD_EGRESS": 422,
+    "BAD_FIELD": 422,
     "BAD_ROI": 422,
     "BAD_IMAGE": 422,
     "NO_FIGURES_FOUND": 422,
     "FETCH_BLOCKED": 400,
     "FETCH_FAILED": 502,
 }
+
+SourceTypeLit = Literal["upload", "textbook", "web", "dataset"]
 
 
 def _err(code: str, msg: str) -> HTTPException:
@@ -62,39 +66,40 @@ def _svc():
 # --- 模型 ---------------------------------------------------------------------
 
 
-class ImportUrlRequest(BaseModel):
+class UploadUrlRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2048)
+    collection: str | None = None
 
 
-class StagedFigureOut(BaseModel):
-    index: int
-    width: int
-    height: int
-    caption: str
-    nearby: list[str]
-    locator: dict[str, Any]
+class UploadItemOut(BaseModel):
+    exemplar_id: str
+    created: bool
+    file: str
 
 
-class ImportSessionOut(BaseModel):
-    import_id: str
-    source_type: str
-    origin: dict[str, Any]
-    figures: list[StagedFigureOut]
+class UploadErrorOut(BaseModel):
+    file: str
+    code: str
+    message: str
+
+
+class UploadOut(BaseModel):
+    batch_id: str
+    items: list[UploadItemOut]
+    errors: list[UploadErrorOut]
 
 
 class ExemplarIn(BaseModel):
     roi: tuple[int, int, int, int]
-    tags: list[str] = Field(min_length=1)
-    source_type: Literal["textbook", "web", "dataset"]
+    tags: list[str] = Field(default_factory=list)
+    source_type: SourceTypeLit
     source: dict[str, Any]
     egress: Literal["shareable", "local-only"] = "local-only"
     egress_consent: dict[str, Any] | None = None
     caption: str | None = None
     notes: str | None = None
     geometry: list[list[float]] | None = None
-    import_id: str | None = None
-    figure_index: int | None = None
-    image_base64: str | None = None
+    image_base64: str = Field(min_length=1)
     collection: str | None = None
 
 
@@ -106,6 +111,24 @@ class CreateExemplarsRequest(BaseModel):
 class CreateResult(BaseModel):
     exemplar_id: str
     created: bool
+
+
+class PatchIn(BaseModel):
+    """字段子集（未出现的字段不改）；``reviewed`` 只接受 true（§7.8 第 4 条：不可回退）。"""
+
+    roi: tuple[int, int, int, int] | None = None
+    tags: list[str] | None = None
+    caption: str | None = None
+    notes: str | None = None
+    source: dict[str, Any] | None = None
+    collection: str | None = None
+    egress: Literal["shareable", "local-only"] | None = None
+    egress_consent: dict[str, Any] | None = None
+    reviewed: Literal[True] | None = None
+
+
+class RegionIn(BaseModel):
+    roi: tuple[int, int, int, int]
 
 
 class DescriptionIn(BaseModel):
@@ -129,80 +152,38 @@ class CollectionCount(BaseModel):
     count: int
 
 
-class CollectionIn(BaseModel):
-    collection: str | None = None
+# --- 上传即入库 ------------------------------------------------------------------
 
 
-# --- 导入暂存 ------------------------------------------------------------------
-
-
-def _sess_out(sess) -> ImportSessionOut:
-    return ImportSessionOut(
-        import_id=sess.import_id,
-        source_type=sess.source_type,
-        origin=sess.origin,
-        figures=[
-            StagedFigureOut(
-                index=f.index,
-                width=f.width,
-                height=f.height,
-                caption=f.caption,
-                nearby=f.nearby,
-                locator=f.locator,
-            )
-            for f in sess.figures
-        ],
+def _upload_out(res: UploadResult) -> UploadOut:
+    return UploadOut(
+        batch_id=res.batch_id,
+        items=[UploadItemOut(**it) for it in res.items],
+        errors=[UploadErrorOut(**e) for e in res.errors],
     )
 
 
-@router.post("/imports/pdf", response_model=ImportSessionOut)
-async def import_pdf(file: UploadFile = File(...)) -> ImportSessionOut:
+@router.post("/uploads", response_model=UploadOut)
+async def upload_files(
+    files: list[UploadFile] = File(...), collection: str | None = Form(default=None)
+) -> UploadOut:
     svc = _svc()
-    data = await file.read()
-    if not data:
-        raise _err("BAD_IMAGE", "空文件")
+    payload = [AtlasUpload(f.filename or "upload", await f.read()) for f in files]
     try:
-        return _sess_out(svc.importer.stage_pdf(data, file.filename or "upload.pdf"))
-    except NoFiguresFound as exc:
-        raise _err(exc.code, str(exc)) from exc
-
-
-@router.post("/imports/url", response_model=ImportSessionOut)
-def import_url(req: ImportUrlRequest) -> ImportSessionOut:
-    svc = _svc()
-    try:
-        return _sess_out(svc.importer.stage_url(req.url))
-    except FetchBlocked as exc:
-        raise _err(exc.code, str(exc)) from exc
-    except FetchFailed as exc:
-        raise _err(exc.code, str(exc)) from exc
-    except NoFiguresFound as exc:
-        raise _err(exc.code, str(exc)) from exc
-
-
-@router.get("/imports/{import_id}", response_model=ImportSessionOut)
-def get_import(import_id: str) -> ImportSessionOut:
-    svc = _svc()
-    try:
-        return _sess_out(svc.importer.load_session(import_id))
+        return _upload_out(svc.importer.upload_files(payload, collection=collection))
     except AtlasError as exc:
         raise _err(exc.code, str(exc)) from exc
 
 
-@router.get("/imports/{import_id}/figures/{index}")
-def get_import_figure(import_id: str, index: int) -> Response:
+@router.post("/uploads/url", response_model=UploadOut)
+def upload_url(req: UploadUrlRequest) -> UploadOut:
     svc = _svc()
     try:
-        return Response(content=svc.importer.staged_png(import_id, index), media_type="image/png")
+        return _upload_out(svc.importer.upload_url(req.url, collection=req.collection))
+    except (FetchBlocked, FetchFailed, NoFiguresFound) as exc:
+        raise _err(exc.code, str(exc)) from exc
     except AtlasError as exc:
         raise _err(exc.code, str(exc)) from exc
-
-
-@router.delete("/imports/{import_id}")
-def delete_import(import_id: str) -> dict:
-    svc = _svc()
-    svc.importer.discard_session(import_id)
-    return {"ok": True}
 
 
 # --- 案例 ---------------------------------------------------------------------
@@ -222,10 +203,9 @@ def create_exemplars(req: CreateExemplarsRequest) -> list[CreateResult]:
             caption=it.caption,
             notes=it.notes,
             geometry=it.geometry,
-            import_id=it.import_id,
-            figure_index=it.figure_index,
             image_base64=it.image_base64,
             collection=it.collection,
+            reviewed=True,  # 字段由调用方显式给出（SDD 03 §9 reviewed）
         )
         for it in req.items
     ]
@@ -240,9 +220,11 @@ def create_exemplars(req: CreateExemplarsRequest) -> list[CreateResult]:
 def list_exemplars(
     status: Literal["active", "retired", "all"] = "active",
     tags: list[str] | None = Query(default=None),
-    source_type: Literal["textbook", "web", "dataset"] | None = None,
+    source_type: SourceTypeLit | None = None,
     collection: str | None = None,
     collection_exact: bool = False,
+    describe_status: Literal["done", "pending", "skipped"] | None = None,
+    reviewed: bool | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
@@ -256,6 +238,8 @@ def list_exemplars(
             source_type=source_type,
             collection=collection,
             collection_exact=collection_exact,
+            describe_status=describe_status,
+            reviewed=reviewed,
             limit=limit,
             offset=offset,
         )
@@ -291,15 +275,6 @@ def collections(status: Literal["active", "retired", "all"] = "active") -> list[
     ]
 
 
-@router.put("/exemplars/{exemplar_id}/collection")
-def put_collection(exemplar_id: str, body: CollectionIn) -> dict:
-    svc = _svc()
-    try:
-        return svc.store.set_collection(exemplar_id, body.collection).to_dict()
-    except AtlasError as exc:
-        raise _err(exc.code, str(exc)) from exc
-
-
 @router.get("/tags", response_model=list[TagCount])
 def tags(status: Literal["active", "retired", "all"] = "active") -> list[TagCount]:
     svc = _svc()
@@ -314,6 +289,30 @@ def get_exemplar(exemplar_id: str) -> dict:
     if ex is None:
         raise _err("NOT_FOUND", exemplar_id)
     return ex.to_dict()
+
+
+@router.patch("/exemplars/{exemplar_id}")
+def patch_exemplar(exemplar_id: str, body: PatchIn) -> dict:
+    """改字段子集并置已确认（SDD 03 §7.8 第 4、5 条）；改 ROI 时重裁并让描述回到 pending。"""
+    svc = _svc()
+    changes = body.model_dump(exclude_unset=True)
+    changes.pop("reviewed", None)
+    roi = changes.pop("roi", None)
+    try:
+        if roi is not None:
+            svc.importer.set_roi(exemplar_id, roi)
+        return svc.store.update(exemplar_id, changes).to_dict()
+    except AtlasError as exc:
+        raise _err(exc.code, str(exc)) from exc
+
+
+@router.post("/exemplars/{exemplar_id}/regions", response_model=CreateResult)
+def add_region(exemplar_id: str, body: RegionIn) -> CreateResult:
+    svc = _svc()
+    try:
+        return CreateResult(**svc.importer.add_region(exemplar_id, body.roi))
+    except AtlasError as exc:
+        raise _err(exc.code, str(exc)) from exc
 
 
 def _png_of(exemplar_id: str, which: Literal["image", "crop"]) -> Response:

@@ -8,7 +8,9 @@
   取出时反序列化——LanceDB 对 struct 列的过滤/更新支持有限，JSON 列最稳且 schema 演进零迁移。
 - 检索文本合成为 ``search_text`` 列并建 FTS(ngram) 索引；写入后新行无需重建索引即可被检索
   （开工前已核实）；``optimize()`` 由调用方按批次触发以合并索引。
-- 幂等键 ``dedupe_key = sha256(source_type | canonical(source) | image_sha256 | roi)``。
+- 幂等键 ``dedupe_key = sha256(source_type | canonical(source) | image_sha256 | roi)``，创建时固定；
+  入库后改 ROI / 来源不重算（SDD 03 §10）。
+- ROI 一律 ``[x, y, w, h]``（图像像素，左上原点）。
 """
 
 from __future__ import annotations
@@ -25,13 +27,19 @@ from typing import Any, Literal
 
 import pyarrow as pa
 
-from .text import build_search_text, normalize_collection, normalize_tag, normalize_tags
+from .text import (
+    auto_tags,
+    build_search_text,
+    normalize_collection,
+    normalize_tag,
+    normalize_tags,
+)
 
 log = logging.getLogger("glaux.atlas")
 
 Egress = Literal["shareable", "local-only"]
 Status = Literal["active", "retired"]
-SourceType = Literal["textbook", "web", "dataset"]
+SourceType = Literal["upload", "textbook", "web", "dataset"]
 DescribeStatus = Literal["done", "pending", "skipped"]
 
 SEARCH_LIMIT_DEFAULT = 10
@@ -61,11 +69,20 @@ _EXEMPLARS_SCHEMA = pa.schema(
         ("import_batch_id", pa.string()),
         ("collection", pa.string()),
         ("collection_key", pa.string()),
+        ("reviewed", pa.bool_()),
     ]
 )
 
-# v1.1 追加的列（旧库 open 时补列，缺省空串 = 根目录）
-_ADDED_COLUMNS: dict[str, str] = {"collection": "''", "collection_key": "''"}
+# 旧库 open 时补列（值为 SQL 表达式）：v1.1 图册缺省空串 = 根目录；v2.0 ``reviewed`` 缺省 true
+# （v1 案例均经人工框选与填标签，SDD 03 §9）
+_ADDED_COLUMNS: dict[str, str] = {"collection": "''", "collection_key": "''", "reviewed": "true"}
+
+# ``PATCH`` 可改的字段（SDD 03 §5.2）；
+# ``roi`` / ``crop_ref`` / ``describe_status`` 只由 importer 改 ROI 时写入
+EDITABLE_FIELDS = frozenset(
+    {"tags", "caption", "notes", "source", "collection", "egress", "egress_consent"}
+)
+_ROI_FIELDS = frozenset({"roi", "crop_ref", "describe_status"})
 
 _REFS_SCHEMA = pa.schema(
     [
@@ -104,6 +121,7 @@ class NewExemplar:
     egress: Egress = "local-only"
     egress_consent: Mapping[str, Any] | None = None
     collection: str | None = None  # 图册路径原文（v1.1）；None/"" = 根目录
+    reviewed: bool = False  # 页面上传为 False；CLI 数据集导入与追加区域为 True（§7.8）
 
 
 @dataclass
@@ -129,6 +147,7 @@ class Exemplar:
     import_batch_id: str
     collection: str = ""  # 图册路径原文（v1.1）
     collection_key: str = ""  # 归一键
+    reviewed: bool = True  # 人工修改或确认过（v2.0）
     score: float | None = None  # 仅 search 结果携带
     matched_tags: list[str] = field(default_factory=list)  # 仅 search 结果携带
 
@@ -186,6 +205,7 @@ def _row_to_exemplar(r: Mapping[str, Any]) -> Exemplar:
         import_batch_id=r["import_batch_id"],
         collection=r.get("collection") or "",
         collection_key=r.get("collection_key") or "",
+        reviewed=bool(r["reviewed"]) if r.get("reviewed") is not None else True,
         score=float(r["_score"]) if r.get("_score") is not None else None,
     )
 
@@ -216,6 +236,7 @@ class AtlasStore:
         self._exemplars = None
         self._refs = None
         self._fts_ready = False
+        self.legacy_xyxy_rois = False
 
     # --- 生命周期 -------------------------------------------------------------
 
@@ -240,12 +261,17 @@ class AtlasStore:
         return self
 
     def _migrate_columns(self) -> None:
-        """旧库补列（v1.1 ``collection``）：缺列则 ``add_columns`` 填空串，不重建表。"""
+        """旧库补列（v1.1 ``collection``、v2.0 ``reviewed``）：``add_columns`` 填缺省值，不重建表。
+
+        补 ``reviewed`` 即说明这是 v1 库：置 :attr:`legacy_xyxy_rois`，由
+        :meth:`Importer.migrate_legacy_rois` 换算 v1 向导写入的 ROI（需要图像目录，不在本类做）。
+        """
         have = set(self.exemplars.schema.names)
         missing = {k: v for k, v in _ADDED_COLUMNS.items() if k not in have}
         if missing:
             self.exemplars.add_columns(missing)
             log.info("Atlas exemplars 表补列：%s", ", ".join(missing))
+        self.legacy_xyxy_rois = "reviewed" in missing
 
     @property
     def exemplars(self):
@@ -308,9 +334,7 @@ class AtlasStore:
                 raise AtlasError("CONSENT_REQUIRED", "egress=shareable 必须附带 egress_consent")
             if it.egress not in ("shareable", "local-only"):
                 raise AtlasError("BAD_EGRESS", f"非法 egress: {it.egress}")
-            tags, tags_raw = normalize_tags(it.tags)
-            if not tags:
-                raise AtlasError("TAGS_REQUIRED", "至少一个非空标签")
+            tags, tags_raw = normalize_tags(it.tags)  # 可为空：上传后由描述补齐（§7.8）
             key = dedupe_key(it.source_type, it.source, it.image_sha256, it.roi)
             existing = self._find_by_dedupe(key)
             if existing:
@@ -345,6 +369,7 @@ class AtlasStore:
                     "import_batch_id": it.import_batch_id,
                     "collection": coll,
                     "collection_key": coll_key,
+                    "reviewed": bool(it.reviewed),
                 }
             )
             out.append((eid, True))
@@ -366,27 +391,83 @@ class AtlasStore:
     def set_description(
         self, exemplar_id: str, description: Mapping[str, Any] | None, status: DescribeStatus
     ) -> None:
+        """写描述。未确认案例（``reviewed=False``）同时按描述补标签与空图注（SDD 03 §7.8 第 3 条）；
+        已确认案例只写描述，不动用户内容。
+        """
         cur = self.get(exemplar_id)
         if cur is None:
             raise AtlasError("NOT_FOUND", exemplar_id)
-        self.exemplars.update(
-            where=f"exemplar_id = {_q(exemplar_id)}",
-            values={
-                "description_json": _canonical(description) if description else "",
-                "describe_status": status,
-                "search_text": build_search_text(cur.caption, description, cur.notes),
-            },
-        )
+        caption = cur.caption
+        values: dict[str, Any] = {
+            "description_json": _canonical(description) if description else "",
+            "describe_status": status,
+        }
+        if description and not cur.reviewed:
+            tags, tags_raw = normalize_tags(auto_tags(description))
+            if tags:
+                values["tags"], values["tags_raw"] = tags, tags_raw
+            summary = description.get("summary")
+            if not caption and isinstance(summary, str) and summary.strip():
+                caption = summary.strip()
+                values["caption"] = caption
+        values["search_text"] = build_search_text(caption, description, cur.notes)
+        self.exemplars.update(where=f"exemplar_id = {_q(exemplar_id)}", values=values)
 
-    def set_collection(self, exemplar_id: str, collection: str | None) -> Exemplar:
-        """移动到图册（v1.1）：只改路径列，不动 id / 幂等键 / 引用记录。"""
-        if self.get(exemplar_id) is None:
+    def update(
+        self, exemplar_id: str, changes: Mapping[str, Any], *, review: bool = True
+    ) -> Exemplar:
+        """改字段子集（SDD 03 §5.2 ``PATCH``、§7.8 第 4 条）。
+
+        ``review`` 为真时置 ``reviewed=true``；``changes`` 为空且 ``review`` 为真 = 只标为已确认。
+        不重算幂等键、不改 ``exemplar_id``（§10）。
+        ``roi`` / ``crop_ref`` / ``describe_status`` 只接受 importer 传入（改 ROI 时成组写）。
+        """
+        cur = self.get(exemplar_id)
+        if cur is None:
             raise AtlasError("NOT_FOUND", exemplar_id)
-        coll, key = normalize_collection(collection)
-        self.exemplars.update(
-            where=f"exemplar_id = {_q(exemplar_id)}",
-            values={"collection": coll, "collection_key": key},
-        )
+        unknown = set(changes) - EDITABLE_FIELDS - _ROI_FIELDS
+        if unknown:
+            raise AtlasError("BAD_FIELD", f"不可修改的字段：{', '.join(sorted(unknown))}")
+        values: dict[str, Any] = {}
+        caption, notes = cur.caption, cur.notes
+        if "tags" in changes:
+            values["tags"], values["tags_raw"] = normalize_tags(changes["tags"] or [])
+        if "caption" in changes:
+            caption = (changes["caption"] or "").strip() or None
+            values["caption"] = caption or ""
+        if "notes" in changes:
+            notes = (changes["notes"] or "").strip() or None
+            values["notes"] = notes or ""
+        if "caption" in changes or "notes" in changes:
+            values["search_text"] = build_search_text(caption, cur.description, notes)
+        if "source" in changes:
+            src = changes["source"]
+            if not isinstance(src, Mapping):
+                raise AtlasError("BAD_FIELD", "source 必须是对象")
+            values["source_json"] = _canonical(src)
+        if "collection" in changes:
+            values["collection"], values["collection_key"] = normalize_collection(
+                changes["collection"]
+            )
+        if "egress" in changes:
+            egress = changes["egress"]
+            if egress not in ("shareable", "local-only"):
+                raise AtlasError("BAD_EGRESS", f"非法 egress: {egress}")
+            consent = changes.get("egress_consent")
+            if egress == "shareable" and not consent:
+                raise AtlasError("CONSENT_REQUIRED", "egress=shareable 必须附带 egress_consent")
+            values["egress"] = egress
+            values["egress_consent_json"] = _canonical(consent) if egress == "shareable" else ""
+        if "roi" in changes:
+            values["roi"] = [int(v) for v in changes["roi"]]
+        if "crop_ref" in changes:
+            values["crop_ref"] = changes["crop_ref"] or ""
+        if "describe_status" in changes:
+            values["describe_status"] = changes["describe_status"]
+        if review:
+            values["reviewed"] = True
+        if values:
+            self.exemplars.update(where=f"exemplar_id = {_q(exemplar_id)}", values=values)
         return self.get(exemplar_id)  # type: ignore[return-value]
 
     def collection_counts(self, status: Status | None = "active") -> list[tuple[str, str, int]]:
@@ -415,12 +496,18 @@ class AtlasStore:
         source_type: SourceType | None = None,
         collection: str | None = None,
         collection_exact: bool = False,
+        describe_status: DescribeStatus | None = None,
+        reviewed: bool | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[Exemplar]:
         clauses: list[str] = []
         if status:
             clauses.append(f"status = {_q(status)}")
+        if describe_status:
+            clauses.append(f"describe_status = {_q(describe_status)}")
+        if reviewed is not None:
+            clauses.append(f"reviewed = {'true' if reviewed else 'false'}")
         if source_type:
             clauses.append(f"source_type = {_q(source_type)}")
         cw = collection_where(collection, exact=collection_exact)

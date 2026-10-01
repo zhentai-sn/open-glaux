@@ -41,7 +41,10 @@ def get() -> AtlasService:
     if _svc is None or _svc_root != root:
         store = AtlasStore(root).open()
         images = ImageStore(root)
-        _svc = AtlasService(store=store, images=images, importer=Importer(root, store, images))
+        importer = Importer(root, store, images)
+        if store.legacy_xyxy_rois:  # v1 库首次以 v2.0 打开（SDD 03 §9 roi）
+            importer.migrate_legacy_rois()
+        _svc = AtlasService(store=store, images=images, importer=importer)
         _svc_root = root
         log.info("Atlas 已装配：%s", root)
     return _svc

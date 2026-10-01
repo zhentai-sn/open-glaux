@@ -67,6 +67,19 @@ def _nearest_caption(page, rect) -> tuple[str, list[str]]:
     return caption, nearby
 
 
+def pdf_title(pdf_bytes: bytes) -> str:
+    """PDF 元数据标题（无或读取失败返回空串），用于自动填写来源（SDD 03 §4.1）。"""
+    import pymupdf
+
+    try:
+        with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+            return " ".join(str((doc.metadata or {}).get("title") or "").split())[
+                :CAPTION_MAX_CHARS
+            ]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def extract_figures(pdf_bytes: bytes, *, min_side: int = MIN_SIDE_PX) -> list[FigureCandidate]:
     import pymupdf  # 延迟导入：让缺 pymupdf 的环境仍可 import 本包
 

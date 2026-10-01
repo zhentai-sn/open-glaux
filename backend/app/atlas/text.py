@@ -41,6 +41,33 @@ def normalize_collection(raw: str | None) -> tuple[str, str]:
     return display, key
 
 
+AUTO_TAGS_MAX = 8
+
+
+def auto_tags(description: Mapping[str, Any] | None) -> list[str]:
+    """从 VLM 描述提取标签原文（SDD 03 §7.8 第 3 条）。
+
+    取 ``modality``、``subject``、``findings[].name``，按归一键去重、保序，
+    最多 :data:`AUTO_TAGS_MAX` 个；归一由调用方经 :func:`normalize_tags` 完成。
+    """
+    if not description:
+        return []
+    raw: list[str] = []
+    for k in ("modality", "subject"):
+        v = description.get(k)
+        if isinstance(v, str) and v.strip():
+            raw.append(v.strip())
+    findings = description.get("findings")
+    if isinstance(findings, list):
+        for f in findings:
+            if isinstance(f, Mapping):
+                name = f.get("name")
+                if isinstance(name, str) and name.strip():
+                    raw.append(name.strip())
+    _, kept = normalize_tags(raw)
+    return kept[:AUTO_TAGS_MAX]
+
+
 def _walk_values(obj: Any) -> Iterable[str]:
     if obj is None:
         return

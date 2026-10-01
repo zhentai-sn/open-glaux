@@ -30,7 +30,7 @@ venv 子进程（`app/segment_proc.py`、`app/segment_ts.py`、`app/segment_wsi.
 | `GET /projects/{id}/text?path=` | `routers/projects.py` → `textfile.py` | 项目内文本文件只读读取（SDD 14）：按内容判定编码（UTF-8、带 BOM 的 UTF-16、GB18030），按行区间与字节上限（≤ 1 MiB）返回；`hidden_path`、`binary` 为 422。仅回环来源 |
 | `GET /objects/{id}/clip` `…/frame-at` | `dataset_video.py`、`video_clip.py` | SDD 11 原声音画短片段、PTS 时间映射与关键帧证据；仅视频对象可用 |
 | `/annotations` `/annotations/{id}` `/annotations/{id}/mask` | `routers/annotations.py` | 统一标注（SDD 04） |
-| `/atlas/*`（`exemplars`、`collections`、`tags`、`imports/*`） | `routers/atlas.py` | 图谱：案例库与文献导入（SDD 03） |
+| `/atlas/*`（`uploads`、`exemplars`、`collections`、`tags`） | `routers/atlas.py` | 图谱：上传即入库与案例编辑（SDD 03） |
 | ~~`/interpret` `/intent/*`~~ | 已退役——NL 由 agent-runtime 处理 | 见[退役设计](../docs/designs/2026-08-16-001-retire-orchestration.zh-CN.md) |
 | ~~`/task/detect` `/correction` `/volume/{id}/segment\|raw\|verify` `/wsi/{id}/dzi\|thumbnail\|region`~~ | 已删（孤儿端点，前端从未调用） | 同上设计 §3.3 后续清理 |
 

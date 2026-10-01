@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-// 导入预览的 ROI 框选（SDD feats/03 §4.1）：候选插图是静态 PNG，用轻量 canvas 叠加画矩形即可，
-// 不上 cornerstone 栈（cornerstone 是查看器引擎，导入预览没有它要解决的问题）。
-// 坐标一律换算回图像像素（左上原点，[x0,y0,x1,y1] 整数），与后端 clamp_roi 契约一致。
+// 案例详情的 ROI 框选（SDD feats/03 §7.8、D-18）：案例图是静态 PNG，用轻量 DOM 叠加画矩形即可，
+// 不上 cornerstone 栈（cornerstone 是查看器引擎，这里没有它要解决的问题）。
+// 坐标一律换算回图像像素（左上原点，[x, y, w, h] 整数），与后端 clamp_roi、CLI 同一约定（§9 roi）。
 
-export type Roi = [number, number, number, number];
+import type { Roi } from "../../api/atlas";
+
+export type { Roi };
 
 export interface RoiPickerProps {
   src: string;
@@ -25,7 +27,7 @@ function toRoi(a: { x: number; y: number }, b: { x: number; y: number }, scale: 
   const x1 = Math.max(0, Math.min(w, Math.round(Math.max(a.x, b.x) / scale)));
   const y1 = Math.max(0, Math.min(h, Math.round(Math.max(a.y, b.y) / scale)));
   if (x1 - x0 < MIN_PX || y1 - y0 < MIN_PX) return null;
-  return [x0, y0, x1, y1];
+  return [x0, y0, x1 - x0, y1 - y0];
 }
 
 export function RoiPicker({ src, rois, onChange, activeIndex, onPick, maxWidth = 480 }: RoiPickerProps) {
@@ -65,8 +67,8 @@ export function RoiPicker({ src, rois, onChange, activeIndex, onPick, maxWidth =
   const rectStyle = (r: Roi) => ({
     left: r[0] * scale,
     top: r[1] * scale,
-    width: (r[2] - r[0]) * scale,
-    height: (r[3] - r[1]) * scale,
+    width: r[2] * scale,
+    height: r[3] * scale,
   });
 
   return (

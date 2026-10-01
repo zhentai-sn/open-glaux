@@ -123,10 +123,31 @@ def test_shareable_requires_consent(store, images):
     assert ex.egress == "shareable" and ex.egress_consent["statement_version"] == "v1"
 
 
-def test_tags_required(store, images):
+def test_tags_may_be_empty_until_described(store, images):
+    """v2.0：上传入库时标签为空，描述后对未确认案例补齐（SDD 03 §7.8 第 3 条）。"""
+    ((eid, _),) = store.create([_new(images, tags=["  ", ""], caption=None, reviewed=False)])
+    assert store.get(eid).tags == []
+    store.set_description(
+        eid,
+        {
+            "modality": "TEM",
+            "subject": "GBM",
+            "findings": [{"name": "EDD"}],
+            "summary": "s",
+            "extra": {},
+        },
+        "done",
+    )
+    ex = store.get(eid)
+    assert ex.tags_raw == ["TEM", "GBM", "EDD"] and ex.caption == "s"
+    assert [e.exemplar_id for e in store.search(tags=["edd"], egress="any")] == [eid]
+
+
+def test_update_rejects_unknown_fields(store, images):
+    ((eid, _),) = store.create([_new(images)])
     with pytest.raises(AtlasError) as ei:
-        store.create([_new(images, tags=["  ", ""])])
-    assert ei.value.code == "TAGS_REQUIRED"
+        store.update(eid, {"status": "retired"})
+    assert ei.value.code == "BAD_FIELD"
 
 
 # --- 检索 -------------------------------------------------------------------
@@ -341,7 +362,7 @@ def test_collection_prefix_filter_counts_and_move(store, images):
 
     # 移动：id 不变、幂等键不变（重复导入仍返回同 id）、引用不变
     store.mark_referenced([d], "t1")
-    moved = store.set_collection(d, "肾脏/膜性肾病")
+    moved = store.update(d, {"collection": "肾脏/膜性肾病"})
     assert moved.exemplar_id == d and moved.collection == "肾脏/膜性肾病"
     assert ids(store.list(collection="肾脏/膜性肾病")) == sorted([a, b, d])
     ((again, created),) = store.create([_new(images, png=_png(val=4), collection="别的图册")])
@@ -361,6 +382,7 @@ def test_old_table_without_collection_column_is_migrated(tmp_path, images):
         store_mod._EXEMPLARS_SCHEMA.get_field_index("collection_key")
     )
     old_schema = old_schema.remove(old_schema.get_field_index("collection"))
+    old_schema = old_schema.remove(old_schema.get_field_index("reviewed"))
     db = lancedb.connect(str(root / "db"))
     tbl = db.create_table("exemplars", schema=old_schema)
     ref, sha, _ = images.save_original(_png(val=9))
@@ -399,3 +421,26 @@ def test_old_table_without_collection_column_is_migrated(tmp_path, images):
     assert ex is not None and ex.collection == "" and ex.collection_key == ""
     assert [e.exemplar_id for e in s.list(collection="", collection_exact=True)] == ["old-1"]
     assert s.collection_counts() == [("", "", 1)]
+    # v2.0：补 reviewed 列，旧案例为已确认；标记需迁移 v1 向导 ROI
+    assert ex.reviewed is True and s.legacy_xyxy_rois is True
+    assert AtlasStore(root).open().legacy_xyxy_rois is False  # 只在补列那次
+
+
+def test_migrate_legacy_rois_converts_xyxy_and_recrops(tmp_path, images):
+    """v1 向导写入的 textbook / web 案例 ROI 存的是 x0,y0,x1,y1（SDD 03 §9 roi）。"""
+    from app.atlas.importer import Importer
+
+    s = AtlasStore(tmp_path / "atlas").open()
+    ((tb, _),) = s.create([_new(images, png=_png(val=11), roi=(10, 8, 40, 30), reviewed=True)])
+    ((ds, _),) = s.create(
+        [_new(images, png=_png(val=12), roi=(10, 8, 40, 30), source_type="dataset", reviewed=True)]
+    )
+    key_before = s.exemplars.search().where(f"exemplar_id = '{tb}'").to_list()[0]["dedupe_key"]
+    n = Importer(tmp_path / "atlas", s, images).migrate_legacy_rois()
+    assert n == 1
+    ex = s.get(tb)
+    assert ex.roi == (10, 8, 30, 22) and ex.crop_ref.endswith("__10_8_30_22.png") and ex.reviewed
+    assert (
+        s.exemplars.search().where(f"exemplar_id = '{tb}'").to_list()[0]["dedupe_key"] == key_before
+    )
+    assert s.get(ds).roi == (10, 8, 40, 30)  # dataset 本就是 x,y,w,h

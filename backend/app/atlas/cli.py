@@ -273,6 +273,7 @@ def import_dataset(
                 geometry=s.polygon,
                 collection=collection,
                 image_base64=base64.b64encode(png).decode("ascii"),
+                reviewed=True,  # 几何来自人工标注、标签由命令行指定（SDD 03 §9 reviewed）
             )
         )
         metas.append(s)
