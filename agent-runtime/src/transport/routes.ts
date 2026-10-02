@@ -26,12 +26,15 @@ import type { CommandService } from "../pi/command-service.js";
 import type { HarnessRegistry } from "../pi/harness-registry.js";
 import type { SessionService } from "../pi/session-service.js";
 import { encodeSse, type SseBroker } from "./sse-broker.js";
+import { registerResourceRoutes, type ResourceRouteDependencies } from "./resource-routes.js";
 
 export interface RouteDependencies {
   sessions: SessionService;
   commands: CommandService;
   registry: HarnessRegistry;
   broker: SseBroker;
+  /** SDD 17 资源管理接口的依赖；缺省读写真实用户目录与经 backend 取项目目录。 */
+  resources?: ResourceRouteDependencies;
 }
 
 export function registerRoutes(
@@ -94,6 +97,15 @@ export function registerRoutes(
       return reply.status(202).send(view);
     },
   );
+
+  // SDD 17 §7.5 规则 7：按当前连接与查看器上下文预览系统提示词，不启动命令。
+  server.post("/agent-api/v1/sessions/:sessionId/system-prompt", async (request) => {
+    const body = asObject(request.body);
+    const viewer = parseViewer(body.viewer);
+    return registry.previewSystemPrompt(sessionIdFrom(request), parseConnection(body.connection), viewer);
+  });
+
+  registerResourceRoutes(server, dependencies.resources ?? {});
 
   // SDD 15 §9.4：回复交互请求（权限审批或 ask_user 提问）。
   server.post("/agent-api/v1/sessions/:sessionId/interactions/:requestId", async (request) => {

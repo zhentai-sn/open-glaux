@@ -12,6 +12,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import type { Model, Models } from "@earendil-works/pi-ai";
+import type { SqliteSessionMetadata } from "@earendil-works/pi-storage-sqlite-node";
 
 import type {
   ConnectionInput,
@@ -143,6 +144,17 @@ function viewerTail(
   );
 }
 
+interface Assembled {
+  runtime: ModelRuntime;
+  videoTurn?: VideoTurn;
+  projectId: string | null;
+  permission?: PermissionRunState;
+  resources?: LoadedResources;
+  toolContext: HarnessToolContext;
+  tools: HarnessTool[];
+  systemPrompt: string;
+}
+
 function assertRequiredResources(requires: HarnessStartOptions["requires"], resources: LoadedResources | undefined): void {
   if (!requires) return;
   const missing = requires.skill !== undefined && !resources?.harnessSkills.some((skill) => skill.name === requires.skill)
@@ -228,52 +240,27 @@ export class HarnessRegistry {
     }
     if (this.slots.has(sessionId)) await this.evict(sessionId);
 
-    const runtime = this.runtimeFactory(connection);
     const session = await this.sessions.openSession(sessionId);
-    const videoTurn = runtime.videoMedia && options.viewer?.focus?.kind === "video"
-      ? new VideoTurn(options.viewer.focus.object_id, commandId, session, runtime.videoMedia,
-          (answer) => this.emit(sessionId, { event: "video.answer", data: { session_id: sessionId, command_id: commandId, answer } }))
-      : undefined;
-    let videoDescription: { duration_ms: number; has_audio: boolean } | undefined;
-    let projectId: string | null;
-    let permission: PermissionRunState | undefined;
-    let resources: LoadedResources | undefined;
+    let assembled: Assembled;
     try {
-      // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
-      projectId = sessionProjectId(await session.getMetadata());
-      videoDescription = videoTurn ? await videoTurn.describe() : undefined;
-      if (!chatEdition()) ({ permission, resources } = await this.preparePermission(sessionId, session, projectId, options));
-      assertRequiredResources(options.requires, resources);
+      assembled = await this.assemble(sessionId, commandId, connection, session, options);
+      assertRequiredResources(options.requires, assembled.resources);
     } catch (error) {
-      runtime.disposeCredential();
       await this.sessions.closeSession(session);
       throw error;
     }
+    const { runtime, videoTurn, projectId, permission, resources, toolContext, tools, systemPrompt } = assembled;
     // SDD 15 §7.8：预算上限取自已加载的设置；宽限用尽时异步中止，不在 pi 回调内等待空闲。
     const budget = permission ? new RunBudget({
       limits: resolveBudget(permission.settings),
       waitedMs: () => this.interactions.waitedMs(sessionId, commandId),
       onAbort: () => { setImmediate(() => void this.abort(sessionId)); },
     }) : undefined;
-    const toolContext: HarnessToolContext = {
-      ...options,
-      connection,
-      runtime,
-      ...(videoTurn ? { videoTurn } : {}),
-      ...(projectId ? { projectId } : {}),
-      interactions: this.interactions,
-      run: { sessionId, commandId },
-      ...(permission?.cwd ? {
-        cwd: permission.cwd,
-        execEnv: new NodeExecutionEnv({ cwd: permission.cwd, shellEnv: buildShellEnv(permission.cwd) }),
-      } : {}),
-    };
-    const tools = chatEdition() ? [] : this.toolFactory(toolContext);
     const harness = new AgentHarness({
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(options.viewer, tools, toolContext, videoDescription, resources?.promptExtras),
+      systemPrompt,
       tools,
       ...(resources ? { resources: { skills: resources.harnessSkills, promptTemplates: resources.harnessTemplates } } : {}),
     });
@@ -414,6 +401,77 @@ export class HarnessRegistry {
     }
     slot.phase = "compacting";
     await slot.harness.compact();
+  }
+
+  /**
+   * 命令开始时的装配：模型运行时、视频回合、项目、权限状态、资源、工具与系统提示词。
+   * 命令与系统提示词预览（SDD 17 §7.5 规则 7）共用，保证预览与真实命令一致。出错时释放凭据。
+   */
+  private async assemble(
+    sessionId: string,
+    commandId: string,
+    connection: ConnectionInput,
+    session: Session<SqliteSessionMetadata>,
+    options: HarnessStartOptions,
+  ): Promise<Assembled> {
+    const runtime = this.runtimeFactory(connection);
+    try {
+      const videoTurn = runtime.videoMedia && options.viewer?.focus?.kind === "video"
+        ? new VideoTurn(options.viewer.focus.object_id, commandId, session, runtime.videoMedia,
+            (answer) => this.emit(sessionId, { event: "video.answer", data: { session_id: sessionId, command_id: commandId, answer } }))
+        : undefined;
+      // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
+      const projectId = sessionProjectId(await session.getMetadata());
+      const videoDescription = videoTurn ? await videoTurn.describe() : undefined;
+      const prepared = chatEdition() ? undefined : await this.preparePermission(sessionId, session, projectId, options);
+      const permission = prepared?.permission;
+      const resources = prepared?.resources;
+      const toolContext: HarnessToolContext = {
+        ...options,
+        connection,
+        runtime,
+        ...(videoTurn ? { videoTurn } : {}),
+        ...(projectId ? { projectId } : {}),
+        interactions: this.interactions,
+        run: { sessionId, commandId },
+        ...(permission?.cwd ? {
+          cwd: permission.cwd,
+          execEnv: new NodeExecutionEnv({ cwd: permission.cwd, shellEnv: buildShellEnv(permission.cwd) }),
+        } : {}),
+      };
+      const tools = chatEdition() ? [] : this.toolFactory(toolContext);
+      const systemPrompt = chatEdition()
+        ? CHAT_SYSTEM_PROMPT
+        : systemPromptFor(options.viewer, tools, toolContext, videoDescription, resources?.promptExtras);
+      return {
+        runtime, projectId, toolContext, tools, systemPrompt,
+        ...(videoTurn ? { videoTurn } : {}),
+        ...(permission ? { permission } : {}),
+        ...(resources ? { resources } : {}),
+      };
+    } catch (error) {
+      runtime.disposeCredential();
+      throw error;
+    }
+  }
+
+  /** SDD 17 §7.5 规则 7：按当前连接与查看器上下文组装系统提示词与工具清单，不启动命令、不调用模型。 */
+  async previewSystemPrompt(
+    sessionId: string, connection: ConnectionInput, viewer?: ViewerContext,
+  ): Promise<{ prompt: string; tools: string[] }> {
+    const meta = this.sessions.metaRepo.get(sessionId);
+    if (!meta) throw new RuntimeError("session_not_found", "Session not found.", 404);
+    const session = await this.sessions.openSession(sessionId);
+    try {
+      const assembled = await this.assemble(sessionId, "preview", connection, session, {
+        permissionMode: meta.permission_mode,
+        ...(viewer ? { viewer } : {}),
+      });
+      assembled.runtime.disposeCredential();
+      return { prompt: assembled.systemPrompt, tools: assembled.tools.map((tool) => tool.name) };
+    } finally {
+      await this.sessions.closeSession(session);
+    }
   }
 
   /** SDD 15 §7.5：本命令的权限判定状态。越界作用域与设置加载可由测试注入。 */

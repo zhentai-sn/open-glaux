@@ -8,7 +8,7 @@ import { loadSettings, projectSettingsPath, userSettingsPath, type LoadedSetting
 const PROJECT_LOOKUP_TIMEOUT_MS = 5_000;
 
 /** 经 backend `GET /projects` 取项目目录；backend 不可达或项目不存在时返回 undefined（§13）。 */
-async function projectDirOf(projectId: string, fetchImpl: typeof fetch = fetch): Promise<string | undefined> {
+export async function projectDirOf(projectId: string, fetchImpl: typeof fetch = fetch): Promise<string | undefined> {
   try {
     const response = await fetchImpl(`${backendBaseUrl().replace(/\/+$/u, "")}/projects`, {
       signal: AbortSignal.timeout(PROJECT_LOOKUP_TIMEOUT_MS),
