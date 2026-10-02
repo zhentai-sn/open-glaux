@@ -1,10 +1,9 @@
-import type { SessionView, TransportEvent } from "./types";
+import { RUNTIME_EVENT_NAMES, type RuntimeEvent, type SessionView, type TransportEvent } from "./types";
 
 export interface EventHandlers {
   onSnapshot: (snapshot: SessionView) => void;
-  onPiEvent: (
-    event: Extract<TransportEvent, { event: "pi.event" }>["data"],
-  ) => void;
+  /** SDD 15 §9.5：消息、工具、交互与运行结局事件。 */
+  onRuntimeEvent: (event: RuntimeEvent) => void;
   onAdapterError: (
     error: Extract<TransportEvent, { event: "adapter.error" }>["data"],
   ) => void;
@@ -26,14 +25,14 @@ export const connectSessionEvents: EventConnector = (sessionId, handlers) => {
   source.addEventListener("snapshot", (event) => {
     handlers.onSnapshot(JSON.parse((event as MessageEvent<string>).data) as SessionView);
   });
-  source.addEventListener("pi.event", (event) => {
-    handlers.onPiEvent(
-      JSON.parse((event as MessageEvent<string>).data) as Extract<
-        TransportEvent,
-        { event: "pi.event" }
-      >["data"],
-    );
-  });
+  for (const name of RUNTIME_EVENT_NAMES) {
+    source.addEventListener(name, (event) => {
+      handlers.onRuntimeEvent({
+        event: name,
+        data: JSON.parse((event as MessageEvent<string>).data),
+      } as RuntimeEvent);
+    });
+  }
   source.addEventListener("video.answer", (event) => {
     handlers.onVideoAnswer?.(JSON.parse((event as MessageEvent<string>).data) as Extract<TransportEvent, { event: "video.answer" }>["data"]);
   });
@@ -132,8 +131,3 @@ export function messageToolResultDetails(message: unknown): unknown {
   return m.details ?? null;
 }
 
-export function piEventType(event: unknown): string | null {
-  if (!event || typeof event !== "object") return null;
-  const type = (event as { type?: unknown }).type;
-  return typeof type === "string" ? type : null;
-}

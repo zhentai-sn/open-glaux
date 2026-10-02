@@ -159,7 +159,7 @@ stateDiagram-v2
 
 ## 12. 审计或事件规则
 
-`agent-runtime` 在现有 SSE 上新增 `video.answer` 事件，载荷为 `{session_id,command_id,answer:VideoAnswer}`；连接时 `snapshot.video_answers` 给出同一结构的已存回答。前端以 `command_id` 去重。区间观察仍走现有 `pi.event` 工具事件，工具 details 只含 `ClipObservation` 元数据，不含媒体。
+`agent-runtime` 在现有 SSE 上新增 `video.answer` 事件，载荷为 `{session_id,command_id,answer:VideoAnswer}`；连接时 `snapshot.video_answers` 给出同一结构的已存回答。前端以 `command_id` 去重。区间观察走 `tool.start` / `tool.end` 工具事件（SDD 15 §9.5），工具 details 只含 `ClipObservation` 元数据，不含媒体。
 
 审计每次观测的会话／轮次、对象和源指纹、请求／实际区间、片段摘要与大小、模型 id、耗时和结果状态；回答审计引用校验结果。不得记录 API Key、Base64、源文件内容或完整模型请求体。
 

@@ -18,8 +18,10 @@ import type {
   SessionPhase,
   SessionStatus,
   SessionView,
+  TranscriptMessage,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
+import { toTranscript } from "../transport/transcript.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
 import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
@@ -126,7 +128,10 @@ export class SessionService {
           this.metaRepo.delete(meta.session_id);
           return undefined;
         }
-        const { messages: _messages, video_answers: _answers, video_observations: _observations, ...item } = await this.viewOf(metadata, meta);
+        const {
+          messages: _messages, video_answers: _answers, video_observations: _observations,
+          pending_interactions: _pending, warnings: _warnings, ...item
+        } = await this.viewOf(metadata, meta);
         return item;
       }),
     );
@@ -243,6 +248,8 @@ export class SessionService {
       video_answers: videoAnswers,
       video_observations: videoObservations,
       context_usage: { tokens: estimate.tokens },
+      pending_interactions: [],
+      warnings: [],
       updated_at: updatedAt,
     };
   }
@@ -320,12 +327,14 @@ const VIEWABLE_DETAILS_KINDS = new Set([
  * 带可呈现 details 的工具结果改为保留，但**剥掉 content**——图谱案例图是几百 KB 的 base64，
  * 前端只用 details 渲染卡片（案例图另经 `/atlas/exemplars/{id}/crop` 取），不必进快照。
  */
-function visibleMessage(message: AgentMessage): AgentMessage[] {
-  if (message.role === "user" || message.role === "assistant") return [message];
-  if (message.role !== "toolResult" || message.isError) return [];
-  const kind = (message.details as { kind?: unknown } | undefined)?.kind;
+function visibleMessage(message: AgentMessage): TranscriptMessage[] {
+  const transcript = toTranscript(message);
+  if (!transcript) return [];
+  if (transcript.role === "user" || transcript.role === "assistant") return [transcript];
+  if (transcript.isError) return [];
+  const kind = (transcript.details as { kind?: unknown } | undefined)?.kind;
   if (typeof kind !== "string" || !VIEWABLE_DETAILS_KINDS.has(kind)) return [];
-  return [{ ...message, content: [] }];
+  return [{ ...transcript, content: [] }];
 }
 
 export function normalizeTitle(title: string): string {

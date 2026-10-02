@@ -36,11 +36,12 @@ async function fresh() {
 
 function toolEnd(details: unknown, extra: Record<string, unknown> = {}) {
   return {
-    type: "tool_execution_end",
-    toolCallId: "c1",
-    toolName: "run_task",
-    isError: false,
-    result: { content: [], details },
+    session_id: "s",
+    command_id: "c",
+    tool_call_id: "c1",
+    tool_name: "run_task",
+    is_error: false,
+    details,
     ...extra,
   };
 }
@@ -87,17 +88,17 @@ describe("toolBridge.applyToolExecutionEvent", () => {
     focusOn(session, "tech_999");
     expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS))).toBe(false);
     focusOn(session, "tech_401");
-    expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { isError: true }))).toBe(false);
-    expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { toolName: "other" }))).toBe(false);
+    expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { is_error: true }))).toBe(false);
+    expect(bridge.applyToolExecutionEvent(toolEnd(DETAILS, { tool_name: "other" }))).toBe(false);
     expect(bridge.applyToolExecutionEvent(toolEnd({ kind: "nope" }))).toBe(false);
-    expect(bridge.applyToolExecutionEvent({ type: "message_end" })).toBe(false);
+    expect(bridge.applyToolExecutionEvent({ session_id: "s" })).toBe(false);
     expect(session.getState().metrics).toBeNull();
   });
 
   it("applies propose_annotation to the current viewer immediately and idempotently", async () => {
     const { session, bridge } = await fresh();
     focusOn(session, "natural_cat");
-    const event = toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" });
+    const event = toolEnd(PROPOSED_DETAILS, { tool_name: "propose_annotation" });
 
     expect(bridge.applyToolExecutionEvent(event)).toBe(true);
     expect(bridge.applyToolExecutionEvent(event)).toBe(true);
@@ -134,21 +135,21 @@ describe("toolBridge.applyToolExecutionEvent", () => {
     focusOn(session, "natural_dog");
     expect(
       bridge.applyToolExecutionEvent(
-        toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation" }),
+        toolEnd(PROPOSED_DETAILS, { tool_name: "propose_annotation" }),
       ),
     ).toBe(false);
 
     focusOn(session, "natural_cat");
     expect(
       bridge.applyToolExecutionEvent(
-        toolEnd(PROPOSED_DETAILS, { toolName: "propose_annotation", isError: true }),
+        toolEnd(PROPOSED_DETAILS, { tool_name: "propose_annotation", is_error: true }),
       ),
     ).toBe(false);
     expect(
       bridge.applyToolExecutionEvent(
         toolEnd(
           { ...PROPOSED_DETAILS, payload: { ...PROPOSED_DETAILS.payload, annotation_id: null } },
-          { toolName: "propose_annotation" },
+          { tool_name: "propose_annotation" },
         ),
       ),
     ).toBe(false);
@@ -159,7 +160,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
             ...PROPOSED_DETAILS,
             payload: { ...PROPOSED_DETAILS.payload, primitive: { kind: "bbox", x0: "bad" } },
           },
-          { toolName: "propose_annotation" },
+          { tool_name: "propose_annotation" },
         ),
       ),
     ).toBe(false);
@@ -174,10 +175,10 @@ describe("toolBridge.applyToolExecutionEvent", () => {
       ...PROPOSED_DETAILS,
       payload: { ...PROPOSED_DETAILS.payload, image_id: "vid-001", index: { t: 10 } },
     };
-    expect(bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" }))).toBe(false);
+    expect(bridge.applyToolExecutionEvent(toolEnd(details, { tool_name: "propose_annotation" }))).toBe(false);
     expect(session.getState().annotations).toEqual([]);
     session.getState().setIndex({ t: 10 });
-    expect(bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" }))).toBe(true);
+    expect(bridge.applyToolExecutionEvent(toolEnd(details, { tool_name: "propose_annotation" }))).toBe(true);
     expect(session.getState().annotations[0]?.index).toEqual({ t: 10 });
   });
 
@@ -199,7 +200,7 @@ describe("toolBridge.applyToolExecutionEvent", () => {
     };
 
     expect(
-      bridge.applyToolExecutionEvent(toolEnd(details, { toolName: "propose_annotation" })),
+      bridge.applyToolExecutionEvent(toolEnd(details, { tool_name: "propose_annotation" })),
     ).toBe(true);
     expect(session.getState().annotations[0]?.primitive).toEqual({
       kind: "polyline",

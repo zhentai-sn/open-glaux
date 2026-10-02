@@ -1,5 +1,5 @@
 // 智能体工具产出 → 查看器状态的桥（退役 orchestration P3）。
-// agent-runtime 的领域工具把结构化结果放进 tool_execution_end.result.details；这里按工具名
+// agent-runtime 的领域工具把结构化结果放进 `tool.end` 事件的 details（SDD 15 §9.5）；这里按工具名
 // 分派并写回 session store。`run_task` 回流 Detection，`propose_annotation` 回流统一 Annotation。
 // 只在结果对应的 image_id 仍是当前打开的图时应用——用户中途切图不被旧结果覆盖。
 import type { Annotation, AnnotationPrimitive, Index, Measure, Primitive } from "../api/types";
@@ -124,21 +124,16 @@ const foregroundSink: TaskOutputSink = {
 };
 
 /**
- * 处理一条 pi 事件；只认 `tool_execution_end` + `run_task` + 非错误 + 合法 details。
+ * 处理一条 `tool.end` 事件（SDD 15 §9.5）；只认 `run_task` / `propose_annotation` + 非错误 + 合法 details。
  * 返回是否应用到了查看器或 ``sink``。标注建议是对象级共享数据，不论来自哪个会话，
  * 都按前台焦点决定是否显示（SDD 13 §7.7 规则 6）。
  */
 export function applyToolExecutionEvent(event: unknown, sink: TaskOutputSink = foregroundSink): boolean {
   if (!event || typeof event !== "object") return false;
-  const e = event as {
-    type?: unknown;
-    toolName?: unknown;
-    isError?: unknown;
-    result?: { details?: unknown };
-  };
-  if (e.type !== "tool_execution_end" || e.isError) return false;
-  if (e.toolName === PROPOSE_ANNOTATION_TOOL_NAME) {
-    const annotation = asProposedAnnotation(e.result?.details);
+  const e = event as { tool_name?: unknown; is_error?: unknown; details?: unknown };
+  if (typeof e.tool_name !== "string" || e.is_error !== false) return false;
+  if (e.tool_name === PROPOSE_ANNOTATION_TOOL_NAME) {
+    const annotation = asProposedAnnotation(e.details);
     if (!annotation || focusedId() !== annotation.image_id) return false;
     const session = useSession.getState();
     const focusedFrame = session.focus?.index.t;
@@ -148,8 +143,8 @@ export function applyToolExecutionEvent(event: unknown, sink: TaskOutputSink = f
     if (!existing || existing.seq < annotation.seq) session.upsertAnnotation(annotation);
     return true;
   }
-  if (e.toolName !== RUN_TASK_TOOL_NAME) return false;
-  const details = asTaskOutputDetails(e.result?.details);
+  if (e.tool_name !== RUN_TASK_TOOL_NAME) return false;
+  const details = asTaskOutputDetails(e.details);
   if (!details) return false;
   const model = details.output.provenance?.model_version;
   return sink.write(details.image_id, {

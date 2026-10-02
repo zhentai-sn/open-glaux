@@ -134,7 +134,7 @@ sequenceDiagram
     A->>A: 乘回像素 / mask → 多边形简化（图像像素坐标）
     A->>B: propose_annotation → POST /annotations (suggested, agent)
     B-->>A: annotation（不派发 on_commit）
-    A->>F: tool_execution_end.details = glaux.annotation_proposed（§12）
+    A->>F: tool.end.details = glaux.annotation_proposed（§12）
     F->>F: 校验 image_id/primitive/seq → upsert 当前 Viewer
     F->>F: 画布橙色虚线 + 会话建议卡片
     U->>F: 确认 / 驳回
@@ -167,7 +167,7 @@ sequenceDiagram
 `TOOL_PROVIDERS` 登记能力、焦点支持、创建函数与提示片段；chat 发行包返回空工具集。`observe` 对本 SDD 的图像标注工具仍返回空集；SDD 11 的只读视频观察与证据提交可在 `observe` 下挂载。
 `run_task` 保留为命中任务注册表能力时的调用路径。需要图像字节的工具统一调用
 `fetchObservation(base, focus)`，不各自读取 `/image/{id}`；分割供应商实现 `SegmenterPort.segment`。
-前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool_execution_end`）和
+前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool.end`）和
 "⚙ 调用 <tool>"状态行渲染。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
 Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍等于
 `focus.object_id` 时应用，视频还须匹配 `focus.index.t`。用户已切换焦点则丢弃实时写回。
@@ -323,7 +323,7 @@ stateDiagram-v2
 
 Agent Runtime 的会话视图必须保留 `glaux.annotation_proposed` 与 `glaux.atlas_referenced` 两类
 可展示 details，并剥离工具正文；`glaux.task_output` 等大型/纯 Viewer 结果不进入快照。前端实时
-消费 `tool_execution_end` 时把合法的建议态 details upsert 到当前 Annotation Store；首次载图或
+消费 `tool.end` 时把合法的建议态 details upsert 到当前 Annotation Store；首次载图或
 刷新仍以 Backend `GET /annotations` 为事实源（D-12）。
 
 | details.kind | 产出方 | payload 要点 |
@@ -432,7 +432,7 @@ trace_id；不记录图像内容与 API key。
 | D-9 | 建议态**不另立实体**，直接用 SDD 04 的 `Annotation`（`status=suggested, source=agent`）；写库坐标为对象像素，世界坐标变换留前端（Q2/Q3/Q4 收敛） | 建议态单独一套实体与端点；runtime 做世界坐标变换 | runtime 只处理观测帧→对象的 `ReferenceFrame` 变换，不处理视口世界坐标；`on_commit` 在建议态不派发、确认时补派 | 2026-08-22 |
 | D-10 | 分割后端契约以**实测**为准，与其 OpenAPI schema 冲突处按实测实现并在代码注释里记明 | 按 schema 实现，出错再查 | 实测发现两处不符（`prompt` 必传但未声明、`size` 实为 `[w,h]`）。按 schema 写会得到纵向糊成长条的几何，且要到联调才暴露。回归测试用真实响应做 fixture 锁住这两点 | 2026-08-22 |
 | D-11 | 不新增 SSE 事件类型，产出走**工具结果 `details`**；`suggest` 逐次批准用会话内卡片（Q5 收敛） | 新增 `annotation.*` 事件族；弹窗批准 | SDD 03 D-21 已验证 `details` 这条范式：卡片随会话历史天然持久化，不必另建回放通道。弹窗打断阅片节奏，且与既有会话交互不同构 | 2026-08-22 |
-| D-12 | `propose_annotation` 成功后由 `tool_execution_end` 事件直接 upsert 当前 Viewer，快照保留建议 details | 成功后再请求 `/annotations`；轮询；只在切图时恢复 | details 来自 Backend 成功响应，已含 ID/几何/seq；直接写回延迟最低且无额外请求。活动对象守卫防止切图串入，`upsertAnnotation` 保证重复事件幂等，Backend 仍是刷新后的事实源 | 2026-08-26 |
+| D-12 | `propose_annotation` 成功后由 `tool.end` 事件直接 upsert 当前 Viewer，快照保留建议 details | 成功后再请求 `/annotations`；轮询；只在切图时恢复 | details 来自 Backend 成功响应，已含 ID/几何/seq；直接写回延迟最低且无额外请求。活动对象守卫防止切图串入，`upsertAnnotation` 保证重复事件幂等，Backend 仍是刷新后的事实源 | 2026-08-26 |
 
 ## 17. 待确认问题
 

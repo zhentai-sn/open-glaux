@@ -71,23 +71,23 @@ describe("multi-session streaming and recovery", () => {
       ]);
 
       const firstPiEvents = firstEvents.filter(
-        (event) => event.event === "pi.event",
+        (event) => event.event !== "snapshot",
       );
       const secondPiEvents = secondEvents.filter(
-        (event) => event.event === "pi.event",
+        (event) => event.event !== "snapshot",
       );
       expect(firstPiEvents.length).toBeGreaterThan(0);
       expect(secondPiEvents.length).toBeGreaterThan(0);
       expect(
         firstPiEvents.every(
           (event) =>
-            event.event === "pi.event" && event.data.session_id === first,
+            event.data.session_id === first,
         ),
       ).toBe(true);
       expect(
         secondPiEvents.every(
           (event) =>
-            event.event === "pi.event" && event.data.session_id === second,
+            event.data.session_id === second,
         ),
       ).toBe(true);
 

@@ -172,12 +172,12 @@ export function AgentConversation() {
               role: "user",
               content: [
                 ...pendingImages.map((image) => ({
-                  type: "image",
+                  type: "image" as const,
                   data: image.data,
                   mimeType: image.mime_type,
                 })),
                 ...(live?.pendingUser
-                  ? [{ type: "text", text: live.pendingUser }]
+                  ? [{ type: "text" as const, text: live.pendingUser }]
                   : []),
               ],
             }

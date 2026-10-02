@@ -298,13 +298,12 @@ describe("consult_atlas through the harness (integration)", () => {
         viewer: viewerOn("tech_402"),
       });
       await fixture.registry.waitForIdle(sessionId);
-      const isToolEnd = (e: TransportEvent) =>
-        e.event === "pi.event" && (e.data.event as { type?: string }).type === "tool_execution_end";
+      const isToolEnd = (e: TransportEvent) => e.event === "tool.end";
       await waitFor(() => events.some(isToolEnd));
 
-      const toolEnd = events.find(isToolEnd) as Extract<TransportEvent, { event: "pi.event" }>;
-      expect((toolEnd.data.event as { toolName: string }).toolName).toBe(CONSULT_ATLAS_TOOL_NAME);
-      expect((toolEnd.data.event as { result: { details: unknown } }).result.details).toMatchObject({
+      const toolEnd = events.find(isToolEnd) as Extract<TransportEvent, { event: "tool.end" }>;
+      expect(toolEnd.data.tool_name).toBe(CONSULT_ATLAS_TOOL_NAME);
+      expect(toolEnd.data.details).toMatchObject({
         kind: ATLAS_REFERENCED_DETAILS_KIND,
         payload: { selected_ids: ["a", "b"] },
       });

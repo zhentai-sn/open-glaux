@@ -145,7 +145,7 @@ describe("default tool factory", () => {
 });
 
 describe("run_task through the harness (integration)", () => {
-  it("executes the tool call, emits tool_execution_end with task output, and lets the model answer", async () => {
+  it("executes the tool call, emits tool.end with task output, and lets the model answer", async () => {
     const { fetch, calls } = fetchRecorder(ok);
     const fixture = await createRuntimeFixture(
       [
@@ -173,9 +173,7 @@ describe("run_task through the harness (integration)", () => {
         viewer: viewerOn("tech_401", { task: "far_wall_cca_imt", calibration: MM_PER_PX }),
       });
       await fixture.registry.waitForIdle(sessionId);
-      const isToolEnd = (e: TransportEvent) =>
-        e.event === "pi.event" &&
-        (e.data.event as { type?: string }).type === "tool_execution_end";
+      const isToolEnd = (e: TransportEvent) => e.event === "tool.end";
       await waitFor(() => events.some(isToolEnd));
 
       expect(calls).toHaveLength(1);
@@ -185,16 +183,11 @@ describe("run_task through the harness (integration)", () => {
         calibration: MM_PER_PX,
       });
 
-      const toolEnd = events.find(isToolEnd) as Extract<TransportEvent, { event: "pi.event" }>;
-      const payload = toolEnd.data.event as {
-        toolName: string;
-        isError: boolean;
-        result: { details: unknown };
-      };
-      expect(payload.toolName).toBe(RUN_TASK_TOOL_NAME);
-      expect(payload.isError).toBe(false);
-      expect(targetObjectId(payload.result.details)).toBe("tech_401");
-      expect(payload.result.details).toMatchObject({
+      const payload = (events.find(isToolEnd) as Extract<TransportEvent, { event: "tool.end" }>).data;
+      expect(payload.tool_name).toBe(RUN_TASK_TOOL_NAME);
+      expect(payload.is_error).toBe(false);
+      expect(targetObjectId(payload.details)).toBe("tech_401");
+      expect(payload.details).toMatchObject({
         kind: TASK_OUTPUT_DETAILS_KIND,
         output: { metrics: { IMT_mean: { value: 0.6234 } } },
       });

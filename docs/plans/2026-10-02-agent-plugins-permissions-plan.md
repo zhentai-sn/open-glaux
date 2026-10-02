@@ -167,3 +167,5 @@ status: active
 ## 实施偏差
 
 - W1：`locate_roi` 归入 `annotation` 插件而非 `imaging`。插件按登记顺序拼接提示词片段，这样排列才能与迁移前的片段顺序逐字一致；SDD 15 §7.1 表格已同步。
+- W2：`tool.end` 增加 `error_text`（仅出错时，前 2000 字符）。现有集成测试断言工具错误文本，W6 的「已拒绝」理由也需要它；SDD 15 §9.5 已同步。
+- W2：脱敏改为逐字符串执行（新增 `redactStrings`）。原实现对整段 JSON 执行 `redactText`，`Bearer` 规则会吞掉结束引号导致 `JSON.parse` 抛错，进而从订阅回调中让运行失败；这是迁移前就存在的缺陷。

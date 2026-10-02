@@ -9,7 +9,6 @@ import {
 import {
   connectSessionEvents,
   messageRole,
-  piEventType,
   type EventConnector,
 } from "../agent/runtime/events";
 import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
@@ -24,9 +23,11 @@ import type {
   ConnectionInput,
   PermissionMode,
   PromptImage,
+  RuntimeEvent,
   SessionListItem,
   SessionStatus,
   SessionView,
+  TranscriptMessage,
   ViewerContext,
 } from "../agent/runtime/types";
 
@@ -34,7 +35,7 @@ interface LiveSession {
   pendingUser?: string;
   /** 与 pendingUser 同属"已发出、快照尚未回来"的乐观回显（SDD 00 D-021）。 */
   pendingImages?: PromptImage[];
-  streamingAssistant?: unknown;
+  streamingAssistant?: TranscriptMessage;
 }
 
 interface AgentSessionsState {
@@ -77,7 +78,7 @@ interface AgentSessionsState {
   setSearch: (search: string) => void;
   clearError: () => void;
   applySnapshot: (snapshot: SessionView) => void;
-  applyPiEvent: (sessionId: string, event: unknown) => void;
+  applyRuntimeEvent: (event: RuntimeEvent) => void;
 }
 
 const CURRENT_SESSION_KEY = "glaux.agent.current-session";
@@ -118,8 +119,7 @@ export function createAgentSessionsStore(
       sessionId,
       connectEvents(sessionId, {
         onSnapshot: (snapshot) => store.getState().applySnapshot(snapshot),
-        onPiEvent: ({ session_id, event }) =>
-          store.getState().applyPiEvent(session_id, event),
+        onRuntimeEvent: (event) => store.getState().applyRuntimeEvent(event),
         onVideoAnswer: ({ session_id }) => {
           void runtime.getSession(session_id)
             .then((snapshot) => store.getState().applySnapshot(snapshot))
@@ -425,19 +425,18 @@ export function createAgentSessionsStore(
           };
         }),
 
-      applyPiEvent: (sessionId, event) => {
-        const type = piEventType(event);
-        if (!type) return;
-        if (type === "tool_execution_end") {
+      applyRuntimeEvent: (event) => {
+        const sessionId = event.data.session_id;
+        if (event.event === "tool.end") {
           // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge。
           // 后台会话的结果只进它自己的工作区快照，不改前台画面（SDD 13 §7.7 规则 5）。
           if (CHAT_EDITION) return;
-          if (sessionId === get().currentSessionId) applyToolExecutionEvent(event);
-          else applyToolExecutionEvent(event, workspaces.backgroundSink(sessionId));
+          if (sessionId === get().currentSessionId) applyToolExecutionEvent(event.data);
+          else applyToolExecutionEvent(event.data, workspaces.backgroundSink(sessionId));
           return;
         }
-        if (type === "message_update") {
-          const message = (event as { message?: unknown }).message;
+        if (event.event === "message.delta") {
+          const message = event.data.message;
           if (messageRole(message) === "assistant") {
             set((state) => ({
               live: {
@@ -451,7 +450,7 @@ export function createAgentSessionsStore(
           }
           return;
         }
-        if (type === "message_end" || type === "agent_end" || type === "session_compact") {
+        if (event.event === "message.end" || event.event === "run.settled" || event.event === "context.compacted") {
           void runtime
             .getSession(sessionId)
             .then((snapshot) => get().applySnapshot(snapshot))

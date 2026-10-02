@@ -113,14 +113,12 @@ describe("agent session store", () => {
       model: "model",
       credential,
     });
-    handlers.get(sessionId)?.onPiEvent({
-      session_id: sessionId,
-      event: {
-        type: "message_update",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: "partial" }],
-        },
+    handlers.get(sessionId)?.onRuntimeEvent({
+      event: "message.delta",
+      data: {
+        session_id: sessionId,
+        command_id: "c",
+        message: { role: "assistant", content: [{ type: "text", text: "partial" }] },
       },
     });
 
@@ -130,13 +128,14 @@ describe("agent session store", () => {
 });
 
 describe("会话状态隔离（SDD 13 §7.7）", () => {
-  const runTaskEnd = (imageId: string, value: number) => ({
-    type: "tool_execution_end",
-    toolCallId: "c1",
-    toolName: "run_task",
-    isError: false,
-    result: {
-      content: [],
+  const runTaskEnd = (sessionId: string, imageId: string, value: number) => ({
+    event: "tool.end" as const,
+    data: {
+      session_id: sessionId,
+      command_id: "c",
+      tool_call_id: "c1",
+      tool_name: "run_task",
+      is_error: false,
       details: {
         kind: "glaux.task_output",
         task: "t",
@@ -178,7 +177,7 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
     await store.getState().selectSession(b);
     useSession.setState({ focus: focusOn("y") });
 
-    handlers.get(a)!.onPiEvent({ session_id: a, event: runTaskEnd("x", 1) });
+    handlers.get(a)!.onRuntimeEvent(runTaskEnd(a, "x", 1));
     expect(useSession.getState().metrics).toBeNull();
     expect(ws.workspaceOf(a)?.metrics).toEqual({ d: { value: 1, unit: "mm" } });
 
@@ -193,10 +192,10 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
     await store.getState().selectSession(b);
     useSession.setState({ focus: focusOn("x") });
 
-    handlers.get(a)!.onPiEvent({ session_id: a, event: runTaskEnd("x", 2) });
+    handlers.get(a)!.onRuntimeEvent(runTaskEnd(a, "x", 2));
     expect(useSession.getState().metrics).toBeNull();
 
-    handlers.get(b)!.onPiEvent({ session_id: b, event: runTaskEnd("x", 3) });
+    handlers.get(b)!.onRuntimeEvent(runTaskEnd(b, "x", 3));
     expect(useSession.getState().metrics).toEqual({ d: { value: 3, unit: "mm" } });
   });
 
@@ -224,6 +223,22 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
 
     await store.getState().selectSession(a);
     expect(store.getState().unread[a]).toBeUndefined();
+  });
+
+  it("后台会话收到 run.settled 时重新拉取快照并标记未读（SDD 15 §9.5）", async () => {
+    const { views, store, handlers, client, a, b } = await isolated();
+    await store.getState().selectSession(b);
+    const viewA = views.find((v) => v.session_id === a)!;
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "running" });
+    vi.mocked(client.getSession).mockClear();
+
+    handlers.get(a)!.onRuntimeEvent({
+      event: "run.settled",
+      data: { session_id: a, command_id: "c", outcome: "completed", budget: { turns: 1, elapsed_ms: 5, exhausted: false } },
+    });
+
+    await vi.waitFor(() => expect(store.getState().unread[a]).toBe(true));
+    expect(client.getSession).toHaveBeenCalledWith(a);
   });
 
   it("当前会话自己完成不记未读，出错不记未读", async () => {

@@ -6,7 +6,6 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
   shouldCompact,
-  type AgentHarnessEvent,
   type AgentHarnessTool,
   type Session,
 } from "@earendil-works/pi-agent-core";
@@ -15,12 +14,12 @@ import type { Model, Models } from "@earendil-works/pi-ai";
 import type {
   ConnectionInput,
   PermissionMode,
+  RunOutcome,
   SessionPhase,
   TransportEvent,
   ViewerContext,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
-import { redactText } from "../security/redact.js";
 import { sessionProjectId, type SessionService } from "./session-service.js";
 import {
   createModelRuntime,
@@ -28,6 +27,7 @@ import {
 } from "./model-runtime.js";
 import { activePlugins, availableTools, promptFragments } from "../plugins/registry.js";
 import { installHooks } from "../plugins/compose.js";
+import { mapPiEvent } from "../transport/event-map.js";
 import { PROJECT_GUARDED_TOOL_NAMES, ProjectScope, withProjectGuard } from "./tools/project-guard.js";
 import { VideoTurn } from "./video-turn.js";
 
@@ -127,6 +127,8 @@ interface HarnessSlot {
   disposeCredential: () => void;
   unsubscribeHarness: () => void;
   completion: Promise<void>;
+  /** 本命令的回合数与起始时刻，供 `run.settled` 与预算使用（SDD 15 §7.8）。 */
+  stats: { turns: number; startedAt: number };
 }
 
 type TransportListener = (event: Exclude<TransportEvent, { event: "snapshot" }>) => void;
@@ -210,8 +212,11 @@ export class HarnessRegistry {
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
     });
+    const stats = { turns: 0, startedAt: Date.now() };
     const unsubscribeEvents = harness.subscribe((event) => {
-      this.emitPiEvent(sessionId, commandId, event);
+      if (event.type === "turn_start") stats.turns += 1;
+      const mapped = mapPiEvent(sessionId, commandId, event);
+      if (mapped) this.emit(sessionId, mapped);
     });
     const unsubscribeHarness = () => {
       unsubscribeEvents();
@@ -225,6 +230,7 @@ export class HarnessRegistry {
       disposeCredential: runtime.disposeCredential,
       unsubscribeHarness,
       completion: Promise.resolve(),
+      stats,
     };
     this.slots.set(sessionId, slot);
 
@@ -309,17 +315,21 @@ export class HarnessRegistry {
     await slot.harness.compact();
   }
 
-  private emitPiEvent(
-    sessionId: string,
-    commandId: string,
-    event: AgentHarnessEvent,
-  ): void {
+  /** 命令结束时由命令服务调用；命令未能启动时回合数为 0。 */
+  emitRunSettled(sessionId: string, commandId: string, outcome: RunOutcome): void {
+    const slot = this.slots.get(sessionId);
+    const stats = slot?.commandId === commandId ? slot.stats : undefined;
     this.emit(sessionId, {
-      event: "pi.event",
+      event: "run.settled",
       data: {
         session_id: sessionId,
         command_id: commandId,
-        event: JSON.parse(redactText(JSON.stringify(event))) as AgentHarnessEvent,
+        outcome,
+        budget: {
+          turns: stats?.turns ?? 0,
+          elapsed_ms: stats ? Date.now() - stats.startedAt : 0,
+          exhausted: false,
+        },
       },
     });
   }

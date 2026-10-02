@@ -257,18 +257,14 @@ describe("open_file 经 harness（SDD 13 §7.3 规则 6、§15.2）", () => {
         command_id: crypto.randomUUID(), type: "prompt", content: "open it", connection: TEST_CONNECTION,
       });
       await fixture.registry.waitForIdle(projectSession);
-      const isToolEnd = (e: TransportEvent) =>
-        e.event === "pi.event" && (e.data.event as { type?: string }).type === "tool_execution_end";
+      const isToolEnd = (e: TransportEvent) => e.event === "tool.end";
       await waitFor(() => events.some(isToolEnd));
 
       expect(seen[0]?.projectId).toBe("prj-a");
       expect(backend.paths()).toEqual(["/projects/prj-a/objects"]);
-      const toolEnd = (events.find(isToolEnd) as Extract<TransportEvent, { event: "pi.event" }>).data.event as {
-        isError: boolean;
-        result: { content: Array<{ type: string; text?: string }> };
-      };
-      expect(toolEnd.isError).toBe(true);
-      expect(textOf(toolEnd.result)).toContain("outside_project");
+      const toolEnd = (events.find(isToolEnd) as Extract<TransportEvent, { event: "tool.end" }>).data;
+      expect(toolEnd.is_error).toBe(true);
+      expect(toolEnd.error_text).toContain("outside_project");
       const view = await fixture.sessions.getSession(projectSession);
       const last = view.messages.at(-1) as { role?: string; content?: unknown };
       expect(last.role).toBe("assistant");
@@ -461,17 +457,15 @@ describe("read_file 经 harness（SDD 14 §7.4 规则 5、§15.3）", () => {
         command_id: crypto.randomUUID(), type: "prompt", content: "read them", connection: TEST_CONNECTION,
       });
       await fixture.registry.waitForIdle(session);
-      type ToolEnd = { type: string; isError: boolean; result: { content: Array<{ type: string; text?: string }> } };
       const toolEnds = () => events
-        .filter((e): e is Extract<TransportEvent, { event: "pi.event" }> => e.event === "pi.event")
-        .map((e) => e.data.event as unknown as ToolEnd)
-        .filter((e) => e.type === "tool_execution_end");
+        .filter((e): e is Extract<TransportEvent, { event: "tool.end" }> => e.event === "tool.end")
+        .map((e) => e.data);
       await waitFor(() => toolEnds().length === 3);
 
       expect(backend.paths()).toEqual(Array(3).fill("/projects/prj-a/text"));
       const ends = toolEnds();
-      expect(ends.every((end) => end.isError)).toBe(true);
-      expect(ends.map((end) => textOf(end.result))).toEqual([
+      expect(ends.every((end) => end.is_error)).toBe(true);
+      expect(ends.map((end) => end.error_text)).toEqual([
         expect.stringContaining("hidden_path"),
         expect.stringContaining("binary"),
         expect.stringContaining("outside_project"),

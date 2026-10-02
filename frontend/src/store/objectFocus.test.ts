@@ -77,13 +77,12 @@ function taskOutput(): TaskOutput {
 
 function runTaskEnd(imageId: string) {
   return {
-    type: "tool_execution_end",
-    toolCallId: "c1",
-    toolName: "run_task",
-    isError: false,
-    result: {
-      content: [],
-      details: {
+    session_id: "s",
+    command_id: "c",
+    tool_call_id: "c1",
+    tool_name: "run_task",
+    is_error: false,
+    details: {
         kind: "glaux.task_output",
         task: "x",
         image_id: imageId,
@@ -93,19 +92,17 @@ function runTaskEnd(imageId: string) {
           provenance: { model_version: `agent@${imageId}` },
         },
       },
-    },
   };
 }
 
 function proposeEnd(imageId: string, annotationId: string) {
   return {
-    type: "tool_execution_end",
-    toolCallId: "c2",
-    toolName: "propose_annotation",
-    isError: false,
-    result: {
-      content: [],
-      details: {
+    session_id: "s",
+    command_id: "c",
+    tool_call_id: "c2",
+    tool_name: "propose_annotation",
+    is_error: false,
+    details: {
         kind: "glaux.annotation_proposed",
         payload: {
           annotation_id: annotationId,
@@ -116,7 +113,6 @@ function proposeEnd(imageId: string, annotationId: string) {
           seq: 1,
         },
       },
-    },
   };
 }
 

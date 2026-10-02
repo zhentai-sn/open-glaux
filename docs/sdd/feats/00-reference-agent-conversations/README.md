@@ -186,10 +186,10 @@ sequenceDiagram
     H->>LLM: Pi 构造上下文并发起流式请求
     LLM-->>H: token 增量
     H-->>AD: message_update
-    AD-->>UI: SSE pi.event
+    AD-->>UI: SSE message.delta
     H->>S: 提交 assistant session entry
-    H-->>AD: message_end / agent_end
-    AD-->>UI: SSE pi.event
+    H-->>AD: message_end
+    AD-->>UI: SSE message.end / run.settled
 ```
 
 ### 6.3 Glaux Transport Adapter 契约
@@ -246,15 +246,16 @@ sequenceDiagram
   §4.3 的数值约束。
 - `command_id` 关联 Pi namespaced `glaux.command.accepted/settled` entries，用于避免网络重试产生重复 prompt。
 
-SSE 只定义三种 Adapter 事件，不复制 Pi 完整事件体系：
+SSE 事件由 Glaux 定义，不透传 Pi 事件（[SDD 15](../15-agent-plugins-permissions/README.md) D-8）：
 
 | SSE event | payload | 说明 |
 | --- | --- | --- |
 | `snapshot` | `SessionView` | 建立连接和每次重连时首先发送 |
-| `pi.event` | `{ session_id, command_id?, event }` | `event` 原样承载当前锁定版本的 `AgentHarnessEvent` |
+| 运行事件 | 见 SDD 15 §9.5 | `message.delta`、`message.end`、`tool.start`、`tool.end`、`interaction.request`、`interaction.resolved`、`context.compacted`、`run.settled`；Adapter 按白名单从 Pi 事件映射 |
+| `video.answer` | 见 SDD 11 | 视频问答的结构化答案 |
 | `adapter.error` | `{ session_id, command_id?, code, message, trace_id }` | 传输、配置或事件映射失败 |
 
-Pi 事件至少覆盖 `agent_start`、`turn_start`、`message_start`、`message_update`、`message_end`、`turn_end`、`agent_end` 以及 harness 的 compaction 事件。Adapter 不重命名 Pi 事件字段；升级 Pi 导致事件不兼容时必须先修订本 SDD。
+Pi 事件结构变化只影响 Adapter 的映射层，前端不跟着改。
 
 SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重连流程必须先注册 Pi 事件监听器、暂存其后事件，再生成并发送 `snapshot`，最后按发生顺序排空暂存事件，以避免 snapshot 与实时事件之间出现缺口。
 
@@ -305,12 +306,12 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 | `GlauxSessionMeta` | Pi 不负责的产品字段：标题、归档状态、权限模式 |
 | `SessionView` | Adapter 合并 Pi Session 与 GlauxSessionMeta 后返回给前端的读模型 |
 | `TransportCommand` | 前端发送给 Adapter 的 `prompt`、`regenerate`、`abort` 命令 |
-| `TransportEvent` | Adapter 的 `snapshot`、`pi.event`、`adapter.error` SSE 输出 |
+| `TransportEvent` | Adapter 的 SSE 输出：`snapshot`、运行事件、`video.answer`、`adapter.error` |
 | `ConnectionInput` | 单次生成命令的模型连接输入；敏感 credential 不持久化 |
 
 ## 9. 字段
 
-Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockfile 中锁定的 Pi 版本为准，本 SDD 不复制其内部 schema。
+Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockfile 中锁定的 Pi 版本为准，本 SDD 不复制其内部 schema。`SessionView.messages` 与事件中的消息使用 Glaux 声明的 `TranscriptMessage`（SDD 15 §9.6），由 Adapter 从 Pi 消息转换。
 
 ### 9.1 GlauxSessionMeta
 
@@ -499,13 +500,13 @@ erDiagram
 
 ### 15.2 流式运行
 
-- [x] 普通生成把 Pi `message_update` 原样包装为 `pi.event` 并按发生顺序增量展示。
+- [x] 普通生成把 Pi `message_update` 映射为 `message.delta` 并按发生顺序增量展示。
 - [x] 切换到其他会话不取消生成；返回后可看到实时状态或最终回答。
 - [x] 点击停止后 1 秒内调用 Pi `abort()`，SessionView 最终回到 `idle`。
 - [x] SSE 建连与重连的第一个事件都是 `snapshot`；注册监听器到 snapshot 发送完成之间的 Pi 事件不丢失。
 - [x] Runtime 异常退出再启动后，最后一条已提交 Pi session entry 可恢复，允许丢失未提交 token。
 - [x] 同 Session 并发发送第二个生成命令返回 `409 session_busy`；不同 Session 可以并发运行。
-- [x] SSE 输出只包含 `snapshot`、`pi.event`、`adapter.error`，不存在复制改名的第二套 Agent 事件。
+- [x] SSE 输出只包含 `snapshot`、SDD 15 §9.5 的运行事件、`video.answer`、`adapter.error`，不透传 Pi 事件。
 
 ### 15.3 重新生成与无分支约束
 

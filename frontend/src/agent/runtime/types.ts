@@ -10,6 +10,52 @@ export interface ContextUsage {
   ratio?: number;
 }
 
+/** SDD 15 §9.6：由 Glaux 声明的消息结构，与 pi-ai 解耦。 */
+export type TranscriptBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
+
+export type TranscriptMessage =
+  | { role: "user"; content: string | TranscriptBlock[] }
+  | { role: "assistant"; content: TranscriptBlock[] }
+  | {
+      role: "toolResult";
+      toolCallId: string;
+      toolName: string;
+      content: TranscriptBlock[];
+      details?: unknown;
+      isError: boolean;
+    };
+
+export type ToolEffect = "read" | "annotate" | "compute" | "egress" | "write" | "exec" | "delegate";
+
+/** SDD 15 §9.3：等待用户回复的交互请求。 */
+export interface InteractionRequest {
+  request_id: string;
+  session_id: string;
+  command_id: string;
+  kind: "permission" | "question";
+  created_at: string;
+  expires_at: string;
+  permission?: {
+    tool_call_id: string;
+    tool_name: string;
+    effect: ToolEffect;
+    args_summary: string;
+    grant_options: ("once" | "session" | "always")[];
+  };
+  question?: { question: string; options: string[]; allow_free_text: boolean };
+}
+
+export interface RuntimeWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export type RunOutcome = "completed" | "aborted" | "failed" | "budget_exceeded";
+
 export interface SessionView {
   session_id: string;
   title: string;
@@ -18,7 +64,7 @@ export interface SessionView {
   provider: string | null;
   model: string | null;
   phase: SessionPhase;
-  messages: unknown[];
+  messages: TranscriptMessage[];
   video_answers?: VideoAnswerRecord[];
   video_observations?: ClipObservation[];
   context_usage: ContextUsage | null;
@@ -26,9 +72,15 @@ export interface SessionView {
   updated_at: string;
   /** 创建时绑定的项目，不可改；空为未归属（SDD 13 §7.6、§9.5）。 */
   project_id: string | null;
+  /** 当前待决的交互请求（SDD 15 §9.7）；旧版 runtime 不下发时视为空。 */
+  pending_interactions?: InteractionRequest[];
+  warnings?: RuntimeWarning[];
 }
 
-export type SessionListItem = Omit<SessionView, "messages" | "video_answers" | "video_observations">;
+export type SessionListItem = Omit<
+  SessionView,
+  "messages" | "video_answers" | "video_observations" | "pending_interactions" | "warnings"
+>;
 
 export interface ConnectionInput {
   provider: "anthropic" | "openai-compatible";
@@ -172,12 +224,26 @@ export type TransportCommand =
 export type TransportEvent =
   | { event: "snapshot"; data: SessionView }
   | { event: "video.answer"; data: { session_id: string; command_id: string; answer: VideoAnswer } }
+  | { event: "message.delta"; data: { session_id: string; command_id: string; message: TranscriptMessage } }
+  | { event: "message.end"; data: { session_id: string; command_id: string } }
   | {
-      event: "pi.event";
+      event: "tool.start";
+      data: { session_id: string; command_id: string; tool_call_id: string; tool_name: string; args: unknown };
+    }
+  | { event: "tool.end"; data: ToolEndData }
+  | { event: "interaction.request"; data: InteractionRequest }
+  | {
+      event: "interaction.resolved";
+      data: { session_id: string; request_id: string; outcome: "answered" | "expired" | "cancelled" };
+    }
+  | { event: "context.compacted"; data: { session_id: string } }
+  | {
+      event: "run.settled";
       data: {
         session_id: string;
-        command_id?: string;
-        event: unknown;
+        command_id: string;
+        outcome: RunOutcome;
+        budget: { turns: number; elapsed_ms: number; exhausted: boolean };
       };
     }
   | {
@@ -190,6 +256,30 @@ export type TransportEvent =
         trace_id: string;
       };
     };
+
+export interface ToolEndData {
+  session_id: string;
+  command_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  is_error: boolean;
+  details: unknown;
+  error_text?: string;
+}
+
+/** 除快照、视频答案、适配器错误以外，由 store 统一分发的运行事件。 */
+export type RuntimeEvent = Exclude<TransportEvent, { event: "snapshot" | "video.answer" | "adapter.error" }>;
+
+export const RUNTIME_EVENT_NAMES: readonly RuntimeEvent["event"][] = [
+  "message.delta",
+  "message.end",
+  "tool.start",
+  "tool.end",
+  "interaction.request",
+  "interaction.resolved",
+  "context.compacted",
+  "run.settled",
+];
 
 export interface RuntimeHealth {
   status: "ok";

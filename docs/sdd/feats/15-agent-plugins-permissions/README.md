@@ -259,7 +259,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 
 ### 7.10 transport 事件结构
 
-1. SSE 不再发送 `pi.event`。runtime 订阅 pi 事件，转换为 §9.5 的 Glaux 事件后下发，下发前仍经 `redactText` 脱敏。
+1. SSE 不再发送 `pi.event`。runtime 订阅 pi 事件，转换为 §9.5 的 Glaux 事件后下发；下发前对事件中的每个字符串执行 `redactText`，不对序列化后的整段 JSON 执行（整段替换会吞掉字符串结束引号）。
 2. 会话快照与事件中的消息使用 Glaux 定义的 `TranscriptMessage`（§9.6）。它与 pi-ai 当前的消息结构字段一致，但由 Glaux 声明；pi-ai 结构变化时由 runtime 转换，前端不跟着改。
 3. 前端 `piEventType`、`applyPiEvent` 等基于 pi 事件名的代码改为基于 Glaux 事件名。
 
@@ -394,7 +394,7 @@ type InteractionOutcome = "answered" | "expired" | "cancelled";
 | `message.delta` | `{session_id, command_id, message: TranscriptMessage}` | pi `message_update`（仅 assistant） |
 | `message.end` | `{session_id, command_id}` | pi `message_end` |
 | `tool.start` | `{session_id, command_id, tool_call_id, tool_name, args}` | pi `tool_execution_start` |
-| `tool.end` | `{session_id, command_id, tool_call_id, tool_name, is_error, details}` | pi `tool_execution_end` |
+| `tool.end` | `{session_id, command_id, tool_call_id, tool_name, is_error, details, error_text?}` | pi `tool_execution_end`；`error_text` 只在出错时给出，为结果文本前 2000 字符 |
 | `interaction.request` | `InteractionRequest` | 交互请求表 |
 | `interaction.resolved` | `{session_id, request_id, outcome}` | 交互请求表 |
 | `context.compacted` | `{session_id}` | pi `session_compact` |

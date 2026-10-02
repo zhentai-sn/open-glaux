@@ -37,17 +37,77 @@ export interface ContextUsage {
   ratio?: number;
 }
 
+/**
+ * SDD 15 §9.6：快照与事件中的消息结构，由 Glaux 声明。
+ * 字段与 pi-ai 当前消息一致；pi-ai 结构变化时由 runtime 转换，前端不跟着改。
+ */
+export type TranscriptBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
+
+export type TranscriptMessage =
+  | { role: "user"; content: string | TranscriptBlock[] }
+  | { role: "assistant"; content: TranscriptBlock[] }
+  | {
+      role: "toolResult";
+      toolCallId: string;
+      toolName: string;
+      content: TranscriptBlock[];
+      details?: unknown;
+      isError: boolean;
+    };
+
+/** SDD 15 §9.3：等待用户回复的交互请求（权限审批或 `ask_user` 提问）。 */
+export interface InteractionRequest {
+  request_id: string;
+  session_id: string;
+  command_id: string;
+  kind: "permission" | "question";
+  created_at: string;
+  expires_at: string;
+  permission?: {
+    tool_call_id: string;
+    tool_name: string;
+    effect: import("./plugins/types.js").ToolEffect;
+    args_summary: string;
+    grant_options: ("once" | "session" | "always")[];
+  };
+  question?: { question: string; options: string[]; allow_free_text: boolean };
+}
+
+/** 设置文件加载告警等非致命问题（SDD 15 §9.7）。 */
+export interface RuntimeWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
 export interface SessionView extends GlauxSessionMeta {
   provider: string | null;
   model: string | null;
   phase: SessionPhase;
-  messages: AgentMessage[];
+  messages: TranscriptMessage[];
   video_answers?: VideoAnswerRecord[];
   video_observations?: ClipObservation[];
   context_usage: ContextUsage | null;
+  pending_interactions: InteractionRequest[];
+  warnings: RuntimeWarning[];
 }
 
-export type SessionListItem = Omit<SessionView, "messages" | "video_answers" | "video_observations">;
+export type SessionListItem = Omit<
+  SessionView,
+  "messages" | "video_answers" | "video_observations" | "pending_interactions" | "warnings"
+>;
+
+/** 命令结局（SDD 00 §11 + SDD 15 §7.8）。 */
+export type RunOutcome = "completed" | "aborted" | "failed" | "budget_exceeded";
+
+export interface RunBudgetStats {
+  turns: number;
+  elapsed_ms: number;
+  exhausted: boolean;
+}
 
 export interface CreateSessionInput {
   session_id: string;
@@ -219,12 +279,45 @@ export type TransportEvent =
       data: SessionView;
     }
   | {
-      event: "pi.event";
+      event: "message.delta";
+      data: { session_id: string; command_id: string; message: TranscriptMessage };
+    }
+  | {
+      event: "message.end";
+      data: { session_id: string; command_id: string };
+    }
+  | {
+      event: "tool.start";
+      data: { session_id: string; command_id: string; tool_call_id: string; tool_name: string; args: unknown };
+    }
+  | {
+      event: "tool.end";
       data: {
         session_id: string;
-        command_id?: string;
-        event: import("@earendil-works/pi-agent-core").AgentHarnessEvent;
+        command_id: string;
+        tool_call_id: string;
+        tool_name: string;
+        is_error: boolean;
+        details: unknown;
+        /** 出错时工具结果的文本（≤ 2000 字符），供前端显示拒绝或失败理由。 */
+        error_text?: string;
       };
+    }
+  | {
+      event: "interaction.request";
+      data: InteractionRequest;
+    }
+  | {
+      event: "interaction.resolved";
+      data: { session_id: string; request_id: string; outcome: "answered" | "expired" | "cancelled" };
+    }
+  | {
+      event: "context.compacted";
+      data: { session_id: string };
+    }
+  | {
+      event: "run.settled";
+      data: { session_id: string; command_id: string; outcome: RunOutcome; budget: RunBudgetStats };
     }
   | {
       event: "video.answer";

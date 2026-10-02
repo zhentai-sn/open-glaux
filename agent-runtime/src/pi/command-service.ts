@@ -160,6 +160,8 @@ export class CommandService {
         this.activeCommands.delete(sessionId);
       }
     }
+    // 结局落盘之后再通知前端，前端据此重新拉取快照（SDD 15 §9.5）。
+    this.registry.emitRunSettled(sessionId, command.command_id, result);
   }
 
   private async findReceipt(

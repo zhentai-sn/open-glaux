@@ -126,7 +126,7 @@ sequenceDiagram
     RT->>BE: GET /projects/{id}/text?path=&start_line=1&max_lines=400&max_bytes=65536
     BE-->>RT: ProjectText {end_line: 400, eof: false}
     RT-->>M: 带行号的文本 + 「续读从第 401 行开始」
-    RT-->>FE: tool_execution_end（details: glaux.file_read）
+    RT-->>FE: tool.end（details: glaux.file_read）
     FE->>FE: 对话内渲染文件卡片
     M->>RT: read_file {path, start_line: 401}
 ```

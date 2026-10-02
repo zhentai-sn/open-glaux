@@ -39,7 +39,7 @@ describe("Pi default compaction", () => {
       }
       await fixture.sessions.closeSession(session);
       const unsubscribe = fixture.registry.subscribe(sessionId, (event) => {
-        if (event.event === "pi.event") events.push(event.data.event.type);
+        events.push(event.event);
       });
 
       await fixture.commands.accept(sessionId, {
@@ -59,7 +59,7 @@ describe("Pi default compaction", () => {
       } finally {
         await fixture.sessions.closeSession(reopened);
       }
-      expect(events).toContain("session_compact");
+      expect(events).toContain("context.compacted");
     } finally {
       await fixture.close();
     }

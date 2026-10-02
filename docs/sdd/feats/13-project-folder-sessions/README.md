@@ -200,7 +200,7 @@ sequenceDiagram
     participant AS as agentSessions
     participant WS as sessionWorkspaces
     participant V as 前台查看器(useSession)
-    RT-->>AS: SSE(session A) tool_execution_end
+    RT-->>AS: SSE(session A) tool.end
     alt A 是当前会话
         AS->>V: 按现有 toolBridge 规则写入
     else A 是后台会话
@@ -306,7 +306,7 @@ sequenceDiagram
 2. **项目级**状态（文件栏目录树展开状态、数据源列表、最近使用的显示）随当前会话所属项目切换。
 3. **全局**状态（布局、主题、语言、连接配置、标注工具偏好 `tool`/`toolOptions`）不随会话变化。
 4. 发送消息时，`ViewerContext` 只取当前会话的工作区；不存在「发送时读到别的会话焦点」的路径。
-5. 后台会话的 `tool_execution_end` 只写该会话的快照，不写 `useSession`，不触发查看器重绘。
+5. 后台会话的 `tool.end` 只写该会话的快照，不写 `useSession`，不触发查看器重绘。
 6. 标注是对象级持久数据，按对象共享：两个会话在同一对象上产生的建议标注都写入该对象的标注集，查看器按后端结果显示；这不属于串台。
 7. 后台会话的快照写入仍遵守 toolBridge 的对象一致性检查：结果的对象 id 与该会话快照 `focus.object_id` 不一致时丢弃。
 
@@ -565,7 +565,7 @@ flowchart LR
 
 ### 15.4 状态隔离
 
-- [x] 会话 A 焦点为对象 X，会话 B 焦点为对象 Y；A 在后台完成 `run_task` 后，B 的查看器与度量卡不变。——单测；走查（注入 A 的 `tool_execution_end`，前台度量不变、A 快照得结果）
+- [x] 会话 A 焦点为对象 X，会话 B 焦点为对象 Y；A 在后台完成 `run_task` 后，B 的查看器与度量卡不变。——单测；走查（注入 A 的 `tool.end`，前台度量不变、A 快照得结果）
 - [x] 两个会话焦点同为对象 X；A 在后台完成 `run_task` 后，B 的度量卡不变；切回 A 显示 A 的结果。——单测
 - [x] 在 A 中切换焦点到 Y 后切到 B 发消息，B 本轮 `ViewerContext.focus` 为 B 自己的焦点。——单测（切换后前台焦点即 B 的快照；`ViewerContext` 只读前台）
 - [x] A 中输入草稿与附件，切到 B 时 B 输入框为空；切回 A 草稿与附件恢复。——单测；走查
