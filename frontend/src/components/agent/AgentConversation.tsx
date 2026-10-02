@@ -29,6 +29,7 @@ import { projectWritable } from "./sessionGroups";
 import { OwlLogo } from "../OwlLogo";
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
 import { InteractionCard, ResolvedInteractionLine } from "./InteractionCard";
+import { parseSkillMessage } from "./slashCommands";
 
 const PERMISSION_MODES: PermissionMode[] = [
   "observe",
@@ -396,6 +397,18 @@ export function AgentConversation() {
           if (!role) return null;
           const text = messageText(message);
           const images = messageImages(message);
+          // SDD 17 §5.1：调用 Skill 的用户消息只显示名称与附加说明，不展开 Skill 全文
+          const skillCall = role === "user" ? parseSkillMessage(text) : null;
+          if (skillCall) {
+            return (
+              <div className="turn user" key={`skill-${index}-${skillCall.name}`}>
+                <div className="bubble skill-call" data-testid="skill-call">
+                  <span className="skill-call-name"><Icon icon={ICONS.skill} size="sm" /> {t("agent_skill_call", { name: skillCall.name })}</span>
+                  {skillCall.extra && <span className="skill-call-extra">{skillCall.extra}</span>}
+                </div>
+              </div>
+            );
+          }
           const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
           // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
           if (role === "assistant" && !text && toolCalls.length) {

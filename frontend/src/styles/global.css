@@ -3498,3 +3498,15 @@ body.resizing .focus-rail { transition: none; }
 .res-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .res-status { color: var(--faint); font-size: 11px; }
 .res-preview { max-height: 360px; overflow: auto; white-space: pre-wrap; font-size: 11px; padding: 8px; border: 1px solid var(--line2); border-radius: 6px; background: var(--editor); color: var(--ink); }
+
+/* ==== 输入框 / 菜单与 Skill 调用消息（SDD 17 §7.7、§5.1） ==== */
+.conversation-composer { position: relative; }
+.slash-menu { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 4px); z-index: 20; max-height: 240px; overflow: auto; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--line2); border-radius: 8px; background: var(--sidebar); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25); }
+.slash-menu button { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 4px 8px; border: 0; border-radius: 6px; background: none; color: var(--ink); text-align: left; cursor: pointer; font-size: 12px; }
+.slash-menu li[aria-selected="true"] button, .slash-menu button:hover { background: var(--agent-dim); }
+.slash-name { font-family: var(--mono); color: var(--bright); }
+.slash-kind { font-size: 10.5px; color: var(--faint); }
+.slash-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mid); font-size: 11px; }
+.skill-call { display: flex; flex-direction: column; gap: 4px; }
+.skill-call-name { display: inline-flex; align-items: center; gap: 4px; color: var(--agent); font-size: 12px; }
+.skill-call-extra { white-space: pre-wrap; }

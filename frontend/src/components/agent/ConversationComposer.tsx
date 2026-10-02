@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   addFiles,
@@ -9,19 +9,23 @@ import {
   type Attachment,
   type Rejection,
 } from "../../agent/attachments";
-import type { PromptImage } from "../../agent/runtime/types";
+import type { PromptImage, ResourceList } from "../../agent/runtime/types";
 import { openObject, uploadImages } from "../../data/actions";
 import { CHAT_EDITION } from "../../edition";
 import { useI18n } from "../../i18n";
 import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
+import { agentRuntimeApi } from "../../agent/runtime/client";
+import { useCurrentProjectId } from "../resources/useResources";
+import { parseInvocation, slashItems, slashQuery, type Invocation, type SlashItem } from "./slashCommands";
 import { ProjectChip } from "./ProjectChip";
 
 interface ConversationComposerProps {
   running: boolean;
   disabled: boolean;
-  onSend: (content: string, images: PromptImage[]) => Promise<void>;
+  /** `invocation` 存在时为显式调用 Skill 或模板（SDD 17 §7.4），`content` 仍为输入框原文。 */
+  onSend: (content: string, images: PromptImage[], invocation?: Invocation) => Promise<void>;
   onAbort: () => Promise<void>;
 }
 
@@ -46,6 +50,25 @@ export function ConversationComposer({
   const setPreview = useSession((s) => s.setImagePreview);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  // SDD 17 §7.7：`/` 菜单。打开时刷新资源清单；Esc 关闭后到内容变化前不再弹出。
+  const projectId = useCurrentProjectId();
+  const [resources, setResources] = useState<ResourceList | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const query = CHAT_EDITION ? null : slashQuery(content);
+  const menuOpen = query !== null && dismissed !== content;
+  useEffect(() => {
+    if (!menuOpen) return;
+    let alive = true;
+    agentRuntimeApi.listResources(projectId).then((list) => alive && setResources(list)).catch(() => undefined);
+    return () => { alive = false; };
+    // 只在菜单打开（或项目变化）时刷新，不随每次按键请求
+  }, [menuOpen, projectId]);
+  const menuItems = menuOpen ? slashItems(resources).filter((item) => item.name.startsWith(query ?? "")) : [];
+  const complete = (item: SlashItem) => {
+    setContent(`/${item.name} `);
+    setHighlight(0);
+  };
 
   const isVideo = (file: File): boolean =>
     !CHAT_EDITION && (file.type === "video/mp4" || file.type === "video/webm" || /\.(mp4|webm)$/iu.test(file.name));
@@ -102,6 +125,11 @@ export function ConversationComposer({
     const pending = attachments;
     const pendingVideo = video;
     if ((!next && !pending.length) || disabled || running || uploading) return;
+    const parsed = CHAT_EDITION ? null : parseInvocation(next, slashItems(resources));
+    if (parsed && pending.length) {
+      notify("crit", t("agent_slash_no_images"));
+      return;
+    }
     try {
       if (pendingVideo) {
         await openObject(pendingVideo.objectId, "video");
@@ -112,7 +140,7 @@ export function ConversationComposer({
       setContent("");
       setAttachments([]);
       setVideo(null);
-      await onSend(next, toPromptImages(pending));
+      await onSend(next, toPromptImages(pending), parsed?.invocation);
     } catch (error) {
       setContent(next);
       setAttachments(pending);
@@ -176,6 +204,19 @@ export function ConversationComposer({
           ><Icon icon={ICONS.close} size="sm" /></button>
         </div>
       )}
+      {menuItems.length > 0 && (
+        <ul className="slash-menu" role="listbox" aria-label={t("agent_slash_menu")}>
+          {menuItems.map((item, index) => (
+            <li key={`${item.kind}-${item.name}`} role="option" aria-selected={index === highlight}>
+              <button type="button" onMouseDown={(event) => { event.preventDefault(); complete(item); }}>
+                <span className="slash-name">/{item.name}</span>
+                <span className="slash-kind">{t(item.kind === "skill" ? "agent_slash_skill" : "agent_slash_template")}</span>
+                <span className="slash-desc">{item.description}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <textarea
         aria-label={t("ph")}
         placeholder={t("ph")}
@@ -191,6 +232,24 @@ export function ConversationComposer({
           void intake(images);
         }}
         onKeyDown={(event) => {
+          if (menuItems.length) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const step = event.key === "ArrowDown" ? 1 : -1;
+              setHighlight((index) => (index + step + menuItems.length) % menuItems.length);
+              return;
+            }
+            if (event.key === "Enter" || event.key === "Tab") {
+              event.preventDefault();
+              complete(menuItems[Math.min(highlight, menuItems.length - 1)]!);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setDismissed(content);
+              return;
+            }
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             void submit();

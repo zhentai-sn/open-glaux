@@ -159,6 +159,19 @@ describe("interaction and run events (SDD 15 §9.5)", () => {
     useSession.getState().setDocument(null);
   });
 
+  it("sends explicit skill and template invocations with the remaining text (SDD 17 §9.3)", async () => {
+    localStorage.clear();
+    const { client, store } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+    const connection = { provider: "anthropic" as const, model: "m" };
+    await store.getState().sendPrompt("/imt-protocol left side", [], connection, undefined, { skill: "imt-protocol" });
+    expect(vi.mocked(client.command).mock.lastCall![1]).toMatchObject({ content: "left side", skill: "imt-protocol" });
+    expect(store.getState().live[id]?.pendingUser).toBe("/imt-protocol left side");
+    await store.getState().sendPrompt("/compare A B", [], connection, undefined, { template: { name: "compare", args: "A B" } });
+    expect(vi.mocked(client.command).mock.lastCall![1]).toMatchObject({ content: "", template: { name: "compare", args: "A B" } });
+  });
+
   it("records tool errors and the budget notice, cleared by the next prompt", async () => {
     localStorage.clear();
     const { handlers, store } = fixture();

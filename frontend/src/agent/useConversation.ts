@@ -2,6 +2,7 @@ import { CHAT_EDITION } from "../edition";
 import { useAgentSessions } from "../store/agentSessions";
 import { taskViewFor } from "../data/actions";
 import { activeObject, useSession, type Connection } from "../store/session";
+import type { Invocation } from "../components/agent/slashCommands";
 import type {
   ConnectionInput,
   ConnectionProbeInput,
@@ -88,12 +89,13 @@ export function useConversation() {
   const abort = useAgentSessions((state) => state.abort);
 
   return {
-    send: (content: string, images: PromptImage[] = []) =>
+    send: (content: string, images: PromptImage[] = [], invocation?: Invocation) =>
       sendPrompt(
         content,
         images,
         toConnectionInput(connection, images.length > 0),
         CHAT_EDITION ? undefined : toViewerContext(),
+        invocation,
       ),
     // 重新生成会连原图一起重发（runtime 侧 regenerateLatest），所以视觉能力必须一并带上。
     regenerate: () => regenerate(toConnectionInput(connection, true), CHAT_EDITION ? undefined : toViewerContext()),

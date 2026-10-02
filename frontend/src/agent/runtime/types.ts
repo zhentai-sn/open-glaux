@@ -258,6 +258,9 @@ export type TransportCommand =
       images?: PromptImage[];
       connection: ConnectionInput;
       viewer?: ViewerContext;
+      /** SDD 17 §9.3：显式调用，与 template 互斥。 */
+      skill?: string;
+      template?: { name: string; args: string };
     }
   | {
       command_id: string;

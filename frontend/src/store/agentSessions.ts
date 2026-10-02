@@ -13,6 +13,7 @@ import {
 } from "../agent/runtime/events";
 import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
 import { useProjects } from "./projects";
+import type { Invocation } from "../components/agent/slashCommands";
 import { useSession } from "./session";
 import {
   carryComposerFrom,
@@ -95,6 +96,7 @@ interface AgentSessionsState {
     images: PromptImage[],
     connection: ConnectionInput,
     viewer?: ViewerContext,
+    invocation?: Invocation,
   ) => Promise<void>;
   regenerate: (connection: ConnectionInput, viewer?: ViewerContext) => Promise<void>;
   abort: () => Promise<void>;
@@ -360,7 +362,7 @@ export function createAgentSessionsStore(
         });
       },
 
-      sendPrompt: async (content, images, connection, viewer) => {
+      sendPrompt: async (content, images, connection, viewer, invocation) => {
         const sessionId = get().currentSessionId;
         if (!sessionId) return;
         set((state) => ({
@@ -378,7 +380,9 @@ export function createAgentSessionsStore(
           const snapshot = await runtime.command(sessionId, {
             command_id: crypto.randomUUID(),
             type: "prompt",
-            content,
+            // 显式调用时 content 只留「/名称」之后的附加内容（SDD 17 §9.3）；模板参数另放 args
+            content: invocation ? ("skill" in invocation ? content.replace(/^\/[a-z0-9-]+\s*/u, "") : "") : content,
+            ...(invocation ?? {}),
             ...(images.length ? { images } : {}),
             connection,
             ...(viewer ? { viewer } : {}),
