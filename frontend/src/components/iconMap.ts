@@ -8,6 +8,7 @@ import {
   Brush,
   BookMarked,
   BookOpen,
+  Bot,
   Boxes,
   Check,
   ChevronDown,
@@ -130,4 +131,5 @@ export const ICONS = {
   folderPlus: FolderPlus, // 打开项目文件夹（SDD 13）
   trash: Trash2, // 移除项目（只注销，不删磁盘文件）
   chat: MessageSquare, // 未归属会话组
+  subagent: Bot, // 子智能体卡片与定义列表（SDD 18）
 } as const;

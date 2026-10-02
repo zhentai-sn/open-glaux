@@ -127,7 +127,9 @@ export function messageToolCalls(message: unknown): MessageToolCall[] {
 export function messageToolResultDetails(message: unknown): unknown {
   if (!message || typeof message !== "object") return null;
   const m = message as { role?: unknown; isError?: unknown; details?: unknown };
-  if (m.role !== "toolResult" || m.isError) return null;
+  if (m.role !== "toolResult") return null;
+  // 失败的子智能体仍呈现卡片（SDD 18 §7.3 规则 4）；其余失败结果不呈现。
+  if (m.isError && (m.details as { kind?: unknown } | undefined)?.kind !== "glaux.subagent_run") return null;
   return m.details ?? null;
 }
 

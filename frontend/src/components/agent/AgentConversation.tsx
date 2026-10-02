@@ -21,6 +21,7 @@ import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
 import { ObjectCard, parseObjectOpened } from "./ObjectCard";
 import { FileCard, parseFileRead } from "./FileCard";
+import { SubagentCard, parseSubagentRun } from "./SubagentCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
 import { Markdown } from "./Markdown";
@@ -378,6 +379,18 @@ export function AgentConversation() {
                   <OwlLogo size={18} />
                 </div>
                 <FileCard payload={fileRead} />
+              </div>
+            );
+          }
+          // 子智能体卡片：agent 的工具结果（SDD 18 §5.1），随历史持久呈现
+          const subagentRun = parseSubagentRun(toolDetails);
+          if (!CHAT_EDITION && subagentRun) {
+            return (
+              <div className="turn assistant tool" key={`subagent-${index}`}>
+                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+                  <OwlLogo size={18} />
+                </div>
+                <SubagentCard payload={subagentRun} />
               </div>
             );
           }

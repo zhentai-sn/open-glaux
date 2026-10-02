@@ -16,6 +16,17 @@ const GRANT_LABEL: Record<"once" | "session" | "always", I18nKey> = {
   always: "interaction_allow_always",
 };
 
+/** SDD 18 §7.4：子智能体触发的请求标出来源。 */
+function OriginLine({ request }: { request: InteractionRequest }) {
+  const { t } = useI18n();
+  if (!request.origin) return null;
+  return (
+    <div className="interaction-origin" data-testid="interaction-origin">
+      <Icon icon={ICONS.subagent} size="sm" /> {t("interaction_origin", { task: request.origin.subagent })}
+    </div>
+  );
+}
+
 export function InteractionCard({
   request,
   onReply,
@@ -41,6 +52,7 @@ export function InteractionCard({
           <b>{t("interaction_permission_title", { tool: permission.tool_name })}</b>
           <span className="interaction-effect">{t(`interaction_effect_${permission.effect}`)}</span>
         </div>
+        <OriginLine request={request} />
         {permission.args_summary && permission.args_summary !== "{}" && (
           <div className="interaction-args mono">{permission.args_summary}</div>
         )}
@@ -90,6 +102,7 @@ export function InteractionCard({
         <Icon icon={ICONS.skill} size="sm" />
         <b>{t("interaction_question_title")}</b>
       </div>
+      <OriginLine request={request} />
       <div className="interaction-question">{question.question}</div>
       {question.options.length > 0 && (
         <div className="interaction-actions">

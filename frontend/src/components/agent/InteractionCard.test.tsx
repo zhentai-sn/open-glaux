@@ -81,4 +81,15 @@ describe("InteractionCard", () => {
     render(<I18nProvider><ResolvedInteractionLine item={{ request: permission(["once"]), outcome: "answered" }} /></I18nProvider>);
     expect(screen.getByText("Handled")).toBeInTheDocument();
   });
+  it("names the sub-agent a request comes from", () => {
+    renderCard({ ...permission(["once"]), origin: { subagent: "find the reports" } });
+    expect(screen.getByTestId("interaction-origin")).toHaveTextContent("From sub-agent: find the reports");
+    renderCard({ ...question([]), origin: { subagent: "check units" } });
+    expect(screen.getAllByTestId("interaction-origin")[1]).toHaveTextContent("From sub-agent: check units");
+  });
+
+  it("shows no origin for requests of the main agent", () => {
+    renderCard(permission(["once"]));
+    expect(screen.queryByTestId("interaction-origin")).toBeNull();
+  });
 });

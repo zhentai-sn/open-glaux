@@ -46,6 +46,8 @@ export interface InteractionRequest {
     grant_options: ("once" | "session" | "always")[];
   };
   question?: { question: string; options: string[]; allow_free_text: boolean };
+  /** 来自子智能体时为其任务概括（SDD 18 §9.3）。 */
+  origin?: { subagent: string };
 }
 
 /** SDD 15 §9.3：交互请求的回复。 */
@@ -76,6 +78,17 @@ export interface TemplateItem {
   overridden_by?: "project";
 }
 
+/** SDD 18 §9.1：子智能体定义。 */
+export interface AgentItem {
+  name: string;
+  description: string;
+  source: ResourceSource;
+  path: string;
+  tools?: string[];
+  max_turns: number;
+  overridden_by?: "user" | "project";
+}
+
 export interface InstructionsItem {
   scope: "user" | "project";
   path: string;
@@ -94,6 +107,8 @@ export interface ResourceList {
   skills: SkillItem[];
   templates: TemplateItem[];
   instructions: InstructionsItem[];
+  /** 旧版 runtime 不下发时视为空。 */
+  agents?: AgentItem[];
   diagnostics: ResourceDiagnostic[];
 }
 

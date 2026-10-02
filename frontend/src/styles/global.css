@@ -3164,6 +3164,61 @@ body.resizing .focus-rail { transition: none; }
   min-width: 0;
   max-width: 65%; /* 窄窗口兜底：图像栏再宽也给对话列留可用宽度（拖拽路径另有 CONVERSATION_MIN_W 保底） */
   display: flex;
+/* ==== 子智能体（SDD 18 §5.1）：卡片与审批来源；与交互卡片同一视觉语言 ==== */
+.interaction-origin {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--agent);
+}
+.subagent-card {
+  flex: 1;
+  min-width: 0;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--agent-line);
+  background: var(--agent-dim);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.subagent-card.failed,
+.subagent-card.budget_exceeded,
+.subagent-card.aborted { border-left: 3px solid var(--warn); }
+.subagent-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.subagent-head b { color: var(--bright); min-width: 0; overflow-wrap: anywhere; }
+.subagent-type { font-size: 10.5px; color: var(--faint); }
+.subagent-outcome { margin-left: auto; font-size: 10.5px; color: var(--good); }
+.subagent-outcome.failed,
+.subagent-outcome.budget_exceeded,
+.subagent-outcome.aborted { color: var(--warn); }
+.subagent-turns { font-size: 10.5px; color: var(--faint); }
+.subagent-final { margin-top: 6px; color: var(--ink); overflow-wrap: anywhere; }
+.subagent-empty { color: var(--faint); }
+.subagent-transcript { margin-top: 6px; }
+.subagent-transcript summary { cursor: pointer; font-size: 11px; color: var(--mid); }
+.subagent-transcript ol { margin: 4px 0 0; padding: 0; list-style: none; max-height: 320px; overflow-y: auto; }
+.subagent-step {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.subagent-step-role { flex: none; width: 72px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.subagent-step-text {
+  min-width: 0;
+  color: var(--mid);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.subagent-step.error .subagent-step-text { color: var(--warn); }
+
   flex-direction: column;
   background: var(--sidebar);
   border-left: 1px solid var(--line);
@@ -3491,6 +3546,7 @@ body.resizing .focus-rail { transition: none; }
 .res-warning { color: var(--warn); font-size: 11px; overflow-wrap: anywhere; }
 .res-error { color: var(--crit); font-size: 11px; }
 .res-editor { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; }
+.res-item-main.static { cursor: default; }
 .res-editor-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .res-editor-head b { color: var(--bright); }
 .res-path { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

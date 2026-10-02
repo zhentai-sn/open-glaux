@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { agentRuntimeApi } from "../../agent/runtime/client";
-import type { ResourceSource, SkillItem } from "../../agent/runtime/types";
+import type { AgentItem, ResourceSource, SkillItem } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import type { I18nKey } from "../../i18n/en";
 import { Icon } from "../Icon";
@@ -10,6 +10,7 @@ import { errorText, useCurrentProjectId, useResourceList } from "./useResources"
 
 // 「技能」页（SDD 17 §5.1、§7.6）：按来源分组列出 Skills，启停、查看与编辑 SKILL.md。
 // 内置只读，可复制为用户级；修改在下一个命令生效。
+// 末尾「子智能体」分组只读列出定义（SDD 18 §5.1）。
 
 const SOURCES: ResourceSource[] = ["project", "user", "builtin"];
 const SOURCE_LABEL: Record<ResourceSource, I18nKey> = {
@@ -27,6 +28,32 @@ interface Editing {
   editable: boolean;
   path?: string;
   isNew?: boolean;
+}
+
+function AgentsSection({ agents }: { agents: AgentItem[] }) {
+  const { t } = useI18n();
+  return (
+    <section className="res-group" data-testid="agents-section">
+      <div className="res-group-head">
+        <Icon icon={ICONS.subagent} size="sm" /> {t("res_agents_title")}
+      </div>
+      <div className="res-hint">{t("res_agents_hint")}</div>
+      {!agents.length && <div className="res-empty">{t("res_empty")}</div>}
+      {agents.map((item) => (
+        <div key={`${item.source}-${item.name}`} className="res-item" title={item.path}>
+          <div className="res-item-main static">
+            <span className="res-item-name">{item.name}</span>
+            <span className="res-item-desc">{item.description}</span>
+            <span className="res-item-desc mono">
+              {item.tools ? item.tools.join(", ") : t("res_agent_tools_all")} · {t("res_agent_max_turns", { n: item.max_turns })}
+            </span>
+          </div>
+          <span className="res-badge">{t(SOURCE_LABEL[item.source])}</span>
+          {item.overridden_by && <span className="res-badge">{t("res_overridden")}</span>}
+        </div>
+      ))}
+    </section>
+  );
 }
 
 const scaffold = (name: string) => `---\nname: ${name}\ndescription: \n---\n\n`;
@@ -158,6 +185,7 @@ export function SkillsView() {
           </section>
         );
       })}
+      <AgentsSection agents={list?.agents ?? []} />
       {editing && (
         <section className="res-editor" aria-label={editing.name}>
           <div className="res-editor-head">

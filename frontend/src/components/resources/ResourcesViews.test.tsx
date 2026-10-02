@@ -16,6 +16,10 @@ const LIST: ResourceList = {
   ],
   templates: [{ name: "review", source: "user", path: "/u/prompts/review.md", description: "Review a result" }],
   instructions: [],
+  agents: [
+    { name: "general", description: "General helper", source: "builtin", path: "/b/agents/general.md", max_turns: 20 },
+    { name: "scout", description: "Finds files", source: "user", path: "/u/agents/scout.md", tools: ["read", "list_files"], max_turns: 5 },
+  ],
   diagnostics: [{ source: "user", code: "invalid_metadata", message: "description is required", path: "/u/broken/SKILL.md" }],
 };
 
@@ -34,6 +38,17 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("SkillsView", () => {
+  it("lists sub-agent definitions read-only with their tools and turn limit", async () => {
+    bindSession(null);
+    render(<I18nProvider><SkillsView /></I18nProvider>);
+    const section = await screen.findByTestId("agents-section");
+    expect(section).toHaveTextContent("Sub-agents");
+    expect(section).toHaveTextContent("General helper");
+    expect(section).toHaveTextContent("All tools · Up to 20 turns");
+    expect(section).toHaveTextContent("read, list_files · Up to 5 turns");
+    expect(section.querySelector("input, button")).toBeNull();
+  });
+
   it("groups skills by source with badges, toggles and diagnostics", async () => {
     bindSession(null);
     const toggle = vi.spyOn(agentRuntimeApi, "setSkillEnabled").mockResolvedValue({ name: "base", enabled: true });
