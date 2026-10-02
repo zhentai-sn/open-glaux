@@ -253,6 +253,10 @@ export type TransportCommand =
       images?: PromptImage[];
       connection: ConnectionInput;
       viewer?: ViewerContext;
+      /** 显式调用的 Skill（SDD 17 §7.4）；与 `template` 互斥。 */
+      skill?: string;
+      /** 显式调用的提示词模板；`args` 按 pi `parseCommandArgs` 解析。 */
+      template?: { name: string; args: string };
     }
   | {
       command_id: string;

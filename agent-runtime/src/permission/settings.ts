@@ -19,6 +19,8 @@ export interface SettingsFile {
   path: string;
   rules: PermissionRule[];
   budget: BudgetSettings;
+  /** `skills.disabled`：停用的 Skill 名称（SDD 17 §4.1）；只在用户级生效。 */
+  skillsDisabled?: string[];
 }
 
 export interface LoadedSettings {
@@ -84,7 +86,18 @@ export function parseSettings(path: string, raw: string): SettingsFile {
       if (Number.isInteger(n) && n >= min && n <= max) budget[key] = n;
     }
   }
-  return { path, rules, budget };
+  const skillsDisabled: string[] = [];
+  if (value.skills !== undefined) {
+    if (!isObject(value.skills)) throw new Error("skills must be an object");
+    const list = value.skills.disabled;
+    if (list !== undefined) {
+      if (!Array.isArray(list) || !list.every((item) => typeof item === "string")) {
+        throw new Error("skills.disabled must be an array of strings");
+      }
+      skillsDisabled.push(...list);
+    }
+  }
+  return { path, rules, budget, skillsDisabled };
 }
 
 /** 读取单个设置文件：不存在为 null；不合法为 null 并给出告警。 */

@@ -74,4 +74,7 @@ status: active
 
 ## 实施偏差
 
-（实施中记录与本计划不一致之处及原因。）
+- W1：资源加载放在 `preparePermission` 内，与设置文件、项目目录一次取得；加载函数作为 `PermissionDeps.loadResources` 可注入，测试夹具指向数据目录。
+- W1：`SettingsFile.skillsDisabled` 设为可选字段，避免改动既有测试中手写的设置对象。
+- W1：显式调用的资源检查放在 `HarnessRegistry.start`（资源加载之后、建 harness 之前），未命中时同步抛 `422 unknown_resource`，命令不进入运行。
+- W1：SDD 00、SDD 15、SDD 16 的文档修订按计划放在 W5 一并完成。

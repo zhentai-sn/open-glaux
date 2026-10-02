@@ -10,6 +10,7 @@ import type { GlauxPlugin, PluginTool, RunContext } from "../plugins/types.js";
 import { redactText } from "../security/redact.js";
 import { decide } from "./decide.js";
 import { allRules, appendAllowRule, type LoadedSettings } from "./settings.js";
+import type { LoadedResources, LoadResourcesOptions } from "../resources/load.js";
 
 export const PERMISSION_DECISION_ENTRY = "glaux.permission.decision";
 export const PERMISSION_GRANT_ENTRY = "glaux.permission.grant";
@@ -35,6 +36,8 @@ export interface PermissionRunState {
   alwaysPath: string;
   /** 本命令的工作目录（SDD 16 §7.1）；取不到时缺省，带路径的工具也不会挂载。 */
   cwd?: string;
+  /** Skills 根目录：读取其下文件不算敏感路径（SDD 17 §7.3）。 */
+  readableRoots?: string[];
 }
 
 export interface PermissionDeps {
@@ -42,6 +45,8 @@ export interface PermissionDeps {
   loadSettings?: (projectId?: string) => Promise<{ settings: LoadedSettings; alwaysPath: string; projectDir?: string }>;
   /** 会话工作区根目录（SDD 16 §7.6）；缺省 `<GLAUX_HOME>/workspaces`。 */
   workspacesRoot?: string;
+  /** Skills、模板与说明的加载（SDD 17）；测试注入以隔离用户目录。 */
+  loadResources?: (options: LoadResourcesOptions) => Promise<LoadedResources>;
 }
 
 const MAX_ARGS_SUMMARY = 500;
@@ -78,7 +83,7 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
   let subject = tool.permissionSubject?.(event.input);
   let sensitive = false;
   if (tool.pathScope && state.cwd) {
-    const scope = await tool.pathScope(event.input, state.cwd);
+    const scope = await tool.pathScope(event.input, state.cwd, state.readableRoots);
     subject = scope?.subject;
     sensitive = scope?.sensitive ?? false;
   }

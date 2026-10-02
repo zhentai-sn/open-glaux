@@ -38,6 +38,7 @@ import type { RuntimeWarning } from "../contracts.js";
 import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
 import { resolveBudget, RunBudget } from "../budget/run-budget.js";
+import { loadResources, type LoadedResources } from "../resources/load.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
 
@@ -49,6 +50,8 @@ export interface HarnessRuntimeFactory {
 export interface HarnessStartOptions {
   viewer?: ViewerContext;
   permissionMode?: PermissionMode;
+  /** 显式调用的 Skill 或模板必须存在且可用，否则 422 unknown_resource（SDD 17 §7.4 规则 3）。 */
+  requires?: { skill?: string; template?: string };
 }
 
 /** 工具工厂拿到的完整上下文：领域上下文 + 本次连接与其模型运行时（图谱检索需要向模型发图）。 */
@@ -93,17 +96,31 @@ const SYSTEM_PROMPT =
   "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
   "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.";
 
+/**
+ * 系统提示词 = 基础段 + 插件片段 + 说明段与 Skills 目录段（`extras`，SDD 17 §7.2）+ 查看器上下文。
+ * `extras` 为空时与 SDD 17 之前逐字一致。
+ */
 export function systemPromptFor(
   viewer: ViewerContext | undefined,
   tools: HarnessTool[],
   context: HarnessToolContext,
   videoDescription?: { duration_ms: number; has_audio: boolean },
+  extras = "",
 ): string {
   const mounted = new Set(tools.map((tool) => tool.name));
   const head = SYSTEM_PROMPT + promptFragments(context, mounted);
-  if (!viewer?.focus) return `${head} No image is currently open in the viewer.`;
+  const tail = viewerTail(viewer, context, videoDescription);
+  return extras ? `${head}\n\n${extras}\n\n${tail}` : `${head} ${tail}`;
+}
+
+function viewerTail(
+  viewer: ViewerContext | undefined,
+  context: HarnessToolContext,
+  videoDescription?: { duration_ms: number; has_audio: boolean },
+): string {
+  if (!viewer?.focus) return "No image is currently open in the viewer.";
   if (viewer.focus.kind === "video" && !context.videoTurn) {
-    return `${head} The current connection does not support joint audio-video Q&A. Say so explicitly when asked about the video; ordinary conversation remains available.`;
+    return "The current connection does not support joint audio-video Q&A. Say so explicitly when asked about the video; ordinary conversation remains available.";
   }
   const parts = [`object_id=${viewer.focus.object_id}`, `kind=${viewer.object?.kind ?? viewer.focus.kind}`];
   const index = Object.entries(viewer.focus.index).filter(([, value]) => value != null)
@@ -121,9 +138,19 @@ export function systemPromptFor(
   // 措辞刻意强调"目录标签"：这几个字段来自数据集与 UI 选择，不代表画面内容。
   // 早期版本只给这一行，模型便把标签当观察复述，用户看到的图与模型说的对不上。
   return (
-    `${head} Viewer context (catalogue labels recorded by the dataset and the UI, ` +
+    "Viewer context (catalogue labels recorded by the dataset and the UI, " +
     `not a description of what the image shows): ${parts.join(", ")}.`
   );
+}
+
+function assertRequiredResources(requires: HarnessStartOptions["requires"], resources: LoadedResources | undefined): void {
+  if (!requires) return;
+  const missing = requires.skill !== undefined && !resources?.harnessSkills.some((skill) => skill.name === requires.skill)
+    ? `skill ${requires.skill}`
+    : requires.template !== undefined && !resources?.harnessTemplates.some((template) => template.name === requires.template)
+      ? `template ${requires.template}`
+      : undefined;
+  if (missing) throw new RuntimeError("unknown_resource", `Unknown or disabled ${missing}.`, 422);
 }
 
 interface HarnessSlot {
@@ -210,11 +237,13 @@ export class HarnessRegistry {
     let videoDescription: { duration_ms: number; has_audio: boolean } | undefined;
     let projectId: string | null;
     let permission: PermissionRunState | undefined;
+    let resources: LoadedResources | undefined;
     try {
       // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
       projectId = sessionProjectId(await session.getMetadata());
       videoDescription = videoTurn ? await videoTurn.describe() : undefined;
-      if (!chatEdition()) permission = await this.preparePermission(sessionId, session, projectId, options);
+      if (!chatEdition()) ({ permission, resources } = await this.preparePermission(sessionId, session, projectId, options));
+      assertRequiredResources(options.requires, resources);
     } catch (error) {
       runtime.disposeCredential();
       await this.sessions.closeSession(session);
@@ -244,8 +273,9 @@ export class HarnessRegistry {
       session,
       models: runtime.models,
       model: runtime.model,
-      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(options.viewer, tools, toolContext, videoDescription),
+      systemPrompt: chatEdition() ? CHAT_SYSTEM_PROMPT : systemPromptFor(options.viewer, tools, toolContext, videoDescription, resources?.promptExtras),
       tools,
+      ...(resources ? { resources: { skills: resources.harnessSkills, promptTemplates: resources.harnessTemplates } } : {}),
     });
     // SDD 15 §7.2：每种钩子只注册一个组合后的 handler；chat 发行版不挂插件。
     const uninstallHooks = chatEdition() ? () => undefined : installHooks(harness, activePlugins(toolContext), {
@@ -392,7 +422,7 @@ export class HarnessRegistry {
     session: Session,
     projectId: string | null,
     options: HarnessStartOptions,
-  ): Promise<PermissionRunState> {
+  ): Promise<{ permission: PermissionRunState; resources: LoadedResources }> {
     const scopeOptions = {
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
@@ -405,7 +435,12 @@ export class HarnessRegistry {
       ...(projectDir ? { projectDir } : {}),
       workspacesRoot: this.permissionDeps.workspacesRoot ?? defaultWorkspacesRoot(),
     });
-    return {
+    // SDD 17 §7.1：Skills、模板与说明随命令加载；停用列表只取用户级设置。
+    const resources = await (this.permissionDeps.loadResources ?? loadResources)({
+      ...(projectDir ? { projectDir } : {}),
+      disabledSkills: settings.user?.skillsDisabled ?? [],
+    });
+    const permission: PermissionRunState = {
       getMode: () => this.sessions.metaRepo.get(sessionId)?.permission_mode ?? options.permissionMode ?? "controlled",
       tools: new Map(pluginTools().map((tool) => [tool.name, tool])),
       // 一次命令一个作用域：越界查询结果只在本命令内缓存（SDD 13 §7.8 规则 4）。
@@ -416,7 +451,9 @@ export class HarnessRegistry {
       audit: (customType, data) => this.appendAudit(sessionId, customType, data),
       alwaysPath,
       ...(cwd ? { cwd } : {}),
+      readableRoots: resources.readableRoots,
     };
+    return { permission, resources };
   }
 
   /**

@@ -44,18 +44,31 @@ async function realish(path: string): Promise<string> {
   return tail.length ? join(base, ...tail) : base;
 }
 
-export async function resolvePathScope(cwd: string, raw: string): Promise<ResolvedPath> {
+/**
+ * `readableRoots` 之下的路径不算敏感（SDD 17 §7.3：Skills 根目录对读放行）；调用方只在读取时传入。
+ */
+async function underAny(target: string, roots: readonly string[]): Promise<boolean> {
+  for (const root of roots) {
+    const realRoot = await realpath(root).catch(() => resolve(root));
+    const rel = relative(realRoot, target);
+    if (rel !== "" && !rel.startsWith("..") && !isAbsolute(rel)) return true;
+  }
+  return false;
+}
+
+export async function resolvePathScope(cwd: string, raw: string, readableRoots: readonly string[] = []): Promise<ResolvedPath> {
   const absolute = resolve(cwd, normalize(raw));
   const [realCwd, realTarget] = await Promise.all([realpath(cwd).catch(() => resolve(cwd)), realish(absolute)]);
   const rel = relative(realCwd, realTarget);
   const outside = rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
   const segments = outside || rel === "" ? [] : rel.split(sep);
   const hidden = segments.some((segment) => segment.startsWith(".") && segment !== "." && segment !== "..");
+  const readable = (outside || hidden) && (await underAny(realTarget, readableRoots));
   return {
     absolute,
     outside,
     hidden,
-    sensitive: outside || hidden,
+    sensitive: (outside || hidden) && !readable,
     subject: outside ? realTarget : segments.join("/"),
   };
 }

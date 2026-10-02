@@ -17,6 +17,7 @@ import {
 } from "../../src/pi/harness-registry.js";
 import type { PermissionDeps } from "../../src/permission/plugin.js";
 import { EMPTY_SETTINGS } from "../../src/permission/settings.js";
+import { loadResources } from "../../src/resources/load.js";
 import { SessionService } from "../../src/pi/session-service.js";
 import { SseBroker } from "../../src/transport/sse-broker.js";
 
@@ -82,6 +83,12 @@ export async function createRuntimeFixture(
     projectScope: () => ({ targets: () => [], assertInProject: async () => undefined }),
     loadSettings: async () => ({ settings: EMPTY_SETTINGS, alwaysPath: join(dataDir, "settings.json") }),
     workspacesRoot: join(dataDir, "workspaces"),
+    // 资源只从夹具目录加载，不读用户主目录（SDD 17）。
+    loadResources: (resourceOptions) => loadResources({
+      ...resourceOptions,
+      env: { GLAUX_HOME: join(dataDir, "home") },
+      builtinSkillsDir: join(dataDir, "builtin-skills"),
+    }),
     ...options.permission,
   });
   const commands = new CommandService(sessions, registry);

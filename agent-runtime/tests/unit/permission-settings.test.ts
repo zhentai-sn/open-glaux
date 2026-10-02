@@ -37,6 +37,7 @@ describe("readSettingsFile", () => {
       path,
       rules: [{ tool: "segment_region", decision: "deny" }, { tool: "write", pattern: "*.md", decision: "allow" }],
       budget: { max_minutes: 30 },
+      skillsDisabled: [],
     });
   });
 });

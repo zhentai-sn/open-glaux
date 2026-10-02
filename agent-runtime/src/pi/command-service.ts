@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { parseCommandArgs } from "@earendil-works/pi-agent-core";
 import { contentText } from "@earendil-works/pi-ai";
 import type { ImageContent } from "@earendil-works/pi-ai";
 
@@ -90,10 +91,22 @@ export class CommandService {
         command.connection,
         async (harness, activeSession) => {
           if (command.type === "prompt") {
+            const extra = command.content.trim();
+            if (command.skill !== undefined) {
+              // SDD 17 §7.4：显式调用 Skill；标题取「/名称 附加内容」。
+              assertAssistantSuccess(await harness.skill(command.skill, extra || undefined));
+              await this.sessions.touchTitleFromFirstMessage(sessionId, `/${command.skill} ${extra}`.trim());
+              return;
+            }
+            if (command.template !== undefined) {
+              assertAssistantSuccess(await harness.promptFromTemplate(command.template.name, parseCommandArgs(command.template.args)));
+              await this.sessions.touchTitleFromFirstMessage(sessionId, `/${command.template.name} ${command.template.args}`.trim());
+              return;
+            }
             const images = toImageContent(command.images);
             assertAssistantSuccess(
               await harness.prompt(
-                command.content.trim(),
+                extra,
                 images.length ? { images } : undefined,
               ),
             );
@@ -108,6 +121,9 @@ export class CommandService {
         {
           permissionMode: current.permission_mode,
           ...(command.viewer ? { viewer: command.viewer } : {}),
+          ...(command.type === "prompt" && (command.skill !== undefined || command.template !== undefined)
+            ? { requires: { ...(command.skill !== undefined ? { skill: command.skill } : {}), ...(command.template ? { template: command.template.name } : {}) } }
+            : {}),
         },
       );
       void completion.then(
@@ -214,6 +230,9 @@ export function commandDigest(
         type: command.type,
         content: "content" in command ? command.content : null,
         images,
+        // SDD 17 §10：显式调用参与摘要，同一 command_id 换 Skill 判为冲突。
+        ...(command.type === "prompt" && command.skill !== undefined ? { skill: command.skill } : {}),
+        ...(command.type === "prompt" && command.template !== undefined ? { template: command.template } : {}),
       }),
     )
     .digest("hex");

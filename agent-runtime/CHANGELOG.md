@@ -10,6 +10,7 @@
 - 交互请求表与回复端点 `POST /agent-api/v1/sessions/{id}/interactions/{request_id}`；新工具 `ask_user`；SSE 新增 `interaction.request`、`interaction.resolved`，快照 `pending_interactions` 给出待决请求（SDD 15 §7.6、§7.7）。
 - 权限引擎：工具按 effect 与权限模式挂载、放行或审批；支持用户级与项目级 `settings.json` 的 allow / deny / ask 规则、「本会话允许」「总是允许」与审计记录；快照 `warnings` 给出设置文件告警（SDD 15 §7.4、§7.5）。
 - 基础文件工具 `read`、`write`、`edit`（pi 内置实现）：绑定项目的会话以项目目录为工作目录，未归属会话有自己的工作区（删除会话时一并删除）；工作目录外与隐藏路径的读写需审批；写入结果带 `glaux.file_changed`（SDD 16）。
+- Skills 与提示词资源（SDD 17）：每个命令加载内置、用户级（`~/.glaux/skills/`）、项目级（`<项目>/.glaux/skills/`）三层 Skills，同名取高优先级；用户级与项目级 `GLAUX.md` 与 Skills 目录写入系统提示词；模型 `read` Skills 目录下的文件不审批；`prompt` 命令新增 `skill` / `template` 字段用于显式调用。
 - `bash` 工具：只在「完全自治」下挂载，环境变量白名单（关闭对 `process.env` 的继承），缺省超时 120 秒、上限 600 秒，规则按命令前缀匹配（SDD 16 §7.5）。
 - 运行预算：每个命令默认 50 回合、20 分钟（设置文件或 `GLAUX_AGENT_MAX_TURNS` / `GLAUX_AGENT_MAX_MINUTES` 可改），用尽后拦截工具调用要求模型收尾，宽限用尽中止并记结局 `budget_exceeded`；每次模型请求只保留最近 4 个工具结果中的图像（SDD 15 §7.8、§7.9）。
 

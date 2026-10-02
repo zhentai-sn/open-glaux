@@ -21,6 +21,7 @@ import {
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import type { InteractionReply } from "../interaction/table.js";
+import { assertResourceName } from "../resources/paths.js";
 import type { CommandService } from "../pi/command-service.js";
 import type { HarnessRegistry } from "../pi/harness-registry.js";
 import type { SessionService } from "../pi/session-service.js";
@@ -155,6 +156,26 @@ function parseInteractionReply(value: unknown): InteractionReply {
   return invalid("Reply kind must be permission or question.");
 }
 
+/** SDD 17 §7.4：`skill` 与 `template` 互斥，名称合规，且不接受图像附件。 */
+function parseInvocation(
+  skill: unknown, template: unknown, hasImages: boolean,
+): { skill?: string; template?: { name: string; args: string } } {
+  if (skill === undefined && template === undefined) return {};
+  if (skill !== undefined && template !== undefined) {
+    throw new RuntimeError("invalid_request", "Use either skill or template, not both.", 422);
+  }
+  if (hasImages) throw new RuntimeError("invalid_request", "Skill and template invocations do not accept images.", 422);
+  if (skill !== undefined) {
+    if (typeof skill !== "string") throw new RuntimeError("invalid_request", "skill must be a string.", 422);
+    return { skill: assertResourceName(skill) };
+  }
+  const value = template as { name?: unknown; args?: unknown } | null;
+  if (!value || typeof value !== "object" || typeof value.name !== "string" || (value.args !== undefined && typeof value.args !== "string")) {
+    throw new RuntimeError("invalid_request", "template must be {name, args}.", 422);
+  }
+  return { template: { name: assertResourceName(value.name), args: typeof value.args === "string" ? value.args : "" } };
+}
+
 function sessionIdFrom(request: FastifyRequest): string {
   const sessionId = (request.params as { sessionId?: string }).sessionId;
   if (!sessionId || !isUuid(sessionId)) {
@@ -267,6 +288,7 @@ function parseCommand(value: unknown): TransportCommand {
       );
     }
     const viewer = parseViewer(body.viewer);
+    const invocation = parseInvocation(body.skill, body.template, images.length > 0);
     return {
       command_id: body.command_id,
       type: "prompt",
@@ -274,6 +296,7 @@ function parseCommand(value: unknown): TransportCommand {
       ...(images.length ? { images } : {}),
       connection,
       ...(viewer ? { viewer } : {}),
+      ...invocation,
     };
   }
   if (body.content !== undefined) {

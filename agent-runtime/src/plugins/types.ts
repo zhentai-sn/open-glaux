@@ -23,7 +23,7 @@ export interface PluginTool extends ToolProvider {
   /** 规则 pattern 的匹配对象；缺省则带 pattern 的规则不命中（SDD 15 §7.5）。 */
   permissionSubject?(args: Record<string, unknown>): string | undefined;
   /** 带路径参数的工具：解析路径范围，取代 `permissionSubject`（SDD 16 §9.1）。 */
-  pathScope?(args: Record<string, unknown>, cwd: string): Promise<PathScope | undefined>;
+  pathScope?(args: Record<string, unknown>, cwd: string, readableRoots?: readonly string[]): Promise<PathScope | undefined>;
   /** 规则 pattern 的匹配方式；缺省为 glob（SDD 16 §7.5 规则 5）。 */
   patternMatch?(pattern: string, subject: string): boolean;
 }

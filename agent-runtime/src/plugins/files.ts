@@ -101,6 +101,8 @@ function pathArg(args: Record<string, unknown>): string {
 }
 
 const pathScope: PluginTool["pathScope"] = (args, cwd) => resolvePathScope(cwd, pathArg(args));
+/** 读取另认 Skills 根目录为非敏感（SDD 17 §7.3）；写入不认。 */
+const readPathScope: PluginTool["pathScope"] = (args, cwd, roots) => resolvePathScope(cwd, pathArg(args), roots);
 
 function createRead(ctx: HarnessToolContext): HarnessTool {
   const env = ctx.execEnv!;
@@ -203,7 +205,7 @@ export const filesPlugin: GlauxPlugin = {
   promptFragment: filesPrompt,
   tools: [
     {
-      name: READ_TOOL_NAME, effect: "read", pathScope, requires: {}, supports: () => true,
+      name: READ_TOOL_NAME, effect: "read", pathScope: readPathScope, requires: {}, supports: () => true,
       create: createRead, promptFragment: () => "",
     },
     {
