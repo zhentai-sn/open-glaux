@@ -159,11 +159,11 @@ open-glaux/
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
 | 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；`connection/test\|models`；`atlas/describe` |
 | 会话绑定项目 | `POST /sessions` 接受 `project_id`，写入 Pi 会话 `metadata.glaux_project_id`，创建后不可改；未归属会话不写 metadata。`SessionView` / `SessionListItem` 带 `project_id`；空会话按 `project_id`（含 `null`）各复用一个；同 `session_id` 换 `project_id` 返回 409 `idempotency_conflict`。`glaux_session_meta` 表不存项目（SDD 13 §7.6） |
-| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
+| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
 
-工具由 `pi/harness-registry.ts` 的 `TOOL_PROVIDERS` 装配；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式不挂领域工具；`observe` 权限仅可挂 SDD 11 的只读音画观察与证据提交工具：
+工具由 `plugins/registry.ts` 的插件登记表 `PLUGINS` 装配，每个工具声明副作用等级 `effect`（SDD 15 §7.3）；插件钩子经 `plugins/compose.ts` 组合后每种只向 harness 注册一个 handler；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式不挂领域工具；`observe` 权限仅可挂 SDD 11 的只读音画观察与证据提交工具：
 
 | 工具 | 作用 | 额外挂载条件 |
 | --- | --- | --- |

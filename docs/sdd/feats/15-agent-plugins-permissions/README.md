@@ -153,9 +153,9 @@ sequenceDiagram
 | `budget` | — | `tool_call`（收尾拦截） |
 | `permission` | — | `tool_call`（越界、规则、模式、审批） |
 | `interaction` | `ask_user` | — |
-| `imaging` | `run_task`、`view_current_image`、`locate_roi` | — |
+| `imaging` | `run_task`、`view_current_image` | — |
 | `atlas` | `consult_atlas` | — |
-| `annotation` | `segment_region`、`propose_annotation` | — |
+| `annotation` | `locate_roi`、`segment_region`、`propose_annotation` | — |
 | `project` | `list_files`、`open_file`、`read_file` | — |
 | `video` | `observe_video_interval`、`submit_video_answer` | `before_provider_payload` 不在本期迁移，`onPayload` 保持原样 |
 | `context-pruning` | — | `context`（图像裁剪） |
