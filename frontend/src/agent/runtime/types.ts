@@ -55,6 +55,48 @@ export type InteractionReply =
 
 export type InteractionOutcome = "answered" | "expired" | "cancelled";
 
+/** SDD 17 §9.1：Skills、模板与自定义说明的清单。 */
+export type ResourceSource = "builtin" | "user" | "project";
+
+export interface SkillItem {
+  name: string;
+  description: string;
+  source: ResourceSource;
+  path: string;
+  enabled: boolean;
+  model_invocable: boolean;
+  overridden_by?: ResourceSource;
+}
+
+export interface TemplateItem {
+  name: string;
+  description?: string;
+  source: "user" | "project";
+  path: string;
+  overridden_by?: "project";
+}
+
+export interface InstructionsItem {
+  scope: "user" | "project";
+  path: string;
+  exists: boolean;
+  bytes: number;
+}
+
+export interface ResourceDiagnostic {
+  source: ResourceSource;
+  code: string;
+  message: string;
+  path: string;
+}
+
+export interface ResourceList {
+  skills: SkillItem[];
+  templates: TemplateItem[];
+  instructions: InstructionsItem[];
+  diagnostics: ResourceDiagnostic[];
+}
+
 export interface RuntimeWarning {
   code: string;
   message: string;

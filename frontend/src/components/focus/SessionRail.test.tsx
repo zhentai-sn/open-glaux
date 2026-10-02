@@ -41,6 +41,16 @@ describe("SessionRail 右侧栏入口", () => {
     expect(layout()).toMatchObject({ rightOpen: true, sideView: "stage", browserView: null });
   });
 
+  it("技能与提示词：打开对应页面，再点收起（SDD 17 §7.6）", () => {
+    fireEvent.click(btn("Skills"));
+    expect(layout()).toMatchObject({ rightOpen: true, sideView: "skills" });
+    expect(btn("Skills")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(btn("Prompts"));
+    expect(layout()).toMatchObject({ rightOpen: true, sideView: "prompts" });
+    fireEvent.click(btn("Prompts"));
+    expect(layout().rightOpen).toBe(false);
+  });
+
   it("文件：从图谱态点击 → 回到舞台并打开文件列；再点 → 只关文件列", () => {
     fireEvent.click(btn("Atlas"));
     fireEvent.click(btn("Files"));

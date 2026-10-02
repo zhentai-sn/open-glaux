@@ -5,6 +5,8 @@ import { BROWSER_W, SIDE_SPLIT, STAGE_MIN, useSession } from "../../store/sessio
 import { AtlasView } from "../atlas/AtlasView";
 import { ExplorerView } from "../SideBar";
 import { PaneResizer } from "./PaneResizer";
+import { PromptsView } from "../resources/PromptsView";
+import { SkillsView } from "../resources/SkillsView";
 import { SettingsPanel } from "./SettingsPanel";
 import { StagePanel } from "./StagePanel";
 
@@ -72,6 +74,16 @@ export function FocusSidePanel() {
     return (
       <aside className="focus-side" ref={asideRef} aria-label={t("focus_side_panel")}>
         <SettingsPanel />
+      </aside>
+    );
+  }
+
+  if (sideView === "skills" || sideView === "prompts") {
+    return (
+      <aside className="focus-side" ref={asideRef} aria-label={t("focus_side_panel")}>
+        <div className="focus-side-body" data-view={sideView}>
+          <div className="focus-side-browser">{sideView === "skills" ? <SkillsView /> : <PromptsView />}</div>
+        </div>
       </aside>
     );
   }

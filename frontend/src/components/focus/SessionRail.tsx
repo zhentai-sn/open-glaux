@@ -55,6 +55,23 @@ const WORKSPACE_ENTRIES: RailEntry[] = [
     pressed: (l) => l.rightOpen && l.sideView === "atlas",
     next: (l) => (l.rightOpen && l.sideView === "atlas" ? { rightOpen: false } : { rightOpen: true, sideView: "atlas" }),
   },
+  // SDD 17 §7.6：技能与提示词管理页，与图谱同为右侧栏工作区。
+  {
+    id: "skills",
+    icon: TAB_ICON.skills,
+    label: "focus_tab_skills",
+    onTitle: "focus_side_collapse",
+    pressed: (l) => l.rightOpen && l.sideView === "skills",
+    next: (l) => (l.rightOpen && l.sideView === "skills" ? { rightOpen: false } : { rightOpen: true, sideView: "skills" }),
+  },
+  {
+    id: "prompts",
+    icon: TAB_ICON.prompts,
+    label: "focus_tab_prompts",
+    onTitle: "focus_side_collapse",
+    pressed: (l) => l.rightOpen && l.sideView === "prompts",
+    next: (l) => (l.rightOpen && l.sideView === "prompts" ? { rightOpen: false } : { rightOpen: true, sideView: "prompts" }),
+  },
 ];
 
 // 设置贴竖条底部；chat 发行版也有（连接配置是对话的前提）。

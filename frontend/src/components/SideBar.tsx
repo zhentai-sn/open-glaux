@@ -19,6 +19,8 @@ import { useI18n, type I18nKey } from "../i18n";
 import { useModalityLabel } from "../i18n/modalityLabel";
 import { activeObject, collapseSessionList, objectsOf, useSession } from "../store/session";
 import { AtlasView } from "./atlas/AtlasView";
+import { PromptsView } from "./resources/PromptsView";
+import { SkillsView } from "./resources/SkillsView";
 import { Icon } from "./Icon";
 import { FALLBACK_ICON, ICONS, KIND_ICON } from "./iconMap";
 
@@ -415,6 +417,8 @@ export function SideBar() {
       {view === "explorer" && <ExplorerView />}
       {view === "market" && <MarketplaceView />}
       {view === "atlas" && <AtlasView />}
+      {view === "skills" && <SkillsView />}
+      {view === "prompts" && <PromptsView />}
     </aside>
   );
 }

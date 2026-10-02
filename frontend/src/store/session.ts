@@ -103,8 +103,8 @@ const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
  * Focus 右侧工作区（SDD feats/01 v1.5 D20 / v1.7 D23）：舞台、图谱或设置，占同一位置互换；对话列始终保留。
  * 入口都在左侧栏，不是右侧浏览器列的标签。
  */
-export type FocusSideView = "stage" | "atlas" | "settings";
-const SIDE_VIEWS: readonly FocusSideView[] = ["stage", "atlas", "settings"];
+export type FocusSideView = "stage" | "atlas" | "skills" | "prompts" | "settings";
+const SIDE_VIEWS: readonly FocusSideView[] = ["stage", "atlas", "skills", "prompts", "settings"];
 /**
  * 舞台旁的浏览器列（SDD feats/01 v1.4 §9 / D16、D18；v1.5 起只剩文件）。
  * `null` = 浏览器列关闭，侧栏纯舞台。
@@ -203,7 +203,7 @@ function loadFocusLayout(): FocusLayout {
   return { ...FOCUS_LAYOUT_DEFAULTS };
 }
 
-export type View = "explorer" | "market" | "atlas"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD feats/03）
+export type View = "explorer" | "market" | "atlas" | "skills" | "prompts"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD 03）/ 技能与提示词（SDD 17）
 export type PanelTab = "meas" | "out" | "prob" | "term";
 /**
  * SDD 04：统一工具集合——替代旧的 editli/editma/roi（roi 更名 bbox）。

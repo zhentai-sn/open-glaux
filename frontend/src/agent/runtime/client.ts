@@ -6,6 +6,12 @@ import type {
   ConnectionTestResult,
   InteractionReply,
   PermissionMode,
+  ResourceList,
+  ResourceSource,
+  SkillItem,
+  TemplateItem,
+  InstructionsItem,
+  ViewerContext,
   RuntimeHealth,
   SessionListItem,
   SessionStatus,
@@ -14,6 +20,10 @@ import type {
 } from "./types";
 
 const BASE = "/agent-api/v1";
+
+function projectQuery(projectId: string | null): string {
+  return projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+}
 
 export class AgentRuntimeError extends Error {
   constructor(
@@ -107,6 +117,45 @@ export const agentRuntimeApi = {
       `/sessions/${encodeURIComponent(sessionId)}/interactions/${encodeURIComponent(requestId)}`,
       { method: "POST", body: JSON.stringify(reply) },
     ),
+  // SDD 17 §9.2：Skills、模板、自定义说明的管理与系统提示词预览。
+  listResources: (projectId: string | null) => request<ResourceList>(`/resources${projectQuery(projectId)}`),
+  getSkill: (source: ResourceSource, name: string, projectId: string | null) =>
+    request<{ name: string; source: ResourceSource; path: string; content: string; editable: boolean }>(
+      `/skills/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`,
+    ),
+  putSkill: (source: ResourceSource, name: string, content: string, projectId: string | null) =>
+    request<{ item: SkillItem; diagnostics: unknown[] }>(`/skills/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+  deleteSkill: (source: ResourceSource, name: string, projectId: string | null) =>
+    request<void>(`/skills/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`, { method: "DELETE" }, false),
+  setSkillEnabled: (name: string, enabled: boolean) =>
+    request<{ name: string; enabled: boolean }>(`/skills-enabled/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
+  getTemplate: (source: "user" | "project", name: string, projectId: string | null) =>
+    request<{ name: string; source: string; path: string; content: string }>(`/prompts/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`),
+  putTemplate: (source: "user" | "project", name: string, content: string, projectId: string | null) =>
+    request<TemplateItem>(`/prompts/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+  deleteTemplate: (source: "user" | "project", name: string, projectId: string | null) =>
+    request<void>(`/prompts/${source}/${encodeURIComponent(name)}${projectQuery(projectId)}`, { method: "DELETE" }, false),
+  getInstructions: (scope: "user" | "project", projectId: string | null) =>
+    request<{ scope: string; path: string; content: string }>(`/instructions/${scope}${projectQuery(projectId)}`),
+  putInstructions: (scope: "user" | "project", content: string, projectId: string | null) =>
+    request<InstructionsItem>(`/instructions/${scope}${projectQuery(projectId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+  previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext) =>
+    request<{ prompt: string; tools: string[] }>(`/sessions/${encodeURIComponent(sessionId)}/system-prompt`, {
+      method: "POST",
+      body: JSON.stringify({ connection, ...(viewer ? { viewer } : {}) }),
+    }),
   // 连接探测（退役 orchestration P2：从 backend /intent/vlm/* 迁来，agent-runtime 是唯一模型出口）
   testConnection: (input: ConnectionProbeInput) =>
     request<ConnectionTestResult>("/connection/test", {
