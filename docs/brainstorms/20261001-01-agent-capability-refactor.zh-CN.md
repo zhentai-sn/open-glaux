@@ -1,6 +1,6 @@
 ---
 kind: record
-status: review
+status: promoted
 ---
 
 # 智能体能力重构：基础工具、Skills、子智能体与权限（需求文档 v0）

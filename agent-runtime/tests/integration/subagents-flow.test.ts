@@ -138,6 +138,9 @@ describe("sub-agents", () => {
       await fixture.registry.waitForIdle(sessionId);
       expect(fixture.registry.interactions.pending(sessionId)).toEqual([]);
       expect(fixture.registry.getPhase(sessionId)).toBe("idle");
+      const view = await fixture.sessions.getSession(sessionId);
+      const card = view.messages.find((m) => m.role === "toolResult");
+      expect(card).toMatchObject({ details: { kind: "glaux.subagent_run", outcome: "aborted" } });
     } finally { await fixture.close(); }
   });
 

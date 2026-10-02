@@ -229,6 +229,7 @@ interface ResourceList {
   skills: SkillItem[];
   templates: TemplateItem[];
   instructions: InstructionsItem[];
+  agents: AgentItem[];            // 子智能体定义（SDD 18 §9.1）
   diagnostics: ResourceDiagnostic[];
 }
 ```

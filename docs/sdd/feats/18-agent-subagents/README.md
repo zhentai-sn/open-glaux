@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 18 · 子智能体
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 规范定稿，可进入实施计划 |
+| 状态 | `implemented` |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-subagents-plan.md) 实现，自动化门禁通过，自查见 §15；浏览器走查、真实模型走查与业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P3 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 16 基础工具](../16-agent-basic-tools/README.md) · [SDD 17 Skills 与提示词](../17-agent-skills-prompts/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -241,28 +241,28 @@ stateDiagram-v2
 
 ### 15.1 定义与挂载
 
-- [ ] 三层同名定义按优先级取一份；不合法定义告警（单元测试）。
-- [ ] `agent` 只在有定义且模式允许时挂载；子智能体内不挂载（单元测试）。
+- [x] 三层同名定义按优先级取一份；不合法定义告警（单元测试）。——`subagents.test.ts`
+- [x] `agent` 只在有定义且模式允许时挂载；子智能体内不挂载（单元测试）。——`subagents.test.ts`（挂载条件）；按模式挂载沿用 SDD 15 的 `mountable`，`plugins-registry.test.ts` 校验 effect 为 `delegate`
 
 ### 15.2 运行
 
-- [ ] 子智能体只收到 `prompt`，看不到主对话；工具为定义 `tools` 与父工具的交集（集成测试）。
-- [ ] 主智能体收到子智能体最终回复，`details` 含过程，快照保留（集成测试）。
-- [ ] 子智能体的工具调用经权限判定，审批请求带 `origin`（集成测试）。
-- [ ] 回合超过 `max_turns` 时收尾或中止，结局如实记录（集成测试）。
-- [ ] 同时发起 4 个子智能体时最多 3 个并行（单元测试）。
-- [ ] 主命令中止时子智能体中止，结局 `aborted`（集成测试）。
+- [x] 子智能体只收到 `prompt`，看不到主对话；工具为定义 `tools` 与父工具的交集（集成测试）。——`subagents-flow.test.ts`
+- [x] 主智能体收到子智能体最终回复，`details` 含过程，快照保留（集成测试）。——`subagents-flow.test.ts`
+- [x] 子智能体的工具调用经权限判定，审批请求带 `origin`（集成测试）。——`subagents-flow.test.ts`（`suggest` 模式：先审批 `agent`，再审批子智能体内的 `run_task`，审计写入主会话）
+- [x] 回合超过 `max_turns` 时收尾或中止，结局如实记录（集成测试）。——`subagents-flow.test.ts`（`max_turns: 1` 时第二次工具调用被拦截，模型收尾作答）
+- [x] 同时发起 4 个子智能体时最多 3 个并行（单元测试）。——`subagents.test.ts`
+- [x] 主命令中止时子智能体中止，结局 `aborted`（集成测试）。——`subagents-flow.test.ts`（子智能体的待决提问一并取消）
 
 ### 15.3 前端
 
-- [ ] 对话中显示子智能体卡片，可展开过程（组件测试）。
-- [ ] 审批卡片显示来源（组件测试）。
-- [ ] 「技能」页列出子智能体定义（组件测试）。
+- [x] 对话中显示子智能体卡片，可展开过程（组件测试）。——`SubagentCard.test.tsx`
+- [x] 审批卡片显示来源（组件测试）。——`InteractionCard.test.tsx`
+- [x] 「技能」页列出子智能体定义（组件测试）。——`ResourcesViews.test.tsx`
 
 ### 15.4 工程
 
-- [ ] `make test`、`make lint` 通过。
-- [ ] 仓库骨架总览、操作手册、SDD 15、SDD 17、两份 CHANGELOG 同步更新。
+- [x] `make test`、`make lint` 通过。——agent-runtime 391、前端 399、backend 505、science-core 213
+- [x] 仓库骨架总览、操作手册、SDD 15、SDD 17、两份 CHANGELOG 同步更新。
 
 ## 16. 决策记录
 

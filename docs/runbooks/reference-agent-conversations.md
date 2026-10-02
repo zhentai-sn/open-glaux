@@ -111,11 +111,14 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 | Skills | `~/.glaux/skills/<name>/SKILL.md` | `<项目>/.glaux/skills/<name>/SKILL.md` |
 | 提示词模板 | `~/.glaux/prompts/<name>.md` | `<项目>/.glaux/prompts/<name>.md` |
 | 自定义说明 | `~/.glaux/GLAUX.md` | `<项目>/GLAUX.md` |
+| 子智能体定义 | `~/.glaux/agents/<name>.md` | `<项目>/.glaux/agents/<name>.md` |
 
 - 在左侧竖条（或 Workbench 活动栏）的「技能」「提示词」页管理；修改在下一条消息生效。
 - 同名 Skill 按 本项目 > 个人 > 内置 取一份；停用的 Skill 记在 `~/.glaux/settings.json` 的 `skills.disabled`。
 - 系统提示词只列 Skills 的名称与描述，智能体需要时用 `read` 读全文，不需要审批。
 - 输入框输入 `/` 可直接调用 Skill 或模板；「提示词」页可预览当前会话实际收到的系统提示词。
+- 子智能体定义的 frontmatter 只识别 `name`（与文件名一致）、`description`、`tools`（缺省为全部工具）、`max_turns`（1～50，缺省 20），正文是子智能体的工作说明；内置 `general`，同名按 本项目 > 个人 > 内置 取一份。
+- 智能体用 `agent` 工具派发子任务：`observe` 不挂载，`suggest` 逐次审批；子智能体看不到当前对话，只交回最终回复；它触发的审批卡片标出来源；同一命令内最多 3 个并行。「技能」页的「子智能体」分组只读列出定义。
 
 ## 4. Provider 与模型
 

@@ -67,6 +67,17 @@ describe("sub-agent slots", () => {
     expect(slots.active).toBe(1);
   });
 
+  it("lets 3 of 4 concurrent sub-agents run by default", async () => {
+    const slots = createSlots();
+    const started: number[] = [];
+    const runs = [0, 1, 2, 3].map(async (i) => { const release = await slots.acquire(); started.push(i); return release; });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(started).toEqual([0, 1, 2]);
+    (await runs[0]!)();
+    await runs[3];
+    expect(started).toEqual([0, 1, 2, 3]);
+  });
+
   it("gives up waiting when aborted", async () => {
     const slots = createSlots(1);
     await slots.acquire();

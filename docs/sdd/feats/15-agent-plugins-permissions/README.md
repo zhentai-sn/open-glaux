@@ -35,7 +35,7 @@ status: implemented
 
 - `read` / `write` / `edit` / `bash` 四个基础工具与会话工作区（脑暴 P1，另立 SDD）。本 SDD 只为它们预留 `write`、`exec` 两个 effect 等级与规则匹配接口。
 - Skills、提示词管理页、提示词模板（脑暴 P2）。
-- 子智能体（脑暴 P3）。本 SDD 只预留 `delegate` effect 等级。
+- 子智能体（脑暴 P3）。本 SDD 只定义 `delegate` effect 等级，`agent` 工具见 [SDD 18](../18-agent-subagents/README.md)。
 - MCP 客户端与服务端。
 - `bash` 沙箱。
 - 命令执行中途的全量历史压缩：压缩仍只在命令开始前检查（SDD 00），本 SDD 只做图像裁剪。
@@ -184,7 +184,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 | `egress` | 向当前模型连接以外的第三方发送数据 | `segment_region` |
 | `write` | 修改文件 | `write`、`edit`（SDD 16） |
 | `exec` | 执行任意命令（P1 启用） | — |
-| `delegate` | 派发子智能体（P3 启用） | — |
+| `delegate` | 派发子智能体（SDD 18） | `agent` |
 
 - `submit_video_answer` 只写会话内证据记录，归为 `read`。
 - 没有声明 `effect` 的工具不能登记，启动时报错。
@@ -367,6 +367,7 @@ interface InteractionRequest {
     grant_options: ("once" | "session" | "always")[];
   };
   question?: { question: string; options: string[]; allow_free_text: boolean };
+  origin?: { subagent: string };  // 来自子智能体时为其任务概括（SDD 18 §7.4）
 }
 
 type InteractionReply =
