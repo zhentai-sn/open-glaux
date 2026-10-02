@@ -65,7 +65,7 @@ curl http://127.0.0.1:8010/agent-api/v1/health
 会话所属项目存在 Pi 会话 `metadata.glaux_project_id`（位于 `pi-sessions.sqlite`），创建时写入、不可改；`glaux-meta.sqlite` 不存项目。项目登记本身由 backend 存在 `sources.json` 的 `projects` 键（见 [datasource-registry.md](datasource-registry.md)）。
 
 可在启动 Runtime 前设置 `GLAUX_AGENT_DATA_DIR` 改用其他目录，设置
-`GLAUX_AGENT_PORT` 改用其他端口。若更改端口，也要同步修改 `frontend/vite.config.ts` 的开发代理。
+`GLAUX_AGENT_PORT` 改用其他端口；启动前端开发服务器时设置同一变量，Vite 的 `/agent-api` 代理随之指向该端口。
 
 API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不写入上述数据库。共享机器使用后应在
 连接设置中清除 Key。

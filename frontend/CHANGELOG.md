@@ -6,6 +6,7 @@
 
 ### Added
 
+- 会话内交互卡片：权限审批（允许本次 / 本会话允许 / 总是允许 / 拒绝并附理由）与智能体提问（选项或自由输入），结束后折叠为一行结论；被拦截的工具调用显示理由；权限菜单附模式说明，切到「完全自治」需确认；显示设置文件告警与预算收尾提示（SDD 15 §5.1）。
 - 会话 store 新增唯一观测焦点 `focus`（`object_id` / `kind` / `index` / `region`，写入口 `setFocus` / `setIndex` / `setRegion`）与按模态分组的对象表 `objects`；派生选择器 `activeObject` / `objectsOf`（SDD 10 W3）。
 - 数据动作收敛为 `loadObjects(modality, {open?})`、`openObject(id, modality?)`、`runTask(region?)`。
 - 查看器按 `ObjectMeta.kind` 选引擎；无对应引擎的 kind 渲染「查看器引擎尚未接入：{kind}」空态。
@@ -14,6 +15,7 @@
 ### Changed
 
 - 会话事件改为订阅 runtime 的 Glaux 事件（`message.delta`、`tool.end`、`run.settled` 等），不再解析 `pi.event`；`run.settled` 触发快照刷新（SDD 15 §9.5）。
+- 开发代理的 `/agent-api` 目标端口读 `GLAUX_AGENT_PORT`（缺省 8010）。
 - `modality` 与 `activeModel` 初始为 `null`，不再写死颈动脉缺省；`setModels` 只取当前模态的活动模型，没有即 `null`。切模态时清空焦点、叠加、工具（回 `cursor`）与工具参数，并重选活动模型。
 - 打开对象的自动运行规则为 `TaskView.trigger ?? "manual"`；无 `TaskView` 的模态（`natural_image`、`video`）不调 `/task/run`。`/task/run` 请求改发对象的 `calibration` 与 `region`，不再发 `cubs_cf` / `roi_box`。
 - 查看器不再读 `TaskView.viewer`。

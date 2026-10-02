@@ -45,7 +45,7 @@ graph LR
     BE -- "subprocess" --> MD
 ```
 
-Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime :8010，不改路径。
+Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime（默认 :8010，`GLAUX_AGENT_PORT` 可改，与 runtime 共用同一变量），不改路径。
 
 ### Docker 发行包（对话预览版）
 
@@ -143,7 +143,7 @@ open-glaux/
 | 模态标签 | 取 `/datasources` 元素的 `label_key`（i18n `modality.<m>`）→ `label` → modality 原文（`i18n/modalityLabel.ts`）；切换器可见性取有 active 数据源的模态 |
 | 会话工作区（`store/sessionWorkspaces.ts`） | 按 `session_id` 各存一份 `modality`、`focus`、任务结果（`metrics` / `primitives` / `source` / `modelVersion`）、`activeModel` 与输入草稿、附件、视频；`agentSessions.select` 切换时换出当前、换入目标，组件仍只读 `useSession`。后台会话的 `tool.end` 只写该会话快照并置未读，未读只存内存。localStorage `glaux.sessionWorkspace.v1` 只持久化 `{modality, focus}`（SDD 13 §9.6） |
 | 项目（`store/projects.ts`） | 缓存 `GET /projects` 列表；localStorage `glaux.projects.known.v1` 记住见过的项目名与路径（项目移除后组头仍显示原名、可按原路径重新打开），`glaux.projects.collapsed.v1` 存组头折叠状态 |
-| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点；`FileCard` 渲染 `read_file` 结果（`glaux.file_read`），点「在舞台打开」预览该文件 |
+| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/InteractionCard` 渲染权限审批与 `ask_user` 提问卡片，结束后折叠为一行结论；被拦截的工具调用在调用行下显示理由；权限菜单附各模式说明，切到 `autonomous` 需确认；设置文件告警与预算收尾提示显示在对话区（SDD 15 §5.1）；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点；`FileCard` 渲染 `read_file` 结果（`glaux.file_read`），点「在舞台打开」预览该文件 |
 | 会话列表 | `components/agent/SessionDrawer.tsx` 按项目分组（分组逻辑在 `sessionGroups.ts`）：项目组、「未归属」组、「<项目名>（已移除）」只读组；会话行状态点（运行中、未读、出错）；Focus 的 `SessionRail` 与 Workbench 共用。`ProjectChip` 在输入区上方显示当前会话项目，空会话可切项目；`FolderPicker` 浏览后端文件系统（`/fs/roots`、`/fs/dirs`）并登记项目 |
 | 文件栏 | 项目会话显示 `components/ProjectTree.tsx` 目录树：展开一层列一层，点击文件经 `POST /projects/{id}/objects` 按需登记后 `openObject`，无候选模态的文件点击后以文本预览：`components/DocumentView.tsx` 覆盖在舞台（Focus）或编辑区（Workbench）之上，查看器保持挂载，Markdown 用 `react-markdown` 渲染，其余文本用懒加载的 CodeMirror 6 只读视图（`components/CodeView.tsx`），读取 `GET /projects/{id}/text`（SDD 14）；根下虚拟节点「上传」列本项目上传源；未归属会话保持模态切换器 + `ExplorerTree`，只列 `project_id` 为空的数据源（SDD 13 §7.8） |
 | 图谱（Atlas） | `components/atlas/`：上传入口（图片 · PDF · 网页，上传即入库）、生成描述确认条、列表（多选批量操作）/ 详情（字段编辑、重新框选、添加区域、外发协议勾选）；描述生成经用户确认后走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |

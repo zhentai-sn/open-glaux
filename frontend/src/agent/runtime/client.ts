@@ -4,6 +4,7 @@ import type {
   ConnectionModelListResult,
   ConnectionProbeInput,
   ConnectionTestResult,
+  InteractionReply,
   PermissionMode,
   RuntimeHealth,
   SessionListItem,
@@ -99,6 +100,12 @@ export const agentRuntimeApi = {
         method: "POST",
         body: JSON.stringify(command),
       },
+    ),
+  // SDD 15 §9.4：回复权限审批或 ask_user 提问。
+  replyInteraction: (sessionId: string, requestId: string, reply: InteractionReply) =>
+    request<{ request_id: string; outcome: "answered" }>(
+      `/sessions/${encodeURIComponent(sessionId)}/interactions/${encodeURIComponent(requestId)}`,
+      { method: "POST", body: JSON.stringify(reply) },
     ),
   // 连接探测（退役 orchestration P2：从 backend /intent/vlm/* 迁来，agent-runtime 是唯一模型出口）
   testConnection: (input: ConnectionProbeInput) =>

@@ -73,7 +73,8 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
       "/agent-api": {
-        target: "http://127.0.0.1:8010",
+        // 与 agent-runtime 共用 GLAUX_AGENT_PORT，并存多套开发环境时只改一处
+        target: `http://127.0.0.1:${process.env.GLAUX_AGENT_PORT ?? "8010"}`,
         changeOrigin: true,
       },
     },

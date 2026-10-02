@@ -175,3 +175,5 @@ status: active
 - W4：快照 `warnings` 来自最近一次命令加载设置时的结果；会话尚未运行过命令时为空。
 - W4：未在 `tests/compatibility/pi-public-api.test.ts` 增加钩子取值语义断言，钩子组合由 `plugins-compose` 单测覆盖，pi 行为由 `permission-flow` 集成测试间接覆盖。
 - W5：预算插件放在 `src/budget/`，上限取自权限状态里已加载的设置文件，不重复读取；等待时长由交互请求表按命令记录区间、取并集计算。宽限中止经 `setImmediate` 异步调用 `registry.abort`，避免在 pi 的 `turn_start` 回调内等待空闲造成死锁。预算中止不发 `adapter.error`，只由 `run.settled` 的结局告知前端。
+- W6：已结束请求的结论行、工具拦截理由、预算提示只存在前端内存，刷新页面后不再显示；工具调用的结果（含拦截理由）仍在模型回复里。`autonomous` 确认用浏览器原生 `window.confirm`。在别处回复的权限请求，本端结论显示「已处理」。
+- W6：浏览器走查用隔离的 runtime（8041，`GLAUX_HOME` 指向故意写坏的设置文件）、前端（5215）与一个返回固定工具调用的假 OpenAI 兼容服务完成；为此让 Vite 的 `/agent-api` 代理读 `GLAUX_AGENT_PORT`。走查覆盖：设置告警条、`ask_user` 选项回答、命令中途降为「建议」后 `run_task` 出现审批卡片、附理由拒绝后模型收到理由、两条请求折叠为「已回答」「已拒绝」。

@@ -28,6 +28,10 @@ import type {
   SessionStatus,
   SessionView,
   TranscriptMessage,
+  InteractionOutcome,
+  InteractionReply,
+  InteractionRequest,
+  RunOutcome,
   ViewerContext,
 } from "../agent/runtime/types";
 
@@ -36,6 +40,20 @@ interface LiveSession {
   /** 与 pendingUser 同属"已发出、快照尚未回来"的乐观回显（SDD 00 D-021）。 */
   pendingImages?: PromptImage[];
   streamingAssistant?: TranscriptMessage;
+}
+
+/** 已结束的交互请求（SDD 15 §5.1）：卡片折叠成一行结论；只存内存。 */
+export interface ResolvedInteraction {
+  request: InteractionRequest;
+  outcome: InteractionOutcome;
+  /** 本端回复的决定；他端回复或过期、取消时缺省。 */
+  reply?: InteractionReply;
+}
+
+/** 预算收尾或中止的提示（SDD 15 §5.1）；下一次发送时清除。 */
+export interface RunNotice {
+  outcome: RunOutcome;
+  turns: number;
 }
 
 interface AgentSessionsState {
@@ -50,6 +68,10 @@ interface AgentSessionsState {
   search: string;
   /** 后台完成、尚未被选中查看的会话（SDD 13 §7.4 规则 5、6）；只存内存。 */
   unread: Record<string, true>;
+  /** 按会话保存已结束的交互请求、出错工具调用的理由与预算提示；只存内存。 */
+  resolvedInteractions: Record<string, ResolvedInteraction[]>;
+  toolErrors: Record<string, Record<string, string>>;
+  runNotices: Record<string, RunNotice>;
   error: { code: string; message: string; traceId?: string } | null;
 
   initialize: () => Promise<void>;
@@ -79,6 +101,7 @@ interface AgentSessionsState {
   clearError: () => void;
   applySnapshot: (snapshot: SessionView) => void;
   applyRuntimeEvent: (event: RuntimeEvent) => void;
+  replyInteraction: (sessionId: string, requestId: string, reply: InteractionReply) => Promise<void>;
 }
 
 const CURRENT_SESSION_KEY = "glaux.agent.current-session";
@@ -216,6 +239,9 @@ export function createAgentSessionsStore(
       drawerOpen: false,
       search: "",
       unread: {},
+      resolvedInteractions: {},
+      toolErrors: {},
+      runNotices: {},
       error: null,
 
       initialize: async () => {
@@ -344,6 +370,7 @@ export function createAgentSessionsStore(
             },
           },
           error: null,
+          runNotices: omit(state.runNotices, sessionId),
         }));
         try {
           const snapshot = await runtime.command(sessionId, {
@@ -394,6 +421,33 @@ export function createAgentSessionsStore(
       setSearch: (search) => set({ search }),
       clearError: () => set({ error: null }),
 
+      replyInteraction: async (sessionId, requestId, reply) => {
+        const request = get().views[sessionId]?.pending_interactions?.find((item) => item.request_id === requestId);
+        try {
+          await runtime.replyInteraction(sessionId, requestId, reply);
+        } catch (error) {
+          const runtimeError = error instanceof AgentRuntimeError
+            ? error
+            : new AgentRuntimeError(0, "runtime_unavailable", "Agent Runtime is unavailable.");
+          set({ error: { code: runtimeError.code, message: runtimeError.message, ...(runtimeError.traceId ? { traceId: runtimeError.traceId } : {}) } });
+          return;
+        }
+        if (!request) return;
+        // 先记下本端的回复，interaction.resolved 到达时补上结局；两者顺序不定。
+        set((state) => {
+          const list = state.resolvedInteractions[sessionId] ?? [];
+          const exists = list.some((item) => item.request.request_id === requestId);
+          return {
+            resolvedInteractions: {
+              ...state.resolvedInteractions,
+              [sessionId]: exists
+                ? list.map((item) => (item.request.request_id === requestId ? { ...item, reply } : item))
+                : [...list, { request, outcome: "answered" as const, reply }],
+            },
+          };
+        });
+      },
+
       applySnapshot: (snapshot) =>
         set((state) => {
           const item = toListItem(snapshot);
@@ -427,6 +481,54 @@ export function createAgentSessionsStore(
 
       applyRuntimeEvent: (event) => {
         const sessionId = event.data.session_id;
+        if (event.event === "interaction.request") {
+          const request = event.data;
+          set((state) => {
+            const view = state.views[sessionId];
+            if (!view) return {};
+            const pending = (view.pending_interactions ?? []).filter((item) => item.request_id !== request.request_id);
+            return { views: { ...state.views, [sessionId]: { ...view, pending_interactions: [...pending, request] } } };
+          });
+          return;
+        }
+        if (event.event === "interaction.resolved") {
+          set((state) => {
+            const view = state.views[sessionId];
+            const request = view?.pending_interactions?.find((item) => item.request_id === event.data.request_id);
+            const known = (state.resolvedInteractions[sessionId] ?? []).find((item) => item.request.request_id === event.data.request_id);
+            const resolved = known
+              ? (state.resolvedInteractions[sessionId] ?? []).map((item) =>
+                  item.request.request_id === event.data.request_id ? { ...item, outcome: event.data.outcome } : item)
+              : request
+                ? [...(state.resolvedInteractions[sessionId] ?? []), { request, outcome: event.data.outcome }]
+                : state.resolvedInteractions[sessionId] ?? [];
+            return {
+              resolvedInteractions: { ...state.resolvedInteractions, [sessionId]: resolved },
+              ...(view ? {
+                views: {
+                  ...state.views,
+                  [sessionId]: { ...view, pending_interactions: (view.pending_interactions ?? []).filter((item) => item.request_id !== event.data.request_id) },
+                },
+              } : {}),
+            };
+          });
+          return;
+        }
+        if (event.event === "tool.end" && event.data.is_error && event.data.error_text) {
+          const { tool_call_id: toolCallId, error_text: reason } = event.data;
+          set((state) => ({
+            toolErrors: { ...state.toolErrors, [sessionId]: { ...state.toolErrors[sessionId], [toolCallId]: reason } },
+          }));
+          return;
+        }
+        if (event.event === "run.settled") {
+          const { outcome, budget } = event.data;
+          set((state) => ({
+            runNotices: budget.exhausted || outcome === "budget_exceeded"
+              ? { ...state.runNotices, [sessionId]: { outcome, turns: budget.turns } }
+              : omit(state.runNotices, sessionId),
+          }));
+        }
         if (event.event === "tool.end") {
           // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge。
           // 后台会话的结果只进它自己的工作区快照，不改前台画面（SDD 13 §7.7 规则 5）。
@@ -461,6 +563,13 @@ export function createAgentSessionsStore(
   });
 
   return store;
+}
+
+function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
 }
 
 function toListItem(view: SessionView): SessionListItem {

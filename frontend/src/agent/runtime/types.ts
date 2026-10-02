@@ -48,6 +48,13 @@ export interface InteractionRequest {
   question?: { question: string; options: string[]; allow_free_text: boolean };
 }
 
+/** SDD 15 §9.3：交互请求的回复。 */
+export type InteractionReply =
+  | { kind: "permission"; decision: "once" | "session" | "always" | "deny"; reason?: string }
+  | { kind: "question"; option?: number; text?: string };
+
+export type InteractionOutcome = "answered" | "expired" | "cancelled";
+
 export interface RuntimeWarning {
   code: string;
   message: string;
@@ -234,7 +241,7 @@ export type TransportEvent =
   | { event: "interaction.request"; data: InteractionRequest }
   | {
       event: "interaction.resolved";
-      data: { session_id: string; request_id: string; outcome: "answered" | "expired" | "cancelled" };
+      data: { session_id: string; request_id: string; outcome: InteractionOutcome };
     }
   | { event: "context.compacted"; data: { session_id: string } }
   | {

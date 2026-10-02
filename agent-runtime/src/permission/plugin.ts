@@ -109,7 +109,7 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
   if (resolution.outcome === "expired") return block(`The user did not approve ${tool.name} in time; it was not executed.`);
   if (resolution.outcome === "cancelled" || !reply) return block(`The approval for ${tool.name} was cancelled; it was not executed.`);
   if (reply.decision === "deny") {
-    return block(`The user denied ${tool.name}${reply.reason ? `: ${reply.reason}` : "."} It was not executed.`);
+    return block(`The user denied ${tool.name}${reply.reason ? `: ${reply.reason.replace(/[.。]$/u, "")}.` : "."} It was not executed.`);
   }
   if (reply.decision === "session" || reply.decision === "always") {
     state.grants.add(tool.name);

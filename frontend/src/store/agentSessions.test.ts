@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgentRuntimeClient } from "../agent/runtime/client";
+import { AgentRuntimeError, type AgentRuntimeClient } from "../agent/runtime/client";
 import type {
   EventConnector,
   EventHandlers,
@@ -71,6 +71,7 @@ function fixture() {
       .mockImplementation(async (id: string) => views.find((item) => item.session_id === id)!),
     patchSession: vi.fn(),
     deleteSession: vi.fn().mockResolvedValue(undefined),
+    replyInteraction: vi.fn().mockResolvedValue({ outcome: "answered" }),
     command: vi.fn().mockImplementation(async (id: string) => ({
       ...views.find((item) => item.session_id === id)!,
       phase: "running",
@@ -87,6 +88,68 @@ function fixture() {
     store: createAgentSessionsStore(client, connector),
   };
 }
+
+describe("interaction and run events (SDD 15 §9.5)", () => {
+  const request = (sessionId: string) => ({
+    request_id: "r1", session_id: sessionId, command_id: "c1", kind: "permission" as const,
+    created_at: "2026-10-02T00:00:00.000Z", expires_at: "2026-10-02T00:30:00.000Z",
+    permission: { tool_call_id: "t1", tool_name: "run_task", effect: "compute" as const, args_summary: "{}", grant_options: ["once" as const] },
+  });
+
+  it("tracks pending requests and folds them into resolved lines with the local reply", async () => {
+    localStorage.clear();
+    const { handlers, client, store } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+
+    handlers.get(id)!.onRuntimeEvent({ event: "interaction.request", data: request(id) });
+    handlers.get(id)!.onRuntimeEvent({ event: "interaction.request", data: request(id) });
+    expect(store.getState().views[id]?.pending_interactions).toHaveLength(1);
+
+    await store.getState().replyInteraction(id, "r1", { kind: "permission", decision: "deny" });
+    expect(client.replyInteraction).toHaveBeenCalledWith(id, "r1", { kind: "permission", decision: "deny" });
+    handlers.get(id)!.onRuntimeEvent({ event: "interaction.resolved", data: { session_id: id, request_id: "r1", outcome: "answered" } });
+
+    expect(store.getState().views[id]?.pending_interactions).toEqual([]);
+    expect(store.getState().resolvedInteractions[id]).toEqual([
+      expect.objectContaining({ outcome: "answered", reply: { kind: "permission", decision: "deny" } }),
+    ]);
+  });
+
+  it("surfaces a stale reply as an error and keeps the request", async () => {
+    localStorage.clear();
+    const { handlers, client, store } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+    handlers.get(id)!.onRuntimeEvent({ event: "interaction.request", data: request(id) });
+    vi.mocked(client.replyInteraction).mockRejectedValueOnce(new AgentRuntimeError(409, "interaction_resolved", "Interaction request is already resolved."));
+
+    await store.getState().replyInteraction(id, "r1", { kind: "permission", decision: "once" });
+    expect(store.getState().error).toMatchObject({ code: "interaction_resolved" });
+    expect(store.getState().resolvedInteractions[id]).toBeUndefined();
+  });
+
+  it("records tool errors and the budget notice, cleared by the next prompt", async () => {
+    localStorage.clear();
+    const { handlers, store } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+
+    handlers.get(id)!.onRuntimeEvent({
+      event: "tool.end",
+      data: { session_id: id, command_id: "c", tool_call_id: "t9", tool_name: "run_task", is_error: true, details: null, error_text: "denied" },
+    });
+    handlers.get(id)!.onRuntimeEvent({
+      event: "run.settled",
+      data: { session_id: id, command_id: "c", outcome: "budget_exceeded", budget: { turns: 54, elapsed_ms: 1, exhausted: true } },
+    });
+    expect(store.getState().toolErrors[id]).toEqual({ t9: "denied" });
+    expect(store.getState().runNotices[id]).toEqual({ outcome: "budget_exceeded", turns: 54 });
+
+    await store.getState().sendPrompt("again", [], { provider: "anthropic", model: "m" });
+    expect(store.getState().runNotices[id]).toBeUndefined();
+  });
+});
 
 describe("agent session store", () => {
   it("loads and switches 20 sessions without issuing abort", async () => {

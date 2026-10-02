@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../../i18n";
@@ -55,6 +55,9 @@ describe("AgentConversation", () => {
       drawerOpen: false,
       search: "",
       error: null,
+      resolvedInteractions: {},
+      toolErrors: {},
+      runNotices: {},
     });
     useSession.getState().setConnection({
       provider: "anthropic",
@@ -140,6 +143,63 @@ describe("AgentConversation", () => {
     // 卡片不挤掉同一轮的正文
     expect(screen.getByText("Case a matches.")).toBeInTheDocument();
     fetchSpy.mockRestore();
+  });
+
+  it("asks for confirmation before switching to autonomous and keeps the mode when cancelled", () => {
+    const setPermissionMode = vi.fn(async () => undefined);
+    useAgentSessions.setState({ setPermissionMode });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    const select = screen.getByRole("combobox");
+
+    fireEvent.change(select, { target: { value: "autonomous" } });
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/run commands on this computer/u));
+    expect(setPermissionMode).not.toHaveBeenCalled();
+    expect(select).toHaveValue("controlled");
+
+    confirm.mockReturnValue(true);
+    fireEvent.change(select, { target: { value: "autonomous" } });
+    expect(setPermissionMode).toHaveBeenCalledWith(session.session_id, "autonomous");
+    confirm.mockRestore();
+  });
+
+  it("shows pending interaction cards, settings warnings and the budget notice", () => {
+    const replyInteraction = vi.fn(async () => undefined);
+    useAgentSessions.setState({
+      replyInteraction,
+      views: {
+        [session.session_id]: {
+          ...session,
+          warnings: [{ code: "settings_invalid", message: "not valid JSON", path: "/home/u/.glaux/settings.json" }],
+          pending_interactions: [{
+            request_id: "r1", session_id: session.session_id, command_id: "c1", kind: "question",
+            created_at: "2026-10-02T00:00:00.000Z", expires_at: "2026-10-02T00:30:00.000Z",
+            question: { question: "Which side?", options: ["left"], allow_free_text: false },
+          }],
+        },
+      },
+      runNotices: { [session.session_id]: { outcome: "completed", turns: 51 } },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+
+    expect(screen.getByText("Settings file ignored: /home/u/.glaux/settings.json (not valid JSON)")).toBeInTheDocument();
+    expect(screen.getByTestId("run-notice")).toHaveTextContent("after 51 turns");
+    fireEvent.click(screen.getByTestId("interaction-option-0"));
+    expect(replyInteraction).toHaveBeenCalledWith(session.session_id, "r1", { kind: "question", option: 0 });
+  });
+
+  it("shows why a tool call was not run", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [{ role: "assistant", content: [{ type: "toolCall", id: "t1", name: "run_task", arguments: {} }] }],
+        },
+      },
+      toolErrors: { [session.session_id]: { t1: "The user denied run_task." } },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Not run: The user denied run_task.");
   });
 
   it("makes an archived conversation read-only", () => {

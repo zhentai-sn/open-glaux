@@ -28,6 +28,7 @@ import { SessionDrawer } from "./SessionDrawer";
 import { projectWritable } from "./sessionGroups";
 import { OwlLogo } from "../OwlLogo";
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
+import { InteractionCard, ResolvedInteractionLine } from "./InteractionCard";
 
 const PERMISSION_MODES: PermissionMode[] = [
   "observe",
@@ -38,7 +39,8 @@ const PERMISSION_MODES: PermissionMode[] = [
 
 // 工具调用状态行（退役 orchestration P3）："⚙ 调用 run_task"，让智能体的工具动作可见；
 // 悬停显示入参。工具结果本身不在此渲染——run_task 的产出经 toolBridge 写回查看器。
-function ToolCallLine({ call }: { call: MessageToolCall }) {
+// 被拦截或失败的调用在下方附一行理由（SDD 15 §5.1）。
+function ToolCallLine({ call, error }: { call: MessageToolCall; error?: string | undefined }) {
   const { t } = useI18n();
   const args = Object.entries(call.arguments)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
@@ -48,6 +50,7 @@ function ToolCallLine({ call }: { call: MessageToolCall }) {
       <Icon icon={ICONS.config} size="sm" className="tool-call-icon" />
       <span>{t("agent_tool_call", { tool: call.name })}</span>
       {args && <span className="tool-call-args mono">{args}</span>}
+      {error && <span className="tool-call-error" data-testid="tool-call-error">{t("agent_tool_not_run", { reason: error })}</span>}
     </div>
   );
 }
@@ -129,6 +132,16 @@ export function AgentConversation() {
   const newSession = useAgentSessions((state) => state.newSession);
   const setPermissionMode = useAgentSessions(
     (state) => state.setPermissionMode,
+  );
+  const replyInteraction = useAgentSessions((state) => state.replyInteraction);
+  const resolvedInteractions = useAgentSessions((state) =>
+    state.currentSessionId ? state.resolvedInteractions[state.currentSessionId] : undefined,
+  );
+  const toolErrors = useAgentSessions((state) =>
+    state.currentSessionId ? state.toolErrors[state.currentSessionId] : undefined,
+  );
+  const runNotice = useAgentSessions((state) =>
+    state.currentSessionId ? state.runNotices[state.currentSessionId] : undefined,
   );
   const connection = useSession((state) => state.connection);
   const projects = useProjects((state) => state.projects);
@@ -263,17 +276,19 @@ export function AgentConversation() {
           <select
             value={view?.permission_mode ?? "controlled"}
             disabled={!view}
+            title={t(`agent_permission_${view?.permission_mode ?? "controlled"}_hint`)}
             onChange={(event) => {
-              if (currentSessionId) {
-                void setPermissionMode(
-                  currentSessionId,
-                  event.target.value as PermissionMode,
-                );
+              const mode = event.target.value as PermissionMode;
+              // 最高权限需显式确认（SDD 15 §7.4 规则 3）；取消则模式不变。
+              if (mode === "autonomous" && !window.confirm(t("agent_permission_autonomous_confirm"))) {
+                event.target.value = view?.permission_mode ?? "controlled";
+                return;
               }
+              if (currentSessionId) void setPermissionMode(currentSessionId, mode);
             }}
           >
             {PERMISSION_MODES.map((mode) => (
-              <option key={mode} value={mode}>
+              <option key={mode} value={mode} title={t(`agent_permission_${mode}_hint`)}>
                 {t(`agent_permission_${mode}`)}
               </option>
             ))}
@@ -299,6 +314,12 @@ export function AgentConversation() {
           )}
         </div>
       )}
+
+      {!CHAT_EDITION && view?.warnings?.map((warning) => (
+        <div className="agent-error" role="status" key={`warn-${warning.code}-${warning.path ?? ""}`}>
+          <span>{t("agent_settings_warning", { path: warning.path ?? "settings.json", message: warning.message })}</span>
+        </div>
+      ))}
 
       {!CHAT_EDITION && videoFocused && !videoConnectionReady && (
         <div className="agent-error" role="status">
@@ -385,7 +406,7 @@ export function AgentConversation() {
                 </div>
                 <div className="tool-calls">
                   {toolCalls.map((call) => (
-                    <ToolCallLine key={call.id || call.name} call={call} />
+                    <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} />
                   ))}
                 </div>
               </div>
@@ -405,7 +426,7 @@ export function AgentConversation() {
                 {toolCalls.length > 0 && (
                   <div className="tool-calls">
                     {toolCalls.map((call) => (
-                      <ToolCallLine key={call.id || call.name} call={call} />
+                      <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} />
                     ))}
                   </div>
                 )}
@@ -455,6 +476,25 @@ export function AgentConversation() {
             </div>
           );
         })}
+        {!CHAT_EDITION && resolvedInteractions?.map((item) => (
+          <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
+        ))}
+        {!CHAT_EDITION && currentSessionId && view?.pending_interactions?.map((request) => (
+          <div className="turn assistant tool" key={`interaction-${request.request_id}`}>
+            <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
+            <InteractionCard
+              request={request}
+              onReply={(reply) => void replyInteraction(currentSessionId, request.request_id, reply)}
+            />
+          </div>
+        ))}
+        {!CHAT_EDITION && runNotice && (
+          <div className="run-notice" role="status" data-testid="run-notice">
+            {runNotice.outcome === "budget_exceeded"
+              ? t("agent_budget_exceeded")
+              : t("agent_budget_wound_down", { turns: runNotice.turns })}
+          </div>
+        )}
         {!CHAT_EDITION && view?.video_answers?.map((record) => (
           <div className="turn assistant tool" key={`video-answer-${record.command_id}`}>
             <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
