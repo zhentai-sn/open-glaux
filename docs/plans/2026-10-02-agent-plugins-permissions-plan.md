@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 15 智能体插件契约与权限引擎 · 实施计划

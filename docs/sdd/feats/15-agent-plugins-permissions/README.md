@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 15 · 智能体插件契约与权限引擎
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 规范定稿；按 [实施计划](../../../plans/2026-10-02-agent-plugins-permissions-plan.md) 推进 |
+| 状态 | `implemented` |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-plugins-permissions-plan.md) 实现，自动化门禁与开发侧浏览器走查通过，自查见 §15；真实模型走查、Workbench 走查与业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P0 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 参考智能体与会话](../00-reference-agent-conversations/README.md) · [SDD 02 智能体图像标注](../02-agent-image-annotation/README.md) · [SDD 11 视频理解 harness](../11-video-understanding-harness/README.md) · [SDD 13 项目文件夹与并行会话](../13-project-folder-sessions/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -499,45 +499,45 @@ stateDiagram-v2
 
 ### 15.1 插件与迁移
 
-- [ ] 12 个工具全部由插件提供，`TOOL_PROVIDERS` 与 `withProjectGuard` 删除。
-- [ ] `controlled` 模式下现有 runtime 与前端测试全部通过。
-- [ ] 未声明 `effect` 的工具在启动时报错。
-- [ ] 两个插件对同一 `tool_call` 返回不同结果时，按 §7.2 规则 2 取第一个拦截结果（单元测试）。
-- [ ] 插件钩子抛出异常时，运行不失败（单元测试）。
+- [x] 12 个工具全部由插件提供，`TOOL_PROVIDERS` 与 `withProjectGuard` 删除。——`plugins-registry` 单测；另增 `ask_user`
+- [x] `controlled` 模式下现有 runtime 与前端测试全部通过。——`make test`；系统提示词快照迁移前后逐字一致
+- [x] 未声明 `effect` 的工具在启动时报错。——`plugins-registry` 单测
+- [x] 两个插件对同一 `tool_call` 返回不同结果时，按 §7.2 规则 2 取第一个拦截结果（单元测试）。——`plugins-compose` 单测
+- [x] 插件钩子抛出异常时，运行不失败（单元测试）。——`plugins-compose` 单测
 
 ### 15.2 权限
 
-- [ ] `observe` 下只挂 `read` 工具；`suggest` 下调用 `run_task` 出现审批卡片，允许后执行，拒绝后模型收到拒绝理由。
-- [ ] 「本会话允许」后同一工具在本会话不再审批，新会话仍审批。
-- [ ] 「总是允许」写入对应级别的设置文件，新会话不再审批。
-- [ ] deny 规则在 `autonomous` 下仍然生效。
-- [ ] 命令执行中把模式从 `controlled` 调为 `suggest`，下一次 `compute` 工具调用出现审批。
-- [ ] 跨项目对象调用仍被拦截，判定依据记为越界。
-- [ ] 切换到 `autonomous` 时出现确认对话框，取消则模式不变。
+- [x] `observe` 下只挂 `read` 工具；`suggest` 下调用 `run_task` 出现审批卡片，允许后执行，拒绝后模型收到拒绝理由。——`permission-decide`、`permission-flow`；浏览器走查（审批卡片、附理由拒绝）
+- [x] 「本会话允许」后同一工具在本会话不再审批，新会话仍审批。——`permission-flow`
+- [x] 「总是允许」写入对应级别的设置文件，新会话不再审批。——`permission-flow`、`permission-settings`
+- [x] deny 规则在 `autonomous` 下仍然生效。——`permission-flow`
+- [x] 命令执行中把模式从 `controlled` 调为 `suggest`，下一次 `compute` 工具调用出现审批。——`permission-flow`；浏览器走查
+- [x] 跨项目对象调用仍被拦截，判定依据记为越界。——`project-tools`
+- [x] 切换到 `autonomous` 时出现确认对话框，取消则模式不变。——`AgentConversation` 组件测试
 
 ### 15.3 交互请求
 
-- [ ] 模型调用 `ask_user` 后出现提问卡片，选项与自由输入均可回复，模型按回复继续。
-- [ ] 刷新页面后待决卡片仍在，回复后运行继续。
-- [ ] 中止命令后待决卡片显示「已取消」。
-- [ ] 重复提交相同回复返回 200，提交不同回复返回 409。
+- [x] 模型调用 `ask_user` 后出现提问卡片，选项与自由输入均可回复，模型按回复继续。——`ask-user-tool`、`InteractionCard`；浏览器走查（选项回答）
+- [x] 刷新页面后待决卡片仍在，回复后运行继续。——快照含 `pending_interactions`（`ask-user-tool`）；浏览器刷新未走查
+- [x] 中止命令后待决卡片显示「已取消」。——`ask-user-tool`、`permission-flow`、`InteractionCard`
+- [x] 重复提交相同回复返回 200，提交不同回复返回 409。——`ask-user-tool`
 
 ### 15.4 预算与裁剪
 
-- [ ] 把 `max_turns` 设为 3 时，第 4 回合起工具调用被拦截，模型给出收尾回复，结局为 `completed`。
-- [ ] 收尾宽限用尽后命令被中止，结局为 `budget_exceeded`。
-- [ ] 审批等待时间不计入时长预算（单元测试）。
-- [ ] 连续调用 6 次 `view_current_image` 后，发给模型的请求中只有最近 4 个结果带图像，会话存储不变（单元测试）。
+- [x] 把 `max_turns` 设为 3 时，第 4 回合起工具调用被拦截，模型给出收尾回复，结局为 `completed`。——`budget-flow`
+- [x] 收尾宽限用尽后命令被中止，结局为 `budget_exceeded`。——`budget-flow`
+- [x] 审批等待时间不计入时长预算（单元测试）。——`budget` 单测
+- [x] 连续调用 6 次 `view_current_image` 后，发给模型的请求中只有最近 4 个结果带图像，会话存储不变（单元测试）。——`context-pruning` 单测
 
 ### 15.5 事件结构
 
-- [ ] 前端代码中不再出现 `pi.event`、`tool_execution_end`、`message_update` 等 pi 事件名。
-- [ ] 流式回复、`run_task` 结果写回查看器、后台会话未读标记行为与迁移前一致。
+- [x] 前端代码中不再出现 `pi.event`、`tool_execution_end`、`message_update` 等 pi 事件名。——源码检索为零
+- [x] 流式回复、`run_task` 结果写回查看器、后台会话未读标记行为与迁移前一致。——`agentSessions`、`toolBridge`、`objectFocus` 测试；浏览器走查（流式回复）
 
 ### 15.6 工程
 
-- [ ] `make test`、`make lint` 通过。
-- [ ] 仓库骨架总览、SDD 00、SDD 02 §7.3、SDD 13 越界守卫描述同步更新。
+- [x] `make test`、`make lint` 通过。
+- [x] 仓库骨架总览、SDD 00、SDD 02 §7.3、SDD 13 越界守卫描述同步更新。——另含操作手册 §3.1 与两份 CHANGELOG
 
 ## 16. 决策记录
 
