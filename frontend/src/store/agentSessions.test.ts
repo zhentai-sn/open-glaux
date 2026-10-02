@@ -1,3 +1,4 @@
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentRuntimeError, type AgentRuntimeClient } from "../agent/runtime/client";
@@ -193,6 +194,21 @@ describe("interaction and run events (SDD 15 §9.5)", () => {
     expect(store.getState().runNotices[id]).toBeUndefined();
   });
 
+  it("drops the ended streaming message once the snapshot has it, so a long tool call is not drawn twice", async () => {
+    localStorage.clear();
+    const { handlers, store, client } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+    const call = { role: "assistant" as const, content: [{ type: "toolCall" as const, id: "a1", name: "agent", arguments: {} }] };
+    vi.mocked(client.getSession).mockResolvedValueOnce({ ...store.getState().views[id]!, phase: "running", messages: [call] });
+
+    handlers.get(id)!.onRuntimeEvent({ event: "message.delta", data: { session_id: id, command_id: "c", message: call } });
+    expect(store.getState().live[id]?.streamingAssistant).toBe(call);
+    handlers.get(id)!.onRuntimeEvent({ event: "message.end", data: { session_id: id, command_id: "c" } });
+    await waitFor(() => expect(store.getState().live[id]?.streamingAssistant).toBeUndefined());
+    expect(store.getState().views[id]?.messages).toEqual([call]);
+  });
+
   it("tracks sub-agent progress per agent call until the call ends (SDD 18 §7.5)", async () => {
     localStorage.clear();
     const { handlers, store } = fixture();
@@ -301,14 +317,17 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
     await f.store.getState().initialize();
     const a = f.store.getState().currentSessionId!;
     const b = f.views.find((v) => v.session_id !== a)!.session_id;
-    return { ...f, useSession, ws, a, b };
+    /** 让 a 进入运行中：空闲的后台会话不保留事件流。 */
+    const runA = () => f.handlers.get(a)!.onSnapshot({ ...f.views.find((v) => v.session_id === a)!, phase: "running" });
+    return { ...f, useSession, ws, a, b, runA };
   }
 
   const focusOn = (id: string) => ({ object_id: id, kind: "image" as const, index: {}, region: null });
 
   it("后台会话的 run_task 结果不改前台度量，切回后显示", async () => {
-    const { store, handlers, useSession, ws, a, b } = await isolated();
+    const { store, handlers, useSession, ws, a, b, runA } = await isolated();
     useSession.setState({ focus: focusOn("x") });
+    runA();
     await store.getState().selectSession(b);
     useSession.setState({ focus: focusOn("y") });
 
@@ -322,8 +341,9 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
   });
 
   it("两会话焦点同为一个对象时，后台结果也不覆盖前台", async () => {
-    const { store, handlers, useSession, a, b } = await isolated();
+    const { store, handlers, useSession, a, b, runA } = await isolated();
     useSession.setState({ focus: focusOn("x") });
+    runA();
     await store.getState().selectSession(b);
     useSession.setState({ focus: focusOn("x") });
 
@@ -332,6 +352,25 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
 
     handlers.get(b)!.onRuntimeEvent(runTaskEnd(b, "x", 3));
     expect(useSession.getState().metrics).toEqual({ d: { value: 3, unit: "mm" } });
+  });
+
+  it("只为当前会话与运行中的后台会话保留事件流，避免占满浏览器连接池", async () => {
+    const { views, store, handlers, a, b, runA } = await isolated();
+    const c = views.find((v) => v.session_id !== a && v.session_id !== b)!.session_id;
+    runA();
+    await store.getState().selectSession(b);
+    await store.getState().selectSession(c);
+    expect(handlers.has(a)).toBe(true);
+    expect(handlers.has(b)).toBe(false);
+    expect(handlers.has(c)).toBe(true);
+
+    handlers.get(a)!.onSnapshot({ ...views.find((v) => v.session_id === a)!, phase: "idle" });
+    expect(handlers.has(a)).toBe(false);
+    expect(store.getState().unread[a]).toBe(true);
+
+    await store.getState().selectSession(b);
+    expect(handlers.has(b)).toBe(true);
+    expect(handlers.has(c)).toBe(false);
   });
 
   it("草稿与焦点随会话切换，互不串", async () => {
@@ -347,7 +386,8 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
   });
 
   it("后台会话完成后标记未读，选中后清除", async () => {
-    const { views, store, handlers, a, b } = await isolated();
+    const { views, store, handlers, a, b, runA } = await isolated();
+    runA();
     await store.getState().selectSession(b);
     const viewA = views.find((v) => v.session_id === a)!;
 
@@ -361,7 +401,8 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
   });
 
   it("后台会话收到 run.settled 时重新拉取快照并标记未读（SDD 15 §9.5）", async () => {
-    const { views, store, handlers, client, a, b } = await isolated();
+    const { views, store, handlers, client, a, b, runA } = await isolated();
+    runA();
     await store.getState().selectSession(b);
     const viewA = views.find((v) => v.session_id === a)!;
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "running" });
@@ -383,6 +424,7 @@ describe("会话状态隔离（SDD 13 §7.7）", () => {
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });
     expect(store.getState().unread[a]).toBeUndefined();
 
+    handlers.get(a)!.onSnapshot({ ...viewA, phase: "running" });
     await store.getState().selectSession(b);
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "error" });
     handlers.get(a)!.onSnapshot({ ...viewA, phase: "idle" });

@@ -178,9 +178,25 @@ export function createAgentSessionsStore(
     );
   };
 
+  /**
+   * 只保留当前会话与运行中后台会话的事件流。浏览器对同一主机最多 6 条 HTTP/1.1 连接，
+   * 每个看过的会话都留一条 SSE 会占满连接池，此后所有请求排队不发。空闲会话再被选中时
+   * 由 `ensureEvents` 重连，首个事件即快照（SDD 00 §6.3），不丢状态。
+   */
+  const releaseIdleEvents = () => {
+    const { currentSessionId, views } = store.getState();
+    for (const [sessionId, disconnect] of disconnectors) {
+      if (sessionId === currentSessionId) continue;
+      const phase = views[sessionId]?.phase;
+      if (phase === "running" || phase === "stopping" || phase === "compacting") continue;
+      disconnect();
+      disconnectors.delete(sessionId);
+    }
+  };
+
   // Assigned immediately below; callbacks created during initialization run later.
-  let store!: UseBoundStore<StoreApi<AgentSessionsState>>;
   // eslint-disable-next-line prefer-const
+  let store!: UseBoundStore<StoreApi<AgentSessionsState>>;
   store = create<AgentSessionsState>((set, get) => {
     const run = async (operation: () => Promise<void>) => {
       set({ loading: true, error: null });
@@ -238,6 +254,7 @@ export function createAgentSessionsStore(
         // Local preference is optional.
       }
       ensureEvents(sessionId, store);
+      releaseIdleEvents();
     };
 
     return {
@@ -463,7 +480,7 @@ export function createAgentSessionsStore(
         });
       },
 
-      applySnapshot: (snapshot) =>
+      applySnapshot: (snapshot) => {
         set((state) => {
           const item = toListItem(snapshot);
           const previousPhase = state.sessions.find(
@@ -492,7 +509,9 @@ export function createAgentSessionsStore(
               ? { unread: { ...state.unread, [snapshot.session_id]: true as const } }
               : {}),
           };
-        }),
+        });
+        if (snapshot.phase === "idle") releaseIdleEvents();
+      },
 
       applyRuntimeEvent: (event) => {
         const sessionId = event.data.session_id;
@@ -589,9 +608,22 @@ export function createAgentSessionsStore(
           return;
         }
         if (event.event === "message.end" || event.event === "run.settled" || event.event === "context.compacted") {
+          const ended = event.event === "message.end" ? get().live[sessionId]?.streamingAssistant : undefined;
           void runtime
             .getSession(sessionId)
-            .then((snapshot) => get().applySnapshot(snapshot))
+            .then((snapshot) => {
+              get().applySnapshot(snapshot);
+              // 已结束的流式消息已在快照里；运行中不清会与快照重复渲染（长时工具期间可见）。
+              // 期间若下一条消息已开始流式输出则保留。
+              if (!ended) return;
+              set((state) => {
+                const live = state.live[sessionId];
+                if (live?.streamingAssistant !== ended) return {};
+                const rest = { ...live };
+                delete rest.streamingAssistant;
+                return { live: { ...state.live, [sessionId]: rest } };
+              });
+            })
             .catch(() => undefined);
         }
       },

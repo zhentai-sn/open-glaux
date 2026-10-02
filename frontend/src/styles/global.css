@@ -3158,7 +3158,7 @@ body.resizing .focus-rail { transition: none; }
   color: var(--warn);
 }
 
-.tool-call-progress { color: var(--agent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-call-progress { flex: none; color: var(--agent); white-space: nowrap; }
 /* ==== Focus 右侧栏（SDD feats/01 v1.6 D20/D22）：纯内容区（舞台+文件列 / 图谱），入口在左侧栏；收起时不渲染 ==== */
 .focus-side {
   flex: 1.2;
