@@ -35,6 +35,7 @@ import type { PermissionDeps, PermissionRunState } from "../permission/plugin.js
 import type { RuntimeWarning } from "../contracts.js";
 import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
+import { resolveBudget, RunBudget } from "../budget/run-budget.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -128,6 +129,8 @@ interface HarnessSlot {
   completion: Promise<void>;
   /** 本命令的回合数与起始时刻，供 `run.settled` 与预算使用（SDD 15 §7.8）。 */
   stats: { turns: number; startedAt: number };
+  /** 本命令的运行预算；chat 发行版缺省。 */
+  budget?: RunBudget;
   /** 运行中产生的审计记录，命令结束时按顺序写入会话。 */
   audit: { customType: string; data: unknown }[];
 }
@@ -210,6 +213,12 @@ export class HarnessRegistry {
       await this.sessions.closeSession(session);
       throw error;
     }
+    // SDD 15 §7.8：预算上限取自已加载的设置；宽限用尽时异步中止，不在 pi 回调内等待空闲。
+    const budget = permission ? new RunBudget({
+      limits: resolveBudget(permission.settings),
+      waitedMs: () => this.interactions.waitedMs(sessionId, commandId),
+      onAbort: () => { setImmediate(() => void this.abort(sessionId)); },
+    }) : undefined;
     const toolContext: HarnessToolContext = {
       ...options,
       connection,
@@ -234,10 +243,14 @@ export class HarnessRegistry {
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
       ...(permission ? { permission } : {}),
+      ...(budget ? { budget } : {}),
     });
     const stats = { turns: 0, startedAt: Date.now() };
     const unsubscribeEvents = harness.subscribe((event) => {
-      if (event.type === "turn_start") stats.turns += 1;
+      if (event.type === "turn_start") {
+        stats.turns += 1;
+        budget?.onTurnStart();
+      }
       const mapped = mapPiEvent(sessionId, commandId, event);
       if (mapped) this.emit(sessionId, mapped);
     });
@@ -255,6 +268,7 @@ export class HarnessRegistry {
       completion: Promise.resolve(),
       stats,
       audit: [],
+      ...(budget ? { budget } : {}),
     };
     this.slots.set(sessionId, slot);
 
@@ -267,6 +281,23 @@ export class HarnessRegistry {
       } finally {
         // 失败结束的命令也不留待决请求（SDD 15 §7.6）。
         this.interactions.cancelCommand(sessionId, commandId);
+        if (budget) {
+          budget.dispose();
+          slot.audit.push({
+            customType: "glaux.budget",
+            data: {
+              command_id: commandId,
+              turns: stats.turns,
+              elapsed_ms: budget.elapsedMs(),
+              waited_ms: this.interactions.waitedMs(sessionId, commandId),
+              max_turns: budget.limits.maxTurns,
+              max_minutes: budget.limits.maxMinutes,
+              exhausted: budget.exhausted,
+              aborted_by_budget: budget.abortedByBudget,
+            },
+          });
+        }
+        this.interactions.forgetCommand(sessionId, commandId);
         await this.flushAudit(slot);
         runtime.disposeCredential();
         slot.phase = "idle";
@@ -394,6 +425,12 @@ export class HarnessRegistry {
     }
   }
 
+  /** 该命令是否因预算宽限用尽而被中止（结局 `budget_exceeded`）。 */
+  abortedByBudget(sessionId: string, commandId: string): boolean {
+    const slot = this.slots.get(sessionId);
+    return slot?.commandId === commandId && slot.budget?.abortedByBudget === true;
+  }
+
   /** 命令结束时由命令服务调用；命令未能启动时回合数为 0。 */
   emitRunSettled(sessionId: string, commandId: string, outcome: RunOutcome): void {
     const slot = this.slots.get(sessionId);
@@ -406,8 +443,8 @@ export class HarnessRegistry {
         outcome,
         budget: {
           turns: stats?.turns ?? 0,
-          elapsed_ms: stats ? Date.now() - stats.startedAt : 0,
-          exhausted: false,
+          elapsed_ms: slot?.commandId === commandId && slot.budget ? slot.budget.elapsedMs() : stats ? Date.now() - stats.startedAt : 0,
+          exhausted: slot?.commandId === commandId ? slot.budget?.exhausted ?? false : false,
         },
       },
     });

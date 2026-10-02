@@ -5,6 +5,7 @@ import type { ImageContent } from "@earendil-works/pi-ai";
 
 import type {
   PromptImage,
+  RunOutcome,
   SessionView,
   TransportCommand,
 } from "../contracts.js";
@@ -112,6 +113,10 @@ export class CommandService {
       void completion.then(
         () => this.settle(sessionId, command, digest, "completed"),
         (error: unknown) => {
+          // 预算宽限用尽的中止不是错误：结局记为 budget_exceeded，由 run.settled 告知前端（SDD 15 §7.8）。
+          if (this.registry.abortedByBudget(sessionId, command.command_id)) {
+            return this.settle(sessionId, command, digest, "budget_exceeded", "budget_exceeded");
+          }
           const runtimeError = mapRuntimeError(error);
           this.registry.emitAdapterError(sessionId, command.command_id, runtimeError);
           return this.settle(
@@ -142,7 +147,7 @@ export class CommandService {
     sessionId: string,
     command: Exclude<TransportCommand, { type: "abort" }>,
     digest: string,
-    result: "completed" | "aborted" | "failed",
+    result: RunOutcome,
     code?: string,
   ): Promise<void> {
     const session = await this.sessions.openSession(sessionId);

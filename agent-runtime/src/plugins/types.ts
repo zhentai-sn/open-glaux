@@ -8,6 +8,7 @@ import type {
 } from "@earendil-works/pi-agent-core";
 
 import type { ToolProvider, ViewerContext } from "../contracts.js";
+import type { RunBudget } from "../budget/run-budget.js";
 import type { PermissionRunState } from "../permission/plugin.js";
 import type { HarnessToolContext } from "../pi/harness-registry.js";
 
@@ -31,6 +32,8 @@ export interface RunContext {
   viewer?: ViewerContext;
   /** 权限判定所需的状态；缺省时权限插件不判定（chat 发行版、单元测试）。 */
   permission?: PermissionRunState;
+  /** 本命令的运行预算（SDD 15 §7.8）；缺省时预算插件不拦截。 */
+  budget?: RunBudget;
 }
 
 export interface PluginHooks {

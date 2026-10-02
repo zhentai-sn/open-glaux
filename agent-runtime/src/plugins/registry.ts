@@ -1,6 +1,6 @@
 /**
  * SDD 15 §7.1：插件登记表。数组顺序即提示词片段的拼接顺序与钩子的执行顺序。
- * 后续波次的 `budget`、`permission` 插件恒排在最前（§7.1 规则 4）。
+ * `budget`、`permission` 插件恒排在最前（§7.1 规则 4）。
  */
 import type { HarnessToolContext } from "../pi/harness-registry.js";
 import { segmentationEgressAllowed } from "../pi/tools/segment-region.js";
@@ -9,11 +9,14 @@ import { atlasPlugin } from "./atlas.js";
 import { imagingPlugin } from "./imaging.js";
 import { interactionPlugin } from "./interaction.js";
 import { permissionPlugin } from "../permission/plugin.js";
+import { budgetPlugin } from "../budget/plugin.js";
+import { contextPruningPlugin } from "./context-pruning.js";
 import { projectPlugin } from "./project.js";
 import { TOOL_EFFECTS, type GlauxPlugin, type PluginTool } from "./types.js";
 import { videoPlugin } from "./video.js";
 
 export const PLUGINS: readonly GlauxPlugin[] = [
+  budgetPlugin,
   permissionPlugin,
   interactionPlugin,
   videoPlugin,
@@ -21,6 +24,7 @@ export const PLUGINS: readonly GlauxPlugin[] = [
   atlasPlugin,
   annotationPlugin,
   projectPlugin,
+  contextPruningPlugin,
 ];
 
 /** 启动期校验：插件名与工具名不重复，每个工具声明合法的 effect。 */

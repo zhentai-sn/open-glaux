@@ -174,3 +174,4 @@ status: active
 - W4：审计记录在命令运行中入队、命令结束时顺序写入。运行中直接写会话，会与交互请求结束时的审计或 harness 自身写入并发，SQLite 会话存储拒绝写入（实测）。代价是 runtime 在命令中途崩溃时丢失该命令的审计记录。命令结束时同时取消该命令残留的待决请求。
 - W4：快照 `warnings` 来自最近一次命令加载设置时的结果；会话尚未运行过命令时为空。
 - W4：未在 `tests/compatibility/pi-public-api.test.ts` 增加钩子取值语义断言，钩子组合由 `plugins-compose` 单测覆盖，pi 行为由 `permission-flow` 集成测试间接覆盖。
+- W5：预算插件放在 `src/budget/`，上限取自权限状态里已加载的设置文件，不重复读取；等待时长由交互请求表按命令记录区间、取并集计算。宽限中止经 `setImmediate` 异步调用 `registry.abort`，避免在 pi 的 `turn_start` 回调内等待空闲造成死锁。预算中止不发 `adapter.error`，只由 `run.settled` 的结局告知前端。

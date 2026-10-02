@@ -70,6 +70,32 @@ curl http://127.0.0.1:8010/agent-api/v1/health
 API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不写入上述数据库。共享机器使用后应在
 连接设置中清除 Key。
 
+### 3.1 权限规则与运行预算
+
+权限规则与预算写在设置文件中，每个命令开始时读取（[SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) §9.2）：
+
+| 级别 | 位置 | 生效范围 |
+| --- | --- | --- |
+| 用户级 | `~/.glaux/settings.json`；设置 `GLAUX_HOME` 可改目录 | 所有会话 |
+| 项目级 | `<项目目录>/.glaux/settings.json` | 绑定该项目的会话 |
+
+```json
+{
+  "permissions": {
+    "rules": [
+      { "tool": "segment_region", "decision": "deny" },
+      { "tool": "run_task", "decision": "allow" }
+    ]
+  },
+  "budget": { "max_turns": 50, "max_minutes": 20 }
+}
+```
+
+- `decision` 取 `allow`、`deny`、`ask`；`deny` 在任何权限模式下都生效。
+- 审批卡片选「总是允许」时，Runtime 向项目级（会话绑定项目时）或用户级文件追加一条 `allow` 规则。
+- 文件格式错误时整份忽略，对话区顶部显示告警，其余来源照常生效。
+- 预算取值优先级：项目级 > 用户级 > 环境变量 `GLAUX_AGENT_MAX_TURNS` / `GLAUX_AGENT_MAX_MINUTES` > 默认 50 回合 / 20 分钟。等待用户回复的时间不计入时长。
+
 ## 4. Provider 与模型
 
 在右侧 Agent Dock 的“连接设置”中配置：

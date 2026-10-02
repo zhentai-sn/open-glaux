@@ -58,6 +58,8 @@ export class InteractionTable {
   private readonly resolved = new Map<string, ResolvedEntry>();
   private readonly timeoutMs: number;
   private readonly now: () => number;
+  /** 每个命令的等待区间 [开始, 结束]；结束为空表示仍在等待。并行审批的区间取并集计时。 */
+  private readonly waits = new Map<string, [number, number | undefined][]>();
 
   constructor(private readonly options: InteractionTableOptions) {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_INTERACTION_TIMEOUT_MS;
@@ -81,6 +83,8 @@ export class InteractionTable {
       const timer = setTimeout(() => this.finish(request.request_id, "expired"), this.timeoutMs);
       timer.unref?.();
       this.open.set(request.request_id, { request, createdAt, timer, settle: resolve });
+      const key = waitKey(request.session_id, request.command_id);
+      this.waits.set(key, [...(this.waits.get(key) ?? []), [createdAt, undefined]]);
       this.options.emit(request.session_id, { event: "interaction.request", data: request });
     });
   }
@@ -110,6 +114,27 @@ export class InteractionTable {
     }
   }
 
+  /** 本命令等待用户回复的总时长（毫秒），含仍在等待中的部分；重叠区间只计一次。 */
+  waitedMs(sessionId: string, commandId: string): number {
+    const now = this.now();
+    const spans = (this.waits.get(waitKey(sessionId, commandId)) ?? [])
+      .map(([start, end]) => [start, end ?? now] as const)
+      .sort((a, b) => a[0] - b[0]);
+    let total = 0;
+    let cursor = -Infinity;
+    for (const [start, end] of spans) {
+      const from = Math.max(start, cursor);
+      if (end > from) total += end - from;
+      cursor = Math.max(cursor, end);
+    }
+    return total;
+  }
+
+  /** 命令结束后释放等待记录。 */
+  forgetCommand(sessionId: string, commandId: string): void {
+    this.waits.delete(waitKey(sessionId, commandId));
+  }
+
   pending(sessionId: string): InteractionRequest[] {
     return [...this.open.values()].filter((entry) => entry.request.session_id === sessionId).map((entry) => entry.request);
   }
@@ -119,6 +144,9 @@ export class InteractionTable {
     if (!entry) return;
     this.open.delete(requestId);
     clearTimeout(entry.timer);
+    const span = this.waits.get(waitKey(entry.request.session_id, entry.request.command_id))
+      ?.find(([start, end]) => start === entry.createdAt && end === undefined);
+    if (span) span[1] = this.now();
     const sessionId = entry.request.session_id;
     this.remember(requestId, { sessionId, outcome, ...(reply ? { reply } : {}) });
     entry.settle({ outcome, ...(reply ? { reply } : {}), waited_ms: Math.max(0, this.now() - entry.createdAt) });
@@ -130,6 +158,10 @@ export class InteractionTable {
     this.resolved.set(requestId, entry);
     if (this.resolved.size > MAX_RESOLVED) this.resolved.delete(this.resolved.keys().next().value!);
   }
+}
+
+function waitKey(sessionId: string, commandId: string): string {
+  return `${sessionId}:${commandId}`;
 }
 
 function invalid(message: string): never {
