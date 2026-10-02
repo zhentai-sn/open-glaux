@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 16 · 智能体基础工具与会话工作区
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 规范定稿，可进入实施计划 |
+| 状态 | `implemented` |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-basic-tools-plan.md) 实现，自动化门禁通过，自查见 §15；浏览器走查、真实模型走查与业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P1 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 13 项目文件夹与并行会话](../13-project-folder-sessions/README.md) · [SDD 14 项目文本文件预览与读取](../14-project-text-preview/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -260,41 +260,41 @@ stateDiagram-v2
 
 ### 15.1 执行环境与路径
 
-- [ ] 绑定项目的会话 `cwd` 为项目目录，未归属会话为 `<GLAUX_HOME>/workspaces/<session_id>/`（集成测试）。
-- [ ] 绑定项目但 backend 不可达时，四个工具不挂载（单元测试）。
-- [ ] 指向工作目录外的符号链接被判为工作目录外（单元测试）。
-- [ ] `controlled` 下读写 `.env`、`../x`、`/etc/hosts` 出现只含「允许本次」的审批卡片；`autonomous` 下不审批（集成测试）。
-- [ ] 已有不带 `pattern` 的 `write` allow 规则或会话授权时，写 `.env` 仍需审批（单元测试）。
+- [x] 绑定项目的会话 `cwd` 为项目目录，未归属会话为 `<GLAUX_HOME>/workspaces/<session_id>/`（集成测试）。——`workspace.test.ts`
+- [x] 绑定项目但 backend 不可达时，四个工具不挂载（单元测试）。——`workspace.test.ts`（取不到项目目录时无 `cwd` 与执行环境，`files` 插件不参与）
+- [x] 指向工作目录外的符号链接被判为工作目录外（单元测试）。——`path-scope.test.ts`
+- [x] `controlled` 下读写 `.env`、`../x`、`/etc/hosts` 出现只含「允许本次」的审批卡片；`autonomous` 下不审批（集成测试）。——`files-tools.test.ts`（`.env` 写入、`../` 读取、`autonomous` 写 `.env`）；`/etc/hosts` 由 `path-scope` 单测覆盖
+- [x] 已有不带 `pattern` 的 `write` allow 规则或会话授权时，写 `.env` 仍需审批（单元测试）。——`permission-decide.test.ts`
 
 ### 15.2 读取
 
-- [ ] 读取项目内文本文件，对话出现文件卡片，可在舞台打开。
-- [ ] 读取二进制文件返回「binary file」错误（单元测试）。
-- [ ] 无视觉连接读取图像返回文字说明（单元测试）。
-- [ ] `read_file` 不再挂载；SDD 14 的用户预览不受影响。
+- [x] 读取项目内文本文件，对话出现文件卡片，可在舞台打开。——`files-tools.test.ts`（卡片 `details` 进入快照）、`FileCard.test.tsx`；浏览器未走查
+- [x] 读取二进制文件返回「binary file」错误（单元测试）。——`files-tools.test.ts`
+- [x] 无视觉连接读取图像返回文字说明（单元测试）。——`files-tools.test.ts`
+- [x] `read_file` 不再挂载；SDD 14 的用户预览不受影响。——`plugins-registry.test.ts`；backend 与 `DocumentView` 未改，`make test` 通过
 
 ### 15.3 写入
 
-- [ ] `controlled` 下 `write` 新建项目内文件不审批，文件树出现该文件。
-- [ ] `edit` 修改正在预览的文件后，预览自动刷新。
-- [ ] `suggest` 下 `write` 需审批。
+- [x] `controlled` 下 `write` 新建项目内文件不审批，文件树出现该文件。——`files-tools.test.ts`、`agentSessions.test.ts`（文件变化序号递增）；浏览器未走查
+- [x] `edit` 修改正在预览的文件后，预览自动刷新。——`agentSessions.test.ts`（换新的 `DocumentRef` 对象）；浏览器未走查
+- [x] `suggest` 下 `write` 需审批。——`files-tools.test.ts`
 
 ### 15.4 `bash`
 
-- [ ] 只在 `autonomous` 下挂载（单元测试）。
-- [ ] 命令中 `env` 输出不含白名单外的变量，`GLAUX_CWD` 等于 `cwd`（集成测试）。
-- [ ] 缺省超时 120 秒、上限 600 秒（单元测试）。
-- [ ] 规则 `{tool: "bash", pattern: "git status", decision: "allow"}` 匹配 `git status -s`，不匹配 `git push`（单元测试）。
+- [x] 只在 `autonomous` 下挂载（单元测试）。——`bash-tool.test.ts`
+- [x] 命令中 `env` 输出不含白名单外的变量，`GLAUX_CWD` 等于 `cwd`（集成测试）。——`bash-tool.test.ts`；去掉 `inheritEnv = false` 时该用例失败（已验证）
+- [x] 缺省超时 120 秒、上限 600 秒（单元测试）。——`bash-tool.test.ts`
+- [x] 规则 `{tool: "bash", pattern: "git status", decision: "allow"}` 匹配 `git status -s`，不匹配 `git push`（单元测试）。——`bash-tool.test.ts`、`permission-decide.test.ts`
 
 ### 15.5 工作区
 
-- [ ] 删除未归属会话后其工作区目录不存在；归档不删除（集成测试）。
-- [ ] 未归属会话的删除确认文案注明会删除工作区。
+- [x] 删除未归属会话后其工作区目录不存在；归档不删除（集成测试）。——`workspace.test.ts`
+- [x] 未归属会话的删除确认文案注明会删除工作区。——`SessionDrawer.test.tsx`
 
 ### 15.6 工程
 
-- [ ] `make test`、`make lint` 通过。
-- [ ] 仓库骨架总览（含 `REGISTRY` 不变量的新表述）、SDD 14 §7.4、操作手册、CHANGELOG 同步更新。
+- [x] `make test`、`make lint` 通过。——agent-runtime 362、前端 378、backend 505、science-core 213
+- [x] 仓库骨架总览（含 `REGISTRY` 不变量的新表述）、SDD 14 §7.4、操作手册、CHANGELOG 同步更新。——另含 SDD 13、SDD 15 的工具归属
 
 ## 16. 决策记录
 

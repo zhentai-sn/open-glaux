@@ -57,13 +57,23 @@ describe("files tools", () => {
   });
 
   it("rejects binary files and omits images for connections without vision", async () => {
-    const { fixture, sessionId, toolEnds } = await run([call("read", { path: "blob.bin" }), call("read", { path: "pic.png" })]);
+    const seen: string[] = [];
+    const { fixture, sessionId, toolEnds } = await run([
+      call("read", { path: "blob.bin" }),
+      call("read", { path: "pic.png" }),
+      (context) => {
+        const last = [...context.messages].reverse().find((m) => m.role === "toolResult") as { content: { type: string; text?: string }[] };
+        seen.push(last.content.map((b) => b.type === "text" ? b.text : `[${b.type}]`).join(""));
+        return fauxAssistantMessage("done");
+      },
+    ]);
     try {
       await fixture.registry.waitForIdle(sessionId);
       const [binary, picture] = toolEnds();
       expect(binary).toMatchObject({ is_error: true });
       expect(binary?.error_text).toMatch(/binary file/u);
       expect(picture?.is_error).toBe(false);
+      expect(seen[0]).toBe("image omitted: the connection has no vision.");
       const view = await fixture.sessions.getSession(sessionId);
       expect(JSON.stringify(view.messages)).not.toContain("glaux.file_read\",\"path\":\"pic.png");
     } finally { await fixture.close(); }

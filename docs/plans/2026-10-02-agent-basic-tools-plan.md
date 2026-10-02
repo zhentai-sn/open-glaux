@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 16 智能体基础工具与会话工作区 · 实施计划
@@ -102,3 +102,4 @@ status: active
 - W2：`read` 的无视觉图像与二进制用例合并在 `files-tools.test.ts`；`project-tools.test.ts` 删除 `read_file` 三组用例，`list_files` 说明改为提示 `read`。
 - W2：运行手册第 113 行仍写「工具经 `TOOL_PROVIDERS` 装配」（SDD 15 W1 漏改），本波改为插件登记表。
 - W3：`bash` 的 `prepare` 钩子设 `inheritEnv = false` 并传入白名单环境；`bash-tool` 测试在去掉这一行时复现凭据泄露（已验证），说明测试能抓住回归。`normalizeBashTimeout`、`bashPrefixMatch` 导出为纯函数单测。
+- W4：浏览器走查未做。同一文件夹的预览服务上限为 5 个，另一会话占用 3 个，隔离环境需要 backend、runtime、前端 3 个；借用另一会话的 backend 会改动其 `sources.json`，故不做。相关逻辑由 `files-tools`、`agentSessions`、`SessionDrawer` 测试覆盖。
