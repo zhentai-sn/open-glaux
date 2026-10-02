@@ -3152,19 +3152,13 @@ body.resizing .focus-rail { transition: none; }
 .interaction-outcome.expired,
 .interaction-outcome.cancelled { color: var(--faint); }
 .tool-call-error { color: var(--warn); overflow: hidden; text-overflow: ellipsis; }
+.tool-call-progress { flex: none; color: var(--agent); white-space: nowrap; }
 .run-notice {
   margin: 6px 0 6px 26px;
   font-size: 11px;
   color: var(--warn);
 }
 
-.tool-call-progress { flex: none; color: var(--agent); white-space: nowrap; }
-/* ==== Focus 右侧栏（SDD feats/01 v1.6 D20/D22）：纯内容区（舞台+文件列 / 图谱），入口在左侧栏；收起时不渲染 ==== */
-.focus-side {
-  flex: 1.2;
-  min-width: 0;
-  max-width: 65%; /* 窄窗口兜底：图像栏再宽也给对话列留可用宽度（拖拽路径另有 CONVERSATION_MIN_W 保底） */
-  display: flex;
 /* ==== 子智能体（SDD 18 §5.1）：卡片与审批来源；与交互卡片同一视觉语言 ==== */
 .interaction-origin {
   display: flex;
@@ -3220,6 +3214,12 @@ body.resizing .focus-rail { transition: none; }
 }
 .subagent-step.error .subagent-step-text { color: var(--warn); }
 
+/* ==== Focus 右侧栏（SDD feats/01 v1.6 D20/D22）：纯内容区（舞台+文件列 / 图谱），入口在左侧栏；收起时不渲染 ==== */
+.focus-side {
+  flex: 1.2;
+  min-width: 0;
+  max-width: 65%; /* 窄窗口兜底：图像栏再宽也给对话列留可用宽度（拖拽路径另有 CONVERSATION_MIN_W 保底） */
+  display: flex;
   flex-direction: column;
   background: var(--sidebar);
   border-left: 1px solid var(--line);
@@ -3541,13 +3541,13 @@ body.resizing .focus-rail { transition: none; }
 .res-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; }
 .res-item.on { background: var(--agent-dim); }
 .res-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; }
+.res-item-main.static { cursor: default; }
 .res-item-name { color: var(--bright); font-family: var(--mono); font-size: 11.5px; }
 .res-item-desc { color: var(--faint); font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res-badge { font-size: 10px; color: var(--mid); border: 1px solid var(--line2); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
 .res-warning { color: var(--warn); font-size: 11px; overflow-wrap: anywhere; }
 .res-error { color: var(--crit); font-size: 11px; }
 .res-editor { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; }
-.res-item-main.static { cursor: default; }
 .res-editor-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .res-editor-head b { color: var(--bright); }
 .res-path { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
