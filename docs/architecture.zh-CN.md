@@ -70,7 +70,7 @@ Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_POR
 ### 三条不变量
 
 - **只有 agent-runtime 与模型通信**：backend / science-core 不含 LLM SDK、不持密钥。
-- **`glaux_core.tasks.REGISTRY` 是能力清单单一事实源**：backend 端点、前端渲染、智能体工具都只读它。
+- **`glaux_core.tasks.REGISTRY` 是标定能力的唯一来源**：backend 端点、前端渲染、`run_task` 都只读它。智能体在完全自治下可用 `bash` 做注册表之外的计算，结果一律视为非标定结果，不进 `run_task` 的结果通道与查看器读数（SDD 16 D-9）。
 - **前端只有一条对话路径**：经 agent-runtime 会话。
 
 重模型（caroSegDeep、TotalSegmentator、HC-CSM、StarDist-HE）一律在隔离子进程中运行，主 FastAPI 进程不 import TensorFlow/PyTorch。
@@ -178,6 +178,7 @@ open-glaux/
 | `open_file` | 经 backend `POST /projects/{id}/objects` 按需打开项目内文件，取首帧或代表帧返回模型；不改会话焦点，`details` 供前端渲染对象卡片 | 会话绑定了项目且连接支持视觉 |
 | `ask_user` | 向用户提问（≤ 4 个选项，可自由输入），经交互请求表挂起，回答、过期（30 分钟）或中止后继续；所有权限模式可用 | 无（SDD 15 §7.7） |
 | `read` | pi 内置读取，按 UTF-8 解码；二进制拒绝，无视觉连接的图像以文字说明代替；读取项目内文本时 `details` 为 `glaux.file_read`，前端渲染文件卡片 | 有工作目录（SDD 16 §7.1、§7.3） |
+| `bash` | pi 内置 shell 执行，工作目录内运行；环境变量只给白名单（不含任何凭据），缺省超时 120 秒、上限 600 秒；规则按命令前缀匹配；结果为非标定结果 | 只在 `autonomous`（SDD 16 §7.5） |
 | `write` / `edit` | pi 内置写入与精确替换；成功后 `details` 为 `glaux.file_changed`，前端刷新文件树与预览 | 有工作目录，且非 `observe`（SDD 16 §7.4） |
 
 项目越界判定（`pi/tools/project-guard.ts` 的 `ProjectScope`，由 `permission` 插件调用，SDD 13 §7.8 规则 4）：标为 `projectScoped` 的 `run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具执行前，经 backend `GET /objects/{id}` 与 `GET /datasources` 核对对象所属数据源的 `project_id` 与会话一致（未归属会话要求为空），参数显式给出的对象 id 一并校验；不一致时拦截调用、理由以工具错误返回模型，查询结果在一个命令内缓存。权限规则与预算读用户级 `~/.glaux/settings.json`（`GLAUX_HOME` 可改目录）与项目级 `<项目>/.glaux/settings.json`；判定与授权写入会话审计记录，运行中先入队、命令结束时写入。`consult_atlas` 查全局图谱，不经守卫。backend 地址取 `GLAUX_BACKEND_URL`（缺省 `http://127.0.0.1:8000`），须指向本机回环地址，否则 `/projects*` 返回 403。
@@ -212,7 +213,7 @@ open-glaux/
 | --- | --- |
 | 技术栈 | Python ≥ 3.11, numpy, Pillow, pandas；可选 scipy, tensorflow |
 | 包名 | `glaux_core`（setuptools，Apache-2.0） |
-| 任务注册表 | `glaux_core/tasks.py`：`TaskType` / `TaskPlugin` / `REGISTRY`——"环境能做什么"的单一事实源 |
+| 任务注册表 | `glaux_core/tasks.py`：`TaskType` / `TaskPlugin` / `REGISTRY`——标定能力的唯一来源 |
 | 评测 | `eval/` 通用框架 + HC Bland-Altman/MAE/Dice 专项 |
 | 无头脚本 | `runners/` 下的 TotalSegmentator 与 WSI 无头运行器 |
 

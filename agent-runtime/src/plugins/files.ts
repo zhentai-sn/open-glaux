@@ -9,6 +9,7 @@ import { open, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 import {
+  createBashTool,
   createEditTool,
   createReadTool,
   createWriteTool,
@@ -20,6 +21,7 @@ import {
 
 import type { HarnessTool, HarnessToolContext } from "../pi/harness-registry.js";
 import { resolvePathScope } from "../workspace/path-scope.js";
+import { buildShellEnv } from "../workspace/shell-env.js";
 import type { GlauxPlugin, PluginTool } from "./types.js";
 
 export const FILE_READ_DETAILS_KIND = "glaux.file_read";
@@ -27,6 +29,23 @@ export const FILE_CHANGED_DETAILS_KIND = "glaux.file_changed";
 export const READ_TOOL_NAME = "read";
 export const WRITE_TOOL_NAME = "write";
 export const EDIT_TOOL_NAME = "edit";
+export const BASH_TOOL_NAME = "bash";
+
+/** SDD 16 §7.5 规则 3（D-7）。 */
+export const BASH_DEFAULT_TIMEOUT_S = 120;
+export const BASH_MAX_TIMEOUT_S = 600;
+
+/** 缺省取 120 秒；超过 600 秒截到 600，并返回是否截过。 */
+export function normalizeBashTimeout(timeout: unknown): { timeout: number; clamped: boolean } {
+  if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) return { timeout: BASH_DEFAULT_TIMEOUT_S, clamped: false };
+  return timeout > BASH_MAX_TIMEOUT_S ? { timeout: BASH_MAX_TIMEOUT_S, clamped: true } : { timeout, clamped: false };
+}
+
+/** `bash` 规则按命令前缀匹配（SDD 16 §7.5 规则 5、D-8）。 */
+export function bashPrefixMatch(pattern: string, subject: string): boolean {
+  const prefix = pattern.trim();
+  return prefix.length > 0 && subject.trim().startsWith(prefix);
+}
 
 /** SDD 14 §9.2 的卡片字段。 */
 export interface FileReadDetails {
@@ -140,6 +159,35 @@ function createWriter(ctx: HarnessToolContext, op: "write" | "edit"): HarnessToo
   };
 }
 
+/**
+ * SDD 16 §7.5：只在 autonomous 挂载（effect `exec`）。pi 的 `NodeExecutionEnv` 在 `inheritEnv` 为真时
+ * 会先合并整个 `process.env`，因此在 `prepare` 里关掉继承，只给白名单变量（D-6）。
+ */
+function createBash(ctx: HarnessToolContext): HarnessTool {
+  const cwd = ctx.cwd!;
+  const inner = bindEnv(createBashTool({
+    prepare: (execution) => {
+      execution.inheritEnv = false;
+      execution.env = buildShellEnv(cwd) as Record<string, string>;
+    },
+  }), ctx.execEnv!);
+  return {
+    ...inner,
+    async execute(id, params, signal, onUpdate) {
+      const { timeout, clamped } = normalizeBashTimeout((params as { timeout?: unknown }).timeout);
+      const result = (await inner.execute(id, { ...(params as object), timeout }, signal, onUpdate, undefined)) as AgentToolResult<unknown>;
+      if (!clamped) return result;
+      const note = { type: "text" as const, text: `[timeout capped at ${BASH_MAX_TIMEOUT_S} seconds]` };
+      return { ...result, content: [note, ...result.content] };
+    },
+  };
+}
+
+const BASH_PROMPT =
+  " You can run shell commands with bash in the working directory. Commands get no credentials from Glaux. " +
+  "Numbers you compute with bash are uncalibrated: report them as such and never present them as calibrated measurements; " +
+  "use run_task for calibrated measurements.";
+
 function filesPrompt(ctx: HarnessToolContext): string {
   const where = ctx.projectId
     ? "the project folder"
@@ -165,6 +213,12 @@ export const filesPlugin: GlauxPlugin = {
     {
       name: EDIT_TOOL_NAME, effect: "write", pathScope, requires: {}, supports: () => true,
       create: (ctx) => createWriter(ctx, "edit"), promptFragment: () => "",
+    },
+    {
+      name: BASH_TOOL_NAME, effect: "exec", requires: {}, supports: () => true,
+      permissionSubject: (args) => (typeof args.command === "string" ? args.command : undefined),
+      patternMatch: bashPrefixMatch,
+      create: createBash, promptFragment: () => BASH_PROMPT,
     },
   ],
 };

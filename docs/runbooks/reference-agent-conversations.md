@@ -102,6 +102,7 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - 未归属会话的工作目录是 `~/.glaux/workspaces/<session_id>/`（随 `GLAUX_HOME` 变化），首个命令时创建；删除会话时一并删除，归档保留。
 - 工作目录之外与隐藏路径（`.env`、`.git/…`）的读写需要审批，「完全自治」除外（[SDD 16](../sdd/feats/16-agent-basic-tools/README.md) §7.2）。
 - `read` / `edit` 只按 UTF-8 处理，GBK 等编码的文本会乱码。
+- 「完全自治」下另挂 `bash`：命令在工作目录内以运行 Runtime 的用户身份执行，环境变量只有 `PATH`、`HOME`、`LANG` 等白名单与 `GLAUX_CWD`，拿不到模型凭据与 `GLAUX_SEG_API_TOKEN`；缺省超时 120 秒，最长 600 秒。用 deny 规则可禁止特定命令前缀，例如 `{ "tool": "bash", "pattern": "rm ", "decision": "deny" }`。
 
 ## 4. Provider 与模型
 

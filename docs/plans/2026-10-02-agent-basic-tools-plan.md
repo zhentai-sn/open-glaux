@@ -101,3 +101,4 @@ status: active
 - W2：发现 SDD 14 实现遗漏——`glaux.file_read` 未进入快照保留白名单，卡片在快照刷新后消失；本波加入 `VIEWABLE_DETAILS_KINDS`。
 - W2：`read` 的无视觉图像与二进制用例合并在 `files-tools.test.ts`；`project-tools.test.ts` 删除 `read_file` 三组用例，`list_files` 说明改为提示 `read`。
 - W2：运行手册第 113 行仍写「工具经 `TOOL_PROVIDERS` 装配」（SDD 15 W1 漏改），本波改为插件登记表。
+- W3：`bash` 的 `prepare` 钩子设 `inheritEnv = false` 并传入白名单环境；`bash-tool` 测试在去掉这一行时复现凭据泄露（已验证），说明测试能抓住回归。`normalizeBashTimeout`、`bashPrefixMatch` 导出为纯函数单测。

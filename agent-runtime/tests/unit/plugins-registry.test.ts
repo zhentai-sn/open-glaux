@@ -37,6 +37,7 @@ describe("plugin registry", () => {
       read: "read",
       write: "write",
       edit: "write",
+      bash: "exec",
     });
   });
 });
