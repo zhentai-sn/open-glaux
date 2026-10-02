@@ -26,7 +26,7 @@ status: implemented
 1. **文本判定**：按内容判定一个文件是否为文本，以及用什么编码解码。
 2. **读取端点**：`GET /projects/{id}/text`，按行区间和字节上限返回文本。
 3. **用户预览**：目录树中非模态文件可点击，舞台区显示只读文档视图；按扩展名选择渲染方式。
-4. **智能体工具**：`read_file`，按行区间分段读取，结果在对话内以文件卡片呈现。
+4. **智能体读取的卡片**：读取结果在对话内以文件卡片呈现。读取工具本身由 [SDD 16](../16-agent-basic-tools/README.md) 的 `read` 承担（取代原 `read_file`）。
 5. **会话隔离**：正在预览的文档作为会话级字段，随会话换入换出。
 
 ## 2. 本 SDD 不负责什么
@@ -47,7 +47,7 @@ status: implemented
 
 - 用户在项目目录树中点击 `.md`、`.py`、`.json`、`.txt` 等文本文件，舞台区显示只读内容；Markdown 渲染为排版文档，代码有语法高亮与行号。
 - 用户关闭文档视图后，舞台恢复为此前的视觉对象，查看状态不丢。
-- 智能体在绑定项目的会话中能用 `list_files` 找到文本文件、用 `read_file` 分段读完，并据此回答。
+- 智能体在绑定项目的会话中能用 `list_files` 找到文本文件、用 `read`（SDD 16）分段读完，并据此回答。
 - 两个会话各自预览不同文档，切换会话时舞台显示各自的文档。
 
 ## 4. 输入来源
@@ -65,7 +65,7 @@ status: implemented
 
 | 工具 | 输入 | 约束 |
 | --- | --- | --- |
-| `read_file` | `path`：项目内相对路径；`start_line`：起始行（从 1 起，缺省 1）；`max_lines`：行数（1～400，缺省 400） | 单次返回不超过 64 KiB；不得越出项目根；隐藏路径拒绝 |
+| `read`（SDD 16） | `path`、`offset?`、`limit?` | 参数、截断与路径范围见 SDD 16 §7.2、§7.3 |
 
 ### 4.3 服务端输入
 
@@ -82,13 +82,13 @@ status: implemented
 - 目录树中非模态文件由置灰改为可点击；点击后该行显示选中态。文件不是文本时，行内提示「不是文本文件」。
 - 舞台区文档视图：顶栏显示文件名、项目内路径、大小、编码与「关闭」按钮，Markdown 另有「渲染 / 源码」切换；正文按 §7.3 渲染；截断时正文上方显示截断提示。
 - Focus 模式的舞台（`StagePanel`）与 Workbench 模式的编辑区（`Editor`）行为一致。
-- 智能体调用 `read_file` 后，对话内出现文件卡片：文件名、读取的行区间、「在舞台打开」按钮。
+- 智能体用 `read` 读取项目内文本文件后，对话内出现文件卡片：文件名、读取的行区间、「在舞台打开」按钮。
 
 ### 5.2 系统输出
 
 - `GET /projects/{id}/text` 响应（§9.1）。
 - localStorage `glaux.sessionWorkspace.v1` 的条目增加 `document` 字段（§9.4）。
-- `read_file` 结果的 `details`（`kind: glaux.file_read`）进入会话快照，卡片随历史持久呈现。
+- `read` 结果的 `details`（`kind: glaux.file_read`）进入会话快照，卡片随历史持久呈现。
 
 ## 6. 核心流程
 
@@ -122,13 +122,12 @@ sequenceDiagram
     participant RT as agent-runtime
     participant BE as backend
     participant FE as 前端
-    M->>RT: read_file {path, start_line: 1}
-    RT->>BE: GET /projects/{id}/text?path=&start_line=1&max_lines=400&max_bytes=65536
-    BE-->>RT: ProjectText {end_line: 400, eof: false}
-    RT-->>M: 带行号的文本 + 「续读从第 401 行开始」
+    M->>RT: read {path}（SDD 16）
+    RT->>RT: 在项目目录内读取文件，按 pi 内置规则截断
+    RT-->>M: 文本 + 「Use offset=N to continue」
     RT-->>FE: tool.end（details: glaux.file_read）
     FE->>FE: 对话内渲染文件卡片
-    M->>RT: read_file {path, start_line: 401}
+    M->>RT: read {path, offset: N}
 ```
 
 ## 7. 核心规则
@@ -184,13 +183,11 @@ sequenceDiagram
 
 ### 7.4 智能体工具
 
-1. `read_file` 注册在 `TOOL_PROVIDERS`，`requires: { project: true }`，挂载条件与 `list_files` 相同：只对绑定项目的会话挂载，「未归属」会话与 `observe` 权限模式不挂载。不要求视觉能力。
-2. 请求固定 `max_bytes = 65536`，`max_lines` 取模型参数（缺省 400，上限 400）。
-3. 返回给模型的文本每行带行号前缀（`<行号>\t<内容>`）；单行超过 2000 字符时截断并标注「行已截断」。
-4. 文本末尾写明读取区间；`eof` 为假时写明「续读从第 N 行开始」；`eof` 为真时写明总行数。
-5. 错误（越界、隐藏路径、二进制、不存在）以工具错误返回模型，不中断回合。
-6. `list_files` 的工具说明与提示片段补充：候选模态为 `-` 的文件可能是文本，可用 `read_file` 读取。
-7. `read_file` 不改变会话的 `focus` 与 `document`；用户点文件卡片「在舞台打开」后才改变 `document`。
+智能体读取由 [SDD 16](../16-agent-basic-tools/README.md) §7.3 的 `read` 承担，原 `read_file` 已删除。本节只保留与卡片相关的规则：
+
+1. 读取项目内文本文件成功时，结果 `details` 为 `glaux.file_read`（§9.2）。
+2. `list_files` 的工具说明与提示片段补充：候选模态为 `-` 的文件可能是文本，可用 `read` 读取。
+3. 读取不改变会话的 `focus` 与 `document`；用户点文件卡片「在舞台打开」后才改变 `document`。
 
 ### 7.5 会话隔离
 
@@ -212,8 +209,8 @@ sequenceDiagram
 | 文件 | 改动 |
 | --- | --- |
 | `agent-runtime/src/pi/tools/read-file.ts`（新） | §7.4 |
-| `agent-runtime/src/pi/tools/list-files.ts` | 工具说明补充 `read_file`（§7.4 规则 6） |
-| `agent-runtime/src/pi/harness-registry.ts` | 注册 `read_file` 与提示片段 |
+| `agent-runtime/src/pi/tools/list-files.ts` | 工具说明提示用 `read` 读取（§7.4 规则 2） |
+| `agent-runtime/src/plugins/files.ts` | `read` 生成 `glaux.file_read`（SDD 16） |
 
 ### 8.3 前端
 
@@ -256,13 +253,12 @@ sequenceDiagram
 | `total_lines` | `int \| null` | 仅 `eof` 为真时给出 |
 | `line_truncated` | `bool` | 最后一行是否因字节上限被截断（§7.2 规则 5） |
 
-### 9.2 `read_file` 工具
+### 9.2 读取卡片 `details`
 
 | 项 | 内容 |
 | --- | --- |
-| 参数 | `{path: string, start_line?: integer ≥ 1, max_lines?: integer 1～400}` |
-| 返回 `content` | 单个文本块：区间说明 + 带行号正文 + 续读提示（§7.4 规则 3、4） |
-| 返回 `details` | `{kind: "glaux.file_read", path, name, start_line, end_line, eof, total_lines}` |
+| 来源 | SDD 16 的 `read` 读取项目内文本文件成功时 |
+| 字段 | `{kind: "glaux.file_read", path, name, start_line, end_line, eof, total_lines}`；`path` 相对项目根 |
 
 ### 9.3 前端类型
 
@@ -311,7 +307,7 @@ stateDiagram-v2
 
 - 不埋点、不上报。
 - 不新增 SSE 事件类型。
-- `read_file` 的 `details` 进入会话快照，与 `glaux.object_opened` 同一机制。
+- `read` 的 `glaux.file_read` 进入会话快照，与 `glaux.object_opened` 同一机制。
 
 ## 13. 异常和人工处理
 
@@ -344,7 +340,8 @@ flowchart LR
 | SDD | 条款 | 修订内容 |
 | --- | --- | --- |
 | 13 | §5.1「不可识别文件置灰」 | 改为「无候选模态的文件可点击以文本预览」 |
-| 13 | §1 第 7 项、§7.3、§4.2 | 智能体浏览工具增加 `read_file`，指向本 SDD |
+| 13 | §1 第 7 项、§7.3、§4.2 | 项目文本读取卡片指向本 SDD |
+| 16 | §7.3 | 智能体读取工具 `read` 取代本 SDD 原有的 `read_file` |
 | 13 | §9.6 会话工作区 | 增加 `document` 字段 |
 | 01 | §8 `StagePanel`、`Editor` | 增加文档视图分支 |
 
@@ -383,12 +380,9 @@ flowchart LR
 
 ### 15.3 智能体
 
-- [x] 绑定项目的会话挂载 `read_file`；「未归属」会话与 `observe` 模式不挂载。——单测 `project-tools.test.ts`
-- [x] 连接未声明视觉能力时 `read_file` 仍挂载。——单测
-- [x] 读取 1000 行文件：首次返回 400 行并提示续读起点；按提示续读两次后读完，末次写明总行数。——单测
-- [x] 读取 `.env`、二进制文件、项目外路径时模型收到工具错误，回合继续。——单测（harness 级断言 `isError` 与回合继续）
-- [x] `read_file` 后会话 `focus` 与 `document` 不变；对话内出现文件卡片，点「在舞台打开」后舞台显示该文件。——单测 `FileCard.test.tsx`、`project-tools.test.ts`
-- [ ] 真实模型走查：项目内放一份含测量要求的 `README.md`，用户只说「按项目说明做」，智能体用 `list_files` + `read_file` 读到说明并据此行动。——工具链路单测通过；待维护者在已配置模型的环境走查
+- [x] 挂载条件、续读、二进制与敏感路径的处理改由 SDD 16 §15.1、§15.2 验收。
+- [x] 读取后会话 `focus` 与 `document` 不变；对话内出现文件卡片，点「在舞台打开」后舞台显示该文件。——单测 `FileCard.test.tsx`、`files-tools.test.ts`
+- [ ] 真实模型走查：项目内放一份含测量要求的 `README.md`，用户只说「按项目说明做」，智能体用 `list_files` + `read` 读到说明并据此行动。——工具链路单测通过；待维护者在已配置模型的环境走查
 
 ### 15.4 会话隔离
 

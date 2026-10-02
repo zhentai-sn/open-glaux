@@ -29,6 +29,7 @@ import { createSerializedSqliteFactory } from "../storage/serialized-sqlite.js";
 import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
 import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
+import { FILE_READ_DETAILS_KIND } from "../plugins/files.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -340,6 +341,8 @@ const VIEWABLE_DETAILS_KINDS = new Set([
   ANNOTATION_PROPOSED_DETAILS_KIND,
   // SDD 13 D-18：对象卡片承载「在舞台打开」入口，切换会话后须随快照恢复。
   OBJECT_OPENED_DETAILS_KIND,
+  // SDD 14 §12：读取卡片随快照保留（此前遗漏）。
+  FILE_READ_DETAILS_KIND,
 ]);
 
 /**

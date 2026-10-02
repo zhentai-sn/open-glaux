@@ -12,6 +12,8 @@ import {
   type EventConnector,
 } from "../agent/runtime/events";
 import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
+import { useProjects } from "./projects";
+import { useSession } from "./session";
 import {
   carryComposerFrom,
   dropWorkspace,
@@ -530,6 +532,7 @@ export function createAgentSessionsStore(
           }));
         }
         if (event.event === "tool.end") {
+          applyFileChanged(event.data.details, get().views[get().currentSessionId ?? ""]?.project_id ?? null);
           // 领域工具（run_task）产出 → 写回查看器（metrics / primitives），见 agent/toolBridge。
           // 后台会话的结果只进它自己的工作区快照，不改前台画面（SDD 13 §7.7 规则 5）。
           if (CHAT_EDITION) return;
@@ -563,6 +566,20 @@ export function createAgentSessionsStore(
   });
 
   return store;
+}
+
+/**
+ * SDD 16 §7.4 规则 3：智能体写入项目文件后刷新目录树；正在预览的文档被改时重新加载
+ * （换一个新的 DocumentRef 对象即触发 DocumentView 重新请求）。
+ */
+function applyFileChanged(details: unknown, currentProjectId: string | null): void {
+  if (!details || typeof details !== "object") return;
+  const d = details as { kind?: unknown; path?: unknown; project_id?: unknown };
+  if (d.kind !== "glaux.file_changed" || typeof d.project_id !== "string" || typeof d.path !== "string") return;
+  useProjects.getState().bumpFileChange(d.project_id);
+  if (d.project_id !== currentProjectId) return;
+  const session = useSession.getState();
+  if (session.document?.path === d.path) session.setDocument({ ...session.document });
 }
 
 function omit<T>(record: Record<string, T>, key: string): Record<string, T> {

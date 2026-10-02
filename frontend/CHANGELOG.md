@@ -16,6 +16,7 @@
 
 - 会话事件改为订阅 runtime 的 Glaux 事件（`message.delta`、`tool.end`、`run.settled` 等），不再解析 `pi.event`；`run.settled` 触发快照刷新（SDD 15 §9.5）。
 - 开发代理的 `/agent-api` 目标端口读 `GLAUX_AGENT_PORT`（缺省 8010）。
+- 智能体写入项目文件后文件树自动重载，正在预览的文档被改时重新加载；删除未归属会话的确认文案注明会删除其工作区（SDD 16）。
 - `modality` 与 `activeModel` 初始为 `null`，不再写死颈动脉缺省；`setModels` 只取当前模态的活动模型，没有即 `null`。切模态时清空焦点、叠加、工具（回 `cursor`）与工具参数，并重选活动模型。
 - 打开对象的自动运行规则为 `TaskView.trigger ?? "manual"`；无 `TaskView` 的模态（`natural_image`、`video`）不调 `/task/run`。`/task/run` 请求改发对象的 `calibration` 与 `region`，不再发 `cubs_cf` / `roi_box`。
 - 查看器不再读 `TaskView.viewer`。

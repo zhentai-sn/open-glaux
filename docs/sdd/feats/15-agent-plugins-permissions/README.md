@@ -156,7 +156,8 @@ sequenceDiagram
 | `imaging` | `run_task`、`view_current_image` | — |
 | `atlas` | `consult_atlas` | — |
 | `annotation` | `locate_roi`、`segment_region`、`propose_annotation` | — |
-| `project` | `list_files`、`open_file`、`read_file` | — |
+| `project` | `list_files`、`open_file` | — |
+| `files` | `read`、`write`、`edit`（SDD 16） | — |
 | `video` | `observe_video_interval`、`submit_video_answer` | `before_provider_payload` 不在本期迁移，`onPayload` 保持原样 |
 | `context-pruning` | — | `context`（图像裁剪） |
 
@@ -177,11 +178,11 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 
 | effect | 含义 | 本期工具 |
 | --- | --- | --- |
-| `read` | 只读或只向当前模型连接发送数据；不改任何状态 | `view_current_image`、`consult_atlas`、`list_files`、`open_file`、`read_file`、`observe_video_interval`、`submit_video_answer`、`ask_user` |
+| `read` | 只读或只向当前模型连接发送数据；不改任何状态 | `view_current_image`、`consult_atlas`、`list_files`、`open_file`、`read`（SDD 16）、`observe_video_interval`、`submit_video_answer`、`ask_user` |
 | `annotate` | 写建议态标注，必须人工确认 | `propose_annotation` |
 | `compute` | 调用本机计算或模型推理，结果写回查看器 | `run_task`、`locate_roi` |
 | `egress` | 向当前模型连接以外的第三方发送数据 | `segment_region` |
-| `write` | 修改文件（P1 启用） | — |
+| `write` | 修改文件 | `write`、`edit`（SDD 16） |
 | `exec` | 执行任意命令（P1 启用） | — |
 | `delegate` | 派发子智能体（P3 启用） | — |
 

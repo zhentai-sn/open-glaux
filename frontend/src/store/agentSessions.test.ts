@@ -129,6 +129,36 @@ describe("interaction and run events (SDD 15 §9.5)", () => {
     expect(store.getState().resolvedInteractions[id]).toBeUndefined();
   });
 
+  it("refreshes the project tree and reloads the previewed document after an agent write (SDD 16 §7.4)", async () => {
+    localStorage.clear();
+    const { handlers, store, views } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+    const view = views.find((v) => v.session_id === id)!;
+    store.setState((state) => ({ views: { ...state.views, [id]: { ...view, project_id: "prj-a" } } }));
+    const { useProjects } = await import("./projects");
+    const { useSession } = await import("./session");
+    const previewed = { path: "reports/a.md" };
+    useSession.getState().setDocument(previewed);
+    const before = useProjects.getState().fileChanges["prj-a"] ?? 0;
+
+    const end = (path: string, project_id = "prj-a") => handlers.get(id)!.onRuntimeEvent({
+      event: "tool.end",
+      data: { session_id: id, command_id: "c", tool_call_id: "t", tool_name: "edit", is_error: false, details: { kind: "glaux.file_changed", op: "edit", path, project_id } },
+    });
+    end("notes/other.md");
+    expect(useProjects.getState().fileChanges["prj-a"]).toBe(before + 1);
+    expect(useSession.getState().document).toBe(previewed);
+
+    end("reports/a.md");
+    expect(useSession.getState().document).toEqual(previewed);
+    expect(useSession.getState().document).not.toBe(previewed);
+
+    end("reports/a.md", "prj-b");
+    expect(useProjects.getState().fileChanges["prj-b"]).toBe(1);
+    useSession.getState().setDocument(null);
+  });
+
   it("records tool errors and the budget notice, cleared by the next prompt", async () => {
     localStorage.clear();
     const { handlers, store } = fixture();

@@ -11,6 +11,7 @@ import { interactionPlugin } from "./interaction.js";
 import { permissionPlugin } from "../permission/plugin.js";
 import { budgetPlugin } from "../budget/plugin.js";
 import { contextPruningPlugin } from "./context-pruning.js";
+import { filesPlugin } from "./files.js";
 import { projectPlugin } from "./project.js";
 import { TOOL_EFFECTS, type GlauxPlugin, type PluginTool } from "./types.js";
 import { videoPlugin } from "./video.js";
@@ -24,6 +25,7 @@ export const PLUGINS: readonly GlauxPlugin[] = [
   atlasPlugin,
   annotationPlugin,
   projectPlugin,
+  filesPlugin,
   contextPruningPlugin,
 ];
 

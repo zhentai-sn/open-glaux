@@ -166,6 +166,8 @@ export const en = {
   agent_delete: "Delete",
   agent_delete_confirm:
     'Delete "{title}" permanently? This conversation cannot be recovered.',
+  agent_delete_confirm_workspace:
+    'Delete "{title}" permanently? This conversation and the files in its workspace cannot be recovered.',
   agent_permission: "Permission",
   agent_permission_observe: "Observe",
   agent_permission_suggest: "Suggest",

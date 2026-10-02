@@ -23,8 +23,11 @@ interface ProjectsState {
   /** 折叠的组，键为 project_id；未归属组用 UNASSIGNED。 */
   collapsed: Record<string, true>;
   showArchived: boolean;
+  /** 智能体写入项目文件的次数，按 project_id 计；目录树据此重新加载（SDD 16 §7.4 规则 3）。只存内存。 */
+  fileChanges: Record<string, number>;
 
   refresh: () => Promise<void>;
+  bumpFileChange: (projectId: string) => void;
   open: (path: string) => Promise<ProjectView>;
   remove: (id: string) => Promise<void>;
   toggleCollapsed: (groupId: string) => void;
@@ -62,6 +65,10 @@ export const useProjects = create<ProjectsState>((set, get) => ({
   known: readJson<Record<string, KnownProject>>(KNOWN_KEY),
   collapsed: readJson<Record<string, true>>(COLLAPSED_KEY),
   showArchived: false,
+  fileChanges: {},
+
+  bumpFileChange: (projectId) =>
+    set((state) => ({ fileChanges: { ...state.fileChanges, [projectId]: (state.fileChanges[projectId] ?? 0) + 1 } })),
 
   refresh: async () => {
     const projects = await api.projects();

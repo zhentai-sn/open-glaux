@@ -257,6 +257,8 @@ function UploadsNode({ projectId }: { projectId: string }) {
 export function ProjectTree({ projectId }: { projectId: string }) {
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId));
   const [reload, setReload] = useState(0);
+  // 智能体写入项目文件后整树重载（SDD 16 §7.4 规则 3）。
+  const changes = useProjects((s) => s.fileChanges[projectId] ?? 0);
   const { t } = useI18n();
   if (!project) return null;
   return (
@@ -278,7 +280,7 @@ export function ProjectTree({ projectId }: { projectId: string }) {
           <span className="nm">{t("project_missing")}</span>
         </div>
       ) : (
-        <div key={reload}>
+        <div key={`${reload}-${changes}`}>
           <UploadsNode projectId={projectId} />
           <DirNode projectId={projectId} name={project.name} path="" depth={0} defaultOpen />
         </div>

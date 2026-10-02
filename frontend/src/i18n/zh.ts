@@ -104,6 +104,7 @@ export const zh: Record<I18nKey, string> = {
   agent_restore: "恢复",
   agent_delete: "删除",
   agent_delete_confirm: "永久删除“{title}”？此会话无法恢复。",
+  agent_delete_confirm_workspace: "永久删除“{title}”？此会话及其工作区中的文件都无法恢复。",
   // 项目文件夹与会话分组（SDD 13）
   project_open_folder: "打开文件夹",
   project_open_folder_ellipsis: "打开文件夹…",

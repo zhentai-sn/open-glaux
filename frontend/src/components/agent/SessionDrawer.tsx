@@ -94,7 +94,8 @@ function SessionRow({
           onClick={() => {
             if (
               window.confirm(
-                t("agent_delete_confirm", { title: session.title }),
+                // 未归属会话有自己的工作区，删除会话时一并删除（SDD 16 §7.6）
+                t(session.project_id ? "agent_delete_confirm" : "agent_delete_confirm_workspace", { title: session.title }),
               )
             ) {
               void deleteSession(session.session_id);

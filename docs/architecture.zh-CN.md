@@ -143,7 +143,7 @@ open-glaux/
 | 模态标签 | 取 `/datasources` 元素的 `label_key`（i18n `modality.<m>`）→ `label` → modality 原文（`i18n/modalityLabel.ts`）；切换器可见性取有 active 数据源的模态 |
 | 会话工作区（`store/sessionWorkspaces.ts`） | 按 `session_id` 各存一份 `modality`、`focus`、任务结果（`metrics` / `primitives` / `source` / `modelVersion`）、`activeModel` 与输入草稿、附件、视频；`agentSessions.select` 切换时换出当前、换入目标，组件仍只读 `useSession`。后台会话的 `tool.end` 只写该会话快照并置未读，未读只存内存。localStorage `glaux.sessionWorkspace.v1` 只持久化 `{modality, focus}`（SDD 13 §9.6） |
 | 项目（`store/projects.ts`） | 缓存 `GET /projects` 列表；localStorage `glaux.projects.known.v1` 记住见过的项目名与路径（项目移除后组头仍显示原名、可按原路径重新打开），`glaux.projects.collapsed.v1` 存组头折叠状态 |
-| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/InteractionCard` 渲染权限审批与 `ask_user` 提问卡片，结束后折叠为一行结论；被拦截的工具调用在调用行下显示理由；权限菜单附各模式说明，切到 `autonomous` 需确认；设置文件告警与预算收尾提示显示在对话区（SDD 15 §5.1）；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点；`FileCard` 渲染 `read_file` 结果（`glaux.file_read`），点「在舞台打开」预览该文件 |
+| 智能体面板 | SSE 实时对话，Markdown 渲染，会话管理；`components/agent/InteractionCard` 渲染权限审批与 `ask_user` 提问卡片，结束后折叠为一行结论；被拦截的工具调用在调用行下显示理由；权限菜单附各模式说明，切到 `autonomous` 需确认；设置文件告警与预算收尾提示显示在对话区（SDD 15 §5.1）；`components/agent/AtlasRefCard` 渲染"参考图谱 N 条"，`ObjectCard` 渲染 `open_file` 结果（`glaux.object_opened`），点「在舞台打开」才改焦点；`FileCard` 渲染 `read` 结果（`glaux.file_read`），点「在舞台打开」预览该文件 |
 | 会话列表 | `components/agent/SessionDrawer.tsx` 按项目分组（分组逻辑在 `sessionGroups.ts`）：项目组、「未归属」组、「<项目名>（已移除）」只读组；会话行状态点（运行中、未读、出错）；Focus 的 `SessionRail` 与 Workbench 共用。`ProjectChip` 在输入区上方显示当前会话项目，空会话可切项目；`FolderPicker` 浏览后端文件系统（`/fs/roots`、`/fs/dirs`）并登记项目 |
 | 文件栏 | 项目会话显示 `components/ProjectTree.tsx` 目录树：展开一层列一层，点击文件经 `POST /projects/{id}/objects` 按需登记后 `openObject`，无候选模态的文件点击后以文本预览：`components/DocumentView.tsx` 覆盖在舞台（Focus）或编辑区（Workbench）之上，查看器保持挂载，Markdown 用 `react-markdown` 渲染，其余文本用懒加载的 CodeMirror 6 只读视图（`components/CodeView.tsx`），读取 `GET /projects/{id}/text`（SDD 14）；根下虚拟节点「上传」列本项目上传源；未归属会话保持模态切换器 + `ExplorerTree`，只列 `project_id` 为空的数据源（SDD 13 §7.8） |
 | 图谱（Atlas） | `components/atlas/`：上传入口（图片 · PDF · 网页，上传即入库）、生成描述确认条、列表（多选批量操作）/ 详情（字段编辑、重新框选、添加区域、外发协议勾选）；描述生成经用户确认后走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
@@ -177,7 +177,8 @@ open-glaux/
 | `list_files` | 经 backend `GET /projects/{id}/entries` 列项目内一层条目（名称、类型、候选模态、已登记的对象 id），单次最多 200 条，超出返回总数 | 会话绑定了项目（SDD 13 §7.3） |
 | `open_file` | 经 backend `POST /projects/{id}/objects` 按需打开项目内文件，取首帧或代表帧返回模型；不改会话焦点，`details` 供前端渲染对象卡片 | 会话绑定了项目且连接支持视觉 |
 | `ask_user` | 向用户提问（≤ 4 个选项，可自由输入），经交互请求表挂起，回答、过期（30 分钟）或中止后继续；所有权限模式可用 | 无（SDD 15 §7.7） |
-| `read_file` | 经 backend `GET /projects/{id}/text` 按行区间读取项目内文本文件，单次至多 400 行或 64 KiB，正文带行号并提示续读起点；不改焦点与文档视图，`details` 供前端渲染文件卡片 | 会话绑定了项目（SDD 14 §7.4） |
+| `read` | pi 内置读取，按 UTF-8 解码；二进制拒绝，无视觉连接的图像以文字说明代替；读取项目内文本时 `details` 为 `glaux.file_read`，前端渲染文件卡片 | 有工作目录（SDD 16 §7.1、§7.3） |
+| `write` / `edit` | pi 内置写入与精确替换；成功后 `details` 为 `glaux.file_changed`，前端刷新文件树与预览 | 有工作目录，且非 `observe`（SDD 16 §7.4） |
 
 项目越界判定（`pi/tools/project-guard.ts` 的 `ProjectScope`，由 `permission` 插件调用，SDD 13 §7.8 规则 4）：标为 `projectScoped` 的 `run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具执行前，经 backend `GET /objects/{id}` 与 `GET /datasources` 核对对象所属数据源的 `project_id` 与会话一致（未归属会话要求为空），参数显式给出的对象 id 一并校验；不一致时拦截调用、理由以工具错误返回模型，查询结果在一个命令内缓存。权限规则与预算读用户级 `~/.glaux/settings.json`（`GLAUX_HOME` 可改目录）与项目级 `<项目>/.glaux/settings.json`；判定与授权写入会话审计记录，运行中先入队、命令结束时写入。`consult_atlas` 查全局图谱，不经守卫。backend 地址取 `GLAUX_BACKEND_URL`（缺省 `http://127.0.0.1:8000`），须指向本机回环地址，否则 `/projects*` 返回 403。
 

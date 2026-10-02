@@ -185,6 +185,8 @@ describe("SessionDrawer", () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining(base.title));
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("cannot be recovered"));
+    // 未归属会话：确认文案注明会删除工作区文件（SDD 16 §7.6）
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("files in its workspace"));
     expect(deleteSession).toHaveBeenCalledWith(base.session_id);
   });
 });

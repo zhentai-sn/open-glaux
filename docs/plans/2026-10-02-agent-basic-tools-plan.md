@@ -98,3 +98,6 @@ status: active
 - W1：`NodeExecutionEnv` 在 `inheritEnv` 为真时会先合并整个 `process.env`，`bash` 内置工具缺省 `inheritEnv: true`；只设 `shellEnv` 挡不住凭据。W3 须在 `bash` 的 `prepare` 钩子里设 `inheritEnv = false` 并显式传入白名单环境。
 - W1：命令启动多了几次异步等待后，`multi-session-stream` 测试约三分之一概率失败，根因是 Pi 会话存储的并发写缺陷（pi 的 SQLite 适配器以同步驱动执行异步事务，跨连接争锁时同步忙等堵住事件循环）。新增 `storage/serialized-sqlite.ts` 串行化写入，并加 `concurrent-session-writes` 回归测试（在修复前的提交上复现失败）。SDD 15 W4 的审计入队仍保留。
 - W1：`credential-scan` 测试改为递归扫描数据目录，覆盖会话工作区。
+- W2：发现 SDD 14 实现遗漏——`glaux.file_read` 未进入快照保留白名单，卡片在快照刷新后消失；本波加入 `VIEWABLE_DETAILS_KINDS`。
+- W2：`read` 的无视觉图像与二进制用例合并在 `files-tools.test.ts`；`project-tools.test.ts` 删除 `read_file` 三组用例，`list_files` 说明改为提示 `read`。
+- W2：运行手册第 113 行仍写「工具经 `TOOL_PROVIDERS` 装配」（SDD 15 W1 漏改），本波改为插件登记表。

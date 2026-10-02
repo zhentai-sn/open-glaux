@@ -34,7 +34,9 @@ describe("plugin registry", () => {
       propose_annotation: "annotate",
       list_files: "read",
       open_file: "read",
-      read_file: "read",
+      read: "read",
+      write: "write",
+      edit: "write",
     });
   });
 });
