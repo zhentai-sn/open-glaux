@@ -74,6 +74,8 @@ export interface InteractionRequest {
     grant_options: ("once" | "session" | "always")[];
   };
   question?: { question: string; options: string[]; allow_free_text: boolean };
+  /** 来自子智能体时为其任务概括（SDD 18 §7.4）。 */
+  origin?: { subagent: string };
 }
 
 /** 设置文件加载告警等非致命问题（SDD 15 §9.7）。 */

@@ -21,6 +21,7 @@ export interface AskUserToolOptions {
   table: InteractionTable;
   sessionId: string;
   commandId: string;
+  origin?: { subagent: string };
 }
 
 function text(value: string): { content: TextContent[] } {
@@ -44,6 +45,7 @@ export function createAskUserTool(options: AskUserToolOptions): AgentHarnessTool
           session_id: options.sessionId,
           command_id: options.commandId,
           kind: "question",
+          ...(options.origin ? { origin: options.origin } : {}),
           question: {
             question: params.question,
             options: choices,

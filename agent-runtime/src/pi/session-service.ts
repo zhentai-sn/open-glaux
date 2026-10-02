@@ -30,6 +30,7 @@ import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
 import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
 import { FILE_READ_DETAILS_KIND } from "../plugins/files.js";
+import { SUBAGENT_RUN_DETAILS_KIND } from "../subagents/run.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -343,6 +344,8 @@ const VIEWABLE_DETAILS_KINDS = new Set([
   OBJECT_OPENED_DETAILS_KIND,
   // SDD 14 §12：读取卡片随快照保留（此前遗漏）。
   FILE_READ_DETAILS_KIND,
+  // SDD 18 §7.3：子智能体卡片（最终回复与过程）随快照保留。
+  SUBAGENT_RUN_DETAILS_KIND,
 ]);
 
 /**
@@ -356,9 +359,10 @@ function visibleMessage(message: AgentMessage): TranscriptMessage[] {
   const transcript = toTranscript(message);
   if (!transcript) return [];
   if (transcript.role === "user" || transcript.role === "assistant") return [transcript];
-  if (transcript.isError) return [];
   const kind = (transcript.details as { kind?: unknown } | undefined)?.kind;
   if (typeof kind !== "string" || !VIEWABLE_DETAILS_KINDS.has(kind)) return [];
+  // 失败的子智能体仍保留卡片（SDD 18 §7.3 规则 4）；其余失败结果不呈现。
+  if (transcript.isError && kind !== SUBAGENT_RUN_DETAILS_KIND) return [];
   return [{ ...transcript, content: [] }];
 }
 

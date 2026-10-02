@@ -15,6 +15,7 @@ export const interactionPlugin: GlauxPlugin = {
       name: ASK_USER_TOOL_NAME, effect: "read", requires: {}, supports: () => true,
       create: (ctx) => createAskUserTool({
         table: ctx.interactions!, sessionId: ctx.run!.sessionId, commandId: ctx.run!.commandId,
+        ...(ctx.subagent ? { origin: { subagent: ctx.subagent.description } } : {}),
       }) as HarnessTool,
       promptFragment: () => ASK_USER_PROMPT,
     },

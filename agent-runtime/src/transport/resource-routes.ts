@@ -23,6 +23,7 @@ import {
 export interface ResourceRouteDependencies {
   env?: NodeJS.ProcessEnv;
   builtinSkillsDir?: string;
+  builtinAgentsDir?: string;
   /** project_id → 项目目录；缺省经 backend `GET /projects`。 */
   projectDir?: (projectId: string) => Promise<string | undefined>;
 }
@@ -44,6 +45,7 @@ export function registerResourceRoutes(server: FastifyInstance, deps: ResourceRo
     return {
       ...(deps.env ? { env: deps.env } : {}),
       ...(deps.builtinSkillsDir ? { builtinSkillsDir: deps.builtinSkillsDir } : {}),
+      ...(deps.builtinAgentsDir ? { builtinAgentsDir: deps.builtinAgentsDir } : {}),
       ...(projectDir ? { projectDir } : {}),
     };
   };
@@ -53,7 +55,7 @@ export function registerResourceRoutes(server: FastifyInstance, deps: ResourceRo
     const ctx = await contextFor(request);
     const disabled = (await readSettingsFile(userSettingsPath(ctx.env))).file?.skillsDisabled ?? [];
     const loaded = await loadResources({ ...ctx, disabledSkills: disabled });
-    return { skills: loaded.skills, templates: loaded.templates, instructions: loaded.instructions, diagnostics: loaded.diagnostics };
+    return { skills: loaded.skills, templates: loaded.templates, instructions: loaded.instructions, agents: loaded.agents, diagnostics: loaded.diagnostics };
   });
 
   server.get("/agent-api/v1/skills/:source/:name", async (request) =>

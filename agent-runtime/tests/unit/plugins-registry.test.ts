@@ -38,6 +38,7 @@ describe("plugin registry", () => {
       write: "write",
       edit: "write",
       bash: "exec",
+      agent: "delegate",
     });
   });
 });

@@ -44,6 +44,8 @@ export interface RunContext {
   permission?: PermissionRunState;
   /** 本命令的运行预算（SDD 15 §7.8）；缺省时预算插件不拦截。 */
   budget?: RunBudget;
+  /** 子智能体内的运行：交互请求带上来源（SDD 18 §7.4）。 */
+  origin?: { subagent: string };
 }
 
 export interface PluginHooks {

@@ -10,6 +10,16 @@ export type ResourceSource = "builtin" | "user" | "project";
 /** 内置 Skills：`agent-runtime/skills/`（源码与 dist 下都相对包根两级）。 */
 export const BUILTIN_SKILLS_DIR = fileURLToPath(new URL("../../skills/", import.meta.url));
 
+/** 内置子智能体定义：`agent-runtime/agents/`（SDD 18）。 */
+export const BUILTIN_AGENTS_DIR = fileURLToPath(new URL("../../agents/", import.meta.url));
+
+export function userAgentsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return join(glauxHome(env), "agents");
+}
+export function projectAgentsDir(projectDir: string): string {
+  return join(projectDir, ".glaux", "agents");
+}
+
 export function userSkillsDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(glauxHome(env), "skills");
 }
@@ -43,9 +53,10 @@ export interface ResourceDirs {
   skills: { source: ResourceSource; path: string }[];
   prompts: { source: "user" | "project"; path: string }[];
   instructions: { scope: "user" | "project"; path: string }[];
+  agents: { source: ResourceSource; path: string }[];
 }
 
-export function resourceDirs(options: { projectDir?: string; env?: NodeJS.ProcessEnv; builtinSkillsDir?: string }): ResourceDirs {
+export function resourceDirs(options: { projectDir?: string; env?: NodeJS.ProcessEnv; builtinSkillsDir?: string; builtinAgentsDir?: string }): ResourceDirs {
   const env = options.env ?? process.env;
   const project = options.projectDir;
   return {
@@ -61,6 +72,11 @@ export function resourceDirs(options: { projectDir?: string; env?: NodeJS.Proces
     instructions: [
       { scope: "user", path: userInstructionsPath(env) },
       ...(project ? [{ scope: "project" as const, path: projectInstructionsPath(project) }] : []),
+    ],
+    agents: [
+      { source: "builtin", path: options.builtinAgentsDir ?? BUILTIN_AGENTS_DIR },
+      { source: "user", path: userAgentsDir(env) },
+      ...(project ? [{ source: "project" as const, path: projectAgentsDir(project) }] : []),
     ],
   };
 }

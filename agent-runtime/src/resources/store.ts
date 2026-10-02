@@ -27,6 +27,7 @@ import type { InstructionsItem, ResourceDiagnostic } from "./load.js";
 export interface StoreContext {
   env?: NodeJS.ProcessEnv;
   builtinSkillsDir?: string;
+  builtinAgentsDir?: string;
   /** 项目级操作所需；缺省时项目级请求返回 404 project_not_found。 */
   projectDir?: string;
 }

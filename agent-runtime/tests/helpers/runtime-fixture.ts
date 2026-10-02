@@ -88,6 +88,7 @@ export async function createRuntimeFixture(
       ...resourceOptions,
       env: { GLAUX_HOME: join(dataDir, "home") },
       builtinSkillsDir: join(dataDir, "builtin-skills"),
+      builtinAgentsDir: join(dataDir, "builtin-agents"),
     }),
     ...options.permission,
   });

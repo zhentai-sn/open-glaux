@@ -13,6 +13,7 @@ import { budgetPlugin } from "../budget/plugin.js";
 import { contextPruningPlugin } from "./context-pruning.js";
 import { filesPlugin } from "./files.js";
 import { projectPlugin } from "./project.js";
+import { subagentsPlugin } from "./subagents.js";
 import { TOOL_EFFECTS, type GlauxPlugin, type PluginTool } from "./types.js";
 import { videoPlugin } from "./video.js";
 
@@ -26,6 +27,7 @@ export const PLUGINS: readonly GlauxPlugin[] = [
   annotationPlugin,
   projectPlugin,
   filesPlugin,
+  subagentsPlugin,
   contextPruningPlugin,
 ];
 

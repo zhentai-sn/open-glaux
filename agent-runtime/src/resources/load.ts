@@ -14,6 +14,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 
+import { loadAgents, type AgentDefinition, type AgentItem } from "./agents.js";
 import { resourceDirs, type ResourceSource } from "./paths.js";
 
 export interface SkillItem {
@@ -52,6 +53,9 @@ export interface LoadedResources {
   skills: SkillItem[];
   templates: TemplateItem[];
   instructions: InstructionsItem[];
+  /** 子智能体定义（SDD 18 §4.1）；`harnessAgents` 为去掉被覆盖者后的可用定义。 */
+  agents: AgentItem[];
+  harnessAgents: AgentDefinition[];
   diagnostics: ResourceDiagnostic[];
   /** 交给 pi harness 的资源：已去掉被覆盖与停用的 Skill。 */
   harnessSkills: Skill[];
@@ -69,6 +73,7 @@ export interface LoadResourcesOptions {
   projectDir?: string;
   env?: NodeJS.ProcessEnv;
   builtinSkillsDir?: string;
+  builtinAgentsDir?: string;
   /** 用户级设置中的停用列表。 */
   disabledSkills?: readonly string[];
 }
@@ -130,6 +135,7 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     instructions.push({ scope, path, exists: !!read, bytes: read?.bytes ?? 0 });
     if (read?.text) blocks.push(`<instructions scope="${scope}">\n${read.text}\n</instructions>`);
   }
+  const agents = await loadAgents(dirs.agents);
   const catalog = formatSkillsForSystemPrompt(harnessSkills);
   if (catalog) blocks.push(catalog);
 
@@ -137,7 +143,10 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     skills,
     templates,
     instructions,
+    agents: agents.items,
+    harnessAgents: agents.definitions,
     diagnostics: [
+      ...agents.diagnostics,
       ...loadedSkills.diagnostics.map((d) => ({ source: d.source, code: d.code, message: d.message, path: d.path })),
       ...loadedTemplates.diagnostics.map((d) => ({ source: d.source as ResourceSource, code: d.code, message: d.message, path: d.path })),
     ],

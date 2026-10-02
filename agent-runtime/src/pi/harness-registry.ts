@@ -42,6 +42,8 @@ import { resolveBudget, RunBudget } from "../budget/run-budget.js";
 import { loadResources, type LoadedResources } from "../resources/load.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
+import type { AgentDefinition } from "../resources/agents.js";
+import { createSlots, runSubagent, type SubagentRequest, type SubagentResult } from "../subagents/run.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -68,6 +70,10 @@ export interface HarnessToolContext extends HarnessStartOptions {
   /** 本命令的工作目录与执行环境（SDD 16 §7.1）；取不到时缺省，基础工具不挂载。 */
   cwd?: string;
   execEnv?: ExecutionEnv;
+  /** 可用的子智能体定义与派发函数（SDD 18 §7.1）；`subagent` 表示本上下文属于子智能体。 */
+  agents?: AgentDefinition[];
+  spawnSubagent?: (request: SubagentRequest, signal?: AbortSignal) => Promise<SubagentResult>;
+  subagent?: { description: string };
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -439,6 +445,14 @@ export class HarnessRegistry {
           execEnv: new NodeExecutionEnv({ cwd: permission.cwd, shellEnv: buildShellEnv(permission.cwd) }),
         } : {}),
       };
+      if (permission && resources?.harnessAgents.length) {
+        toolContext.agents = resources.harnessAgents;
+        toolContext.spawnSubagent = this.subagentSpawner({
+          sessionId, commandId, toolContext, permission, resources, runtime,
+          ...(projectId ? { projectId } : {}),
+          ...(videoDescription ? { videoDescription } : {}),
+        });
+      }
       const tools = chatEdition() ? [] : this.toolFactory(toolContext);
       const systemPrompt = chatEdition()
         ? CHAT_SYSTEM_PROMPT
@@ -453,6 +467,63 @@ export class HarnessRegistry {
       runtime.disposeCredential();
       throw error;
     }
+  }
+
+  /**
+   * SDD 18 §7.2：派发函数。子智能体用父命令的模型运行时、权限状态与交互请求表；
+   * 工具取父上下文可挂载工具与定义 `tools` 的交集；同一主命令内并发不超过 3 个。
+   */
+  private subagentSpawner(parent: {
+    sessionId: string;
+    commandId: string;
+    projectId?: string;
+    toolContext: HarnessToolContext;
+    permission: PermissionRunState;
+    resources: LoadedResources;
+    runtime: ModelRuntime;
+    videoDescription?: { duration_ms: number; has_audio: boolean };
+  }): NonNullable<HarnessToolContext["spawnSubagent"]> {
+    const slots = createSlots();
+    return async (request, signal) => {
+      const definition = parent.resources.harnessAgents.find((def) => def.name === request.subagent_type);
+      if (!definition) throw new RuntimeError("unknown_resource", `Unknown sub-agent ${request.subagent_type}.`, 422);
+      const release = await slots.acquire(signal);
+      try {
+        const { spawnSubagent: _spawn, ...inherited } = parent.toolContext;
+        const childContext: HarnessToolContext = { ...inherited, subagent: { description: request.description } };
+        const allowed = definition.tools ? new Set(definition.tools) : undefined;
+        const tools = this.toolFactory(childContext).filter((tool) => !allowed || allowed.has(tool.name));
+        const extras = [
+          parent.resources.promptExtras,
+          `<subagent name="${definition.name}">\n${definition.body}\n</subagent>\n` +
+            "Only your last reply will be passed to the main agent.",
+        ].filter(Boolean).join("\n\n");
+        const viewer = childContext.viewer;
+        const waited = () => this.interactions.waitedMs(parent.sessionId, parent.commandId);
+        const waitedAtStart = waited();
+        return await runSubagent(request.prompt, {
+          definition,
+          runtime: parent.runtime,
+          tools,
+          systemPrompt: systemPromptFor(viewer, tools, childContext, parent.videoDescription, extras),
+          resources: { skills: parent.resources.harnessSkills, promptTemplates: parent.resources.harnessTemplates },
+          plugins: activePlugins(childContext),
+          runContext: {
+            sessionId: parent.sessionId,
+            commandId: parent.commandId,
+            ...(parent.projectId ? { projectId: parent.projectId } : {}),
+            ...(viewer ? { viewer } : {}),
+            permission: parent.permission,
+            origin: { subagent: request.description },
+          },
+          maxMinutes: resolveBudget(parent.permission.settings).maxMinutes,
+          waitedMs: () => waited() - waitedAtStart,
+          ...(signal ? { signal } : {}),
+        });
+      } finally {
+        release();
+      }
+    };
   }
 
   /** SDD 17 §7.5 规则 7：按当前连接与查看器上下文组装系统提示词与工具清单，不启动命令、不调用模型。 */
