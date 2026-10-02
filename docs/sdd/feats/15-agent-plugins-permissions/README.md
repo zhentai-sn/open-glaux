@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 规范定稿，可进入实施计划 |
+| 当前阶段 | 规范定稿；按 [实施计划](../../../plans/2026-10-02-agent-plugins-permissions-plan.md) 推进 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P0 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 参考智能体与会话](../00-reference-agent-conversations/README.md) · [SDD 02 智能体图像标注](../02-agent-image-annotation/README.md) · [SDD 11 视频理解 harness](../11-video-understanding-harness/README.md) · [SDD 13 项目文件夹与并行会话](../13-project-folder-sessions/README.md) |
 | 负责人 | Glaux 项目维护者 |
