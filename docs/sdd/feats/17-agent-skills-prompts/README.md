@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 17 · 智能体 Skills 与提示词管理
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 规范定稿，可进入实施计划 |
+| 状态 | `implemented` |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-skills-prompts-plan.md) 实现，自动化门禁通过，自查见 §15；浏览器走查、真实模型走查与业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P2 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 16 基础工具与会话工作区](../16-agent-basic-tools/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -303,29 +303,29 @@ type PromptCommand = {
 
 ### 15.1 加载与系统提示词
 
-- [ ] 三层同名 Skill 只保留项目级，其余标「已被覆盖」（单元测试）。
-- [ ] 停用的 Skill 不进入 harness 资源；`disable-model-invocation` 的 Skill 不进目录但可显式调用（集成测试）。
-- [ ] 系统提示词含两份说明段与 Skills 目录段，顺序符合 §7.2；没有资源时与本 SDD 实施前逐字一致（快照测试）。
-- [ ] 模型 `read` Skill 文件不审批；`write` 同一路径需审批（集成测试）。
+- [x] 三层同名 Skill 只保留项目级，其余标「已被覆盖」（单元测试）。——`resources-load.test.ts`
+- [x] 停用的 Skill 不进入 harness 资源；`disable-model-invocation` 的 Skill 不进目录但可显式调用（集成测试）。——`resources-load.test.ts`（资源与目录）；显式调用路径见 `skills-flow.test.ts`
+- [x] 系统提示词含两份说明段与 Skills 目录段，顺序符合 §7.2；没有资源时与本 SDD 实施前逐字一致（快照测试）。——`skills-flow.test.ts`、`resources-load.test.ts`；`system-prompt.test.ts` 快照未变
+- [x] 模型 `read` Skill 文件不审批；`write` 同一路径需审批（集成测试）。——`skills-flow.test.ts`
 
 ### 15.2 显式调用
 
-- [ ] `skill` 命令发出的用户消息以 `<skill name="…">` 开头并带附加说明；`template` 命令按参数展开（集成测试）。
-- [ ] 不存在或已停用的名称返回 `422 unknown_resource`；带图像返回 `422`（契约测试）。
-- [ ] 输入框输入 `/` 出现菜单，过滤、补全、发送正确（组件测试）。
-- [ ] 对话中 Skill 调用消息显示为「技能：名称」（组件测试）。
+- [x] `skill` 命令发出的用户消息以 `<skill name="…">` 开头并带附加说明；`template` 命令按参数展开（集成测试）。——`skills-flow.test.ts`
+- [x] 不存在或已停用的名称返回 `422 unknown_resource`；带图像返回 `422`（契约测试）。——`skills-flow.test.ts`（HTTP 层）
+- [x] 输入框输入 `/` 出现菜单，过滤、补全、发送正确（组件测试）。——`slashCommands.test.tsx`
+- [x] 对话中 Skill 调用消息显示为「技能：名称」（组件测试）。——`slashCommands.test.tsx`
 
 ### 15.3 管理接口与页面
 
-- [ ] Skills、模板、说明的读写删与启停符合 §7.5，非法名称、写内置、项目不存在返回对应错误（契约测试）。
-- [ ] 预览返回的系统提示词与同条件下真实命令的系统提示词一致（集成测试）。
-- [ ] 「技能」「提示词」页能新建、编辑、删除、启停，项目级随当前会话变化（组件测试）。
-- [ ] Focus 竖条与 Workbench 活动栏出现两个入口；chat 发行版不出现（组件测试）。
+- [x] Skills、模板、说明的读写删与启停符合 §7.5，非法名称、写内置、项目不存在返回对应错误（契约测试）。——`resources-api.test.ts`
+- [x] 预览返回的系统提示词与同条件下真实命令的系统提示词一致（集成测试）。——`resources-api.test.ts`（逐字相等）
+- [x] 「技能」「提示词」页能新建、编辑、删除、启停，项目级随当前会话变化（组件测试）。——`ResourcesViews.test.tsx`
+- [x] Focus 竖条与 Workbench 活动栏出现两个入口；chat 发行版不出现（组件测试）。——`SessionRail.test.tsx`；chat 发行版沿用竖条已有的 `CHAT_EDITION` 判断，未另写用例
 
 ### 15.4 工程
 
-- [ ] `make test`、`make lint` 通过。
-- [ ] 仓库骨架总览、操作手册、SDD 00、SDD 15、SDD 16、两份 CHANGELOG 同步更新。
+- [x] `make test`、`make lint` 通过。——agent-runtime 377、前端 392、backend 505、science-core 213
+- [x] 仓库骨架总览、操作手册、SDD 00、SDD 15、SDD 16、两份 CHANGELOG 同步更新。——另含 SDD 01 竖条入口
 
 ## 16. 决策记录
 

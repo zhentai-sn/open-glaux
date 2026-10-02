@@ -36,7 +36,7 @@ stateDiagram-v2
 | [20260705-01-cubs-imt-first-task.zh-CN.md](20260705-01-cubs-imt-first-task.zh-CN.md) | 2026-07-05 | CUBS 颈动脉 IMT 分割→测量 | `promoted` | → [计划](../plans/2026-07-05-001-feat-cubs-imt-pipeline-plan.zh-CN.md)，已实现 |
 | [20260816-01-agent-browser-capability.zh-CN.md](20260816-01-agent-browser-capability.zh-CN.md) | 2026-08-16 | 智能体浏览器操作能力（范围拆分） | `review` | 分支A(自身页面/标注) → [SDD 02](../sdd/feats/02-agent-image-annotation/README.md) `implemented`；分支B(外部网页) 待评审 |
 | [20260816-02-unified-annotation-toolbox.zh-CN.md](20260816-02-unified-annotation-toolbox.zh-CN.md) | 2026-08-16 | 统一图像标注工具箱（bbox/polygon/brush + 后端持久化） | `promoted` | → [SDD 04](../sdd/feats/04-unified-annotation-toolbox/README.md) `implemented` |
-| [20261001-01-agent-capability-refactor.zh-CN.md](20261001-01-agent-capability-refactor.zh-CN.md) | 2026-10-01 | 智能体能力重构：基础工具、Skills、子智能体、权限 | `review` | P0 → [SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) `implemented`；P1 → [SDD 16](../sdd/feats/16-agent-basic-tools/README.md) `implemented`；P2 → [SDD 17](../sdd/feats/17-agent-skills-prompts/README.md) `ready`；P3 待立 SDD |
+| [20261001-01-agent-capability-refactor.zh-CN.md](20261001-01-agent-capability-refactor.zh-CN.md) | 2026-10-01 | 智能体能力重构：基础工具、Skills、子智能体、权限 | `review` | P0 → [SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) `implemented`；P1 → [SDD 16](../sdd/feats/16-agent-basic-tools/README.md) `implemented`；P2 → [SDD 17](../sdd/feats/17-agent-skills-prompts/README.md) `implemented`；P3 待立 SDD |
 
 ### 调研阶段需求（尚未进入脑暴，但已有调研文档）
 

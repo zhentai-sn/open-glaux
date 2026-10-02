@@ -344,6 +344,7 @@ interface GlauxPlugin {
 | `permissions.rules[].decision` | `allow` / `deny` / `ask` | 必填 |
 | `budget.max_turns` | integer | 1～500 |
 | `budget.max_minutes` | integer | 1～240 |
+| `skills.disabled` | string[] | 停用的 Skill 名称，只在用户级生效（[SDD 17](../17-agent-skills-prompts/README.md) §4.1） |
 
 - 文件不存在视为空设置。
 - 写入「总是允许」时先写临时文件再 rename；保留文件中的未知字段。

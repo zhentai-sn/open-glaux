@@ -358,6 +358,8 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.max_tokens` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
 | `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022） |
+| `skill` | text nullable | 仅 `prompt`；显式调用的 Skill 名称，与 `template` 互斥，不接受 `images`（[SDD 17](../17-agent-skills-prompts/README.md) §7.4） |
+| `template` | object nullable | 仅 `prompt`；`{name, args}`，显式调用的提示词模板（SDD 17 §7.4） |
 
 ## 10. 幂等性
 

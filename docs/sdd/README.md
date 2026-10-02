@@ -48,7 +48,7 @@ stateDiagram-v2
 | 14 | [项目文本文件预览与读取](feats/14-project-text-preview/README.md) | `implemented`（真实模型走查、Workbench 走查、业务验收待补） | Glaux 项目维护者 | 2026-09-26 |
 | 15 | [智能体插件契约与权限引擎](feats/15-agent-plugins-permissions/README.md) | `implemented`（真实模型走查、Workbench 走查、业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 | 16 | [智能体基础工具与会话工作区](feats/16-agent-basic-tools/README.md) | `implemented`（浏览器走查、真实模型走查、业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
-| 17 | [智能体 Skills 与提示词管理](feats/17-agent-skills-prompts/README.md) | `ready`（脑暴 20261001-01 的 P2） | Glaux 项目维护者 | 2026-10-02 |
+| 17 | [智能体 Skills 与提示词管理](feats/17-agent-skills-prompts/README.md) | `implemented`（浏览器走查、真实模型走查、业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 
 ## 维护约定
 

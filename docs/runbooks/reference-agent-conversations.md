@@ -104,6 +104,19 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - `read` / `edit` 只按 UTF-8 处理，GBK 等编码的文本会乱码。
 - 「完全自治」下另挂 `bash`：命令在工作目录内以运行 Runtime 的用户身份执行，环境变量只有 `PATH`、`HOME`、`LANG` 等白名单与 `GLAUX_CWD`，拿不到模型凭据与 `GLAUX_SEG_API_TOKEN`；缺省超时 120 秒，最长 600 秒。用 deny 规则可禁止特定命令前缀，例如 `{ "tool": "bash", "pattern": "rm ", "decision": "deny" }`。
 
+### 3.3 Skills、模板与自定义说明
+
+| 资源 | 个人（所有会话） | 本项目（绑定该项目的会话） |
+| --- | --- | --- |
+| Skills | `~/.glaux/skills/<name>/SKILL.md` | `<项目>/.glaux/skills/<name>/SKILL.md` |
+| 提示词模板 | `~/.glaux/prompts/<name>.md` | `<项目>/.glaux/prompts/<name>.md` |
+| 自定义说明 | `~/.glaux/GLAUX.md` | `<项目>/GLAUX.md` |
+
+- 在左侧竖条（或 Workbench 活动栏）的「技能」「提示词」页管理；修改在下一条消息生效。
+- 同名 Skill 按 本项目 > 个人 > 内置 取一份；停用的 Skill 记在 `~/.glaux/settings.json` 的 `skills.disabled`。
+- 系统提示词只列 Skills 的名称与描述，智能体需要时用 `read` 读全文，不需要审批。
+- 输入框输入 `/` 可直接调用 Skill 或模板；「提示词」页可预览当前会话实际收到的系统提示词。
+
 ## 4. Provider 与模型
 
 在右侧 Agent Dock 的“连接设置”中配置：

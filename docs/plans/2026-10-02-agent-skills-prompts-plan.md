@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 17 智能体 Skills 与提示词管理 · 实施计划
@@ -78,3 +78,7 @@ status: active
 - W1：`SettingsFile.skillsDisabled` 设为可选字段，避免改动既有测试中手写的设置对象。
 - W1：显式调用的资源检查放在 `HarnessRegistry.start`（资源加载之后、建 harness 之前），未命中时同步抛 `422 unknown_resource`，命令不进入运行。
 - W1：SDD 00、SDD 15、SDD 16 的文档修订按计划放在 W5 一并完成。
+- W2：命令启动的装配逻辑抽为 `HarnessRegistry.assemble`，命令与预览共用；预览会构造一次模型运行时（不调用模型），测试夹具因此要为预览多留一批预设回复。
+- W3：页面编辑区用等宽文本框，未引入 CodeMirror 编辑模式；资源清单由 `useResourceList` 按项目拉取。
+- W4：`/` 菜单的资源清单在菜单打开时拉取一次，不随每次按键请求。
+- W5：浏览器走查未做，原因同 SDD 16（同一文件夹的预览服务名额被另一会话占用）。
