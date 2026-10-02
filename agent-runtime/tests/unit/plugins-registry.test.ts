@@ -23,6 +23,7 @@ describe("plugin registry", () => {
 
   it("declares the SDD 15 §7.3 effect for every built-in tool", () => {
     expect(Object.fromEntries(pluginTools(PLUGINS).map((t) => [t.name, t.effect]))).toEqual({
+      ask_user: "read",
       observe_video_interval: "read",
       submit_video_answer: "read",
       run_task: "compute",

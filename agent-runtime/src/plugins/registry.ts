@@ -7,11 +7,13 @@ import { segmentationEgressAllowed } from "../pi/tools/segment-region.js";
 import { annotationPlugin } from "./annotation.js";
 import { atlasPlugin } from "./atlas.js";
 import { imagingPlugin } from "./imaging.js";
+import { interactionPlugin } from "./interaction.js";
 import { projectPlugin } from "./project.js";
 import { TOOL_EFFECTS, type GlauxPlugin, type PluginTool } from "./types.js";
 import { videoPlugin } from "./video.js";
 
 export const PLUGINS: readonly GlauxPlugin[] = [
+  interactionPlugin,
   videoPlugin,
   imagingPlugin,
   atlasPlugin,

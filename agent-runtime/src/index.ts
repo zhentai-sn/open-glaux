@@ -14,6 +14,7 @@ let registry: HarnessRegistry | undefined;
 const sessions = new SessionService({
   ...config,
   phaseForSession: (sessionId) => registry?.getPhase(sessionId) ?? "idle",
+  pendingInteractions: (sessionId) => registry?.interactions.pending(sessionId) ?? [],
 });
 await sessions.initialize();
 registry = new HarnessRegistry(sessions);

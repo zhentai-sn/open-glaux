@@ -34,6 +34,8 @@ export async function createRuntimeFixture(
     tokensPerSecond?: number;
     /** 缺省无工具（测试不触 backend）；需要时注入。 */
     toolFactory?: HarnessToolFactory;
+    /** 交互请求超时；测试过期路径时调短。 */
+    interactionTimeoutMs?: number;
   } = {},
 ) {
   const dataDir = await mkdtemp(join(tmpdir(), "glaux-runtime-fixture-"));
@@ -43,6 +45,7 @@ export async function createRuntimeFixture(
     piDatabasePath: join(dataDir, "pi-sessions.sqlite"),
     metaDatabasePath: join(dataDir, "glaux-meta.sqlite"),
     phaseForSession: (sessionId) => registry?.getPhase(sessionId) ?? "idle",
+    pendingInteractions: (sessionId) => registry?.interactions.pending(sessionId) ?? [],
   });
   await sessions.initialize();
   const handles: FauxProviderHandle[] = [];
@@ -69,7 +72,7 @@ export async function createRuntimeFixture(
       model: faux.getModel(),
       disposeCredential() {},
     };
-  }, options.toolFactory ?? (() => []));
+  }, options.toolFactory ?? (() => []), options.interactionTimeoutMs);
   const commands = new CommandService(sessions, registry);
   const broker = new SseBroker(registry);
 

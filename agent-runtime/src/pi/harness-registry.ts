@@ -30,6 +30,7 @@ import { installHooks } from "../plugins/compose.js";
 import { mapPiEvent } from "../transport/event-map.js";
 import { PROJECT_GUARDED_TOOL_NAMES, ProjectScope, withProjectGuard } from "./tools/project-guard.js";
 import { VideoTurn } from "./video-turn.js";
+import { InteractionTable } from "../interaction/table.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -48,6 +49,9 @@ export interface HarnessToolContext extends HarnessStartOptions {
   videoTurn?: VideoTurn;
   /** 会话绑定的项目（SDD 13 §7.6），由 `start()` 从 Pi 会话 metadata 读出；未归属会话缺省。 */
   projectId?: string;
+  /** 交互请求表与本次命令标识（SDD 15 §7.6）；`ask_user` 与权限审批经它挂起。 */
+  interactions?: InteractionTable;
+  run?: { sessionId: string; commandId: string };
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -70,7 +74,7 @@ export const defaultToolFactory: HarnessToolFactory = (context) => {
     ...(context.viewer ? { viewer: context.viewer } : {}),
   });
   return (context.permissionMode === "observe"
-    ? providers.filter((provider) => provider.name === "observe_video_interval" || provider.name === "submit_video_answer")
+    ? providers.filter((provider) => ["observe_video_interval", "submit_video_answer", "ask_user"].includes(provider.name))
     : providers).map((provider) => {
       const tool = provider.create(context);
       return PROJECT_GUARDED_TOOL_NAMES.has(tool.name) ? withProjectGuard(tool, scope) : tool;
@@ -137,11 +141,21 @@ export class HarnessRegistry {
   private readonly slots = new Map<string, HarnessSlot>();
   private readonly listeners = new Map<string, Set<TransportListener>>();
 
+  /** SDD 15 §7.6：全部会话共用一张交互请求表。 */
+  readonly interactions: InteractionTable;
+
   constructor(
     private readonly sessions: SessionService,
     private readonly runtimeFactory: HarnessRuntimeFactory = createModelRuntime,
     private readonly toolFactory: HarnessToolFactory = defaultToolFactory,
-  ) {}
+    interactionTimeoutMs?: number,
+  ) {
+    this.interactions = new InteractionTable({
+      emit: (sessionId, event) => this.emit(sessionId, event),
+      audit: (sessionId, record) => this.appendAudit(sessionId, "glaux.interaction", record),
+      ...(interactionTimeoutMs !== undefined ? { timeoutMs: interactionTimeoutMs } : {}),
+    });
+  }
 
   getPhase(sessionId: string): SessionPhase {
     return this.slots.get(sessionId)?.phase ?? "idle";
@@ -196,6 +210,8 @@ export class HarnessRegistry {
       runtime,
       ...(videoTurn ? { videoTurn } : {}),
       ...(projectId ? { projectId } : {}),
+      interactions: this.interactions,
+      run: { sessionId, commandId },
     };
     const tools = chatEdition() ? [] : this.toolFactory(toolContext);
     const harness = new AgentHarness({
@@ -253,6 +269,8 @@ export class HarnessRegistry {
     const slot = this.slots.get(sessionId);
     if (!slot || slot.phase === "idle") return;
     slot.phase = "stopping";
+    // 先取消待决交互，否则挂起在钩子或工具里的调用会让 abort 一直等待（SDD 15 §7.6 规则 6）。
+    this.interactions.cancelCommand(sessionId, slot.commandId);
     await slot.harness.abort();
     await slot.harness.waitForIdle();
     slot.phase = "idle";
@@ -313,6 +331,13 @@ export class HarnessRegistry {
     }
     slot.phase = "compacting";
     await slot.harness.compact();
+  }
+
+  /** 向本会话当前命令的 Pi 会话写审计记录；没有活动命令时丢弃。 */
+  async appendAudit(sessionId: string, customType: string, data: unknown): Promise<void> {
+    const slot = this.slots.get(sessionId);
+    if (!slot) return;
+    await slot.session.appendCustomEntry(customType, data);
   }
 
   /** 命令结束时由命令服务调用；命令未能启动时回合数为 0。 */

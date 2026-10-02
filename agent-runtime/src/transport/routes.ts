@@ -20,6 +20,7 @@ import {
   type Region,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
+import type { InteractionReply } from "../interaction/table.js";
 import type { CommandService } from "../pi/command-service.js";
 import type { HarnessRegistry } from "../pi/harness-registry.js";
 import type { SessionService } from "../pi/session-service.js";
@@ -93,6 +94,16 @@ export function registerRoutes(
     },
   );
 
+  // SDD 15 §9.4：回复交互请求（权限审批或 ask_user 提问）。
+  server.post("/agent-api/v1/sessions/:sessionId/interactions/:requestId", async (request) => {
+    const sessionId = sessionIdFrom(request);
+    const requestId = (request.params as { requestId?: string }).requestId;
+    if (!requestId || !isUuid(requestId)) {
+      throw new RuntimeError("interaction_not_found", "Interaction request not found.", 404);
+    }
+    return registry.interactions.reply(sessionId, requestId, parseInteractionReply(request.body));
+  });
+
   server.get(
     "/agent-api/v1/sessions/:sessionId/events",
     async (request, reply) => {
@@ -115,6 +126,33 @@ export function registerRoutes(
       request.raw.once("close", disconnect);
     },
   );
+}
+
+function parseInteractionReply(value: unknown): InteractionReply {
+  const invalid = (message: string): never => {
+    throw new RuntimeError("invalid_reply", message, 422);
+  };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return invalid("Reply body must be an object.");
+  const body = value as Record<string, unknown>;
+  if (body.kind === "permission") {
+    if (!["once", "session", "always", "deny"].includes(body.decision as string)) return invalid("Invalid decision.");
+    if (body.reason !== undefined && typeof body.reason !== "string") return invalid("Reason must be a string.");
+    return {
+      kind: "permission",
+      decision: body.decision as "once" | "session" | "always" | "deny",
+      ...(typeof body.reason === "string" ? { reason: body.reason } : {}),
+    };
+  }
+  if (body.kind === "question") {
+    if (body.option !== undefined && typeof body.option !== "number") return invalid("Option must be a number.");
+    if (body.text !== undefined && typeof body.text !== "string") return invalid("Text must be a string.");
+    return {
+      kind: "question",
+      ...(typeof body.option === "number" ? { option: body.option } : {}),
+      ...(typeof body.text === "string" ? { text: body.text } : {}),
+    };
+  }
+  return invalid("Reply kind must be permission or question.");
 }
 
 function sessionIdFrom(request: FastifyRequest): string {

@@ -13,6 +13,7 @@ import {
 import type {
   CreateSessionInput,
   GlauxMetaRecord,
+  InteractionRequest,
   PatchSessionInput,
   SessionListItem,
   SessionPhase,
@@ -34,6 +35,8 @@ export interface SessionServiceOptions {
   piDatabasePath: string;
   metaDatabasePath: string;
   phaseForSession?: (sessionId: string) => SessionPhase;
+  /** 当前待决的交互请求（SDD 15 §9.7）；缺省视为没有。 */
+  pendingInteractions?: (sessionId: string) => InteractionRequest[];
 }
 
 export class SessionService {
@@ -41,6 +44,7 @@ export class SessionService {
   readonly piRepo: SqliteSessionRepo;
   readonly metaRepo: GlauxMetaRepo;
   private readonly phaseForSession: (sessionId: string) => SessionPhase;
+  private readonly pendingInteractions: (sessionId: string) => InteractionRequest[];
 
   constructor(options: SessionServiceOptions) {
     this.env = new NodeExecutionEnv({ cwd: options.workspaceDir });
@@ -51,6 +55,7 @@ export class SessionService {
     });
     this.metaRepo = new GlauxMetaRepo(options.metaDatabasePath);
     this.phaseForSession = options.phaseForSession ?? (() => "idle");
+    this.pendingInteractions = options.pendingInteractions ?? (() => []);
   }
 
   async initialize(): Promise<void> {
@@ -248,7 +253,7 @@ export class SessionService {
       video_answers: videoAnswers,
       video_observations: videoObservations,
       context_usage: { tokens: estimate.tokens },
-      pending_interactions: [],
+      pending_interactions: this.pendingInteractions(meta.session_id),
       warnings: [],
       updated_at: updatedAt,
     };
