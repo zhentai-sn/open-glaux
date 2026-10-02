@@ -17,15 +17,17 @@ export function mountable(effect: ToolEffect, mode: PermissionMode): boolean {
   return true;
 }
 
-/** §7.4 模式默认：自动放行或需审批。`outsideCwd` 只对 `write` 有意义。 */
-export function modeDefault(effect: ToolEffect, mode: PermissionMode, outsideCwd = false): Decision {
+/**
+ * §7.4 模式默认：自动放行或需审批。`sensitive` 表示路径在工作目录之外或隐藏（SDD 16 §7.2），
+ * 只对 `read` / `write` 有意义：非 `autonomous` 一律审批。
+ */
+export function modeDefault(effect: ToolEffect, mode: PermissionMode, sensitive = false): Decision {
   if (!mountable(effect, mode)) return "deny";
   if (mode === "autonomous") return "allow";
+  if (sensitive && (effect === "read" || effect === "write")) return "ask";
   if (effect === "read") return "allow";
   if (mode === "observe") return "deny";
   if (mode === "suggest") return effect === "annotate" ? "allow" : "ask";
-  // controlled
-  if (effect === "write") return outsideCwd ? "ask" : "allow";
   return "allow";
 }
 
@@ -38,10 +40,14 @@ export function globMatch(pattern: string, subject: string): boolean {
   return new RegExp(`^${source}$`, "u").test(subject);
 }
 
-export function ruleMatches(rule: PermissionRule, tool: string, subject: string | undefined): boolean {
+export type PatternMatcher = (pattern: string, subject: string) => boolean;
+
+export function ruleMatches(
+  rule: PermissionRule, tool: string, subject: string | undefined, match: PatternMatcher = globMatch,
+): boolean {
   if (rule.tool !== "*" && rule.tool !== tool) return false;
   if (rule.pattern === undefined) return true;
-  return subject !== undefined && globMatch(rule.pattern, subject);
+  return subject !== undefined && match(rule.pattern, subject);
 }
 
 export interface DecideInput {
@@ -52,7 +58,10 @@ export interface DecideInput {
   /** 本会话「本会话允许」过的工具名。 */
   grants: ReadonlySet<string>;
   subject?: string;
-  outsideCwd?: boolean;
+  /** 路径在工作目录之外或隐藏（SDD 16 §7.2）。 */
+  sensitive?: boolean;
+  /** 工具自带的 pattern 匹配方式（如 `bash` 前缀匹配）；缺省为 glob。 */
+  match?: PatternMatcher;
 }
 
 export interface Verdict {
@@ -61,16 +70,19 @@ export interface Verdict {
   rule?: PermissionRule;
 }
 
-/** deny 规则 → ask 规则 → allow 规则或会话授权 → 模式默认，命中即停（D-3）。 */
+/**
+ * deny 规则 → ask 规则 → allow 规则或会话授权 → 模式默认，命中即停（SDD 15 D-3）。
+ * 敏感路径只认带 pattern 的 allow 规则，不认会话授权（SDD 16 §7.2 规则 7）。
+ */
 export function decide(input: DecideInput): Verdict {
   if (!mountable(input.effect, input.mode)) return { decision: "deny", basis: "mode" };
-  const matching = input.rules.filter((rule) => ruleMatches(rule, input.tool, input.subject));
+  const matching = input.rules.filter((rule) => ruleMatches(rule, input.tool, input.subject, input.match));
   for (const decision of ["deny", "ask"] as const) {
     const rule = matching.find((candidate) => candidate.decision === decision);
     if (rule) return { decision, basis: "rule", rule };
   }
-  const allowRule = matching.find((rule) => rule.decision === "allow");
+  const allowRule = matching.find((rule) => rule.decision === "allow" && (!input.sensitive || rule.pattern !== undefined));
   if (allowRule) return { decision: "allow", basis: "rule", rule: allowRule };
-  if (input.grants.has(input.tool)) return { decision: "allow", basis: "grant" };
-  return { decision: modeDefault(input.effect, input.mode, input.outsideCwd), basis: "mode" };
+  if (!input.sensitive && input.grants.has(input.tool)) return { decision: "allow", basis: "grant" };
+  return { decision: modeDefault(input.effect, input.mode, input.sensitive), basis: "mode" };
 }

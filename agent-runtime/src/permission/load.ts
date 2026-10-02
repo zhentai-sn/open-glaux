@@ -22,10 +22,17 @@ async function projectDirOf(projectId: string, fetchImpl: typeof fetch = fetch):
   }
 }
 
-export async function defaultLoadSettings(projectId?: string): Promise<{ settings: LoadedSettings; alwaysPath: string }> {
+/** 同时返回项目目录：它也是绑定项目会话的工作目录（SDD 16 §7.1），不重复请求 backend。 */
+export async function defaultLoadSettings(
+  projectId?: string,
+): Promise<{ settings: LoadedSettings; alwaysPath: string; projectDir?: string }> {
   const projectDir = projectId ? await projectDirOf(projectId) : undefined;
   const settings = await loadSettings(projectDir ? { projectDir } : {});
-  return { settings, alwaysPath: projectDir ? projectSettingsPath(projectDir) : userSettingsPath() };
+  return {
+    settings,
+    alwaysPath: projectDir ? projectSettingsPath(projectDir) : userSettingsPath(),
+    ...(projectDir ? { projectDir } : {}),
+  };
 }
 
 /** 从会话记录恢复「本会话允许」过的工具。 */

@@ -5,7 +5,6 @@ import {
 } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import {
-  createNodeSqliteFactory,
   SqliteSessionRepo,
   type SqliteSessionMetadata,
 } from "@earendil-works/pi-storage-sqlite-node";
@@ -24,7 +23,9 @@ import type {
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import { toTranscript } from "../transport/transcript.js";
+import { removeWorkspace } from "../workspace/cwd.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
+import { createSerializedSqliteFactory } from "../storage/serialized-sqlite.js";
 import { ATLAS_REFERENCED_DETAILS_KIND } from "./tools/consult-atlas.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js";
 import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
@@ -40,6 +41,8 @@ export interface SessionServiceOptions {
   pendingInteractions?: (sessionId: string) => InteractionRequest[];
   /** 设置文件加载告警（SDD 15 §9.7）；缺省视为没有。 */
   warningsFor?: (sessionId: string) => RuntimeWarning[];
+  /** 会话工作区根目录（SDD 16 §7.6）；删除会话时连带删除其工作区。缺省不删除任何目录。 */
+  workspacesRoot?: string;
 }
 
 export class SessionService {
@@ -49,18 +52,21 @@ export class SessionService {
   private readonly phaseForSession: (sessionId: string) => SessionPhase;
   private readonly pendingInteractions: (sessionId: string) => InteractionRequest[];
   private readonly warningsFor: (sessionId: string) => RuntimeWarning[];
+  private readonly workspacesRoot: string | undefined;
 
   constructor(options: SessionServiceOptions) {
     this.env = new NodeExecutionEnv({ cwd: options.workspaceDir });
     this.piRepo = new SqliteSessionRepo({
       env: this.env,
-      sqlite: createNodeSqliteFactory(),
+      // 并发会话的写须串行，见 storage/serialized-sqlite.ts。
+      sqlite: createSerializedSqliteFactory(),
       databasePath: options.piDatabasePath,
     });
     this.metaRepo = new GlauxMetaRepo(options.metaDatabasePath);
     this.phaseForSession = options.phaseForSession ?? (() => "idle");
     this.pendingInteractions = options.pendingInteractions ?? (() => []);
     this.warningsFor = options.warningsFor ?? (() => []);
+    this.workspacesRoot = options.workspacesRoot;
   }
 
   async initialize(): Promise<void> {
@@ -187,6 +193,12 @@ export class SessionService {
     const metadata = await this.requirePiMetadata(sessionId);
     await this.piRepo.delete(metadata);
     this.metaRepo.delete(sessionId);
+    if (this.workspacesRoot) {
+      // SDD 16 §7.6 规则 2：工作区删除失败只记日志，不影响会话删除。
+      await removeWorkspace(this.workspacesRoot, sessionId).catch((error: unknown) => {
+        console.error("workspace removal failed", { sessionId, error });
+      });
+    }
   }
 
   async openSession(sessionId: string): Promise<Session<SqliteSessionMetadata>> {

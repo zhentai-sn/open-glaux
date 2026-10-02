@@ -8,14 +8,17 @@ import { SessionService } from "./pi/session-service.js";
 import { buildServer } from "./transport/server.js";
 import { SseBroker } from "./transport/sse-broker.js";
 import { RUNTIME_VERSION } from "./version.js";
+import { defaultWorkspacesRoot } from "./workspace/cwd.js";
 
 const config = loadRuntimeConfig();
+const workspacesRoot = defaultWorkspacesRoot();
 let registry: HarnessRegistry | undefined;
 const sessions = new SessionService({
   ...config,
   phaseForSession: (sessionId) => registry?.getPhase(sessionId) ?? "idle",
   pendingInteractions: (sessionId) => registry?.interactions.pending(sessionId) ?? [],
   warningsFor: (sessionId) => registry?.warningsFor(sessionId) ?? [],
+  workspacesRoot,
 });
 await sessions.initialize();
 registry = new HarnessRegistry(sessions);

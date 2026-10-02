@@ -77,8 +77,10 @@ describe("end-to-end credential boundary", () => {
       await fixture.close();
     }
 
-    for (const file of await readdir(fixture.dataDir)) {
-      const path = join(fixture.dataDir, file);
+    // 递归扫描：数据目录下还有会话工作区（SDD 16 §7.6）。
+    for (const entry of await readdir(fixture.dataDir, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const path = join(entry.parentPath, entry.name);
       const bytes = await readFile(path);
       expect(bytes.includes(Buffer.from(credential)), path).toBe(false);
       expect(bytes.includes(Buffer.from(authorization)), path).toBe(false);

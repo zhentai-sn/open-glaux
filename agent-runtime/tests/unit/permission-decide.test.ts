@@ -22,9 +22,27 @@ describe("mode defaults", () => {
     });
   }
 
-  it("asks for writes outside the project directory in controlled mode only", () => {
-    expect(decide({ ...base, effect: "write", mode: "controlled", outsideCwd: true }).decision).toBe("ask");
-    expect(decide({ ...base, effect: "write", mode: "autonomous", outsideCwd: true }).decision).toBe("allow");
+  it("asks for sensitive reads and writes below autonomous (SDD 16 §7.2)", () => {
+    const sensitive = (effect: "read" | "write", mode: PermissionMode) => decide({ ...base, effect, mode, sensitive: true }).decision;
+    expect([sensitive("read", "observe"), sensitive("read", "suggest"), sensitive("read", "controlled"), sensitive("read", "autonomous")])
+      .toEqual(["ask", "ask", "ask", "allow"]);
+    expect([sensitive("write", "observe"), sensitive("write", "suggest"), sensitive("write", "controlled"), sensitive("write", "autonomous")])
+      .toEqual(["deny", "ask", "ask", "allow"]);
+  });
+
+  it("does not let grants or pattern-less allow rules cover sensitive paths", () => {
+    const common = { ...base, tool: "write", effect: "write" as const, mode: "controlled" as const, sensitive: true, subject: ".env" };
+    expect(decide({ ...common, grants: new Set(["write"]) }).decision).toBe("ask");
+    expect(decide({ ...common, rules: [{ tool: "write", decision: "allow" }] }).decision).toBe("ask");
+    expect(decide({ ...common, rules: [{ tool: "write", pattern: ".env", decision: "allow" }] }).decision).toBe("allow");
+  });
+
+  it("uses a tool's own pattern matcher", () => {
+    const prefix = (pattern: string, subject: string) => subject.trim().startsWith(pattern.trim());
+    const rules: PermissionRule[] = [{ tool: "bash", pattern: "git status", decision: "allow" }];
+    const verdict = (subject: string) => decide({ ...base, tool: "bash", effect: "exec", mode: "autonomous", rules, subject, match: prefix });
+    expect(verdict("git status -s")).toMatchObject({ basis: "rule" });
+    expect(verdict("git push")).toMatchObject({ basis: "mode" });
   });
 
   it("does not mount exec below autonomous, nor anything but read in observe", () => {

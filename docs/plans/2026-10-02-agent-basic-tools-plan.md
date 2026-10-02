@@ -94,4 +94,7 @@ status: active
 
 ## 实施偏差
 
-（实施中记录与本计划不一致之处及原因。）
+- W1：`workspacesRoot` 放在 `PermissionDeps` 与 `SessionServiceOptions` 中注入；测试夹具指向数据目录，避免测试在用户主目录建工作区。
+- W1：`NodeExecutionEnv` 在 `inheritEnv` 为真时会先合并整个 `process.env`，`bash` 内置工具缺省 `inheritEnv: true`；只设 `shellEnv` 挡不住凭据。W3 须在 `bash` 的 `prepare` 钩子里设 `inheritEnv = false` 并显式传入白名单环境。
+- W1：命令启动多了几次异步等待后，`multi-session-stream` 测试约三分之一概率失败，根因是 Pi 会话存储的并发写缺陷（pi 的 SQLite 适配器以同步驱动执行异步事务，跨连接争锁时同步忙等堵住事件循环）。新增 `storage/serialized-sqlite.ts` 串行化写入，并加 `concurrent-session-writes` 回归测试（在修复前的提交上复现失败）。SDD 15 W4 的审计入队仍保留。
+- W1：`credential-scan` 测试改为递归扫描数据目录，覆盖会话工作区。

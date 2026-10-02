@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- 多个会话并发写入 Pi 会话存储时报「Failed to append SQLite session entry」：pi 的 SQLite 适配器以同步驱动执行异步事务，跨连接争锁时同步忙等堵住事件循环。会话存储改用串行化写入的 SQLite 工厂（`storage/serialized-sqlite.ts`）。
 - 事件脱敏改为逐字符串执行；原实现对整段 JSON 替换，含 `Bearer` 文本的事件会产出非法 JSON 并使运行失败。
 
 ## [0.2.0] - 2026-08-31

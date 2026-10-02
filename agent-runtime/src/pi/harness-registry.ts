@@ -7,8 +7,10 @@ import {
   estimateContextTokens,
   shouldCompact,
   type AgentHarnessTool,
+  type ExecutionEnv,
   type Session,
 } from "@earendil-works/pi-agent-core";
+import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import type { Model, Models } from "@earendil-works/pi-ai";
 
 import type {
@@ -36,6 +38,8 @@ import type { RuntimeWarning } from "../contracts.js";
 import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
 import { resolveBudget, RunBudget } from "../budget/run-budget.js";
+import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
+import { buildShellEnv } from "../workspace/shell-env.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -57,6 +61,9 @@ export interface HarnessToolContext extends HarnessStartOptions {
   /** 交互请求表与本次命令标识（SDD 15 §7.6）；`ask_user` 与权限审批经它挂起。 */
   interactions?: InteractionTable;
   run?: { sessionId: string; commandId: string };
+  /** 本命令的工作目录与执行环境（SDD 16 §7.1）；取不到时缺省，基础工具不挂载。 */
+  cwd?: string;
+  execEnv?: ExecutionEnv;
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -227,6 +234,10 @@ export class HarnessRegistry {
       ...(projectId ? { projectId } : {}),
       interactions: this.interactions,
       run: { sessionId, commandId },
+      ...(permission?.cwd ? {
+        cwd: permission.cwd,
+        execEnv: new NodeExecutionEnv({ cwd: permission.cwd, shellEnv: buildShellEnv(permission.cwd) }),
+      } : {}),
     };
     const tools = chatEdition() ? [] : this.toolFactory(toolContext);
     const harness = new AgentHarness({
@@ -386,8 +397,14 @@ export class HarnessRegistry {
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
     };
-    const { settings, alwaysPath } = await (this.permissionDeps.loadSettings ?? defaultLoadSettings)(projectId ?? undefined);
+    const { settings, alwaysPath, projectDir } = await (this.permissionDeps.loadSettings ?? defaultLoadSettings)(projectId ?? undefined);
     this.settingsWarnings.set(sessionId, settings.warnings);
+    const cwd = await resolveCwd({
+      sessionId,
+      ...(projectId ? { projectId } : {}),
+      ...(projectDir ? { projectDir } : {}),
+      workspacesRoot: this.permissionDeps.workspacesRoot ?? defaultWorkspacesRoot(),
+    });
     return {
       getMode: () => this.sessions.metaRepo.get(sessionId)?.permission_mode ?? options.permissionMode ?? "controlled",
       tools: new Map(pluginTools().map((tool) => [tool.name, tool])),
@@ -398,6 +415,7 @@ export class HarnessRegistry {
       interactions: this.interactions,
       audit: (customType, data) => this.appendAudit(sessionId, customType, data),
       alwaysPath,
+      ...(cwd ? { cwd } : {}),
     };
   }
 

@@ -51,6 +51,7 @@ export async function createRuntimeFixture(
     phaseForSession: (sessionId) => registry?.getPhase(sessionId) ?? "idle",
     pendingInteractions: (sessionId) => registry?.interactions.pending(sessionId) ?? [],
     warningsFor: (sessionId) => registry?.warningsFor(sessionId) ?? [],
+    workspacesRoot: join(dataDir, "workspaces"),
   });
   await sessions.initialize();
   const handles: FauxProviderHandle[] = [];
@@ -80,6 +81,7 @@ export async function createRuntimeFixture(
   }, options.toolFactory ?? (() => []), options.interactionTimeoutMs, {
     projectScope: () => ({ targets: () => [], assertInProject: async () => undefined }),
     loadSettings: async () => ({ settings: EMPTY_SETTINGS, alwaysPath: join(dataDir, "settings.json") }),
+    workspacesRoot: join(dataDir, "workspaces"),
     ...options.permission,
   });
   const commands = new CommandService(sessions, registry);

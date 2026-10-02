@@ -33,11 +33,15 @@ export interface PermissionRunState {
   audit(customType: string, data: unknown): Promise<void>;
   /** 「总是允许」写入的设置文件：绑定项目时为项目级，否则为用户级（D-11）。 */
   alwaysPath: string;
+  /** 本命令的工作目录（SDD 16 §7.1）；取不到时缺省，带路径的工具也不会挂载。 */
+  cwd?: string;
 }
 
 export interface PermissionDeps {
   projectScope?: (options: { projectId?: string; viewer?: ViewerContext }) => ScopeChecker;
-  loadSettings?: (projectId?: string) => Promise<{ settings: LoadedSettings; alwaysPath: string }>;
+  loadSettings?: (projectId?: string) => Promise<{ settings: LoadedSettings; alwaysPath: string; projectDir?: string }>;
+  /** 会话工作区根目录（SDD 16 §7.6）；缺省 `<GLAUX_HOME>/workspaces`。 */
+  workspacesRoot?: string;
 }
 
 const MAX_ARGS_SUMMARY = 500;
@@ -71,17 +75,25 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
   }
 
   const mode = state.getMode();
-  const subject = tool.permissionSubject?.(event.input);
+  let subject = tool.permissionSubject?.(event.input);
+  let sensitive = false;
+  if (tool.pathScope && state.cwd) {
+    const scope = await tool.pathScope(event.input, state.cwd);
+    subject = scope?.subject;
+    sensitive = scope?.sensitive ?? false;
+  }
   const verdict = decide({
-    tool: tool.name, effect: tool.effect, mode, rules: allRules(state.settings), grants: state.grants,
+    tool: tool.name, effect: tool.effect, mode, rules: allRules(state.settings), grants: state.grants, sensitive,
     ...(subject !== undefined ? { subject } : {}),
+    ...(tool.patternMatch ? { match: tool.patternMatch } : {}),
   });
+  const scopeRecord = { ...(subject !== undefined ? { subject } : {}), ...(sensitive ? { sensitive } : {}) };
   if (verdict.decision === "allow") return undefined;
   if (verdict.decision === "deny") {
     const reason = verdict.basis === "rule"
       ? `The call to ${tool.name} was denied by a permission rule; it was not executed.`
       : `${tool.name} is not allowed in ${mode} mode; it was not executed.`;
-    await record({ decision: "deny", basis: verdict.basis, mode, ...(verdict.rule ? { rule: verdict.rule } : {}) });
+    await record({ decision: "deny", basis: verdict.basis, mode, ...scopeRecord, ...(verdict.rule ? { rule: verdict.rule } : {}) });
     return block(reason);
   }
 
@@ -98,12 +110,13 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
       tool_name: tool.name,
       effect: tool.effect,
       args_summary: summarize(event.input),
-      grant_options: verdict.basis === "rule" ? ["once"] : ["once", "session", "always"],
+      // ask 规则与敏感路径只给「允许本次」（SDD 15 §7.5、SDD 16 §7.2 规则 6）。
+      grant_options: verdict.basis === "rule" || sensitive ? ["once"] : ["once", "session", "always"],
     },
   });
   const reply = resolution.reply?.kind === "permission" ? resolution.reply : undefined;
   await record({
-    decision: "ask", basis: verdict.basis, mode, outcome: resolution.outcome,
+    decision: "ask", basis: verdict.basis, mode, outcome: resolution.outcome, ...scopeRecord,
     ...(verdict.rule ? { rule: verdict.rule } : {}), ...(reply ? { reply: reply.decision } : {}),
   });
   if (resolution.outcome === "expired") return block(`The user did not approve ${tool.name} in time; it was not executed.`);
