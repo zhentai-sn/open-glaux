@@ -192,6 +192,35 @@ describe("interaction and run events (SDD 15 §9.5)", () => {
     await store.getState().sendPrompt("again", [], { provider: "anthropic", model: "m" });
     expect(store.getState().runNotices[id]).toBeUndefined();
   });
+
+  it("tracks sub-agent progress per agent call until the call ends (SDD 18 §7.5)", async () => {
+    localStorage.clear();
+    const { handlers, store } = fixture();
+    await store.getState().initialize();
+    const id = store.getState().currentSessionId!;
+    const progress = (tool_call_id: string, turns: number, tool_name?: string) =>
+      handlers.get(id)!.onRuntimeEvent({
+        event: "subagent.progress",
+        data: { session_id: id, command_id: "c", tool_call_id, turns, ...(tool_name ? { tool_name } : {}) },
+      });
+
+    progress("a1", 1);
+    progress("a1", 2, "read");
+    progress("a2", 1);
+    expect(store.getState().subagentProgress[id]).toEqual({ a1: { turns: 2, toolName: "read" }, a2: { turns: 1 } });
+
+    handlers.get(id)!.onRuntimeEvent({
+      event: "tool.end",
+      data: { session_id: id, command_id: "c", tool_call_id: "a1", tool_name: "agent", is_error: false, details: null },
+    });
+    expect(store.getState().subagentProgress[id]).toEqual({ a2: { turns: 1 } });
+
+    handlers.get(id)!.onRuntimeEvent({
+      event: "run.settled",
+      data: { session_id: id, command_id: "c", outcome: "aborted", budget: { turns: 1, elapsed_ms: 1, exhausted: false } },
+    });
+    expect(store.getState().subagentProgress[id]).toBeUndefined();
+  });
 });
 
 describe("agent session store", () => {

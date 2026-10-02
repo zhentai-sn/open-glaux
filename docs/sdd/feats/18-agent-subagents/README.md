@@ -80,7 +80,7 @@ max_turns: 20                           # 可选；1～50，缺省 20
 
 ### 5.1 用户可见输出
 
-- 子智能体运行期间，对话中显示「调用 agent」工具行。
+- 子智能体运行期间，对话中显示「调用 agent」工具行，行内实时显示子智能体的回合数与正在调用的工具（§7.5）。
 - 完成后显示子智能体卡片：定义名、`description`、结局（完成 / 预算用尽 / 已中止 / 失败）、回合数、最终回复；可展开查看过程（消息与工具调用）。
 - 子智能体触发的审批卡片显示「来自子智能体：description」。
 - 「技能」页新增「子智能体」分组，只读列出定义（名称、描述、来源、工具）。
@@ -138,6 +138,12 @@ sequenceDiagram
 ### 7.4 审批来源
 
 交互请求增加可选字段 `origin`（`{subagent: description}`）；子智能体内触发的审批与 `ask_user` 都带上它，前端卡片显示来源。
+
+### 7.5 进度推送
+
+1. 子智能体每回合开始、每次工具调用开始时，SSE 推送 `subagent.progress`（§9.4），`tool_call_id` 为主智能体 `agent` 调用的标识。
+2. 前端按 `tool_call_id` 在对应的工具行显示「第 N 回合 · 调用 工具名」；该调用的 `tool.end` 或命令的 `run.settled` 到达后清除。
+3. 进度只存前端内存，不进快照；完成后的过程以 §7.3 的 `details` 为准。
 
 ## 8. 涉及对象
 
@@ -198,6 +204,16 @@ interface AgentItem {
 | --- | --- | --- |
 | `origin` | `{subagent: string}` 可选 | 来自子智能体时为其 `description` |
 
+### 9.4 SSE 事件 `subagent.progress`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `session_id` | string | 主会话 |
+| `command_id` | string | 主命令 |
+| `tool_call_id` | string | 主智能体 `agent` 调用的标识 |
+| `turns` | integer | 子智能体当前回合数 |
+| `tool_name` | string 可选 | 正在调用的工具；回合开始时缺省 |
+
 ## 10. 幂等规则
 
 - 子智能体没有独立的命令幂等；随主命令一次执行。重新生成主命令会重新运行子智能体。
@@ -251,17 +267,19 @@ stateDiagram-v2
 - [x] 子智能体的工具调用经权限判定，审批请求带 `origin`（集成测试）。——`subagents-flow.test.ts`（`suggest` 模式：先审批 `agent`，再审批子智能体内的 `run_task`，审计写入主会话）
 - [x] 回合超过 `max_turns` 时收尾或中止，结局如实记录（集成测试）。——`subagents-flow.test.ts`（`max_turns: 1` 时第二次工具调用被拦截，模型收尾作答）
 - [x] 同时发起 4 个子智能体时最多 3 个并行（单元测试）。——`subagents.test.ts`
+- [x] 运行中按回合与工具调用推送 `subagent.progress`（集成测试）。——`subagents-flow.test.ts`
 - [x] 主命令中止时子智能体中止，结局 `aborted`（集成测试）。——`subagents-flow.test.ts`（子智能体的待决提问一并取消）
 
 ### 15.3 前端
 
 - [x] 对话中显示子智能体卡片，可展开过程（组件测试）。——`SubagentCard.test.tsx`
+- [x] 工具行实时显示子智能体进度，调用结束后清除（组件测试）。——`AgentConversation.test.tsx`、`agentSessions.test.ts`
 - [x] 审批卡片显示来源（组件测试）。——`InteractionCard.test.tsx`
 - [x] 「技能」页列出子智能体定义（组件测试）。——`ResourcesViews.test.tsx`
 
 ### 15.4 工程
 
-- [x] `make test`、`make lint` 通过。——agent-runtime 391、前端 399、backend 505、science-core 213
+- [x] `make test`、`make lint` 通过。——agent-runtime 391、前端 401、backend 505、science-core 213
 - [x] 仓库骨架总览、操作手册、SDD 15、SDD 17、两份 CHANGELOG 同步更新。
 
 ## 16. 决策记录
@@ -272,7 +290,7 @@ stateDiagram-v2
 | D-2 | 嵌套深度 1 | 防止递归派发失控；与常见实现一致 |
 | D-3 | 共用父会话的权限状态与审计 | 不能借子智能体提权；用户在一个地方审批 |
 | D-4 | 子智能体沿用父连接 | 凭据只随一个命令存在（SDD 00）；多连接留待需求明确 |
-| D-5 | 本期不实时推送子智能体过程 | 先交付机制；过程在完成后可查看 |
+| D-5 | 实时推送回合数与当前工具，不推送消息正文 | 用户能看到子智能体在推进；正文完成后在卡片中查看，避免 SSE 流量翻倍 |
 | D-6 | 内置只发布 `general` | 通用定义不涉及领域判断；领域子智能体需专业校对 |
 | D-7 | 并发上限 3 | 控制模型请求并发与成本 |
 | D-8 | 定义 frontmatter 用最小子集自行解析 | 只需四个字段；不依赖 pi 的间接依赖 |

@@ -398,6 +398,7 @@ type InteractionOutcome = "answered" | "expired" | "cancelled";
 | `message.end` | `{session_id, command_id}` | pi `message_end` |
 | `tool.start` | `{session_id, command_id, tool_call_id, tool_name, args}` | pi `tool_execution_start` |
 | `tool.end` | `{session_id, command_id, tool_call_id, tool_name, is_error, details, error_text?}` | pi `tool_execution_end`；`error_text` 只在出错时给出，为结果文本前 2000 字符 |
+| `subagent.progress` | `{session_id, command_id, tool_call_id, turns, tool_name?}` | 子智能体回合与工具调用开始（SDD 18 §9.4） |
 | `interaction.request` | `InteractionRequest` | 交互请求表 |
 | `interaction.resolved` | `{session_id, request_id, outcome}` | 交互请求表 |
 | `context.compacted` | `{session_id}` | pi `session_compact` |

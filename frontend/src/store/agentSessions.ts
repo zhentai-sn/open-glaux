@@ -54,6 +54,12 @@ export interface ResolvedInteraction {
 }
 
 /** 预算收尾或中止的提示（SDD 15 §5.1）；下一次发送时清除。 */
+/** 子智能体当前回合与正在调用的工具。 */
+export interface SubagentProgress {
+  turns: number;
+  toolName?: string;
+}
+
 export interface RunNotice {
   outcome: RunOutcome;
   turns: number;
@@ -75,6 +81,8 @@ interface AgentSessionsState {
   resolvedInteractions: Record<string, ResolvedInteraction[]>;
   toolErrors: Record<string, Record<string, string>>;
   runNotices: Record<string, RunNotice>;
+  /** 运行中子智能体的进度，按会话、`agent` 调用标识保存；调用结束即删除（SDD 18 §7.5）。 */
+  subagentProgress: Record<string, Record<string, SubagentProgress>>;
   error: { code: string; message: string; traceId?: string } | null;
 
   initialize: () => Promise<void>;
@@ -246,6 +254,7 @@ export function createAgentSessionsStore(
       resolvedInteractions: {},
       toolErrors: {},
       runNotices: {},
+      subagentProgress: {},
       error: null,
 
       initialize: async () => {
@@ -519,6 +528,26 @@ export function createAgentSessionsStore(
             };
           });
           return;
+        }
+        if (event.event === "subagent.progress") {
+          const { tool_call_id: toolCallId, turns, tool_name: toolName } = event.data;
+          set((state) => ({
+            subagentProgress: {
+              ...state.subagentProgress,
+              [sessionId]: { ...state.subagentProgress[sessionId], [toolCallId]: { turns, ...(toolName ? { toolName } : {}) } },
+            },
+          }));
+          return;
+        }
+        if ((event.event === "tool.end" || event.event === "run.settled") && get().subagentProgress[sessionId]) {
+          set((state) => {
+            const progress = event.event === "tool.end" ? omit(state.subagentProgress[sessionId] ?? {}, event.data.tool_call_id) : {};
+            return {
+              subagentProgress: Object.keys(progress).length
+                ? { ...state.subagentProgress, [sessionId]: progress }
+                : omit(state.subagentProgress, sessionId),
+            };
+          });
         }
         if (event.event === "tool.end" && event.data.is_error && event.data.error_text) {
           const { tool_call_id: toolCallId, error_text: reason } = event.data;

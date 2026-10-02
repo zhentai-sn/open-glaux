@@ -50,7 +50,7 @@ function createAgentTool(ctx: HarnessToolContext): AgentHarnessTool<undefined, t
       "Hand a self-contained multi-step task to a sub-agent with a fresh context. " +
       "Only its final reply comes back to you. Several calls in one turn run concurrently.",
     parameters: AgentParams,
-    async execute(_id, params: Static<typeof AgentParams>, signal) {
+    async execute(toolCallId, params: Static<typeof AgentParams>, signal) {
       const known = ctx.agents?.map((def) => def.name) ?? [];
       if (!known.includes(params.subagent_type)) {
         return {
@@ -58,7 +58,7 @@ function createAgentTool(ctx: HarnessToolContext): AgentHarnessTool<undefined, t
           details: undefined,
         };
       }
-      const result = await ctx.spawnSubagent!(params, signal);
+      const result = await ctx.spawnSubagent!(params, { ...(signal ? { signal } : {}), toolCallId });
       const details: SubagentRunDetails = {
         kind: SUBAGENT_RUN_DETAILS_KIND,
         subagent_type: params.subagent_type,

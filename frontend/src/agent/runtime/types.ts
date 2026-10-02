@@ -298,6 +298,11 @@ export type TransportEvent =
       data: { session_id: string; command_id: string; tool_call_id: string; tool_name: string; args: unknown };
     }
   | { event: "tool.end"; data: ToolEndData }
+  | {
+      /** SDD 18 §9.4：子智能体运行中的进度。 */
+      event: "subagent.progress";
+      data: { session_id: string; command_id: string; tool_call_id: string; turns: number; tool_name?: string };
+    }
   | { event: "interaction.request"; data: InteractionRequest }
   | {
       event: "interaction.resolved";
@@ -342,6 +347,7 @@ export const RUNTIME_EVENT_NAMES: readonly RuntimeEvent["event"][] = [
   "message.end",
   "tool.start",
   "tool.end",
+  "subagent.progress",
   "interaction.request",
   "interaction.resolved",
   "context.compacted",

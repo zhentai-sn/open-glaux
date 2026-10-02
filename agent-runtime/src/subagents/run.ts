@@ -34,6 +34,11 @@ export interface SubagentResult {
   error?: string;
 }
 
+export interface SubagentProgress {
+  turns: number;
+  tool_name?: string;
+}
+
 export interface SubagentRunDeps {
   definition: AgentDefinition;
   runtime: Pick<ModelRuntime, "models" | "model">;
@@ -46,6 +51,8 @@ export interface SubagentRunDeps {
   /** 子智能体开始后等待用户回复的时长（毫秒），从时长预算中扣除。 */
   waitedMs?: () => number;
   signal?: AbortSignal;
+  /** 每回合开始与每次工具调用开始时回调（SDD 18 §7.5）。 */
+  onProgress?: (progress: SubagentProgress) => void;
 }
 
 function compactBlock(block: TranscriptBlock): TranscriptBlock {
@@ -102,7 +109,12 @@ export async function runSubagent(prompt: string, deps: SubagentRunDeps): Promis
   });
   const uninstall = installHooks(harness, deps.plugins, { ...deps.runContext, budget });
   const unsubscribe = harness.subscribe((event) => {
-    if (event.type === "turn_start") budget.onTurnStart();
+    if (event.type === "turn_start") {
+      budget.onTurnStart();
+      deps.onProgress?.({ turns: budget.turns });
+    } else if (event.type === "tool_execution_start") {
+      deps.onProgress?.({ turns: budget.turns, tool_name: event.toolName });
+    }
   });
   const onAbort = () => { void harness.abort(); };
   if (deps.signal?.aborted) onAbort();

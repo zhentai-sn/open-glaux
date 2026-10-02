@@ -202,6 +202,20 @@ describe("AgentConversation", () => {
     expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Not run: The user denied run_task.");
   });
 
+  it("shows live progress under a running agent call (SDD 18 §7.5)", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [{ role: "assistant", content: [{ type: "toolCall", id: "a1", name: "agent", arguments: { description: "find files" } }] }],
+        },
+      },
+      subagentProgress: { [session.session_id]: { a1: { turns: 3, toolName: "read" } } },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByTestId("subagent-progress")).toHaveTextContent("Sub-agent · turn 3 · calling read");
+  });
+
   it("makes an archived conversation read-only", () => {
     useAgentSessions.setState({
       views: {

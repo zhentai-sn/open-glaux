@@ -11,7 +11,7 @@ import {
 } from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
-import { useAgentSessions } from "../../store/agentSessions";
+import { useAgentSessions, type SubagentProgress } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
@@ -42,7 +42,15 @@ const PERMISSION_MODES: PermissionMode[] = [
 // 工具调用状态行（退役 orchestration P3）："⚙ 调用 run_task"，让智能体的工具动作可见；
 // 悬停显示入参。工具结果本身不在此渲染——run_task 的产出经 toolBridge 写回查看器。
 // 被拦截或失败的调用在下方附一行理由（SDD 15 §5.1）。
-function ToolCallLine({ call, error }: { call: MessageToolCall; error?: string | undefined }) {
+function ToolCallLine({
+  call,
+  error,
+  progress,
+}: {
+  call: MessageToolCall;
+  error?: string | undefined;
+  progress?: SubagentProgress | undefined;
+}) {
   const { t } = useI18n();
   const args = Object.entries(call.arguments)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
@@ -53,6 +61,13 @@ function ToolCallLine({ call, error }: { call: MessageToolCall; error?: string |
       <span>{t("agent_tool_call", { tool: call.name })}</span>
       {args && <span className="tool-call-args mono">{args}</span>}
       {error && <span className="tool-call-error" data-testid="tool-call-error">{t("agent_tool_not_run", { reason: error })}</span>}
+      {progress && (
+        <span className="tool-call-progress" data-testid="subagent-progress">
+          {progress.toolName
+            ? t("subagent_progress_tool", { n: progress.turns, tool: progress.toolName })
+            : t("subagent_progress_turn", { n: progress.turns })}
+        </span>
+      )}
     </div>
   );
 }
@@ -138,6 +153,9 @@ export function AgentConversation() {
   const replyInteraction = useAgentSessions((state) => state.replyInteraction);
   const resolvedInteractions = useAgentSessions((state) =>
     state.currentSessionId ? state.resolvedInteractions[state.currentSessionId] : undefined,
+  );
+  const subagentProgress = useAgentSessions((state) =>
+    state.currentSessionId ? state.subagentProgress[state.currentSessionId] : undefined,
   );
   const toolErrors = useAgentSessions((state) =>
     state.currentSessionId ? state.toolErrors[state.currentSessionId] : undefined,
@@ -432,7 +450,7 @@ export function AgentConversation() {
                 </div>
                 <div className="tool-calls">
                   {toolCalls.map((call) => (
-                    <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} />
+                    <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
                   ))}
                 </div>
               </div>
@@ -452,7 +470,7 @@ export function AgentConversation() {
                 {toolCalls.length > 0 && (
                   <div className="tool-calls">
                     {toolCalls.map((call) => (
-                      <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} />
+                      <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
                     ))}
                   </div>
                 )}

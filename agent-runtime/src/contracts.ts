@@ -293,6 +293,11 @@ export type TransportEvent =
       data: { session_id: string; command_id: string };
     }
   | {
+      /** SDD 18 §9.4：子智能体运行中的进度；`tool_call_id` 为主智能体 `agent` 调用的标识。 */
+      event: "subagent.progress";
+      data: { session_id: string; command_id: string; tool_call_id: string; turns: number; tool_name?: string };
+    }
+  | {
       event: "tool.start";
       data: { session_id: string; command_id: string; tool_call_id: string; tool_name: string; args: unknown };
     }

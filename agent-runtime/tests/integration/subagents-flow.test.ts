@@ -53,7 +53,7 @@ describe("sub-agents", () => {
   it("runs a sub-agent with only the prompt and its tools, returning only the final reply", async () => {
     const child: Context[] = [];
     const parentSaw: string[][] = [];
-    const { fixture, sessionId, counter } = await setup([
+    const { fixture, sessionId, counter, events } = await setup([
       callAgent(),
       (context) => { child.push(context); return call("run_task"); },
       fauxAssistantMessage("child answer"),
@@ -68,6 +68,13 @@ describe("sub-agents", () => {
       expect(child[0]!.systemPrompt).toContain('<subagent name="scout">\nScout carefully.\n</subagent>');
       expect(child[0]!.tools?.map((tool) => tool.name)).toEqual(["run_task"]);
       expect(parentSaw).toEqual([["child answer"]]);
+      const progress = events.flatMap((e) => (e.event === "subagent.progress" ? [e.data] : []));
+      expect(progress.map(({ turns, tool_name }) => ({ turns, tool_name }))).toEqual([
+        { turns: 1, tool_name: undefined },
+        { turns: 1, tool_name: "run_task" },
+        { turns: 2, tool_name: undefined },
+      ]);
+      expect(new Set(progress.map((p) => p.tool_call_id)).size).toBe(1);
 
       const view = await fixture.sessions.getSession(sessionId);
       const card = view.messages.find((m) => m.role === "toolResult");

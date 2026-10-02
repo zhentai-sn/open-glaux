@@ -72,7 +72,7 @@ export interface HarnessToolContext extends HarnessStartOptions {
   execEnv?: ExecutionEnv;
   /** 可用的子智能体定义与派发函数（SDD 18 §7.1）；`subagent` 表示本上下文属于子智能体。 */
   agents?: AgentDefinition[];
-  spawnSubagent?: (request: SubagentRequest, signal?: AbortSignal) => Promise<SubagentResult>;
+  spawnSubagent?: (request: SubagentRequest, options?: { signal?: AbortSignal; toolCallId?: string }) => Promise<SubagentResult>;
   subagent?: { description: string };
 }
 
@@ -484,7 +484,7 @@ export class HarnessRegistry {
     videoDescription?: { duration_ms: number; has_audio: boolean };
   }): NonNullable<HarnessToolContext["spawnSubagent"]> {
     const slots = createSlots();
-    return async (request, signal) => {
+    return async (request, { signal, toolCallId } = {}) => {
       const definition = parent.resources.harnessAgents.find((def) => def.name === request.subagent_type);
       if (!definition) throw new RuntimeError("unknown_resource", `Unknown sub-agent ${request.subagent_type}.`, 422);
       const release = await slots.acquire(signal);
@@ -519,6 +519,12 @@ export class HarnessRegistry {
           maxMinutes: resolveBudget(parent.permission.settings).maxMinutes,
           waitedMs: () => waited() - waitedAtStart,
           ...(signal ? { signal } : {}),
+          ...(toolCallId ? {
+            onProgress: (progress) => this.emit(parent.sessionId, {
+              event: "subagent.progress",
+              data: { session_id: parent.sessionId, command_id: parent.commandId, tool_call_id: toolCallId, ...progress },
+            }),
+          } : {}),
         });
       } finally {
         release();

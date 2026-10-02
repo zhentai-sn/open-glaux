@@ -174,6 +174,8 @@ export const zh: Record<I18nKey, string> = {
   agent_regenerate: "重新生成",
   agent_tool_call: "调用 {tool}",
   agent_tool_not_run: "未执行：{reason}",
+  subagent_progress_turn: "子智能体 · 第 {n} 回合",
+  subagent_progress_tool: "子智能体 · 第 {n} 回合 · 调用 {tool}",
   agent_slash_menu: "技能与模板",
   agent_slash_skill: "技能",
   agent_slash_template: "模板",

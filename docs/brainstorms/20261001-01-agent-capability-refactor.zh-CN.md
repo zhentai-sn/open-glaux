@@ -6,7 +6,7 @@ status: promoted
 # 智能体能力重构：基础工具、Skills、子智能体与权限（需求文档 v0）
 
 > **用途**：记录把参考智能体从「固定领域工具集」重构为「基于 pi-agent-core 扩展点的插件化 harness」的需求与构想，供拆分 SDD。
-> **日期**：2026-10-01 · **状态**：`review`（P0 → [SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) `implemented`；P1 → [SDD 16](../sdd/feats/16-agent-basic-tools/README.md) `implemented`；P2 → [SDD 17](../sdd/feats/17-agent-skills-prompts/README.md) `implemented`；P3 → [SDD 18](../sdd/feats/18-agent-subagents/README.md) `ready`；harness 常驻改为不做，见 SDD 15 D-1）
+> **日期**：2026-10-01 · **状态**：`promoted`（P0 → [SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) `implemented`；P1 → [SDD 16](../sdd/feats/16-agent-basic-tools/README.md) `implemented`；P2 → [SDD 17](../sdd/feats/17-agent-skills-prompts/README.md) `implemented`；P3 → [SDD 18](../sdd/feats/18-agent-subagents/README.md) `implemented`；harness 常驻改为不做，见 SDD 15 D-1）
 > **依据**：本次对话讨论 · `agent-runtime/src` 现状 · `@earendil-works/pi-agent-core` 0.82.1 类型声明（`dist/harness/*.d.ts`）· [SDD 00](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 §7.3](../sdd/feats/02-agent-image-annotation/README.md) · [SDD 13](../sdd/feats/13-project-folder-sessions/README.md) · [SDD 14](../sdd/feats/14-project-text-preview/README.md)
 
 ## 1. 一句话

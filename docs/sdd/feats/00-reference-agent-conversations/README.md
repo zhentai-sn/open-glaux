@@ -251,7 +251,7 @@ SSE 事件由 Glaux 定义，不透传 Pi 事件（[SDD 15](../15-agent-plugins-
 | SSE event | payload | 说明 |
 | --- | --- | --- |
 | `snapshot` | `SessionView` | 建立连接和每次重连时首先发送 |
-| 运行事件 | 见 SDD 15 §9.5 | `message.delta`、`message.end`、`tool.start`、`tool.end`、`interaction.request`、`interaction.resolved`、`context.compacted`、`run.settled`；Adapter 按白名单从 Pi 事件映射 |
+| 运行事件 | 见 SDD 15 §9.5 | `message.delta`、`message.end`、`tool.start`、`tool.end`、`subagent.progress`、`interaction.request`、`interaction.resolved`、`context.compacted`、`run.settled`；Adapter 按白名单从 Pi 事件映射 |
 | `video.answer` | 见 SDD 11 | 视频问答的结构化答案 |
 | `adapter.error` | `{ session_id, command_id?, code, message, trace_id }` | 传输、配置或事件映射失败 |
 
