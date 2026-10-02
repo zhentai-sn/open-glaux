@@ -25,17 +25,17 @@ export const annotationPlugin: GlauxPlugin = {
   applies: () => true,
   tools: [
     {
-      name: LOCATE_ROI_TOOL_NAME, effect: "compute", requires: { vision: true, runtime: true }, supports: (focus) => !!focus,
+      name: LOCATE_ROI_TOOL_NAME, effect: "compute", projectScoped: true, requires: { vision: true, runtime: true }, supports: (focus) => !!focus,
       create: (ctx) => createLocateRoiTool({ runtime: ctx.runtime!, connection: ctx.connection!, ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
       promptFragment: () => LOCATE_PROMPT,
     },
     {
-      name: SEGMENT_REGION_TOOL_NAME, effect: "egress", requires: { egress: true }, supports: (focus) => !!focus,
+      name: SEGMENT_REGION_TOOL_NAME, effect: "egress", projectScoped: true, requires: { egress: true }, supports: (focus) => !!focus,
       create: (ctx) => createSegmentRegionTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
       promptFragment: () => SEGMENT_PROMPT,
     },
     {
-      name: PROPOSE_ANNOTATION_TOOL_NAME, effect: "annotate", requires: {}, supports: (focus) => !!focus,
+      name: PROPOSE_ANNOTATION_TOOL_NAME, effect: "annotate", projectScoped: true, requires: {}, supports: (focus) => !!focus,
       create: (ctx) => createProposeAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
       promptFragment: () => PROPOSE_PROMPT,
     },

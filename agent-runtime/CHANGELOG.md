@@ -8,10 +8,13 @@
 
 - 工具按插件登记，每个工具声明副作用等级 `effect`；插件钩子经组合器每种只注册一个 handler（SDD 15）。
 - 交互请求表与回复端点 `POST /agent-api/v1/sessions/{id}/interactions/{request_id}`；新工具 `ask_user`；SSE 新增 `interaction.request`、`interaction.resolved`，快照 `pending_interactions` 给出待决请求（SDD 15 §7.6、§7.7）。
+- 权限引擎：工具按 effect 与权限模式挂载、放行或审批；支持用户级与项目级 `settings.json` 的 allow / deny / ask 规则、「本会话允许」「总是允许」与审计记录；快照 `warnings` 给出设置文件告警（SDD 15 §7.4、§7.5）。
 
 ### Changed
 
 - SSE 不再发送 `pi.event`，改为 Glaux 事件：`message.delta`、`message.end`、`tool.start`、`tool.end`、`context.compacted`、`run.settled`；快照消息改为 `TranscriptMessage`，并新增 `pending_interactions`、`warnings` 字段（SDD 15 §9.5～§9.7）。
+- `observe` 模式由「只挂视频工具」放宽为「只挂只读工具」；`suggest` 模式下 `run_task`、`locate_roi`、`segment_region` 需逐次审批（SDD 15 D-10、§7.4）。
+- 项目越界守卫由工具包装改为权限插件的 `tool_call` 判定，越界调用以拦截理由返回模型。
 
 ### Fixed
 

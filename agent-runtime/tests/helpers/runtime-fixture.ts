@@ -15,6 +15,8 @@ import {
   HarnessRegistry,
   type HarnessToolFactory,
 } from "../../src/pi/harness-registry.js";
+import type { PermissionDeps } from "../../src/permission/plugin.js";
+import { EMPTY_SETTINGS } from "../../src/permission/settings.js";
 import { SessionService } from "../../src/pi/session-service.js";
 import { SseBroker } from "../../src/transport/sse-broker.js";
 
@@ -36,6 +38,8 @@ export async function createRuntimeFixture(
     toolFactory?: HarnessToolFactory;
     /** 交互请求超时；测试过期路径时调短。 */
     interactionTimeoutMs?: number;
+    /** 权限依赖；缺省越界判定一律放行、无设置文件，测试不触 backend 与用户目录。 */
+    permission?: PermissionDeps;
   } = {},
 ) {
   const dataDir = await mkdtemp(join(tmpdir(), "glaux-runtime-fixture-"));
@@ -46,6 +50,7 @@ export async function createRuntimeFixture(
     metaDatabasePath: join(dataDir, "glaux-meta.sqlite"),
     phaseForSession: (sessionId) => registry?.getPhase(sessionId) ?? "idle",
     pendingInteractions: (sessionId) => registry?.interactions.pending(sessionId) ?? [],
+    warningsFor: (sessionId) => registry?.warningsFor(sessionId) ?? [],
   });
   await sessions.initialize();
   const handles: FauxProviderHandle[] = [];
@@ -72,7 +77,11 @@ export async function createRuntimeFixture(
       model: faux.getModel(),
       disposeCredential() {},
     };
-  }, options.toolFactory ?? (() => []), options.interactionTimeoutMs);
+  }, options.toolFactory ?? (() => []), options.interactionTimeoutMs, {
+    projectScope: () => ({ targets: () => [], assertInProject: async () => undefined }),
+    loadSettings: async () => ({ settings: EMPTY_SETTINGS, alwaysPath: join(dataDir, "settings.json") }),
+    ...options.permission,
+  });
   const commands = new CommandService(sessions, registry);
   const broker = new SseBroker(registry);
 

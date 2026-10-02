@@ -315,7 +315,7 @@ sequenceDiagram
 1. 项目会话的文件栏显示项目目录树（§5.1），替代模态切换器与按模态的对象列表。
 2. 「未归属」会话的文件栏保持 SDD 08 的形态（模态切换器 + 对象列表），作用域是 `project_id` 为空的数据源，即既有导入源、上传源与示例源。
 3. 「最近使用」只显示属于当前作用域的条目；记录本身不按项目拆分存储。
-4. 智能体工具只接受当前会话项目内的对象；越界时工具返回错误，不执行。校验在 agent-runtime 工具执行前完成：对象 `ObjectMeta.source_id` 对应数据源的 `project_id` 须等于会话的 `project_id`。受校验的对象 id 包括查看焦点与工具参数中显式指定的对象（`run_task.image_id`、`submit_video_answer.object_id`）；同一回合内缓存查询结果。
+4. 智能体工具只接受当前会话项目内的对象；越界时工具返回错误，不执行。校验在 agent-runtime 工具执行前完成：对象 `ObjectMeta.source_id` 对应数据源的 `project_id` 须等于会话的 `project_id`。受校验的对象 id 包括查看焦点与工具参数中显式指定的对象（`run_task.image_id`、`submit_video_answer.object_id`）；同一回合内缓存查询结果。判定由 [SDD 15](../15-agent-plugins-permissions/README.md) 的权限插件在 `tool_call` 钩子中执行（§7.5 第 1 步），越界调用被拦截，理由以工具错误返回模型。
 5. 浏览器上传的数据源归属当前会话的项目；文件仍落在 `GLAUX_DATASETS_ROOT/uploads/`，不写入项目目录，落盘子目录按「项目 + 上传名」派生，不同项目的同名上传互不覆盖。项目目录树根下的虚拟节点「上传」列出这些文件。
 
 ## 8. 涉及对象

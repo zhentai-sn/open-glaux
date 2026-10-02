@@ -14,12 +14,12 @@ export const imagingPlugin: GlauxPlugin = {
   applies: () => true,
   tools: [
     {
-      name: "run_task", effect: "compute", requires: {}, supports: () => true,
+      name: "run_task", effect: "compute", projectScoped: true, requires: {}, supports: () => true,
       create: (ctx) => createRunTaskTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
       promptFragment: () => "",
     },
     {
-      name: VIEW_CURRENT_IMAGE_TOOL_NAME, effect: "read", requires: { vision: true }, supports: (focus) => !!focus,
+      name: VIEW_CURRENT_IMAGE_TOOL_NAME, effect: "read", projectScoped: true, requires: { vision: true }, supports: (focus) => !!focus,
       create: (ctx) => createViewCurrentImageTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }) as HarnessTool,
       promptFragment: () => VIEW_PROMPT,
     },

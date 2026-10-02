@@ -159,11 +159,11 @@ open-glaux/
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
 | 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；交互请求回复 `POST /sessions/{id}/interactions/{request_id}`（SDD 15 §9.4）；`connection/test\|models`；`atlas/describe` |
 | 会话绑定项目 | `POST /sessions` 接受 `project_id`，写入 Pi 会话 `metadata.glaux_project_id`，创建后不可改；未归属会话不写 metadata。`SessionView` / `SessionListItem` 带 `project_id`；空会话按 `project_id`（含 `null`）各复用一个；同 `session_id` 换 `project_id` 返回 409 `idempotency_conflict`。`glaux_session_meta` 表不存项目（SDD 13 §7.6） |
-| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`interaction/`（交互请求表与 `ask_user`，SDD 15）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
+| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`interaction/`（交互请求表与 `ask_user`，SDD 15）、`permission/`（权限判定、设置文件、会话授权，SDD 15）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
 
-工具由 `plugins/registry.ts` 的插件登记表 `PLUGINS` 装配，每个工具声明副作用等级 `effect`（SDD 15 §7.3）；插件钩子经 `plugins/compose.ts` 组合后每种只向 harness 注册一个 handler；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式不挂领域工具；`observe` 权限仅可挂 SDD 11 的只读音画观察与证据提交工具：
+工具由 `plugins/registry.ts` 的插件登记表 `PLUGINS` 装配，每个工具声明副作用等级 `effect`（SDD 15 §7.3）；插件钩子经 `plugins/compose.ts` 组合后每种只向 harness 注册一个 handler；取图经 `observation/fetchObservation` 读取 `/objects/{id}/frame` 与 `X-Glaux-Frame`。chat 模式不挂领域工具。命令开始时按权限模式过滤可挂载的 effect（`observe` 只挂 `read`，`exec` 只在 `autonomous` 挂），每次工具调用再经 `permission` 插件判定越界、规则、会话授权与模式默认，需审批时经交互请求表挂起（`permission/`，SDD 15 §7.4、§7.5）：
 
 | 工具 | 作用 | 额外挂载条件 |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ open-glaux/
 | `ask_user` | 向用户提问（≤ 4 个选项，可自由输入），经交互请求表挂起，回答、过期（30 分钟）或中止后继续；所有权限模式可用 | 无（SDD 15 §7.7） |
 | `read_file` | 经 backend `GET /projects/{id}/text` 按行区间读取项目内文本文件，单次至多 400 行或 64 KiB，正文带行号并提示续读起点；不改焦点与文档视图，`details` 供前端渲染文件卡片 | 会话绑定了项目（SDD 14 §7.4） |
 
-项目越界守卫（`pi/tools/project-guard.ts`，SDD 13 §7.8 规则 4）：`run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具执行前，经 backend `GET /objects/{id}` 与 `GET /datasources` 核对对象所属数据源的 `project_id` 与会话一致（未归属会话要求为空），参数显式给出的对象 id 一并校验；不一致时返回工具错误、不执行，查询结果在一个回合内缓存。`consult_atlas` 查全局图谱，不经守卫。backend 地址取 `GLAUX_BACKEND_URL`（缺省 `http://127.0.0.1:8000`），须指向本机回环地址，否则 `/projects*` 返回 403。
+项目越界判定（`pi/tools/project-guard.ts` 的 `ProjectScope`，由 `permission` 插件调用，SDD 13 §7.8 规则 4）：标为 `projectScoped` 的 `run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具执行前，经 backend `GET /objects/{id}` 与 `GET /datasources` 核对对象所属数据源的 `project_id` 与会话一致（未归属会话要求为空），参数显式给出的对象 id 一并校验；不一致时拦截调用、理由以工具错误返回模型，查询结果在一个命令内缓存。权限规则与预算读用户级 `~/.glaux/settings.json`（`GLAUX_HOME` 可改目录）与项目级 `<项目>/.glaux/settings.json`；判定与授权写入会话审计记录，运行中先入队、命令结束时写入。`consult_atlas` 查全局图谱，不经守卫。backend 地址取 `GLAUX_BACKEND_URL`（缺省 `http://127.0.0.1:8000`），须指向本机回环地址，否则 `/projects*` 返回 403。
 
 ### `backend/` — FastAPI 薄壳
 

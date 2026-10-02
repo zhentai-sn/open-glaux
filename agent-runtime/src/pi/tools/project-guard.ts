@@ -1,38 +1,20 @@
 /**
- * 项目越界守卫（SDD 13 §7.8 规则 4、D-13）。
+ * 项目越界判定（SDD 13 §7.8 规则 4、D-13；SDD 15 §7.5 第 1 步）。
  *
  * 会话与项目的绑定只在 agent-runtime 可见，backend 端点保持与会话无关；因此由 runtime 在
  * 工具执行前校验：对象 `ObjectMeta.source_id` 对应数据源的 `project_id` 须等于会话的 `project_id`
- * （未归属会话要求数据源的 `project_id` 为空）。不一致时以工具错误返回模型，不调用被包装工具。
+ * （未归属会话要求数据源的 `project_id` 为空）。判定由 `permission` 插件对 `projectScoped` 工具执行，
+ * 不一致时拦截调用，理由以工具错误返回模型。
  *
- * - 只包装读取「当前对象」的工具（`PROJECT_GUARDED_TOOL_NAMES`）。`consult_atlas` 查的是全局图谱，
- *   `list_files` / `open_file` 自身经项目端点访问、越界由 backend 拒绝，均不包装。
  * - 校验对象取自查看器焦点；工具参数里显式给出的对象 id（`run_task.image_id`、
  *   `submit_video_answer.object_id`）一并校验（§15.5：收到其他项目对象的 id 时返回错误）。
- *   都没有时直接放行，由被包装工具自己处理「无焦点」。
- * - 同一 `ProjectScope` 对应一次 `start()`（一个回合），查询结果在其内缓存；失败不缓存。
+ *   都没有时直接放行，由工具自己处理「无焦点」。
+ * - 同一 `ProjectScope` 对应一次命令，查询结果在其内缓存；失败不缓存。
  */
 
 import { backendBaseUrl } from "../../atlas/client.js";
 import type { ViewerContext } from "../../contracts.js";
-import type { HarnessTool } from "../harness-registry.js";
-import { LOCATE_ROI_TOOL_NAME } from "./locate-roi.js";
-import { PROPOSE_ANNOTATION_TOOL_NAME } from "./propose-annotation.js";
-import { RUN_TASK_TOOL_NAME } from "./run-task.js";
-import { SEGMENT_REGION_TOOL_NAME } from "./segment-region.js";
-import { VIEW_CURRENT_IMAGE_TOOL_NAME } from "./view-image.js";
 import { backendFailure, combinedSignal, unreachable } from "./project-backend.js";
-
-/** 作用于「当前对象」、需在执行前做项目越界校验的工具。 */
-export const PROJECT_GUARDED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  RUN_TASK_TOOL_NAME,
-  VIEW_CURRENT_IMAGE_TOOL_NAME,
-  LOCATE_ROI_TOOL_NAME,
-  SEGMENT_REGION_TOOL_NAME,
-  PROPOSE_ANNOTATION_TOOL_NAME,
-  "observe_video_interval",
-  "submit_video_answer",
-]);
 
 /** 工具参数里可能显式携带的对象 id 字段（线上字段名 `image_id` 语义为对象 id，SDD 10 D-8）。 */
 const OBJECT_ID_PARAMS = ["image_id", "object_id"] as const;
@@ -150,15 +132,4 @@ export class ProjectScope {
     }
     return this.projectOfSource;
   }
-}
-
-/** 在被包装工具执行前做越界校验；越界或无法校验时抛出工具错误，不调用被包装工具。 */
-export function withProjectGuard(tool: HarnessTool, scope: ProjectScope): HarnessTool {
-  return {
-    ...tool,
-    async execute(toolCallId, params, signal, onUpdate, context) {
-      for (const objectId of scope.targets(params)) await scope.assertInProject(objectId, signal);
-      return tool.execute(toolCallId, params, signal, onUpdate, context);
-    },
-  };
 }

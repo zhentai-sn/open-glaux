@@ -14,6 +14,7 @@ import type {
   CreateSessionInput,
   GlauxMetaRecord,
   InteractionRequest,
+  RuntimeWarning,
   PatchSessionInput,
   SessionListItem,
   SessionPhase,
@@ -37,6 +38,8 @@ export interface SessionServiceOptions {
   phaseForSession?: (sessionId: string) => SessionPhase;
   /** 当前待决的交互请求（SDD 15 §9.7）；缺省视为没有。 */
   pendingInteractions?: (sessionId: string) => InteractionRequest[];
+  /** 设置文件加载告警（SDD 15 §9.7）；缺省视为没有。 */
+  warningsFor?: (sessionId: string) => RuntimeWarning[];
 }
 
 export class SessionService {
@@ -45,6 +48,7 @@ export class SessionService {
   readonly metaRepo: GlauxMetaRepo;
   private readonly phaseForSession: (sessionId: string) => SessionPhase;
   private readonly pendingInteractions: (sessionId: string) => InteractionRequest[];
+  private readonly warningsFor: (sessionId: string) => RuntimeWarning[];
 
   constructor(options: SessionServiceOptions) {
     this.env = new NodeExecutionEnv({ cwd: options.workspaceDir });
@@ -56,6 +60,7 @@ export class SessionService {
     this.metaRepo = new GlauxMetaRepo(options.metaDatabasePath);
     this.phaseForSession = options.phaseForSession ?? (() => "idle");
     this.pendingInteractions = options.pendingInteractions ?? (() => []);
+    this.warningsFor = options.warningsFor ?? (() => []);
   }
 
   async initialize(): Promise<void> {
@@ -254,7 +259,7 @@ export class SessionService {
       video_observations: videoObservations,
       context_usage: { tokens: estimate.tokens },
       pending_interactions: this.pendingInteractions(meta.session_id),
-      warnings: [],
+      warnings: this.warningsFor(meta.session_id),
       updated_at: updatedAt,
     };
   }

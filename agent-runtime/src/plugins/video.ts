@@ -20,12 +20,12 @@ export const videoPlugin: GlauxPlugin = {
   applies: (ctx) => !!ctx.videoTurn,
   tools: [
     {
-      name: "observe_video_interval", effect: "read", requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
+      name: "observe_video_interval", effect: "read", projectScoped: true, requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
       create: (ctx) => createObserveVideoTool(ctx.videoTurn!) as HarnessTool,
       promptFragment: () => VIDEO_PROMPT,
     },
     {
-      name: "submit_video_answer", effect: "read", requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
+      name: "submit_video_answer", effect: "read", projectScoped: true, requires: { runtime: true }, supports: (focus) => focus?.kind === "video",
       create: (ctx) => createSubmitVideoAnswerTool(ctx.videoTurn!) as HarnessTool,
       promptFragment: () => "",
     },

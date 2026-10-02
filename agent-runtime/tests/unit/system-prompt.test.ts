@@ -48,13 +48,13 @@ describe("system prompt assembly", () => {
     }, { duration_ms: 90_000, has_audio: true })).toMatchSnapshot();
   });
 
-  it("observe mode keeps only video tools", () => {
+  it("observe mode mounts only read tools", () => {
     expect(prompt({
       permissionMode: "observe",
       connection: { ...TEST_CONNECTION, vision: true },
       runtime,
       videoTurn,
       viewer: viewerOn(FIXTURE_OBJECT_IDS.video),
-    }).tools).toEqual(["observe_video_interval", "submit_video_answer"]);
+    }).tools).toEqual(["observe_video_interval", "submit_video_answer", "view_current_image", "consult_atlas"]);
   });
 });

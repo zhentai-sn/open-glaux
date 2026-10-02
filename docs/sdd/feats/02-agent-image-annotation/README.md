@@ -208,17 +208,18 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 2. **`mask.size` 实为 `[width, height]`**，schema 声明为 `[height, width]`——按声明解读会让
    几何纵向糊成长条。回归测试以"解码 bbox 必须与后端自报 bbox 吻合"做交叉验证。
 
-### 7.3 权限门控（permission_mode 首次接线）
+### 7.3 权限门控
+
+权限模式、工具副作用等级与审批规则以 [SDD 15](../15-agent-plugins-permissions/README.md) §7.3～§7.5 为准。本 SDD 三个工具的等级：`locate_roi` 为 `compute`，`segment_region` 为 `egress`，`propose_annotation` 为 `annotate`。由此：
 
 | 模式 | 行为 |
 | --- | --- |
-| `observe` | 标注工具全部不可用；agent 只能文字描述其发现 |
-| `suggest` | 允许 `locate_roi`；`segment_region`/`propose_annotation` 需逐次用户批准 |
-| `controlled` | 三个工具均可用，`propose_annotation` 产物必须人工确认（本阶段默认） |
-| `autonomous` | 同 `controlled`；本阶段不提供免确认路径（自动确认在 §2 非目标中） |
+| `observe` | 三个工具均不挂载；agent 只能文字描述其发现 |
+| `suggest` | `propose_annotation` 自动放行；`locate_roi`、`segment_region` 逐次审批 |
+| `controlled` | 三个工具均自动放行（默认） |
+| `autonomous` | 同 `controlled` |
 
-逐次批准门控实现于 pi-agent-core 的 `beforeToolCall` 钩子，读取会话 `permission_mode`；
-交互形态为**会话内卡片**（Q5 → D-11），不弹窗。
+任何模式下 `propose_annotation` 的产物都是建议态，必须人工确认（§2 非目标：不提供自动确认）。逐次审批实现于 pi-agent-core 的 `tool_call` 钩子，交互形态为**会话内卡片**（Q5 → D-11），不弹窗。
 
 除权限模式外，工具还有两层注册期门控（不满足则**不注册**，而非运行期报错——挂一个必然
 失败的工具只会让模型反复重试，并把失败误读为"图里没有该结构"）：
@@ -227,7 +228,7 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 | --- | --- | --- |
 | `locate_roi` | 有 `focus` 且 `connection.vision === true` | 要向模型发图；无视觉的模型收到的图会被 pi-ai 静默换成 "image omitted" 占位 |
 | `segment_region` | 有 `focus`、`GLAUX_ANNOT_ALLOW_EGRESS` 放行 **且** `GLAUX_SEG_API_TOKEN` 存在 | 图要发往第三方分割服务 |
-| `propose_annotation` | 有 `focus` 且非 `observe` | 只写本机 backend，且产出恒为建议态 |
+| `propose_annotation` | 有 `focus`（`observe` 下不挂载，见上表） | 只写本机 backend，且产出恒为建议态 |
 
 ### 7.4 数据外发规则
 

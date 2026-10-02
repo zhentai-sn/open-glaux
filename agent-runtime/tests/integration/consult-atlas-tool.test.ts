@@ -250,14 +250,14 @@ describe("default tool factory · atlas gating", () => {
     expect(withoutVision.map((t) => t.name)).not.toContain(CONSULT_ATLAS_TOOL_NAME);
   });
 
-  it("observe mode has no tools at all, vision or not", () => {
+  it("observe mode mounts only read tools, so consult_atlas stays available (SDD 15 D-10)", () => {
     expect(
       defaultToolFactory({
         permissionMode: "observe",
         connection: { ...TEST_CONNECTION, vision: true },
         runtime,
-      }),
-    ).toEqual([]);
+      }).map((tool) => tool.name),
+    ).toEqual([CONSULT_ATLAS_TOOL_NAME]);
   });
 });
 

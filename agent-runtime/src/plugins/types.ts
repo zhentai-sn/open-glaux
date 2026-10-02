@@ -8,6 +8,7 @@ import type {
 } from "@earendil-works/pi-agent-core";
 
 import type { ToolProvider, ViewerContext } from "../contracts.js";
+import type { PermissionRunState } from "../permission/plugin.js";
 import type { HarnessToolContext } from "../pi/harness-registry.js";
 
 /** SDD 15 §7.3：工具副作用等级，权限模式按它决定放行、审批或不挂载。 */
@@ -16,6 +17,8 @@ export type ToolEffect = (typeof TOOL_EFFECTS)[number];
 
 export interface PluginTool extends ToolProvider {
   effect: ToolEffect;
+  /** 作用于「当前对象」，执行前做项目越界判定（SDD 13 §7.8 规则 4、SDD 15 §7.5 第 1 步）。 */
+  projectScoped?: boolean;
   /** 规则 pattern 的匹配对象；缺省则带 pattern 的规则不命中（SDD 15 §7.5）。 */
   permissionSubject?(args: Record<string, unknown>): string | undefined;
 }
@@ -26,6 +29,8 @@ export interface RunContext {
   commandId: string;
   projectId?: string;
   viewer?: ViewerContext;
+  /** 权限判定所需的状态；缺省时权限插件不判定（chat 发行版、单元测试）。 */
+  permission?: PermissionRunState;
 }
 
 export interface PluginHooks {

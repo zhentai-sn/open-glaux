@@ -334,13 +334,14 @@ describe("locate_roi 门控", () => {
     expect(withoutVision.map((t) => t.name)).not.toContain(LOCATE_ROI_TOOL_NAME);
   });
 
-  it("observe 模式不挂", () => {
+  it("observe 模式不挂（compute 不属于只读，SDD 15 §7.4）", () => {
     expect(
       defaultToolFactory({
         permissionMode: "observe",
         connection: { ...HOSTED, vision: true } as ConnectionInput,
         runtime,
-      }),
-    ).toEqual([]);
+        viewer: viewerOn("tech_402"),
+      }).map((tool) => tool.name),
+    ).not.toContain(LOCATE_ROI_TOOL_NAME);
   });
 });

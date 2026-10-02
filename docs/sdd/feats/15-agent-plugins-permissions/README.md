@@ -206,7 +206,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 
 每次 `tool_call`，`permission` 插件按以下顺序判定，命中即停：
 
-1. **项目越界**：工具属于原 `PROJECT_GUARDED_TOOL_NAMES`，且对象所属项目与会话不一致 → deny（规则同 SDD 13 §7.8 规则 4，判定逻辑从 `withProjectGuard` 移入此处）。
+1. **项目越界**：工具标为 `projectScoped`（`run_task`、`view_current_image`、`locate_roi`、`segment_region`、`propose_annotation` 与两个视频工具），且对象所属项目与会话不一致 → deny（规则同 SDD 13 §7.8 规则 4，判定逻辑从 `withProjectGuard` 移入此处）。
 2. **deny 规则**：任一级设置文件中命中 → deny。
 3. **ask 规则**：任一级设置文件中命中 → ask。审批卡片不提供「本会话允许」「总是允许」。
 4. **allow 规则或会话授权**：命中 → allow。

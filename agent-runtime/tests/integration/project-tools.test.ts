@@ -27,7 +27,11 @@ import {
   OPEN_FILE_TOOL_NAME,
   type ObjectOpenedDetails,
 } from "../../src/pi/tools/open-file.js";
-import { PROJECT_GUARDED_TOOL_NAMES, ProjectScope, withProjectGuard } from "../../src/pi/tools/project-guard.js";
+import { ProjectScope } from "../../src/pi/tools/project-guard.js";
+import { permissionPlugin } from "../../src/permission/plugin.js";
+import { EMPTY_SETTINGS } from "../../src/permission/settings.js";
+import { pluginTools } from "../../src/plugins/registry.js";
+import type { HarnessTool } from "../../src/pi/harness-registry.js";
 import {
   createReadFileTool,
   FILE_READ_DETAILS_KIND,
@@ -87,8 +91,9 @@ describe("浏览工具挂载条件（SDD 13 §7.3 规则 1）", () => {
     expect(mounted).not.toContain(OPEN_FILE_TOOL_NAME);
   });
 
-  it("observe 模式不挂载", () => {
-    expect(names({ permissionMode: "observe", connection: vision, runtime, projectId: "prj-a" })).toEqual([]);
+  it("observe 模式只挂只读工具，浏览工具仍可用（SDD 15 D-10）", () => {
+    expect(names({ permissionMode: "observe", connection: vision, runtime, projectId: "prj-a" }))
+      .toEqual(expect.arrayContaining([LIST_FILES_TOOL_NAME, OPEN_FILE_TOOL_NAME, READ_FILE_TOOL_NAME]));
   });
 
   it("无视觉的连接只挂 list_files", () => {
@@ -102,8 +107,8 @@ describe("浏览工具挂载条件（SDD 13 §7.3 规则 1）", () => {
     expect(mounted).not.toContain(OPEN_FILE_TOOL_NAME);
   });
 
-  it("越界守卫只包装作用于当前对象的工具", () => {
-    expect([...PROJECT_GUARDED_TOOL_NAMES].sort()).toEqual([
+  it("越界判定只针对作用于当前对象的工具", () => {
+    expect(pluginTools().filter((tool) => tool.projectScoped).map((tool) => tool.name).sort()).toEqual([
       "locate_roi", "observe_video_interval", "propose_annotation", "run_task",
       "segment_region", "submit_video_answer", "view_current_image",
     ]);
@@ -289,15 +294,15 @@ describe("read_file 挂载条件（SDD 14 §7.4 规则 1）", () => {
 
   it("绑定项目的会话挂载，且不经越界守卫", () => {
     expect(names({ permissionMode: "controlled", connection: vision, runtime, projectId: "prj-a" })).toContain(READ_FILE_TOOL_NAME);
-    expect(PROJECT_GUARDED_TOOL_NAMES.has(READ_FILE_TOOL_NAME)).toBe(false);
+    expect(pluginTools().find((tool) => tool.name === READ_FILE_TOOL_NAME)?.projectScoped).toBeFalsy();
   });
 
   it("未归属会话不挂载", () => {
     expect(names({ permissionMode: "controlled", connection: vision, runtime })).not.toContain(READ_FILE_TOOL_NAME);
   });
 
-  it("observe 模式不挂载", () => {
-    expect(names({ permissionMode: "observe", connection: vision, runtime, projectId: "prj-a" })).not.toContain(READ_FILE_TOOL_NAME);
+  it("observe 模式仍挂载（read，SDD 15 D-10）", () => {
+    expect(names({ permissionMode: "observe", connection: vision, runtime, projectId: "prj-a" })).toContain(READ_FILE_TOOL_NAME);
   });
 
   it("连接未声明视觉能力时仍挂载", () => {
@@ -499,12 +504,36 @@ function scopedBackend(objects: Record<string, string>, sources: Record<string, 
   );
 }
 
+/** 先经权限插件的 tool_call 钩子判定越界（SDD 15 §7.5 第 1 步），放行后再执行工具。 */
+function guarded(tool: HarnessTool, scope: ProjectScope): HarnessTool {
+  return {
+    ...tool,
+    async execute(toolCallId, params, signal, onUpdate, context) {
+      const verdict = await permissionPlugin.hooks!.tool_call!(
+        { type: "tool_call", toolCallId, toolName: tool.name, input: params as Record<string, unknown> },
+        {
+          sessionId: "s",
+          commandId: "c",
+          permission: {
+            getMode: () => "controlled",
+            tools: new Map(pluginTools().map((t) => [t.name, t])),
+            scope,
+            settings: EMPTY_SETTINGS,
+            grants: new Set(),
+            audit: async () => undefined,
+            alwaysPath: "",
+          },
+        },
+      );
+      if (verdict?.block) throw new Error(verdict.reason);
+      return tool.execute(toolCallId, params, signal, onUpdate, context);
+    },
+  };
+}
+
 function guardedRunTask(backend: ReturnType<typeof fakeBackend>, scope: ProjectScope, objectId?: string) {
   const viewer = objectId ? viewerOn(objectId, { task: "fetal_hc" }) : undefined;
-  return withProjectGuard(
-    createRunTaskTool({ fetch: backend.fetch, backendBaseUrl: BASE, ...(viewer ? { viewer } : {}) }) as never,
-    scope,
-  );
+  return guarded(createRunTaskTool({ fetch: backend.fetch, backendBaseUrl: BASE, ...(viewer ? { viewer } : {}) }) as never, scope);
 }
 
 describe("项目越界守卫（SDD 13 §7.8 规则 4）", () => {
@@ -551,7 +580,7 @@ describe("项目越界守卫（SDD 13 §7.8 规则 4）", () => {
     const backend = scopedBackend({ tech_0450: "src-a" }, { "src-a": "prj-a" });
     const scope = new ProjectScope({ projectId: "prj-a", viewer: viewerOn("tech_0450"), fetch: backend.fetch, backendBaseUrl: BASE });
     const runTask = guardedRunTask(backend, scope, "tech_0450");
-    const view = withProjectGuard(
+    const view = guarded(
       createViewCurrentImageTool({ fetch: backend.fetch, backendBaseUrl: BASE, viewer: viewerOn("tech_0450") }) as never,
       scope,
     );
@@ -565,7 +594,7 @@ describe("项目越界守卫（SDD 13 §7.8 规则 4）", () => {
   it("没有焦点时直接交给被包装工具", async () => {
     const backend = scopedBackend({}, {});
     const scope = new ProjectScope({ projectId: "prj-a", fetch: backend.fetch, backendBaseUrl: BASE });
-    const view = withProjectGuard(createViewCurrentImageTool({ fetch: backend.fetch, backendBaseUrl: BASE }) as never, scope);
+    const view = guarded(createViewCurrentImageTool({ fetch: backend.fetch, backendBaseUrl: BASE }) as never, scope);
     const result = await view.execute("c1", {}, undefined, undefined, undefined);
     expect(textOf(result)).toMatch(/No image is open/u);
     expect(backend.calls).toEqual([]);
@@ -578,7 +607,7 @@ describe("项目越界守卫（SDD 13 §7.8 规则 4）", () => {
       throw new TypeError("fetch failed");
     }) as unknown as typeof fetch;
     const scope = new ProjectScope({ projectId: "prj-a", viewer: viewerOn("tech_0450"), fetch: down, backendBaseUrl: BASE });
-    const tool = withProjectGuard(
+    const tool = guarded(
       createRunTaskTool({ fetch: down, backendBaseUrl: BASE, viewer: viewerOn("tech_0450", { task: "fetal_hc" }) }) as never,
       scope,
     );
@@ -586,13 +615,41 @@ describe("项目越界守卫（SDD 13 §7.8 规则 4）", () => {
     expect(calls.some((url) => url.endsWith("/task/run"))).toBe(false);
   });
 
-  it("defaultToolFactory 挂出的 run_task 带守卫", async () => {
+  it("经 harness 运行时，越界的 run_task 被权限插件拦截，判定依据记为越界", async () => {
     const backend = scopedBackend({ tech_0450: "src-b" }, { "src-b": "prj-b" });
-    vi.stubGlobal("fetch", backend.fetch);
-    const tools = defaultToolFactory({ permissionMode: "controlled", viewer: viewerOn("tech_0450", { task: "fetal_hc" }), projectId: "prj-a" });
-    const runTask = tools.find((tool) => tool.name === RUN_TASK_TOOL_NAME)!;
-    await expect(runTask.execute("c1", {}, undefined, undefined, undefined)).rejects.toThrow(/does not belong/u);
-    expect(backend.paths()).not.toContain("/task/run");
-    expect(tools.map((tool) => tool.name)).not.toContain(VIEW_CURRENT_IMAGE_TOOL_NAME); // 无视觉连接
+    const fixture = await createRuntimeFixture(
+      [[
+        fauxAssistantMessage(fauxToolCall(RUN_TASK_TOOL_NAME, {}), { stopReason: "toolUse" }),
+        fauxAssistantMessage("blocked"),
+      ]],
+      {
+        toolFactory: ({ viewer }) => [createRunTaskTool({ fetch: backend.fetch, backendBaseUrl: BASE, ...(viewer ? { viewer } : {}) }) as never],
+        permission: { projectScope: (options) => new ProjectScope({ ...options, fetch: backend.fetch, backendBaseUrl: BASE }) },
+      },
+    );
+    const session = crypto.randomUUID();
+    const events: TransportEvent[] = [];
+    try {
+      await fixture.sessions.createSession({ session_id: session, project_id: "prj-a" });
+      fixture.registry.subscribe(session, (event) => events.push(event));
+      await fixture.commands.accept(session, {
+        command_id: crypto.randomUUID(), type: "prompt", content: "measure", connection: TEST_CONNECTION,
+        viewer: viewerOn("tech_0450", { task: "fetal_hc" }),
+      });
+      await fixture.registry.waitForIdle(session);
+      const end = events.find((e): e is Extract<TransportEvent, { event: "tool.end" }> => e.event === "tool.end");
+      expect(end?.data.is_error).toBe(true);
+      expect(end?.data.error_text).toMatch(/does not belong/u);
+      expect(backend.paths()).not.toContain("/task/run");
+      const opened = await fixture.sessions.openSession(session);
+      try {
+        const decisions = (await opened.getEntries()).filter((e) => e.type === "custom" && e.customType === "glaux.permission.decision");
+        expect((decisions[0] as { data: unknown }).data).toMatchObject({ tool: RUN_TASK_TOOL_NAME, decision: "deny", basis: "project" });
+      } finally {
+        await fixture.sessions.closeSession(opened);
+      }
+    } finally {
+      await fixture.close();
+    }
   });
 });

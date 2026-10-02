@@ -170,3 +170,7 @@ status: active
 - W2：`tool.end` 增加 `error_text`（仅出错时，前 2000 字符）。现有集成测试断言工具错误文本，W6 的「已拒绝」理由也需要它；SDD 15 §9.5 已同步。
 - W2：脱敏改为逐字符串执行（新增 `redactStrings`）。原实现对整段 JSON 执行 `redactText`，`Bearer` 规则会吞掉结束引号导致 `JSON.parse` 抛错，进而从订阅回调中让运行失败；这是迁移前就存在的缺陷。
 - W3：交互请求表由 `HarnessRegistry` 持有（`registry.interactions`），审计经 `registry.appendAudit` 写入当前命令的 Pi 会话；回复端点的契约用例与 `ask_user` 集成用例合并在 `tests/integration/ask-user-tool.test.ts`，未另建 `tests/contract/interactions-api.test.ts`。`ask_user` 本波已加入 `observe` 模式的工具白名单。
+- W4：权限依赖（越界作用域、设置加载）作为 `HarnessRegistry` 的第 5 个构造参数注入；测试夹具缺省注入「越界一律放行、无设置文件」，避免注入同名工具的既有测试访问真实 backend 与用户目录。
+- W4：审计记录在命令运行中入队、命令结束时顺序写入。运行中直接写会话，会与交互请求结束时的审计或 harness 自身写入并发，SQLite 会话存储拒绝写入（实测）。代价是 runtime 在命令中途崩溃时丢失该命令的审计记录。命令结束时同时取消该命令残留的待决请求。
+- W4：快照 `warnings` 来自最近一次命令加载设置时的结果；会话尚未运行过命令时为空。
+- W4：未在 `tests/compatibility/pi-public-api.test.ts` 增加钩子取值语义断言，钩子组合由 `plugins-compose` 单测覆盖，pi 行为由 `permission-flow` 集成测试间接覆盖。

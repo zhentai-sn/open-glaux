@@ -25,10 +25,14 @@ import {
   createModelRuntime,
   type ModelRuntime,
 } from "./model-runtime.js";
-import { activePlugins, availableTools, promptFragments } from "../plugins/registry.js";
+import { activePlugins, availableTools, pluginTools, promptFragments } from "../plugins/registry.js";
 import { installHooks } from "../plugins/compose.js";
 import { mapPiEvent } from "../transport/event-map.js";
-import { PROJECT_GUARDED_TOOL_NAMES, ProjectScope, withProjectGuard } from "./tools/project-guard.js";
+import { ProjectScope } from "./tools/project-guard.js";
+import { mountable } from "../permission/decide.js";
+import { defaultLoadSettings, restoreGrants } from "../permission/load.js";
+import type { PermissionDeps, PermissionRunState } from "../permission/plugin.js";
+import type { RuntimeWarning } from "../contracts.js";
 import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
 
@@ -61,24 +65,15 @@ export interface HarnessToolFactory {
 }
 
 /**
- * 缺省工具集：取插件登记表中本次可挂载的工具（SDD 15 §7.1）。
- * `observe` 模式只保留两个视频工具（SDD 02 §7.3、SDD 11）；
- * 作用于当前对象的工具经 `withProjectGuard` 在执行前做项目越界校验（SDD 13 §7.8 规则 4）。
+ * 缺省工具集：插件登记表中本次可挂载、且命令开始时的权限模式允许挂载的工具（SDD 15 §7.1、§7.4）。
+ * 越界、规则与审批在 `permission` 插件的 `tool_call` 钩子中判定。
  */
 export const defaultToolFactory: HarnessToolFactory = (context) => {
   if (chatEdition()) return [];
-  const providers = availableTools(context);
-  // 一次 start 一个作用域：越界校验的查询结果只在本回合内缓存（SDD 13 §7.8 规则 4）。
-  const scope = new ProjectScope({
-    ...(context.projectId ? { projectId: context.projectId } : {}),
-    ...(context.viewer ? { viewer: context.viewer } : {}),
-  });
-  return (context.permissionMode === "observe"
-    ? providers.filter((provider) => ["observe_video_interval", "submit_video_answer", "ask_user"].includes(provider.name))
-    : providers).map((provider) => {
-      const tool = provider.create(context);
-      return PROJECT_GUARDED_TOOL_NAMES.has(tool.name) ? withProjectGuard(tool, scope) : tool;
-    });
+  const mode = context.permissionMode ?? "controlled";
+  return availableTools(context)
+    .filter((provider) => mountable(provider.effect, mode))
+    .map((provider) => provider.create(context));
 };
 
 const SYSTEM_PROMPT =
@@ -133,6 +128,8 @@ interface HarnessSlot {
   completion: Promise<void>;
   /** 本命令的回合数与起始时刻，供 `run.settled` 与预算使用（SDD 15 §7.8）。 */
   stats: { turns: number; startedAt: number };
+  /** 运行中产生的审计记录，命令结束时按顺序写入会话。 */
+  audit: { customType: string; data: unknown }[];
 }
 
 type TransportListener = (event: Exclude<TransportEvent, { event: "snapshot" }>) => void;
@@ -143,12 +140,15 @@ export class HarnessRegistry {
 
   /** SDD 15 §7.6：全部会话共用一张交互请求表。 */
   readonly interactions: InteractionTable;
+  /** 最近一次命令加载设置文件时的告警，按会话保存，供快照 `warnings`（SDD 15 §9.7）。 */
+  private readonly settingsWarnings = new Map<string, RuntimeWarning[]>();
 
   constructor(
     private readonly sessions: SessionService,
     private readonly runtimeFactory: HarnessRuntimeFactory = createModelRuntime,
     private readonly toolFactory: HarnessToolFactory = defaultToolFactory,
     interactionTimeoutMs?: number,
+    private readonly permissionDeps: PermissionDeps = {},
   ) {
     this.interactions = new InteractionTable({
       emit: (sessionId, event) => this.emit(sessionId, event),
@@ -159,6 +159,10 @@ export class HarnessRegistry {
 
   getPhase(sessionId: string): SessionPhase {
     return this.slots.get(sessionId)?.phase ?? "idle";
+  }
+
+  warningsFor(sessionId: string): RuntimeWarning[] {
+    return this.settingsWarnings.get(sessionId) ?? [];
   }
 
   getActiveCommandId(sessionId: string): string | undefined {
@@ -195,10 +199,12 @@ export class HarnessRegistry {
       : undefined;
     let videoDescription: { duration_ms: number; has_audio: boolean } | undefined;
     let projectId: string | null;
+    let permission: PermissionRunState | undefined;
     try {
       // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
       projectId = sessionProjectId(await session.getMetadata());
       videoDescription = videoTurn ? await videoTurn.describe() : undefined;
+      if (!chatEdition()) permission = await this.preparePermission(sessionId, session, projectId, options);
     } catch (error) {
       runtime.disposeCredential();
       await this.sessions.closeSession(session);
@@ -227,6 +233,7 @@ export class HarnessRegistry {
       commandId,
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
+      ...(permission ? { permission } : {}),
     });
     const stats = { turns: 0, startedAt: Date.now() };
     const unsubscribeEvents = harness.subscribe((event) => {
@@ -247,6 +254,7 @@ export class HarnessRegistry {
       unsubscribeHarness,
       completion: Promise.resolve(),
       stats,
+      audit: [],
     };
     this.slots.set(sessionId, slot);
 
@@ -257,6 +265,9 @@ export class HarnessRegistry {
         await operation(harness, session);
         await videoTurn?.finalize();
       } finally {
+        // 失败结束的命令也不留待决请求（SDD 15 §7.6）。
+        this.interactions.cancelCommand(sessionId, commandId);
+        await this.flushAudit(slot);
         runtime.disposeCredential();
         slot.phase = "idle";
       }
@@ -333,11 +344,54 @@ export class HarnessRegistry {
     await slot.harness.compact();
   }
 
-  /** 向本会话当前命令的 Pi 会话写审计记录；没有活动命令时丢弃。 */
+  /** SDD 15 §7.5：本命令的权限判定状态。越界作用域与设置加载可由测试注入。 */
+  private async preparePermission(
+    sessionId: string,
+    session: Session,
+    projectId: string | null,
+    options: HarnessStartOptions,
+  ): Promise<PermissionRunState> {
+    const scopeOptions = {
+      ...(projectId ? { projectId } : {}),
+      ...(options.viewer ? { viewer: options.viewer } : {}),
+    };
+    const { settings, alwaysPath } = await (this.permissionDeps.loadSettings ?? defaultLoadSettings)(projectId ?? undefined);
+    this.settingsWarnings.set(sessionId, settings.warnings);
+    return {
+      getMode: () => this.sessions.metaRepo.get(sessionId)?.permission_mode ?? options.permissionMode ?? "controlled",
+      tools: new Map(pluginTools().map((tool) => [tool.name, tool])),
+      // 一次命令一个作用域：越界查询结果只在本命令内缓存（SDD 13 §7.8 规则 4）。
+      scope: this.permissionDeps.projectScope?.(scopeOptions) ?? new ProjectScope(scopeOptions),
+      settings,
+      grants: await restoreGrants(session),
+      interactions: this.interactions,
+      audit: (customType, data) => this.appendAudit(sessionId, customType, data),
+      alwaysPath,
+    };
+  }
+
+  /**
+   * 写审计记录。命令运行中先入队、命令结束时顺序写入：运行中直接写会与 harness 自身的写入
+   * 或另一条审计并发，SQLite 会话存储会拒绝。没有命令时丢弃。
+   */
   async appendAudit(sessionId: string, customType: string, data: unknown): Promise<void> {
     const slot = this.slots.get(sessionId);
     if (!slot) return;
-    await slot.session.appendCustomEntry(customType, data);
+    if (slot.phase === "idle") {
+      await slot.session.appendCustomEntry(customType, data);
+      return;
+    }
+    slot.audit.push({ customType, data });
+  }
+
+  private async flushAudit(slot: HarnessSlot): Promise<void> {
+    for (const { customType, data } of slot.audit.splice(0)) {
+      try {
+        await slot.session.appendCustomEntry(customType, data);
+      } catch (error) {
+        console.error("audit write failed", { customType, error });
+      }
+    }
   }
 
   /** 命令结束时由命令服务调用；命令未能启动时回合数为 0。 */
