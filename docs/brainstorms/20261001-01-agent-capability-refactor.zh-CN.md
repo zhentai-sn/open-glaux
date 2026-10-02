@@ -1,12 +1,12 @@
 ---
 kind: record
-status: brainstorming
+status: review
 ---
 
 # 智能体能力重构：基础工具、Skills、子智能体与权限（需求文档 v0）
 
 > **用途**：记录把参考智能体从「固定领域工具集」重构为「基于 pi-agent-core 扩展点的插件化 harness」的需求与构想，供拆分 SDD。
-> **日期**：2026-10-01 · **状态**：`brainstorming`
+> **日期**：2026-10-01 · **状态**：`review`（P0 → [SDD 15](../sdd/feats/15-agent-plugins-permissions/README.md) `ready`；harness 常驻改为不做，见 SDD 15 D-1）
 > **依据**：本次对话讨论 · `agent-runtime/src` 现状 · `@earendil-works/pi-agent-core` 0.82.1 类型声明（`dist/harness/*.d.ts`）· [SDD 00](../sdd/feats/00-reference-agent-conversations/README.md) · [SDD 02 §7.3](../sdd/feats/02-agent-image-annotation/README.md) · [SDD 13](../sdd/feats/13-project-folder-sessions/README.md) · [SDD 14](../sdd/feats/14-project-text-preview/README.md)
 
 ## 1. 一句话
@@ -331,7 +331,7 @@ model: inherit
 
 | 期 | 内容 | 前置理由 |
 | --- | --- | --- |
-| P0 | 插件契约；harness 改为每会话常驻；权限引擎（effect 分级、`tool_call` 钩子、规则、审计）；统一挂起机制（审批与 `ask_user`）；运行保障的预算、轮内上下文裁剪、挂起状态；transport 自有事件结构 | 放开写入和 `bash` 之前必须先有审批与预算 |
+| P0 | 插件契约；权限引擎（effect 分级、`tool_call` 钩子、规则、审计）；统一挂起机制（审批与 `ask_user`）；运行保障的预算、轮内上下文裁剪、挂起状态；transport 自有事件结构 | 放开写入和 `bash` 之前必须先有审批与预算 |
 | P1 | 四个基础工具；会话工作区；`read` 取代 `read_file`；写入后刷新前端 | 依赖 P0 |
 | P2 | Skills 加载与按需读取；Skills 管理页；提示词管理页与模板 | 依赖 P1 的 `read` |
 | P3 | 子智能体工具、定义加载、事件转发、级联中止 | 依赖 P0 的权限继承和 P2 的定义加载 |

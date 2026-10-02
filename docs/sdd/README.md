@@ -46,6 +46,7 @@ stateDiagram-v2
 | 12 | [主题切换（深色 / 浅色）与强调色](feats/12-theme-switch/README.md) | `implemented`（v1.1 自定义强调色；Workbench 浏览器走查与业务验收待补） | Glaux 项目维护者 | 2026-09-25 |
 | 13 | [项目文件夹与并行会话](feats/13-project-folder-sessions/README.md) | `implemented`（P1 通用图像与视频、P2 CT/WSI；真实模型走查、上传节点用例、业务验收待补） | Glaux 项目维护者 | 2026-09-25 |
 | 14 | [项目文本文件预览与读取](feats/14-project-text-preview/README.md) | `implemented`（真实模型走查、Workbench 走查、业务验收待补） | Glaux 项目维护者 | 2026-09-26 |
+| 15 | [智能体插件契约与权限引擎](feats/15-agent-plugins-permissions/README.md) | `ready`（脑暴 20261001-01 的 P0） | Glaux 项目维护者 | 2026-10-02 |
 
 ## 维护约定
 
