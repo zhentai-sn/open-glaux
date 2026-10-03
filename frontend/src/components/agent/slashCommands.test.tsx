@@ -73,6 +73,14 @@ describe("composer slash menu", () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledWith("/imt-protocol left side", [], { skill: "imt-protocol" }));
   });
 
+  it("recognizes a whole command pasted at once, before the menu ever opened", async () => {
+    const { onSend, box } = setup();
+    fireEvent.change(box, { target: { value: "/compare A B" } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("/compare A B", [], { template: { name: "compare", args: "A B" } }));
+  });
+
   it("closes on Escape and sends unknown names as plain text", async () => {
     const { onSend, box } = setup();
     fireEvent.change(box, { target: { value: "/" } });

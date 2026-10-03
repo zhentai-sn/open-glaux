@@ -26,6 +26,8 @@
 
 ### Fixed
 
+- 预算收尾时部分模型无视拦截理由继续调用工具，宽限用尽后用户拿不到回答：收尾回合的请求改为 `tool_choice` 不调用工具。
+- 请求格式错误（如带 JSON content-type 却无请求体）返回 400 `invalid_request`，不再报 500；内部错误日志附原始异常的类型与消息。
 - 首条命令被中止或失败时会话停留在「New conversation」：标题改为在调用模型前写入。
 - 多个会话并发写入 Pi 会话存储时报「Failed to append SQLite session entry」：pi 的 SQLite 适配器以同步驱动执行异步事务，跨连接争锁时同步忙等堵住事件循环。会话存储改用串行化写入的 SQLite 工厂（`storage/serialized-sqlite.ts`）。
 - 事件脱敏改为逐字符串执行；原实现对整段 JSON 替换，含 `Bearer` 文本的事件会产出非法 JSON 并使运行失败。

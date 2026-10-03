@@ -32,7 +32,8 @@ export function InteractionCard({
   onReply,
 }: {
   request: InteractionRequest;
-  onReply: (reply: InteractionReply) => void;
+  /** 返回 `false` 表示回复没有送达，卡片恢复可点以便重试。 */
+  onReply: (reply: InteractionReply) => void | Promise<boolean>;
 }) {
   const { t } = useI18n();
   const [reason, setReason] = useState("");
@@ -40,7 +41,9 @@ export function InteractionCard({
   const [sent, setSent] = useState(false);
   const reply = (value: InteractionReply) => {
     setSent(true);
-    onReply(value);
+    void Promise.resolve(onReply(value)).then((delivered) => {
+      if (delivered === false) setSent(false);
+    });
   };
 
   if (request.kind === "permission" && request.permission) {

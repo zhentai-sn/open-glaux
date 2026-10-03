@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InteractionRequest } from "../../agent/runtime/types";
@@ -86,6 +86,15 @@ describe("InteractionCard", () => {
     expect(screen.getByTestId("interaction-origin")).toHaveTextContent("From sub-agent: find the reports");
     renderCard({ ...question([]), origin: { subagent: "check units" } });
     expect(screen.getAllByTestId("interaction-origin")[1]).toHaveTextContent("From sub-agent: check units");
+  });
+
+  it("re-enables the actions when the reply did not get through", async () => {
+    const onReply = vi.fn(async () => false);
+    render(<I18nProvider><InteractionCard request={permission(["once"])} onReply={onReply} /></I18nProvider>);
+    fireEvent.click(screen.getByTestId("interaction-once"));
+    expect(screen.getByTestId("interaction-once")).toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId("interaction-once")).toBeEnabled());
+    expect(onReply).toHaveBeenCalledTimes(1);
   });
 
   it("shows no origin for requests of the main agent", () => {

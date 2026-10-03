@@ -39,6 +39,7 @@ import type { RuntimeWarning } from "../contracts.js";
 import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
 import { resolveBudget, RunBudget } from "../budget/run-budget.js";
+import { installWindDown } from "../budget/wind-down.js";
 import { loadResources, type LoadedResources } from "../resources/load.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
@@ -288,9 +289,12 @@ export class HarnessRegistry {
       const mapped = mapPiEvent(sessionId, commandId, event);
       if (mapped) this.emit(sessionId, mapped);
     });
+    // SDD 15 §7.8 规则 3：收尾回合禁止调用工具。
+    const uninstallWindDown = budget ? installWindDown(harness, budget) : () => undefined;
     const unsubscribeHarness = () => {
       unsubscribeEvents();
       uninstallHooks();
+      uninstallWindDown();
     };
     const slot: HarnessSlot = {
       session,

@@ -113,7 +113,8 @@ interface AgentSessionsState {
   clearError: () => void;
   applySnapshot: (snapshot: SessionView) => void;
   applyRuntimeEvent: (event: RuntimeEvent) => void;
-  replyInteraction: (sessionId: string, requestId: string, reply: InteractionReply) => Promise<void>;
+  /** 回复是否送达；失败时已写入 `error`，卡片据此恢复可点。 */
+  replyInteraction: (sessionId: string, requestId: string, reply: InteractionReply) => Promise<boolean>;
 }
 
 const CURRENT_SESSION_KEY = "glaux.agent.current-session";
@@ -462,9 +463,9 @@ export function createAgentSessionsStore(
             ? error
             : new AgentRuntimeError(0, "runtime_unavailable", "Agent Runtime is unavailable.");
           set({ error: { code: runtimeError.code, message: runtimeError.message, ...(runtimeError.traceId ? { traceId: runtimeError.traceId } : {}) } });
-          return;
+          return false;
         }
-        if (!request) return;
+        if (!request) return true;
         // 先记下本端的回复，interaction.resolved 到达时补上结局；两者顺序不定。
         set((state) => {
           const list = state.resolvedInteractions[sessionId] ?? [];
@@ -478,6 +479,7 @@ export function createAgentSessionsStore(
             },
           };
         });
+        return true;
       },
 
       applySnapshot: (snapshot) => {

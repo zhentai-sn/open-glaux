@@ -5,6 +5,7 @@
 import { AgentHarness, InMemorySessionRepo, type AgentMessage } from "@earendil-works/pi-agent-core";
 
 import { RunBudget } from "../budget/run-budget.js";
+import { installWindDown } from "../budget/wind-down.js";
 import type { TranscriptBlock, TranscriptMessage } from "../contracts.js";
 import type { HarnessTool } from "../pi/harness-registry.js";
 import type { ModelRuntime } from "../pi/model-runtime.js";
@@ -107,7 +108,9 @@ export async function runSubagent(prompt: string, deps: SubagentRunDeps): Promis
     waitedMs: deps.waitedMs ?? (() => 0),
     onAbort: () => { setImmediate(() => void harness.abort()); },
   });
-  const uninstall = installHooks(harness, deps.plugins, { ...deps.runContext, budget });
+  const uninstallHooks = installHooks(harness, deps.plugins, { ...deps.runContext, budget });
+  const uninstallWindDown = installWindDown(harness, budget);
+  const uninstall = () => { uninstallHooks(); uninstallWindDown(); };
   const unsubscribe = harness.subscribe((event) => {
     if (event.type === "turn_start") {
       budget.onTurnStart();

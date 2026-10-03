@@ -109,4 +109,22 @@ describe("session REST contract", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("model_metadata_required");
   });
+
+  it("answers a malformed request with 400 instead of an internal error", async () => {
+    const fixture = await createRuntimeFixture();
+    const server = buildServer({
+      routes: { sessions: fixture.sessions, commands: fixture.commands, registry: fixture.registry, broker: fixture.broker },
+    });
+    cleanups.push(async () => {
+      await server.close();
+      await fixture.close();
+    });
+    const response = await server.inject({
+      method: "DELETE",
+      url: `/agent-api/v1/sessions/${crypto.randomUUID()}`,
+      headers: { "content-type": "application/json" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: { code: "invalid_request" } });
+  });
 });

@@ -125,7 +125,13 @@ export function ConversationComposer({
     const pending = attachments;
     const pendingVideo = video;
     if ((!next && !pending.length) || disabled || running || uploading) return;
-    const parsed = CHAT_EDITION ? null : parseInvocation(next, slashItems(resources));
+    // 整条命令一次粘贴时菜单从未弹出、清单还没拉取：发送前补拉，否则会当作普通文本发出。
+    let list = resources;
+    if (!CHAT_EDITION && !list && next.startsWith("/")) {
+      list = await agentRuntimeApi.listResources(projectId).catch(() => null);
+      if (list) setResources(list);
+    }
+    const parsed = CHAT_EDITION ? null : parseInvocation(next, slashItems(list));
     if (parsed && pending.length) {
       notify("crit", t("agent_slash_no_images"));
       return;

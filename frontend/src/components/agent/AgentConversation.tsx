@@ -553,7 +553,7 @@ export function AgentConversation() {
             <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
             <InteractionCard
               request={request}
-              onReply={(reply) => void replyInteraction(currentSessionId, request.request_id, reply)}
+              onReply={(reply) => replyInteraction(currentSessionId, request.request_id, reply)}
             />
           </div>
         ))}

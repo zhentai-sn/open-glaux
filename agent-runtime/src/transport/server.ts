@@ -70,17 +70,25 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.setErrorHandler((error, request, reply) => {
     const traceId = request.id || randomUUID();
+    // Fastify 自身的请求错误（如带 JSON content-type 却无请求体）是客户端问题，返回 400 而不是 500。
+    const clientStatus = (error as { statusCode?: unknown }).statusCode;
     const runtimeError =
       error instanceof RuntimeError
         ? error
-        : new RuntimeError(
-            "internal_error",
-            "Agent Runtime encountered an unexpected error.",
-            500,
-            { cause: error },
-          );
+        : typeof clientStatus === "number" && clientStatus >= 400 && clientStatus < 500
+          ? new RuntimeError("invalid_request", "The request is malformed.", 400, { cause: error })
+          : new RuntimeError(
+              "internal_error",
+              "Agent Runtime encountered an unexpected error.",
+              500,
+              { cause: error },
+            );
+    // 内部错误附上原始异常的类型与消息（脱敏），否则日志里无从排查；响应体仍只给通用信息。
+    const cause = error instanceof RuntimeError
+      ? undefined
+      : error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     request.log.error(
-      redact({ code: runtimeError.code, message: runtimeError.message, traceId }),
+      redact({ code: runtimeError.code, message: runtimeError.message, traceId, ...(cause ? { cause } : {}) }),
       "request failed",
     );
     void reply

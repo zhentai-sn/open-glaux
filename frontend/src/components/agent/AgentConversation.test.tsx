@@ -164,7 +164,7 @@ describe("AgentConversation", () => {
   });
 
   it("shows pending interaction cards, settings warnings and the budget notice", () => {
-    const replyInteraction = vi.fn(async () => undefined);
+    const replyInteraction = vi.fn(async () => true);
     useAgentSessions.setState({
       replyInteraction,
       views: {

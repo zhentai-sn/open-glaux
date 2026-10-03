@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolveBudget, RunBudget } from "../../src/budget/run-budget.js";
+import { forbidToolCalls, installWindDown } from "../../src/budget/wind-down.js";
 import { InteractionTable } from "../../src/interaction/table.js";
 import { EMPTY_SETTINGS, type LoadedSettings } from "../../src/permission/settings.js";
 
@@ -95,5 +96,30 @@ describe("InteractionTable.waitedMs", () => {
     expect(table.waitedMs("s", "c")).toBe(50);
     table.forgetCommand("s", "c");
     expect(table.waitedMs("s", "c")).toBe(0);
+  });
+});
+
+describe("wind-down turns (SDD 15 §7.8 rule 3)", () => {
+  const tools = [{ type: "function", function: { name: "read" } }];
+
+  it("keeps tool definitions and forbids calling them, per provider API", () => {
+    expect(forbidToolCalls("openai-completions", { model: "m", tools })).toEqual({ model: "m", tools, tool_choice: "none" });
+    expect(forbidToolCalls("anthropic-messages", { model: "m", tools })).toEqual({ model: "m", tools, tool_choice: { type: "none" } });
+    const noTools = { model: "m" };
+    expect(forbidToolCalls("openai-completions", noTools)).toBe(noTools);
+    expect(forbidToolCalls("other-api", { tools })).toEqual({ tools });
+  });
+
+  it("patches requests only once the budget is exhausted", async () => {
+    let handler: ((event: { model: { api: string }; payload: unknown }) => unknown) | undefined;
+    const harness = { on: (_type: string, h: typeof handler) => { handler = h; return () => { handler = undefined; }; } };
+    const budget = { exhausted: false };
+    const uninstall = installWindDown(harness as never, budget);
+    const event = { model: { api: "openai-completions" }, payload: { tools } };
+    expect(handler!(event)).toBeUndefined();
+    budget.exhausted = true;
+    expect(handler!(event)).toEqual({ payload: { tools, tool_choice: "none" } });
+    uninstall();
+    expect(handler).toBeUndefined();
   });
 });
