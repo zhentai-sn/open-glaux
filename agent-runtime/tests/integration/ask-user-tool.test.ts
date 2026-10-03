@@ -58,6 +58,9 @@ describe("ask_user through the harness", () => {
     const request = snapshot.pending_interactions[0];
     expect(request).toMatchObject({ kind: "question", question: { question: "Which side?", options: ["left", "right"], allow_free_text: true } });
     expect(events.some((e) => e.event === "interaction.request")).toBe(true);
+    // 请求定位到主对话中这次 ask_user 调用。
+    const call = events.find((e) => e.event === "tool.start" && e.data.tool_name === ASK_USER_TOOL_NAME);
+    expect(request.tool_call_id).toBe(call?.event === "tool.start" ? call.data.tool_call_id : undefined);
 
     const url = `/agent-api/v1/sessions/${sessionId}/interactions/${request.request_id}`;
     const answered = await server.inject({ method: "POST", url, payload: { kind: "question", option: 1 } });
@@ -119,5 +122,7 @@ describe("ask_user through the harness", () => {
     expect(events.find((e) => e.event === "interaction.resolved")?.data).toMatchObject({ outcome: "cancelled" });
     expect(fixture.registry.interactions.pending(sessionId)).toEqual([]);
     expect(fixture.registry.getPhase(sessionId)).toBe("idle");
+    // 首条命令被中止，会话照样以这条消息命名。
+    expect((await fixture.sessions.getSession(sessionId)).title).toBe("go");
   });
 });

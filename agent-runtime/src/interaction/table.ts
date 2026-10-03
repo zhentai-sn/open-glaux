@@ -32,7 +32,7 @@ export interface InteractionTableOptions {
   now?: () => number;
 }
 
-export type InteractionInput = Pick<InteractionRequest, "session_id" | "command_id" | "kind" | "permission" | "question" | "origin">;
+export type InteractionInput = Pick<InteractionRequest, "session_id" | "command_id" | "kind" | "permission" | "question" | "origin" | "tool_call_id">;
 
 interface PendingEntry {
   request: InteractionRequest;
@@ -79,6 +79,7 @@ export class InteractionTable {
       ...(input.permission ? { permission: input.permission } : {}),
       ...(input.question ? { question: input.question } : {}),
       ...(input.origin ? { origin: input.origin } : {}),
+      ...(input.tool_call_id ? { tool_call_id: input.tool_call_id } : {}),
     };
     return new Promise((resolve) => {
       const timer = setTimeout(() => this.finish(request.request_id, "expired"), this.timeoutMs);

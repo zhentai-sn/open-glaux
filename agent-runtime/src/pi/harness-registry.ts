@@ -73,7 +73,7 @@ export interface HarnessToolContext extends HarnessStartOptions {
   /** 可用的子智能体定义与派发函数（SDD 18 §7.1）；`subagent` 表示本上下文属于子智能体。 */
   agents?: AgentDefinition[];
   spawnSubagent?: (request: SubagentRequest, options?: { signal?: AbortSignal; toolCallId?: string }) => Promise<SubagentResult>;
-  subagent?: { description: string };
+  subagent?: { description: string; toolCallId?: string };
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -490,7 +490,10 @@ export class HarnessRegistry {
       const release = await slots.acquire(signal);
       try {
         const { spawnSubagent: _spawn, ...inherited } = parent.toolContext;
-        const childContext: HarnessToolContext = { ...inherited, subagent: { description: request.description } };
+        const childContext: HarnessToolContext = {
+          ...inherited,
+          subagent: { description: request.description, ...(toolCallId ? { toolCallId } : {}) },
+        };
         const allowed = definition.tools ? new Set(definition.tools) : undefined;
         const tools = this.toolFactory(childContext).filter((tool) => !allowed || allowed.has(tool.name));
         const extras = [
@@ -515,6 +518,7 @@ export class HarnessRegistry {
             ...(viewer ? { viewer } : {}),
             permission: parent.permission,
             origin: { subagent: request.description },
+            ...(toolCallId ? { anchorToolCallId: toolCallId } : {}),
           },
           maxMinutes: resolveBudget(parent.permission.settings).maxMinutes,
           waitedMs: () => waited() - waitedAtStart,

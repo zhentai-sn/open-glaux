@@ -76,6 +76,8 @@ export interface InteractionRequest {
   question?: { question: string; options: string[]; allow_free_text: boolean };
   /** 来自子智能体时为其任务概括（SDD 18 §7.4）。 */
   origin?: { subagent: string };
+  /** 主对话中与该请求关联的工具调用：被审批的调用、`ask_user` 调用，或子智能体所属的 `agent` 调用（SDD 15 §9.3）。 */
+  tool_call_id?: string;
 }
 
 /** 设置文件加载告警等非致命问题（SDD 15 §9.7）。 */

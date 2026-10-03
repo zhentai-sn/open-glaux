@@ -92,15 +92,22 @@ export class CommandService {
         async (harness, activeSession) => {
           if (command.type === "prompt") {
             const extra = command.content.trim();
+            // 标题在调用模型前写入：命令中途中止或失败时会话也有名字；只写 Glaux 元数据，不与 Pi 会话写入并发。
+            // SDD 17 §7.4：显式调用 Skill 或模板时标题取「/名称 附加内容」。
+            await this.sessions.touchTitleFromFirstMessage(
+              sessionId,
+              command.skill !== undefined
+                ? `/${command.skill} ${extra}`.trim()
+                : command.template !== undefined
+                  ? `/${command.template.name} ${command.template.args}`.trim()
+                  : command.content,
+            );
             if (command.skill !== undefined) {
-              // SDD 17 §7.4：显式调用 Skill；标题取「/名称 附加内容」。
               assertAssistantSuccess(await harness.skill(command.skill, extra || undefined));
-              await this.sessions.touchTitleFromFirstMessage(sessionId, `/${command.skill} ${extra}`.trim());
               return;
             }
             if (command.template !== undefined) {
               assertAssistantSuccess(await harness.promptFromTemplate(command.template.name, parseCommandArgs(command.template.args)));
-              await this.sessions.touchTitleFromFirstMessage(sessionId, `/${command.template.name} ${command.template.args}`.trim());
               return;
             }
             const images = toImageContent(command.images);
@@ -109,10 +116,6 @@ export class CommandService {
                 extra,
                 images.length ? { images } : undefined,
               ),
-            );
-            await this.sessions.touchTitleFromFirstMessage(
-              sessionId,
-              command.content,
             );
             return;
           }

@@ -98,11 +98,15 @@ describe("sub-agents", () => {
       const delegate = fixture.registry.interactions.pending(sessionId)[0]!;
       expect(delegate.permission).toMatchObject({ tool_name: "agent", effect: "delegate" });
       expect(delegate.origin).toBeUndefined();
+      expect(delegate.tool_call_id).toBe(delegate.permission?.tool_call_id);
       fixture.registry.interactions.reply(sessionId, delegate.request_id, { kind: "permission", decision: "once" });
 
       await waitFor(() => fixture.registry.interactions.pending(sessionId).length === 1);
       const inner = fixture.registry.interactions.pending(sessionId)[0]!;
       expect(inner).toMatchObject({ permission: { tool_name: "run_task" }, origin: { subagent: "find files" } });
+      // 子智能体内的请求定位到主对话里那次 agent 调用，而不是子会话里的调用。
+      expect(inner.tool_call_id).toBe(delegate.tool_call_id);
+      expect(inner.permission?.tool_call_id).not.toBe(delegate.tool_call_id);
       fixture.registry.interactions.reply(sessionId, inner.request_id, { kind: "permission", decision: "once" });
       await fixture.registry.waitForIdle(sessionId);
       expect(counter.runs).toBe(1);
@@ -140,7 +144,9 @@ describe("sub-agents", () => {
     ], "controlled", "");
     try {
       await waitFor(() => fixture.registry.interactions.pending(sessionId).length === 1);
-      expect(fixture.registry.interactions.pending(sessionId)[0]).toMatchObject({ kind: "question", origin: { subagent: "find files" } });
+      const question = fixture.registry.interactions.pending(sessionId)[0]!;
+      expect(question).toMatchObject({ kind: "question", origin: { subagent: "find files" } });
+      expect(question.tool_call_id).toMatch(/\S/u);
       await fixture.registry.abort(sessionId);
       await fixture.registry.waitForIdle(sessionId);
       expect(fixture.registry.interactions.pending(sessionId)).toEqual([]);

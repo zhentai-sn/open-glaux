@@ -111,6 +111,7 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
     command_id: ctx.commandId,
     kind: "permission",
     ...(ctx.origin ? { origin: ctx.origin } : {}),
+    tool_call_id: ctx.anchorToolCallId ?? event.toolCallId,
     permission: {
       tool_call_id: event.toolCallId,
       tool_name: tool.name,

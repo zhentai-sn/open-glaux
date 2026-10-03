@@ -202,6 +202,57 @@ describe("AgentConversation", () => {
     expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Not run: The user denied run_task.");
   });
 
+  it("places resolved approvals after the tool call they belong to, and unanchored ones at the end", () => {
+    const request = (id: string, tool_call_id?: string) => ({
+      request_id: id,
+      session_id: session.session_id,
+      command_id: "c",
+      kind: "permission" as const,
+      created_at: "2026-10-03T00:00:00.000Z",
+      expires_at: "2026-10-03T00:30:00.000Z",
+      permission: { tool_call_id: tool_call_id ?? "x", tool_name: `tool-${id}`, effect: "compute" as const, args_summary: "{}", grant_options: ["once" as const] },
+      ...(tool_call_id ? { tool_call_id } : {}),
+    });
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "measure" },
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "run_task", arguments: {} }] },
+            { role: "assistant", content: [{ type: "text", text: "Measured." }] },
+          ],
+        },
+      },
+      resolvedInteractions: {
+        [session.session_id]: [
+          { request: request("r1", "t1"), outcome: "answered", reply: { kind: "permission", decision: "once" } },
+          { request: request("r2"), outcome: "cancelled" },
+        ],
+      },
+    });
+    const { container } = render(<I18nProvider><AgentConversation /></I18nProvider>);
+    const order = [...container.querySelectorAll(".conversation-stream > *")].map((el) => el.textContent ?? "");
+    const toolLine = order.findIndex((text) => text.includes("run_task"));
+    expect(order[toolLine + 1]).toContain("tool-r1");
+    expect(order.findIndex((text) => text.includes("Measured."))).toBeGreaterThan(toolLine + 1);
+    expect(order[order.length - 1]).toContain("tool-r2");
+  });
+
+  it("marks a reply that produced nothing instead of drawing an empty bubble", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [{ role: "user", content: "hi" }, { role: "assistant", content: [] }],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByTestId("agent-no-reply")).toHaveTextContent("No reply was generated.");
+    expect(screen.getByRole("button", { name: /Regenerate/u })).toBeInTheDocument();
+  });
+
   it("shows live progress under a running agent call (SDD 18 §7.5)", () => {
     useAgentSessions.setState({
       views: {

@@ -80,7 +80,7 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- 对话流中的审批卡片与提问卡片，回复后折叠为一行结论。
+- 对话流中的审批卡片与提问卡片，回复后折叠为一行结论，显示在主对话中关联的工具调用之后（`tool_call_id`）；找不到该调用时显示在消息末尾。
 - 被拒绝的工具调用在工具卡片上显示「已拒绝」与理由。
 - 预算用尽时，最终回复前显示一行「已达本次运行上限（N 回合 / M 分钟）」。
 - 权限下拉菜单每项附一句说明；切换到 `autonomous` 时的确认对话框。
@@ -368,6 +368,7 @@ interface InteractionRequest {
   };
   question?: { question: string; options: string[]; allow_free_text: boolean };
   origin?: { subagent: string };  // 来自子智能体时为其任务概括（SDD 18 §7.4）
+  tool_call_id?: string;          // 主对话中关联的工具调用：被审批的调用、ask_user 调用，或子智能体所属的 agent 调用
 }
 
 type InteractionReply =

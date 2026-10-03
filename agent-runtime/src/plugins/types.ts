@@ -46,6 +46,8 @@ export interface RunContext {
   budget?: RunBudget;
   /** 子智能体内的运行：交互请求带上来源（SDD 18 §7.4）。 */
   origin?: { subagent: string };
+  /** 子智能体内的运行：主对话中所属 `agent` 调用的标识，交互请求据此定位。 */
+  anchorToolCallId?: string;
 }
 
 export interface PluginHooks {

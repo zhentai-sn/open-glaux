@@ -3153,6 +3153,7 @@ body.resizing .focus-rail { transition: none; }
 .interaction-outcome.cancelled { color: var(--faint); }
 .tool-call-error { color: var(--warn); overflow: hidden; text-overflow: ellipsis; }
 .tool-call-progress { flex: none; color: var(--agent); white-space: nowrap; }
+.agent-no-reply { color: var(--faint); font-size: 12px; }
 .run-notice {
   margin: 6px 0 6px 26px;
   font-size: 11px;

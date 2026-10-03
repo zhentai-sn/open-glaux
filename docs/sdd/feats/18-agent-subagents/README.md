@@ -137,7 +137,7 @@ sequenceDiagram
 
 ### 7.4 审批来源
 
-交互请求增加可选字段 `origin`（`{subagent: description}`）；子智能体内触发的审批与 `ask_user` 都带上它，前端卡片显示来源。
+交互请求增加可选字段 `origin`（`{subagent: description}`）；子智能体内触发的审批与 `ask_user` 都带上它，前端卡片显示来源。这些请求的 `tool_call_id`（SDD 15 §9.3）取主对话中那次 `agent` 调用的标识，结束后的结论行显示在该调用之后。
 
 ### 7.5 进度推送
 
@@ -203,6 +203,7 @@ interface AgentItem {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `origin` | `{subagent: string}` 可选 | 来自子智能体时为其 `description` |
+| `tool_call_id` | string 可选 | 来自子智能体时为主对话中 `agent` 调用的标识 |
 
 ### 9.4 SSE 事件 `subagent.progress`
 

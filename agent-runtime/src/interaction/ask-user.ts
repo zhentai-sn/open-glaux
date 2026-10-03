@@ -22,6 +22,8 @@ export interface AskUserToolOptions {
   sessionId: string;
   commandId: string;
   origin?: { subagent: string };
+  /** 子智能体内：主对话中所属 `agent` 调用的标识；缺省用本次 `ask_user` 调用的标识。 */
+  anchorToolCallId?: string;
 }
 
 function text(value: string): { content: TextContent[] } {
@@ -36,7 +38,7 @@ export function createAskUserTool(options: AskUserToolOptions): AgentHarnessTool
       "Ask the user a question and wait for the answer. Use it only when you lack information needed to continue, " +
       "or when several reasonable directions exist. Do not use it to ask for permission; permissions are handled by the system.",
     parameters: AskParams,
-    async execute(_id, params: Static<typeof AskParams>, signal) {
+    async execute(toolCallId, params: Static<typeof AskParams>, signal) {
       const choices = params.options ?? [];
       const onAbort = () => options.table.cancelCommand(options.sessionId, options.commandId);
       signal?.addEventListener("abort", onAbort, { once: true });
@@ -46,6 +48,7 @@ export function createAskUserTool(options: AskUserToolOptions): AgentHarnessTool
           command_id: options.commandId,
           kind: "question",
           ...(options.origin ? { origin: options.origin } : {}),
+          tool_call_id: options.anchorToolCallId ?? toolCallId,
           question: {
             question: params.question,
             options: choices,

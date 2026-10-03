@@ -179,6 +179,7 @@ export const en = {
   agent_regenerate: "Regenerate",
   agent_tool_call: "Calling {tool}",
   agent_tool_not_run: "Not run: {reason}",
+  agent_no_reply: "No reply was generated.",
   subagent_progress_turn: "Sub-agent · turn {n}",
   subagent_progress_tool: "Sub-agent · turn {n} · calling {tool}",
   agent_slash_menu: "Skills and templates",

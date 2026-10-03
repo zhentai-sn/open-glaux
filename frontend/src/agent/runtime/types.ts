@@ -48,6 +48,8 @@ export interface InteractionRequest {
   question?: { question: string; options: string[]; allow_free_text: boolean };
   /** 来自子智能体时为其任务概括（SDD 18 §9.3）。 */
   origin?: { subagent: string };
+  /** 主对话中与该请求关联的工具调用；已处理的记录显示在该调用之后（SDD 15 §9.3）。 */
+  tool_call_id?: string;
 }
 
 /** SDD 15 §9.3：交互请求的回复。 */

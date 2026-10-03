@@ -1,5 +1,5 @@
 import { CHAT_EDITION } from "../../edition";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   messageImages,
@@ -11,7 +11,7 @@ import {
 } from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
-import { useAgentSessions, type SubagentProgress } from "../../store/agentSessions";
+import { useAgentSessions, type ResolvedInteraction, type SubagentProgress } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
@@ -247,6 +247,181 @@ export function AgentConversation() {
   // 窗口大小：运行时回传优先，缺省回退连接配置里的 contextWindow（自定义模型必填）。
   const contextWindow = context?.context_window ?? connection.contextWindow ?? null;
 
+  // 已处理的交互请求显示在主对话中关联的工具调用之后；找不到该调用时（旧版 runtime、
+  // 调用已不在当前分支）放在消息末尾。
+  const anchoredInteractions = new Map<number, ResolvedInteraction[]>();
+  const trailingInteractions: ResolvedInteraction[] = [];
+  for (const item of resolvedInteractions ?? []) {
+    const id = item.request.tool_call_id;
+    const at = id
+      ? messages.findIndex((message) => messageRole(message) === "assistant" && messageToolCalls(message).some((call) => call.id === id))
+      : -1;
+    if (at < 0) trailingInteractions.push(item);
+    else anchoredInteractions.set(at, [...(anchoredInteractions.get(at) ?? []), item]);
+  }
+
+  const renderMessage = (message: (typeof messages)[number], index: number) => {
+    const toolDetails = messageToolResultDetails(message);
+    // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
+    const atlasRef = parseAtlasReferenced(toolDetails);
+    if (!CHAT_EDITION && atlasRef) {
+      return (
+        <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <AtlasRefCard payload={atlasRef} />
+        </div>
+      );
+    }
+    // 对象卡片：open_file 的工具结果（SDD 13 §7.3 规则 4），是否上舞台由人来点
+    const opened = parseObjectOpened(toolDetails);
+    if (!CHAT_EDITION && opened) {
+      return (
+        <div className="turn assistant tool" key={`obj-${index}-${opened.id}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <ObjectCard payload={opened} />
+        </div>
+      );
+    }
+    // 文件卡片：read_file 的工具结果（SDD 14 §7.4 规则 7），是否在舞台预览由人来点
+    const fileRead = parseFileRead(toolDetails);
+    if (!CHAT_EDITION && fileRead) {
+      return (
+        <div className="turn assistant tool" key={`file-${index}-${fileRead.path}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <FileCard payload={fileRead} />
+        </div>
+      );
+    }
+    // 子智能体卡片：agent 的工具结果（SDD 18 §5.1），随历史持久呈现
+    const subagentRun = parseSubagentRun(toolDetails);
+    if (!CHAT_EDITION && subagentRun) {
+      return (
+        <div className="turn assistant tool" key={`subagent-${index}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <SubagentCard payload={subagentRun} />
+        </div>
+      );
+    }
+    // 建议标注卡片：propose_annotation 的工具结果（SDD 02 §6），确认/驳回由人来点
+    const proposed = parseAnnotationProposed(toolDetails);
+    if (!CHAT_EDITION && proposed?.annotation_id) {
+      return (
+        <div className="turn assistant tool" key={`sugg-${index}-${proposed.annotation_id}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <SuggestionCard payload={proposed} />
+        </div>
+      );
+    }
+    const role = messageRole(message);
+    if (!role) return null;
+    const text = messageText(message);
+    const images = messageImages(message);
+    // SDD 17 §5.1：调用 Skill 的用户消息只显示名称与附加说明，不展开 Skill 全文
+    const skillCall = role === "user" ? parseSkillMessage(text) : null;
+    if (skillCall) {
+      return (
+        <div className="turn user" key={`skill-${index}-${skillCall.name}`}>
+          <div className="bubble skill-call" data-testid="skill-call">
+            <span className="skill-call-name"><Icon icon={ICONS.skill} size="sm" /> {t("agent_skill_call", { name: skillCall.name })}</span>
+            {skillCall.extra && <span className="skill-call-extra">{skillCall.extra}</span>}
+          </div>
+        </div>
+      );
+    }
+    const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
+    // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
+    if (role === "assistant" && !text && toolCalls.length) {
+      return (
+        <div className="turn assistant tool" key={`tool-${index}-${toolCalls[0].id}`}>
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+          <div className="tool-calls">
+            {toolCalls.map((call) => (
+              <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div
+        className={`turn ${role === "user" ? "user" : "assistant"}`}
+        key={`${role}-${index}-${text.slice(0, 24)}`}
+      >
+        {role === "assistant" && (
+          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+            <OwlLogo size={18} />
+          </div>
+        )}
+        <div className={role === "user" ? "bubble" : "abody plain"}>
+          {toolCalls.length > 0 && (
+            <div className="tool-calls">
+              {toolCalls.map((call) => (
+                <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
+              ))}
+            </div>
+          )}
+          {images.length > 0 && (
+            <div className="message-images">
+              {images.map((image, imageIndex) => (
+                <button
+                  key={`${index}-img-${imageIndex}`}
+                  type="button"
+                  className="message-image-open"
+                  title={t("agent_image_zoom", {
+                    name: t("agent_message_image"),
+                  })}
+                  aria-label={t("agent_image_zoom", {
+                    name: t("agent_message_image"),
+                  })}
+                  onClick={() =>
+                    setPreview({
+                      src: image.dataUrl,
+                      alt: t("agent_message_image"),
+                    })
+                  }
+                >
+                  <img src={image.dataUrl} alt={t("agent_message_image")} />
+                </button>
+              ))}
+            </div>
+          )}
+          {role === "assistant" && text ? (
+            <Markdown text={text} />
+          ) : running || images.length || role !== "assistant" || toolCalls.length ? (
+            text || (running && !images.length ? "…" : "")
+          ) : (
+            // 模型尚未输出就被中止或出错的回复：不留空气泡，仍可「重新生成」
+            <span className="agent-no-reply" data-testid="agent-no-reply">{t("agent_no_reply")}</span>
+          )}
+        </div>
+        {role === "assistant" &&
+          index === lastAssistantIndex &&
+          !running &&
+          view?.status === "active" && (
+            <button
+              className="agent-regenerate"
+              type="button"
+              onClick={() => void regenerate()}
+            >
+              <Icon icon={ICONS.regenerate} size="sm" /> {t("agent_regenerate")}
+            </button>
+          )}
+      </div>
+    );
+  };
+
   return (
     <aside className="agent agent-conversation">
       <header className="agent-toolbar">
@@ -362,165 +537,15 @@ export function AgentConversation() {
         {loading && !view && (
           <div className="agent-empty">{t("agent_loading")}</div>
         )}
-        {messages.map((message, index) => {
-          const toolDetails = messageToolResultDetails(message);
-          // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
-          const atlasRef = parseAtlasReferenced(toolDetails);
-          if (!CHAT_EDITION && atlasRef) {
-            return (
-              <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <AtlasRefCard payload={atlasRef} />
-              </div>
-            );
-          }
-          // 对象卡片：open_file 的工具结果（SDD 13 §7.3 规则 4），是否上舞台由人来点
-          const opened = parseObjectOpened(toolDetails);
-          if (!CHAT_EDITION && opened) {
-            return (
-              <div className="turn assistant tool" key={`obj-${index}-${opened.id}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <ObjectCard payload={opened} />
-              </div>
-            );
-          }
-          // 文件卡片：read_file 的工具结果（SDD 14 §7.4 规则 7），是否在舞台预览由人来点
-          const fileRead = parseFileRead(toolDetails);
-          if (!CHAT_EDITION && fileRead) {
-            return (
-              <div className="turn assistant tool" key={`file-${index}-${fileRead.path}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <FileCard payload={fileRead} />
-              </div>
-            );
-          }
-          // 子智能体卡片：agent 的工具结果（SDD 18 §5.1），随历史持久呈现
-          const subagentRun = parseSubagentRun(toolDetails);
-          if (!CHAT_EDITION && subagentRun) {
-            return (
-              <div className="turn assistant tool" key={`subagent-${index}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <SubagentCard payload={subagentRun} />
-              </div>
-            );
-          }
-          // 建议标注卡片：propose_annotation 的工具结果（SDD 02 §6），确认/驳回由人来点
-          const proposed = parseAnnotationProposed(toolDetails);
-          if (!CHAT_EDITION && proposed?.annotation_id) {
-            return (
-              <div className="turn assistant tool" key={`sugg-${index}-${proposed.annotation_id}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <SuggestionCard payload={proposed} />
-              </div>
-            );
-          }
-          const role = messageRole(message);
-          if (!role) return null;
-          const text = messageText(message);
-          const images = messageImages(message);
-          // SDD 17 §5.1：调用 Skill 的用户消息只显示名称与附加说明，不展开 Skill 全文
-          const skillCall = role === "user" ? parseSkillMessage(text) : null;
-          if (skillCall) {
-            return (
-              <div className="turn user" key={`skill-${index}-${skillCall.name}`}>
-                <div className="bubble skill-call" data-testid="skill-call">
-                  <span className="skill-call-name"><Icon icon={ICONS.skill} size="sm" /> {t("agent_skill_call", { name: skillCall.name })}</span>
-                  {skillCall.extra && <span className="skill-call-extra">{skillCall.extra}</span>}
-                </div>
-              </div>
-            );
-          }
-          const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
-          // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
-          if (role === "assistant" && !text && toolCalls.length) {
-            return (
-              <div className="turn assistant tool" key={`tool-${index}-${toolCalls[0].id}`}>
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-                <div className="tool-calls">
-                  {toolCalls.map((call) => (
-                    <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div
-              className={`turn ${role === "user" ? "user" : "assistant"}`}
-              key={`${role}-${index}-${text.slice(0, 24)}`}
-            >
-              {role === "assistant" && (
-                <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-                  <OwlLogo size={18} />
-                </div>
-              )}
-              <div className={role === "user" ? "bubble" : "abody plain"}>
-                {toolCalls.length > 0 && (
-                  <div className="tool-calls">
-                    {toolCalls.map((call) => (
-                      <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
-                    ))}
-                  </div>
-                )}
-                {images.length > 0 && (
-                  <div className="message-images">
-                    {images.map((image, imageIndex) => (
-                      <button
-                        key={`${index}-img-${imageIndex}`}
-                        type="button"
-                        className="message-image-open"
-                        title={t("agent_image_zoom", {
-                          name: t("agent_message_image"),
-                        })}
-                        aria-label={t("agent_image_zoom", {
-                          name: t("agent_message_image"),
-                        })}
-                        onClick={() =>
-                          setPreview({
-                            src: image.dataUrl,
-                            alt: t("agent_message_image"),
-                          })
-                        }
-                      >
-                        <img src={image.dataUrl} alt={t("agent_message_image")} />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {role === "assistant" && text ? (
-                  <Markdown text={text} />
-                ) : (
-                  text || (running && !images.length ? "…" : "")
-                )}
-              </div>
-              {role === "assistant" &&
-                index === lastAssistantIndex &&
-                !running &&
-                view?.status === "active" && (
-                  <button
-                    className="agent-regenerate"
-                    type="button"
-                    onClick={() => void regenerate()}
-                  >
-                    <Icon icon={ICONS.regenerate} size="sm" /> {t("agent_regenerate")}
-                  </button>
-                )}
-            </div>
-          );
-        })}
-        {!CHAT_EDITION && resolvedInteractions?.map((item) => (
+        {messages.map((message, index) => (
+          <Fragment key={`m-${index}`}>
+            {renderMessage(message, index)}
+            {!CHAT_EDITION && anchoredInteractions.get(index)?.map((item) => (
+              <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
+            ))}
+          </Fragment>
+        ))}
+        {!CHAT_EDITION && trailingInteractions.map((item) => (
           <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
         ))}
         {!CHAT_EDITION && currentSessionId && view?.pending_interactions?.map((request) => (
