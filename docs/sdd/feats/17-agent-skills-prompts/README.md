@@ -31,7 +31,7 @@ status: implemented
 
 ## 2. 本 SDD 不负责什么
 
-- 内置 Skills 的内容：本期只建立 `agent-runtime/skills/` 这一层，不随版本发布具体 Skill。
+- 内置领域 Skill 的内容：内置层只发布通用的 `skill-creator`（D-6），领域 Skill 需专业校对后单独加入。
 - Skill 的 zip 或目录导入、在线市场、版本管理。
 - 由模型调用提示词模板：模板只供用户显式调用。
 - 子智能体定义（脑暴 P3）。
@@ -127,7 +127,7 @@ sequenceDiagram
 
 1. 组成顺序：基础段 → 插件提示词片段 → 自定义说明段 → Skills 目录段 → 查看器上下文。
 2. 自定义说明段：用户级在前、项目级在后，各包在 `<instructions scope="user">…</instructions>` / `<instructions scope="project">…</instructions>` 中；单份超过 32 KiB 时截断并注明。文件不存在或为空时省略该段。
-3. Skills 目录段用 pi `formatSkillsForSystemPrompt` 生成；没有可见 Skill 时省略。
+3. Skills 目录段用 pi `formatSkillsForSystemPrompt` 生成，末尾附一行各层 Skills 目录（按优先级从高到低：项目、个人、内置（只读）；未绑定项目时没有项目层），供模型新建或覆盖 Skill 时选位置；没有可见 Skill 时整段省略。
 4. chat 发行版不加说明段与目录段。
 
 ### 7.3 按需读取
@@ -337,7 +337,7 @@ type PromptCommand = {
 | D-3 | 停用列表只在用户级设置 | 启停是个人偏好；项目级 Skill 不想用可直接删除或在项目里改名 |
 | D-4 | 模型经 `read` 按需读取 Skill，不另设工具 | 沿用 pi 与 agentskills.io 约定；Skill 内引用的相对文件也能读 |
 | D-5 | Skills 根目录只对读放行 | 读不改状态；写入 Skill 文件应经管理页或审批 |
-| D-6 | 本期不发布内置 Skill 内容 | 先交付机制；领域 Skill 需要专业校对后单独加入 |
+| D-6 | 内置层只发布通用的 `skill-creator`（Glaux 原生编写，不引入 Claude Code 官方包） | 创建 Skill 不涉及领域判断；官方包的评测与打包脚本依赖 claude CLI 与 Python，在 Glaux 中不可用；领域 Skill 需要专业校对后单独加入 |
 | D-7 | 显式调用用命令字段，不在服务端解析 `/` 文本 | 普通消息以 `/` 开头时不被误判；前端已知资源清单 |
 | D-8 | 资源每个命令重新加载，不做文件监听 | 简单；与设置文件的加载时机一致 |
 

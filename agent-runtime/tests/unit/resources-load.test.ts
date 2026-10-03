@@ -100,4 +100,21 @@ describe("loadResources", () => {
   it("produces no prompt extras when nothing exists", async () => {
     expect((await load({ project: true })).promptExtras).toBe("");
   });
+
+  it("lists the skill folders after the catalog, highest priority first", async () => {
+    await skill(builtin, "auto", "model may use it");
+    expect((await load({ project: true })).promptExtras).toContain(
+      `Skill folders, highest priority first (a same-named skill in a higher folder wins): project: ${join(project, ".glaux", "skills")}; ` +
+      `personal: ${join(home, "skills")}; built-in (read-only): ${builtin}.`,
+    );
+    expect((await load()).promptExtras).not.toContain("project:");
+  });
+
+  it("ships the built-in skills and sub-agent definitions without diagnostics", async () => {
+    const loaded = await loadResources({ env: { GLAUX_HOME: home } });
+    expect(loaded.diagnostics).toEqual([]);
+    expect(loaded.skills.filter((s) => s.source === "builtin").map((s) => [s.name, s.model_invocable])).toEqual([["skill-creator", true]]);
+    expect(loaded.promptExtras).toContain("<name>skill-creator</name>");
+    expect(loaded.harnessAgents.map((a) => a.name)).toEqual(["general"]);
+  });
 });

@@ -88,6 +88,16 @@ async function readInstructions(path: string): Promise<{ text: string; bytes: nu
   return { text: truncated ? `${text}\n[truncated: the file exceeds ${MAX_INSTRUCTIONS_BYTES} bytes]` : text, bytes };
 }
 
+const FOLDER_LABEL: Record<ResourceSource, string> = { project: "project", user: "personal", builtin: "built-in (read-only)" };
+
+/** 按优先级从高到低列出 Skills 目录；未绑定项目时没有项目层。 */
+function skillFoldersLine(dirs: { source: ResourceSource; path: string }[]): string {
+  const folders = [...dirs].sort((a, b) => RANK[b.source] - RANK[a.source])
+    .map((dir) => `${FOLDER_LABEL[dir.source]}: ${dir.path.replace(/[\\/]+$/u, "")}`).join("; ");
+  return `Skill folders, highest priority first (a same-named skill in a higher folder wins): ${folders}. ` +
+    "A skill is a folder <folder>/<name>/ containing SKILL.md.";
+}
+
 export async function loadResources(options: LoadResourcesOptions = {}): Promise<LoadedResources> {
   const dirs = resourceDirs(options);
   const env = new NodeExecutionEnv({ cwd: "/" });
@@ -137,7 +147,8 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
   }
   const agents = await loadAgents(dirs.agents);
   const catalog = formatSkillsForSystemPrompt(harnessSkills);
-  if (catalog) blocks.push(catalog);
+  // 目录段末尾列出各层 Skills 目录，模型新建或覆盖 Skill 时据此选位置（SDD 17 §7.2）。
+  if (catalog) blocks.push(`${catalog}\n${skillFoldersLine(dirs.skills)}`);
 
   return {
     skills,
