@@ -46,7 +46,7 @@ export function createObserveVideoTool(turn: VideoTurn): AgentHarnessTool<undefi
       try {
         const observation = await turn.observe(params.start_ms, params.end_ms, params.fps ?? 2, signal);
         return {
-          content: [{ type: "text", text: `${VIDEO_MARKER}${observation.observation_id}\nObserved source ${observation.actual_interval.start_ms}..${observation.actual_interval.end_ms} ms with ${observation.encoding.audio ? "original audio" : "no audio track"}. Cite this observation ID in submit_video_answer.` } satisfies TextContent],
+          content: [{ type: "text", text: `${VIDEO_MARKER}${observation.observation_id}\nObserved source ${observation.actual_interval.start_ms}..${observation.actual_interval.end_ms} ms with ${observation.encoding.audio ? "original audio" : "no audio track"}. Cite this observation ID in submit_video_answer. The media is shown to you only in your next reply and is not resent: write down now what you see and hear, with source times, before calling any tool.` } satisfies TextContent],
           details: { kind: "glaux.video.observation", payload: observation },
         };
       } catch (error) {

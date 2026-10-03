@@ -126,7 +126,7 @@ sequenceDiagram
 | `EvidenceRef` | `observation_id,kind,source_interval,frame_time_ms?,region?` | `kind` 为 `visual`／`audio`／`av`；区间在该观测实际覆盖内；视觉区域为源帧 `box{x0,y0,x1,y1}`，需要 `frame_time_ms` 且该时刻在引用区间内 |
 | `VideoAnswer` | `object_id,claims:[{text,evidence:EvidenceRef[]}],unanswered:string[]` | 每条 `claim` 证据非空；无可证实事实时 `claims=[]` 且 `unanswered` 非空；不得引用其他对象或源版本 |
 | `ConnectionInput` 扩展 | `media_adapter?: "qwen-omni"` | 只在 `provider="openai-compatible"` 且 `model="qwen3.8-omni-flash"` 时允许；`vision=true` 仍独立保留 |
-| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | `tool` 消息只留观测标识；紧随其后注入本次出站的 `user` 媒体消息，包含观测 id、说明文字和 `video_url`；每次出站只展开其后尚无模型回复的观测（出站失败后下一次出站重新展开），且顶层含 `modalities:["text"]`、`reasoning_effort:"low"`；媒体消息不写入 Pi 会话 |
+| Qwen 原生媒体块 | `{"type":"video_url","video_url":{"url":"data:;base64,...","fps":0.5\|2\|5}}` | `tool` 消息只留观测标识；紧随其后注入本次出站的 `user` 媒体消息，包含观测 id、说明文字和 `video_url`；每次出站只展开其后尚无模型回复的观测（出站失败后下一次出站重新展开），且顶层含 `modalities:["text"]`、`reasoning_effort:"low"`；媒体消息不写入 Pi 会话。媒体只展开这一次，工具结果与视频提示词因此要求模型在紧随的回复中先用文字记下所见所闻与源时间，再调用下一个工具，后续据笔记作答、不重复观察已记录的区间 |
 
 `actual_interval` 根据输出片段中首末有效视频／音频 PTS 计算；编码时以 `actual_interval.start_ms` 为零点。允许首尾因帧／音频采样边界缩短，但不得包含请求外内容：起点偏移不大于一帧周期或 100 ms（取较大者），终点偏移不大于 100 ms。若达不到容差，拒绝生成而非报告虚假的精确时间。`X-Glaux-Clip` 头只含上述短元数据，不含 Base64。
 

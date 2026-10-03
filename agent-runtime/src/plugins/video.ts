@@ -9,6 +9,9 @@ const VIDEO_PROMPT =
   "Use observe_video_interval (synchronized picture and original sound, at most 60 s) for motion, sound or any span of time; " +
   "to cite the current frame, observe a short interval containing its source time. Never say you watched a range " +
   "unless an observation in this turn returned it. " +
+  "Each observation's picture and sound reach you once, in the reply right after it, and are not resent; in that reply, " +
+  "write down what you saw and heard with source times before your next tool call, and rely on those notes later. " +
+  "A turn allows at most 12 observations: do not re-observe a range you already noted unless you need a closer look. " +
   "Verify events presupposed by the question, especially sounds, before citing them. Every factual conclusion about the video " +
   "must be submitted through submit_video_answer with source-video millisecond intervals and observation IDs; findings written " +
   "only in free text are shown to the user as unverified. Put unsupported parts in unanswered. Answer only the facts the user asked for: " +
