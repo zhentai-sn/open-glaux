@@ -4,9 +4,12 @@ import type { ClipObservation, EvidenceRef, VideoAnswerRecord } from "../../agen
 import type { ObjectMeta } from "../../api/types";
 import { useI18n } from "../../i18n";
 
-function clock(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+/** m:ss.s：证据区间常短于 1 秒，只到整秒会显示成 0:01–0:01。 */
+export function clock(ms: number): string {
+  const tenths = Math.floor(ms / 100);
+  const minutes = Math.floor(tenths / 600);
+  const seconds = (tenths % 600) / 10;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
 }
 
 interface ActiveClip {

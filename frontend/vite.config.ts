@@ -21,6 +21,7 @@ function cspMeta(): Plugin {
             "script-src 'self' 'unsafe-inline'; " +
             "style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data: blob:; " +
+            "media-src 'self' blob:; " +
             "connect-src 'self' ws: wss: http://localhost:5173 ws://localhost:5173; " +
             "font-src 'self' data:; " +
             "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
@@ -29,6 +30,7 @@ function cspMeta(): Plugin {
             "script-src 'self'; " +
             "style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data: blob:; " +
+            "media-src 'self' blob:; " +
             "connect-src 'self'; " +
             "font-src 'self' data:; " +
             "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
