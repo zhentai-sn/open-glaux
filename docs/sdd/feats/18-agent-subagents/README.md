@@ -10,7 +10,7 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-subagents-plan.md) 实现，自动化门禁与开发侧浏览器走查（假模型）通过，自查见 §15；真实模型走查与业务验收待补 |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-subagents-plan.md) 实现，自动化门禁、开发侧浏览器走查与真实模型走查（OpenAI 兼容连接）通过，自查见 §15；业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P3 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 16 基础工具](../16-agent-basic-tools/README.md) · [SDD 17 Skills 与提示词](../17-agent-skills-prompts/README.md) |
 | 负责人 | Glaux 项目维护者 |

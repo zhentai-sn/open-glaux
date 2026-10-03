@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { fauxAssistantMessage, fauxToolCall, Type, type FauxResponseStep } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall, Type, type Context, type FauxResponseStep } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 
 import type { TransportEvent } from "../../src/contracts.js";
@@ -52,6 +52,19 @@ describe("run budget", () => {
     expect(blocked[0]?.data.error_text).toMatch(/reached its budget \(3 turns/u);
     expect(settled?.data).toMatchObject({ outcome: "completed", budget: { turns: 5, exhausted: true } });
     expect(budgetEntry).toMatchObject({ turns: 5, max_turns: 3, exhausted: true, aborted_by_budget: false });
+  });
+
+  it("tells the model to answer in the first wind-down turn", async () => {
+    const lastSeen: string[] = [];
+    const answer = (context: Context) => {
+      const last = context.messages[context.messages.length - 1];
+      lastSeen.push(last?.role === "user" ? JSON.stringify(last.content) : String(last?.role));
+      return fauxAssistantMessage("Partial answer.");
+    };
+    const { counter, settled } = await run([call(), call(), call(), answer]);
+    expect(counter.runs).toBe(3);
+    expect(lastSeen[0]).toMatch(/\[Glaux\] This run reached its budget \(3 turns/u);
+    expect(settled?.data).toMatchObject({ outcome: "completed" });
   });
 
   it("aborts with budget_exceeded when the model keeps calling tools through the grace turns", async () => {

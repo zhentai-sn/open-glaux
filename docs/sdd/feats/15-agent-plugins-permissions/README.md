@@ -10,7 +10,7 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-plugins-permissions-plan.md) 实现，自动化门禁与开发侧浏览器走查通过，自查见 §15；真实模型走查、Workbench 走查与业务验收待补 |
+| 当前阶段 | 已按 [实施计划](../../../plans/2026-10-02-agent-plugins-permissions-plan.md) 实现，自动化门禁、开发侧浏览器走查与真实模型走查（OpenAI 兼容连接）通过，含 Workbench 布局，自查见 §15；业务验收待补 |
 | 来源 | [脑暴 20261001-01 智能体能力重构](../../../brainstorms/20261001-01-agent-capability-refactor.zh-CN.md) 的 P0 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 00 参考智能体与会话](../00-reference-agent-conversations/README.md) · [SDD 02 智能体图像标注](../02-agent-image-annotation/README.md) · [SDD 11 视频理解 harness](../11-video-understanding-harness/README.md) · [SDD 13 项目文件夹与并行会话](../13-project-folder-sessions/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -247,7 +247,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 ### 7.8 运行预算
 
 1. 预算以命令为单位，默认 50 回合、20 分钟。回合以 pi 的 `turn_start` 事件计数；时长从命令开始计时，扣除交互请求的等待时间。
-2. 回合数或时长任一达到上限，命令进入「收尾」状态：此后每次 `tool_call` 都返回 `{block: true, reason}`，`reason` 要求模型停止调用工具，基于已有结果作答，并说明哪些部分未完成。同时，收尾回合的模型请求保留工具定义、把 `tool_choice` 设为不调用（OpenAI 兼容为 `"none"`，Anthropic 为 `{type: "none"}`），使模型只能作答；子智能体同样处理。
+2. 回合数或时长任一达到上限，命令进入「收尾」状态：此后每次 `tool_call` 都返回 `{block: true, reason}`，`reason` 要求模型停止调用工具，基于已有结果作答，并说明哪些部分未完成。同时，收尾回合的模型请求保留工具定义、把 `tool_choice` 设为不调用（OpenAI 兼容为 `"none"`，Anthropic 为 `{type: "none"}`），使模型只能作答，并在请求上下文末尾追加一条作答要求（只改请求，不写会话），以免预算在回合开始时判定用尽、模型尚未见过拦截理由；子智能体同样处理。
 3. 进入收尾后，再过 3 回合或 2 分钟仍未结束，runtime 中止命令，结局记为 `budget_exceeded`。
 4. 优先级：项目级设置文件 > 用户级设置文件 > 环境变量 > 默认值。上限的合法范围：回合数 1～500，时长 1～240 分钟；超出范围的值忽略并按下一优先级取值。
 5. SDD 11 的视频观察预算独立计算，不受本节影响。
