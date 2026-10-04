@@ -23,7 +23,8 @@ import { RuntimeError } from "../../errors.js";
 export const PROPOSE_ANNOTATION_TOOL_NAME = "propose_annotation";
 export const ANNOTATION_PROPOSED_DETAILS_KIND = "glaux.annotation_proposed";
 
-const Point = Type.Tuple([Type.Number(), Type.Number()]);
+// 定长数组而非 Type.Tuple：元组生成 `items: [...]`，OpenAI 兼容端点只接受单个 schema 的 `items`，整条请求会被拒
+const Point = Type.Array(Type.Number(), { minItems: 2, maxItems: 2 });
 
 const ProposeAnnotationParams = Type.Object({
   label: Type.String({
@@ -31,7 +32,9 @@ const ProposeAnnotationParams = Type.Object({
     description: "What this annotation marks, in the user's language (e.g. \"左肾\", \"nucleus\").",
   }),
   bbox: Type.Optional(
-    Type.Tuple([Type.Number(), Type.Number(), Type.Number(), Type.Number()], {
+    Type.Array(Type.Number(), {
+      minItems: 4,
+      maxItems: 4,
       description:
         "Rectangle as [x0, y0, x1, y1] in object pixels. Provide either bbox or polygon, not both.",
     }),
@@ -136,7 +139,7 @@ export function createProposeAnnotationTool(
       }
       const imageId = focus.object_id;
 
-      const hasBbox = Array.isArray(params.bbox);
+      const hasBbox = Array.isArray(params.bbox) && params.bbox.length === 4;
       const hasPolygon = Array.isArray(params.polygon) && params.polygon.length >= 3;
       if (hasBbox === hasPolygon) {
         // 两个都给或都不给：与其猜一个，不如让模型重来——几何是标注的全部意义
@@ -217,12 +220,15 @@ export function createProposeAnnotationTool(
 
 /** bbox 归一化为左上/右下，退化（零宽或零高）返回 null。 */
 function bboxPrimitive(
-  bbox: [number, number, number, number],
+  bbox: readonly number[],
 ): Record<string, unknown> | null {
-  const x0 = Math.min(bbox[0], bbox[2]);
-  const x1 = Math.max(bbox[0], bbox[2]);
-  const y0 = Math.min(bbox[1], bbox[3]);
-  const y1 = Math.max(bbox[1], bbox[3]);
+  const [ax, ay, bx, by] = bbox;
+  if (bbox.length !== 4 || ax === undefined || ay === undefined || bx === undefined || by === undefined) return null;
+  if (![ax, ay, bx, by].every(Number.isFinite)) return null;
+  const x0 = Math.min(ax, bx);
+  const x1 = Math.max(ax, bx);
+  const y0 = Math.min(ay, by);
+  const y1 = Math.max(ay, by);
   if (!(x1 > x0) || !(y1 > y0)) return null;
   return { kind: "bbox", x0, y0, x1, y1 };
 }
