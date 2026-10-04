@@ -13,17 +13,20 @@ export interface PermissionRule {
 /** §7.4「不挂载」：命令开始时按模式过滤，模型看不到这些工具。 */
 export function mountable(effect: ToolEffect, mode: PermissionMode): boolean {
   if (mode === "observe") return effect === "read";
-  if (effect === "exec") return mode === "autonomous";
+  // controlled 也挂载 exec，但只放行只读调用（SDD 16 §7.5 规则 6）
+  if (effect === "exec") return mode === "controlled" || mode === "autonomous";
   return true;
 }
 
 /**
  * §7.4 模式默认：自动放行或需审批。`sensitive` 表示路径在工作目录之外或隐藏（SDD 16 §7.2），
- * 只对 `read` / `write` 有意义：非 `autonomous` 一律审批。
+ * 只对 `read` / `write` 有意义：非 `autonomous` 一律审批。`readOnly` 只对 `exec` 有意义：
+ * controlled 下只读调用放行，其余拒绝。
  */
-export function modeDefault(effect: ToolEffect, mode: PermissionMode, sensitive = false): Decision {
+export function modeDefault(effect: ToolEffect, mode: PermissionMode, sensitive = false, readOnly = false): Decision {
   if (!mountable(effect, mode)) return "deny";
   if (mode === "autonomous") return "allow";
+  if (effect === "exec") return readOnly ? "allow" : "deny";
   if (sensitive && (effect === "read" || effect === "write")) return "ask";
   if (effect === "read") return "allow";
   if (mode === "observe") return "deny";
@@ -62,6 +65,8 @@ export interface DecideInput {
   sensitive?: boolean;
   /** 工具自带的 pattern 匹配方式（如 `bash` 前缀匹配）；缺省为 glob。 */
   match?: PatternMatcher;
+  /** `exec` 调用只读（SDD 16 §7.5 规则 6）。 */
+  readOnly?: boolean;
 }
 
 export interface Verdict {
@@ -76,6 +81,8 @@ export interface Verdict {
  */
 export function decide(input: DecideInput): Verdict {
   if (!mountable(input.effect, input.mode)) return { decision: "deny", basis: "mode" };
+  // controlled 下非只读的 exec 一律拒绝：allow 规则与会话授权都不能越过（SDD 16 §7.5 规则 6）
+  if (input.effect === "exec" && input.mode === "controlled" && !input.readOnly) return { decision: "deny", basis: "mode" };
   const matching = input.rules.filter((rule) => ruleMatches(rule, input.tool, input.subject, input.match));
   for (const decision of ["deny", "ask"] as const) {
     const rule = matching.find((candidate) => candidate.decision === decision);
@@ -84,5 +91,5 @@ export function decide(input: DecideInput): Verdict {
   const allowRule = matching.find((rule) => rule.decision === "allow" && (!input.sensitive || rule.pattern !== undefined));
   if (allowRule) return { decision: "allow", basis: "rule", rule: allowRule };
   if (!input.sensitive && input.grants.has(input.tool)) return { decision: "allow", basis: "grant" };
-  return { decision: modeDefault(input.effect, input.mode, input.sensitive), basis: "mode" };
+  return { decision: modeDefault(input.effect, input.mode, input.sensitive, input.readOnly), basis: "mode" };
 }

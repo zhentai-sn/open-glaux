@@ -45,10 +45,21 @@ describe("mode defaults", () => {
     expect(verdict("git push")).toMatchObject({ basis: "mode" });
   });
 
-  it("does not mount exec below autonomous, nor anything but read in observe", () => {
-    expect(mountable("exec", "controlled")).toBe(false);
+  it("mounts exec only from controlled up, and nothing but read in observe", () => {
+    expect(mountable("exec", "suggest")).toBe(false);
+    expect(mountable("exec", "controlled")).toBe(true);
     expect(mountable("exec", "autonomous")).toBe(true);
     expect(TOOL_EFFECTS.filter((effect) => mountable(effect, "observe"))).toEqual(["read"]);
+  });
+
+  // SDD 16 §7.5 规则 6：controlled 下 exec 只放行只读调用，allow 规则与会话授权都不能越过
+  it("allows only read-only exec calls in controlled mode", () => {
+    const exec = { ...base, tool: "bash", effect: "exec" as const, mode: "controlled" as const };
+    expect(decide({ ...exec, readOnly: true })).toEqual({ decision: "allow", basis: "mode" });
+    expect(decide({ ...exec, readOnly: false })).toEqual({ decision: "deny", basis: "mode" });
+    expect(decide({ ...exec, rules: [{ tool: "bash", decision: "allow" }], grants: new Set(["bash"]) })).toMatchObject({ decision: "deny", basis: "mode" });
+    expect(decide({ ...exec, readOnly: true, rules: [{ tool: "bash", decision: "ask" }] })).toMatchObject({ decision: "ask", basis: "rule" });
+    expect(decide({ ...exec, mode: "autonomous", readOnly: false })).toEqual({ decision: "allow", basis: "mode" });
   });
 });
 

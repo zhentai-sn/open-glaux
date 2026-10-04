@@ -87,8 +87,13 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
     subject = scope?.subject;
     sensitive = scope?.sensitive ?? false;
   }
+  // controlled 下的 exec 调用先判定是否只读；其余模式不需要（SDD 16 §7.5 规则 6）
+  const readOnlyReason = tool.readOnlyViolation && mode === "controlled" && state.cwd
+    ? await tool.readOnlyViolation(event.input, state.cwd)
+    : undefined;
   const verdict = decide({
     tool: tool.name, effect: tool.effect, mode, rules: allRules(state.settings), grants: state.grants, sensitive,
+    readOnly: tool.readOnlyViolation !== undefined && mode === "controlled" && !!state.cwd && readOnlyReason === undefined,
     ...(subject !== undefined ? { subject } : {}),
     ...(tool.patternMatch ? { match: tool.patternMatch } : {}),
   });
@@ -97,8 +102,14 @@ async function judge(event: ToolCallEvent, ctx: RunContext): Promise<ToolCallRes
   if (verdict.decision === "deny") {
     const reason = verdict.basis === "rule"
       ? `The call to ${tool.name} was denied by a permission rule; it was not executed.`
-      : `${tool.name} is not allowed in ${mode} mode; it was not executed.`;
-    await record({ decision: "deny", basis: verdict.basis, mode, ...scopeRecord, ...(verdict.rule ? { rule: verdict.rule } : {}) });
+      : readOnlyReason !== undefined
+        ? `In controlled mode ${tool.name} only runs read-only commands, and this one is not: ${readOnlyReason}. ` +
+          "It was not executed. Use a read-only command, or ask the user to switch to autonomous mode."
+        : `${tool.name} is not allowed in ${mode} mode; it was not executed.`;
+    await record({
+      decision: "deny", basis: verdict.basis, mode, ...scopeRecord, ...(verdict.rule ? { rule: verdict.rule } : {}),
+      ...(readOnlyReason !== undefined ? { read_only: readOnlyReason } : {}),
+    });
     return block(reason);
   }
 

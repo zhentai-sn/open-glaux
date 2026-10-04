@@ -202,7 +202,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 | --- | --- | --- | --- |
 | `observe` | read | — | annotate、compute、egress、write、exec、delegate |
 | `suggest` | read、annotate | compute、egress、write、delegate | exec |
-| `controlled`（默认） | read、annotate、compute、egress、项目目录内的 write、delegate | 项目目录外的 write | exec |
+| `controlled`（默认） | read、annotate、compute、egress、项目目录内的 write、delegate、只读的 exec | 项目目录外的 write | —（非只读的 exec 拒绝，SDD 16 §7.5 规则 7） |
 | `autonomous`（最高权限） | 全部 | 只有命中 `ask` 规则的调用 | — |
 
 1. 「不挂载」在命令开始组装工具集时生效，模型看不到该工具。

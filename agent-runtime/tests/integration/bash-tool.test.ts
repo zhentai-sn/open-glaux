@@ -1,5 +1,5 @@
-/** SDD 16 §7.5、§15.4：bash 只在 autonomous 挂载、环境变量白名单、超时与前缀规则。 */
-import { mkdtemp, rm } from "node:fs/promises";
+/** SDD 16 §7.5、§15.4：bash 的挂载与 controlled 只读限制、环境变量白名单、超时与前缀规则。 */
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,12 +42,35 @@ async function run(steps: FauxResponseStep[], mode: PermissionMode, rules: { too
 }
 
 describe("bash", () => {
-  it("is mounted only in autonomous mode", () => {
+  it("is mounted in controlled and autonomous mode only", () => {
     const ctx = { cwd: project, execEnv: {} as never, connection: TEST_CONNECTION };
-    for (const mode of ["observe", "suggest", "controlled"] as const) {
+    for (const mode of ["observe", "suggest"] as const) {
       expect(defaultToolFactory({ ...ctx, permissionMode: mode }).map((t) => t.name)).not.toContain("bash");
     }
-    expect(defaultToolFactory({ ...ctx, permissionMode: "autonomous" }).map((t) => t.name)).toContain("bash");
+    for (const mode of ["controlled", "autonomous"] as const) {
+      expect(defaultToolFactory({ ...ctx, permissionMode: mode }).map((t) => t.name)).toContain("bash");
+    }
+  });
+
+  // SDD 16 §7.5 规则 6：controlled 下只读命令直接运行，其余拒绝并说明原因，不弹审批
+  it("runs read-only commands in controlled mode and rejects the rest with a reason", async () => {
+    await writeFile(join(project, "notes.md"), "hello\n");
+    const seen: string[] = [];
+    const { fixture, sessionId } = await run([
+      fauxAssistantMessage(fauxToolCall("bash", { command: "ls | sort" }), { stopReason: "toolUse" }),
+      (context) => {
+        seen.push(lastToolText(context.messages));
+        return fauxAssistantMessage(fauxToolCall("bash", { command: "ls; touch made.txt" }), { stopReason: "toolUse" });
+      },
+      (context) => { seen.push(lastToolText(context.messages)); return fauxAssistantMessage("ok"); },
+    ], "controlled", [{ tool: "bash", decision: "allow" }]);
+    try {
+      await fixture.registry.waitForIdle(sessionId);
+      expect(seen[0]).toContain("notes.md");
+      expect(seen[1]).toMatch(/In controlled mode bash only runs read-only commands, and this one is not: shell syntax ";" is not allowed/u);
+      expect(fixture.registry.interactions.pending(sessionId)).toEqual([]);
+      await expect(access(join(project, "made.txt"))).rejects.toThrow();
+    } finally { await fixture.close(); }
   });
 
   it("runs in the working directory with allowlisted variables only", async () => {

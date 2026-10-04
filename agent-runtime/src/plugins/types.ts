@@ -26,6 +26,8 @@ export interface PluginTool extends ToolProvider {
   pathScope?(args: Record<string, unknown>, cwd: string, readableRoots?: readonly string[]): Promise<PathScope | undefined>;
   /** 规则 pattern 的匹配方式；缺省为 glob（SDD 16 §7.5 规则 5）。 */
   patternMatch?(pattern: string, subject: string): boolean;
+  /** `exec` 工具：调用是否只读；返回不放行的理由，只读时返回 `undefined`（SDD 16 §7.5 规则 6）。 */
+  readOnlyViolation?(args: Record<string, unknown>, cwd: string): Promise<string | undefined>;
 }
 
 /** SDD 16 §9.1：规则匹配用的 subject 与是否敏感。 */

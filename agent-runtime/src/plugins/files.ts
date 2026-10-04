@@ -20,6 +20,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 
 import type { HarnessTool, HarnessToolContext } from "../pi/harness-registry.js";
+import { READONLY_COMMANDS, readOnlyViolation } from "../permission/readonly-command.js";
 import { resolvePathScope } from "../workspace/path-scope.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
 import type { GlauxPlugin, PluginTool } from "./types.js";
@@ -162,7 +163,7 @@ function createWriter(ctx: HarnessToolContext, op: "write" | "edit"): HarnessToo
 }
 
 /**
- * SDD 16 §7.5：只在 autonomous 挂载（effect `exec`）。pi 的 `NodeExecutionEnv` 在 `inheritEnv` 为真时
+ * SDD 16 §7.5：controlled 与 autonomous 挂载（effect `exec`）；controlled 只放行只读命令（规则 6）。pi 的 `NodeExecutionEnv` 在 `inheritEnv` 为真时
  * 会先合并整个 `process.env`，因此在 `prepare` 里关掉继承，只给白名单变量（D-6）。
  */
 function createBash(ctx: HarnessToolContext): HarnessTool {
@@ -189,6 +190,17 @@ const BASH_PROMPT =
   " You can run shell commands with bash in the working directory. Commands get no credentials from Glaux. " +
   "Numbers you compute with bash are uncalibrated: report them as such and never present them as calibrated measurements; " +
   "use run_task for calibrated measurements.";
+
+/** controlled 下的限制写进提示词，避免模型反复尝试会被拒绝的命令。 */
+const BASH_READONLY_PROMPT =
+  ` In the current permission mode bash only runs read-only commands: ${READONLY_COMMANDS.join(", ")}, ` +
+  "optionally joined with |, on paths inside the working directory that are not hidden. " +
+  "Command chaining (; && ||), redirection, $ expansion, subshells, find -exec/-delete and other options that write files " +
+  "or run programs are rejected. Use bash to list and search files, e.g. find . -maxdepth 2 or grep -rn.";
+
+function bashPrompt(ctx: HarnessToolContext): string {
+  return ctx.permissionMode === "controlled" ? BASH_PROMPT + BASH_READONLY_PROMPT : BASH_PROMPT;
+}
 
 function filesPrompt(ctx: HarnessToolContext): string {
   const where = ctx.projectId
@@ -220,7 +232,8 @@ export const filesPlugin: GlauxPlugin = {
       name: BASH_TOOL_NAME, effect: "exec", requires: {}, supports: () => true,
       permissionSubject: (args) => (typeof args.command === "string" ? args.command : undefined),
       patternMatch: bashPrefixMatch,
-      create: createBash, promptFragment: () => BASH_PROMPT,
+      readOnlyViolation: (args, cwd) => readOnlyViolation(typeof args.command === "string" ? args.command : "", cwd),
+      create: createBash, promptFragment: bashPrompt,
     },
   ],
 };

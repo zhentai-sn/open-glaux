@@ -30,9 +30,9 @@ status: implemented
 
 ## 2. 本 SDD 不负责什么
 
-- `bash` 沙箱（容器、受限用户、seccomp）：本期只靠「仅 `autonomous` 挂载」、环境变量白名单与 deny 规则（SDD 15 §5 C5）。
+- `bash` 沙箱（容器、受限用户、seccomp）：本期只靠「`controlled` 限只读、任意命令仅 `autonomous`」、环境变量白名单与 deny 规则（SDD 15 §5 C5）。
 - 非 UTF-8 文本的读写：`read` / `edit` 只按 UTF-8 处理（D-4）。
-- 目录列举、文本搜索类工具（`ls`、`find`、`grep`）：项目会话用 `list_files`；`autonomous` 下可用 `bash`。
+- 目录列举、文本搜索的专用工具：不另设，由 `bash` 的只读命令承担（§7.5 规则 7）；项目会话另有带模态识别的 `list_files`。
 - Skills 目录的只读放行（脑暴 P2）。
 - 写入文件的撤销与版本管理。
 
@@ -145,12 +145,22 @@ sequenceDiagram
 
 ### 7.5 `bash`
 
-1. 只在 `autonomous` 下挂载（SDD 15 §7.4）。命令在 `cwd` 下以 runtime 进程的用户身份执行。
+1. 在 `controlled` 与 `autonomous` 下挂载（SDD 15 §7.4）；`controlled` 只放行只读命令（规则 7）。命令在 `cwd` 下以 runtime 进程的用户身份执行。
 2. 环境变量白名单：只传递 `PATH`、`HOME`、`USER`、`LOGNAME`、`SHELL`、`LANG`、`LC_ALL`、`LC_CTYPE`、`TERM`、`TMPDIR`、`TZ`，外加 `GLAUX_CWD`（等于 `cwd`）。其他变量（含 `GLAUX_SEG_API_TOKEN`、模型凭据、`*_TOKEN`、`*_KEY`）一律不传。
 3. 超时：参数缺省时取 120 秒；大于 600 秒时按 600 秒执行，并在结果首行注明已截到上限。超时、中止、非零退出码按 pi 内置行为以工具错误返回。
 4. 输出截断沿用 pi 内置行为，完整输出写入临时文件，结果给出路径。
 5. 规则匹配的 subject 为命令文本；`pattern` 对 `bash` 按前缀匹配（去掉首尾空白后比较）。
-6. 提示词片段写明：`bash` 计算出的数值是非标定结果，报告时不得与 `run_task` 的标定测量混同（SDD 15 §5 C2）。
+6. 提示词片段写明：`bash` 计算出的数值是非标定结果，报告时不得与 `run_task` 的标定测量混同（SDD 15 §5 C2）。命令开始时为 `controlled` 的，另写明只读限制，避免模型反复尝试会被拒绝的命令。
+7. `controlled` 下只读命令自动放行，其余一律拒绝；allow 规则与「本会话允许」都不能越过，命中 `ask` 规则的只读命令仍需审批。判定解析整条命令，不做前缀匹配（`permission/readonly-command.ts`），须同时满足：
+
+   | 条件 | 规则 |
+   | --- | --- |
+   | 结构 | 只由 `\|` 连接的简单命令；引号外出现 `;`、`&`、`\|\|`、`<`、`>`、`(`、`)`、`$`、反引号、`{`、`}`、换行、词首 `~`，或双引号内出现 `$`、反引号、反斜杠即否决 |
+   | 命令名 | 每段都在白名单内：`ls`、`tree`、`find`、`du`、`stat`、`file`、`pwd`、`cat`、`head`、`tail`、`wc`、`grep`、`rg`、`sort`、`uniq`、`cut` |
+   | 选项 | 不含写文件或执行程序的选项：`find` 的 `-exec`、`-execdir`、`-ok`、`-okdir`、`-delete`、`-fls`、`-fprint*`；`sort -o`、`--output`、`--compress-program`；`tree -o`；`rg --pre`；`file -C`；`uniq` 的输出文件操作数 |
+   | 路径 | 非选项参数都在工作目录内（跟随符号链接）且不是隐藏路径，与 §7.2 同一判定；搜索词恰好像这类路径时也否决 |
+
+   拒绝时理由回给模型，并提示改用只读命令或请用户切到 `autonomous`。`xargs`、`awk`、`sed`（可间接执行或写文件）、`git`（配置可调外部程序）、`less`（交互式）、`tee`（写文件）不在白名单内。
 
 ### 7.6 会话工作区生命周期
 
@@ -281,7 +291,9 @@ stateDiagram-v2
 
 ### 15.4 `bash`
 
-- [x] 只在 `autonomous` 下挂载（单元测试）。——`bash-tool.test.ts`
+- [x] 只在 `controlled` 与 `autonomous` 下挂载（单元测试）。——`bash-tool.test.ts`
+- [x] `controlled` 下只读命令（含管道）直接运行；命令拼接、重定向、展开、白名单外命令、写文件或执行程序的选项、工作目录外或隐藏路径一律拒绝，allow 规则与会话授权不能越过（单元测试）。——`readonly-command.test.ts`、`permission-decide.test.ts`
+- [x] `controlled` 下 `ls | sort` 运行、`ls; touch x` 被拒绝且不弹审批、文件未创建（集成测试）。——`bash-tool.test.ts`
 - [x] 命令中 `env` 输出不含白名单外的变量，`GLAUX_CWD` 等于 `cwd`（集成测试）。——`bash-tool.test.ts`；去掉 `inheritEnv = false` 时该用例失败（已验证）
 - [x] 缺省超时 120 秒、上限 600 秒（单元测试）。——`bash-tool.test.ts`
 - [x] 规则 `{tool: "bash", pattern: "git status", decision: "allow"}` 匹配 `git status -s`，不匹配 `git push`（单元测试）。——`bash-tool.test.ts`、`permission-decide.test.ts`
@@ -310,6 +322,7 @@ stateDiagram-v2
 | D-8 | `bash` 规则按前缀匹配 | 命令以子命令开头（`git status`、`python -m`），前缀比 glob 直观 |
 | D-9 | `REGISTRY` 的不变量改为「标定能力的唯一来源」 | 已拍板（脑暴 §5 C2）；`bash` 结果为非标定结果 |
 | D-10 | 写入通知走 `tool.end` 的 `details`，不新增 SSE 事件 | 结果与通知同源，前端已有 `tool.end` 处理路径 |
+| D-11 | `controlled` 挂载 `bash` 但只放行只读命令，不新增列目录工具 | 未归属会话在 `controlled` 下看不到工作区；新增工具与 `bash` 重叠（如无必要，勿增实体）。只读判定解析整条命令而非前缀，前缀挡不住 `ls; rm -rf x`；非只读一律拒绝而非审批，`controlled`「不执行有副作用的命令」的边界不变 |
 
 ## 17. 待确认问题
 
