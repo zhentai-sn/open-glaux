@@ -2615,8 +2615,11 @@ body.resizing .focus-rail { transition: none; }
 .focus-conversation.empty .focus-hero { margin-top: auto; }
 .focus-conversation.empty > .focus-cards { flex: none; margin-bottom: auto; padding-bottom: 12px; }
 .focus-conversation.empty .conversation-stream { display: none; }
-/* 空状态的连接/权限条隐藏：模型信息经顶栏 ⚙，开聊后配置条再出现。 */
-.focus-conversation.empty .agent-configbar { display: none; }
+/* 空状态的配置条只留权限下拉：首条消息前就要能定权限；模型信息经顶栏 ⚙，开聊后整条再出现。 */
+.focus-conversation.empty .agent-configbar { justify-content: flex-end; }
+.focus-conversation.empty .agent-configbar:not(:has(label)) { display: none; } /* chat 发行版无权限下拉 */
+.focus-conversation.empty .agent-configbar > button,
+.focus-conversation.empty .agent-configbar .context-ring { display: none; }
 /* 空状态只管布局（卡片外观/光晕/透明 textarea 已泛化到上方 Focus 通用段）。 */
 .focus-conversation.empty .agent {
   flex: none;
