@@ -2813,7 +2813,8 @@ body.resizing .focus-rail { transition: none; }
 .who svg { flex: none; }
 
 /* ---- 对话消息 Markdown 渲染（feats/00 §5.1；react-markdown，无原始 HTML） ---- */
-.md { font-size: 12.5px; line-height: 1.65; color: var(--ink); }
+/* white-space 复位：气泡的 pre-wrap 会让块元素之间的换行符显示成空行，列表与段落间距被撑大 */
+.md { font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: normal; }
 .md > :first-child { margin-top: 0; }
 .md > :last-child { margin-bottom: 0; }
 .md p { margin: 6px 0; }
