@@ -14,7 +14,7 @@ import {
   type AnnotationProposedDetails,
 } from "../../src/pi/tools/propose-annotation.js";
 import type { ConnectionInput } from "../../src/contracts.js";
-import { targetObjectId, viewerOn } from "../helpers/viewer-fixture.js";
+import { solidPng, targetObjectId, viewerOn } from "../helpers/viewer-fixture.js";
 
 interface Captured {
   url: string;
@@ -57,7 +57,7 @@ describe("propose_annotation", () => {
 
     await tool.execute(
       "c1",
-      { label: "左肾", bbox: [10, 20, 60, 80] },
+      { space: "object", label: "左肾", bbox: [10, 20, 60, 80] },
       undefined,
       undefined,
       undefined,
@@ -78,7 +78,7 @@ describe("propose_annotation", () => {
     const text = textOf(
       await tool.execute(
         "c2",
-        { label: "nucleus", bbox: [1, 1, 5, 5] },
+        { space: "object", label: "nucleus", bbox: [1, 1, 5, 5] },
         undefined,
         undefined,
         undefined,
@@ -101,7 +101,7 @@ describe("propose_annotation", () => {
     ];
     const result = await tool.execute(
       "c3",
-      { label: "lesion", polygon },
+      { space: "object", label: "lesion", polygon },
       undefined,
       undefined,
       undefined,
@@ -109,6 +109,47 @@ describe("propose_annotation", () => {
     expect(captured[0]!.body.primitive).toEqual({ kind: "polyline", closed: true, points: polygon });
     const details = result.details as AnnotationProposedDetails;
     expect(details.payload.annotation_id).toBe("ann_001");
+  });
+
+  // 照着 view_current_image 的低倍概览描出的坐标：按 X-Glaux-Frame 换算成对象像素（WSI level 2 约 1/16）
+  function frameBackend(captured: Captured[], frame: { origin: [number, number]; scale: number }) {
+    const annotations = fakeBackend(captured);
+    return vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = new URL(String(url));
+      if (/^\/objects\/[^/]+\/frame$/u.test(u.pathname)) {
+        const header = { object_id: "slide_002", index: { level: 2 }, ...frame, width: 1024, height: 733 };
+        return new Response(Buffer.from(solidPng(4, 4)), {
+          headers: { "content-type": "image/png", "x-glaux-frame": JSON.stringify(header) },
+        });
+      }
+      return annotations(url as string, init!);
+    }) as unknown as typeof fetch;
+  }
+
+  it("space=view 把看到的概览像素换算成对象像素", async () => {
+    const captured: Captured[] = [];
+    const tool = createProposeAnnotationTool({
+      viewer: viewerOn("slide_002", { index: { level: 2 } }),
+      fetch: frameBackend(captured, { origin: [0, 0], scale: 1 / 16 }),
+    });
+    await tool.execute(
+      "v1",
+      { space: "view", label: "fold", polygon: [[100, 40], [160, 40], [160, 90]] },
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(captured[0]!.body.primitive).toEqual({ kind: "polyline", closed: true, points: [[1600, 640], [2560, 640], [2560, 1440]] });
+  });
+
+  it("space=view 的 bbox 计入选区原点", async () => {
+    const captured: Captured[] = [];
+    const tool = createProposeAnnotationTool({
+      viewer: viewerOn("slide_002", { index: { level: 2 } }),
+      fetch: frameBackend(captured, { origin: [1000, 2000], scale: 0.5 }),
+    });
+    await tool.execute("v2", { space: "view", label: "x", bbox: [10, 20, 30, 40] }, undefined, undefined, undefined);
+    expect(captured[0]!.body.primitive).toEqual({ kind: "bbox", x0: 1020, y0: 2040, x1: 1060, y1: 2080 });
   });
 
   it("bbox 顺序颠倒时归一化为左上/右下", async () => {
@@ -119,7 +160,7 @@ describe("propose_annotation", () => {
     });
     await tool.execute(
       "c4",
-      { label: "x", bbox: [90, 70, 30, 20] },
+      { space: "object", label: "x", bbox: [90, 70, 30, 20] },
       undefined,
       undefined,
       undefined,
@@ -135,7 +176,7 @@ describe("propose_annotation", () => {
     });
     const result = await tool.execute(
       "c5",
-      { label: "x", bbox: [1, 1, 5, 5], polygon: [[1, 1], [2, 2], [3, 3]] },
+      { space: "object", label: "x", bbox: [1, 1, 5, 5], polygon: [[1, 1], [2, 2], [3, 3]] },
       undefined,
       undefined,
       undefined,
@@ -151,7 +192,7 @@ describe("propose_annotation", () => {
       viewer: viewerOn("img_1"),
       fetch: fakeBackend(captured),
     });
-    const result = await tool.execute("c6", { label: "x" }, undefined, undefined, undefined);
+    const result = await tool.execute("c6", { space: "object", label: "x" }, undefined, undefined, undefined);
     expect(captured).toHaveLength(0);
     expect((result.details as AnnotationProposedDetails).payload.reason).toBe("missing_geometry");
   });
@@ -164,7 +205,7 @@ describe("propose_annotation", () => {
     });
     const result = await tool.execute(
       "c7",
-      { label: "x", bbox: [5, 5, 5, 40] },
+      { space: "object", label: "x", bbox: [5, 5, 5, 40] },
       undefined,
       undefined,
       undefined,
@@ -178,7 +219,7 @@ describe("propose_annotation", () => {
     const tool = createProposeAnnotationTool({ viewer: {}, fetch: fakeBackend(captured) });
     const result = await tool.execute(
       "c8",
-      { label: "x", bbox: [1, 1, 5, 5] },
+      { space: "object", label: "x", bbox: [1, 1, 5, 5] },
       undefined,
       undefined,
       undefined,
@@ -195,7 +236,7 @@ describe("propose_annotation", () => {
     await expect(
       tool.execute(
         "c9",
-        { label: "x", bbox: [1, 1, 99999, 99999] },
+        { space: "object", label: "x", bbox: [1, 1, 99999, 99999] },
         undefined,
         undefined,
         undefined,
@@ -211,7 +252,7 @@ describe("propose_annotation", () => {
     });
     await tool.execute(
       "c10",
-      { label: "liver", bbox: [1, 1, 9, 9] },
+      { space: "object", label: "liver", bbox: [1, 1, 9, 9] },
       undefined,
       undefined,
       undefined,
@@ -225,7 +266,7 @@ describe("propose_annotation", () => {
       viewer: viewerOn("vid-0001", { kind: "video", index: { t: 10 } }),
       fetch: fakeBackend(captured),
     });
-    const result = await tool.execute("video-10", { label: "object", bbox: [1, 1, 9, 9] }, undefined, undefined, undefined);
+    const result = await tool.execute("video-10", { space: "object", label: "object", bbox: [1, 1, 9, 9] }, undefined, undefined, undefined);
     expect(captured[0]!.body.index).toEqual({ t: 10 });
     expect((result.details as AnnotationProposedDetails).payload.index).toEqual({ t: 10 });
   });

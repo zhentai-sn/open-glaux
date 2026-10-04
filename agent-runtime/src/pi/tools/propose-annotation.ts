@@ -9,14 +9,18 @@
  * 让它显式再调一次本工具，等于强制它对每条标注做一次独立表态，也给了
  * `permission_mode` 一个天然的门控点（`suggest` 下逐条批准即卡在这里）。
  *
- * 坐标契约（SDD 10 §6.4）：入参为对象像素坐标，与 `segment_region` 出参同一坐标系；
- * 第三轴由 ViewerContext.focus.index 给出，不让模型猜 z / t / level。
+ * 坐标契约（SDD 10 §6.4）：落库为对象像素坐标；第三轴由 ViewerContext.focus.index 给出，不让模型猜 z / t / level。
+ * 入参坐标系由 `space` 显式声明：`object` 为对象像素（与 `segment_region` 出参同一坐标系），
+ * `view` 为 `view_current_image` 那张图上的像素——模型照着看到的图描出的坐标，由本工具按取帧的
+ * `X-Glaux-Frame` 换算（与 `locate_roi` 同一做法）。低倍概览（如 WSI 的 level 2）与对象像素相差
+ * 数十倍，不让模型自己换算。
  */
 
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
+import { fetchObservation, toObjectPoint } from "../../observation/index.js";
 import type { Index, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
 
@@ -31,20 +35,24 @@ const ProposeAnnotationParams = Type.Object({
     minLength: 1,
     description: "What this annotation marks, in the user's language (e.g. \"左肾\", \"nucleus\").",
   }),
+  space: Type.String({
+    enum: ["view", "object"],
+    description:
+      "Coordinate system of bbox / polygon. \"view\": pixels of the picture view_current_image showed you — use this " +
+      "when you drew the region yourself from what you saw; it is converted for you, even when that picture is a " +
+      "downscaled overview. \"object\": object pixels, e.g. a polygon or box copied verbatim from segment_region or locate_roi.",
+  }),
   bbox: Type.Optional(
     Type.Array(Type.Number(), {
       minItems: 4,
       maxItems: 4,
-      description:
-        "Rectangle as [x0, y0, x1, y1] in object pixels. Provide either bbox or polygon, not both.",
+      description: "Rectangle as [x0, y0, x1, y1] in the given space. Provide either bbox or polygon, not both.",
     }),
   ),
   polygon: Type.Optional(
     Type.Array(Point, {
       minItems: 3,
-      description:
-        "Closed outline as [[x, y], ...] in object pixels — typically taken verbatim from segment_region. " +
-        "Provide either bbox or polygon, not both.",
+      description: "Closed outline as [[x, y], ...] in the given space. Provide either bbox or polygon, not both.",
     }),
   ),
   note: Type.Optional(
@@ -121,8 +129,9 @@ export function createProposeAnnotationTool(
     description:
       "Propose one annotation on the image currently open in the viewer. It appears as a suggestion for the user " +
       "to confirm or reject — it never becomes a confirmed annotation on its own, and confirming is the user's call, " +
-      "not yours. Give coordinates in object pixels, normally taken straight from segment_region; propose one region " +
-      "per call, and only those you actually judge correct.",
+      "not yours. Say which coordinate system you use: space \"view\" for pixels of the picture you were shown, " +
+      "\"object\" for coordinates copied from segment_region or locate_roi. Propose one region per call, and only " +
+      "those you actually judge correct.",
     parameters: ProposeAnnotationParams,
     async execute(_toolCallId, params, signal) {
       const abort = AbortSignal.timeout(timeoutMs);
@@ -153,9 +162,22 @@ export function createProposeAnnotationTool(
         );
       }
 
+      let bbox = params.bbox;
+      let polygon = params.polygon as Array<[number, number]> | undefined;
+      if (params.space === "view") {
+        // 与 view_current_image 同一请求取帧，按 X-Glaux-Frame 把看到的像素换算成对象像素
+        const { frame } = await fetchObservation(base, focus, { signal: combined, fetch: doFetch });
+        if (bbox) {
+          const [ax, ay] = toObjectPoint([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], frame);
+          const [bx, by] = toObjectPoint([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], frame);
+          bbox = [ax, ay, bx, by];
+        }
+        if (polygon) polygon = polygon.map((point) => toObjectPoint(point, frame));
+      }
+
       const primitive = hasBbox
-        ? bboxPrimitive(params.bbox!)
-        : { kind: "polyline", closed: true, points: params.polygon! };
+        ? bboxPrimitive(bbox!)
+        : { kind: "polyline", closed: true, points: polygon! };
       if (!primitive) {
         return notProposed(
           imageId,

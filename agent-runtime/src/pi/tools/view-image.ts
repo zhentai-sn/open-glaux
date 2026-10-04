@@ -139,7 +139,10 @@ export function createViewCurrentImageTool(
                 ? ` The dataset files it under ${labels.join(", ")} — that is a catalogue label, not an observation.` +
                   " If what you see does not match it, describe what you actually see and say the label disagrees."
                 : "") +
-              " Answer from the picture, not from the id.",
+              " Answer from the picture, not from the id." +
+              // 这张图可能是缩小的概览；坐标换算交给 propose_annotation，不让模型自己算
+              " Pixel positions you read off this picture are not object coordinates; when proposing an annotation " +
+              "from them, pass space \"view\" to propose_annotation.",
           } satisfies TextContent,
           { type: "image", data: Buffer.from(bytes).toString("base64"), mimeType } satisfies ImageContent,
         ],

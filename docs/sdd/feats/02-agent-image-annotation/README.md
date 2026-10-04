@@ -156,7 +156,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `locate_roi` | 目标描述, use_atlas, max_results, min_confidence | bbox 列表（对象像素）+ 置信度 + 理由 | 视觉模型 grounding；默认带图谱先验，复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（D-6：**领域结构走这条**） |
 | `segment_region` | 目标描述, max_results, min_confidence | 多边形列表（对象像素）+ 置信度 + 面积 | 走 §7.2 托管分割后端；通用场景的像素级边界 |
-| `propose_annotation` | label, bbox **或** polygon, note | annotation_id、index | `index` 取自 `focus.index`；落建议态标注（`status=suggested, source=agent`） |
+| `propose_annotation` | label, space, bbox **或** polygon, note | annotation_id、index | `index` 取自 `focus.index`；落建议态标注（`status=suggested, source=agent`）。`space` 必填：`object` 为对象像素（取自 `locate_roi` / `segment_region`），`view` 为 `view_current_image` 那张图的像素，runtime 重新取帧后按 `X-Glaux-Frame` 换算 |
 
 模型答**归一化坐标**再由 runtime 乘回像素（D-8）：模型不知道图有多少像素，逼它直接输出
 像素坐标只会得到"1024 猜想"式的幻觉。四值全落在 `[0,1]` 才按归一化解读，否则按像素——
@@ -434,6 +434,7 @@ trace_id；不记录图像内容与 API key。
 | D-10 | 分割后端契约以**实测**为准，与其 OpenAPI schema 冲突处按实测实现并在代码注释里记明 | 按 schema 实现，出错再查 | 实测发现两处不符（`prompt` 必传但未声明、`size` 实为 `[w,h]`）。按 schema 写会得到纵向糊成长条的几何，且要到联调才暴露。回归测试用真实响应做 fixture 锁住这两点 | 2026-08-22 |
 | D-11 | 不新增 SSE 事件类型，产出走**工具结果 `details`**；`suggest` 逐次批准用会话内卡片（Q5 收敛） | 新增 `annotation.*` 事件族；弹窗批准 | SDD 03 D-21 已验证 `details` 这条范式：卡片随会话历史天然持久化，不必另建回放通道。弹窗打断阅片节奏，且与既有会话交互不同构 | 2026-08-22 |
 | D-12 | `propose_annotation` 成功后由 `tool.end` 事件直接 upsert 当前 Viewer，快照保留建议 details | 成功后再请求 `/annotations`；轮询；只在切图时恢复 | details 来自 Backend 成功响应，已含 ID/几何/seq；直接写回延迟最低且无额外请求。活动对象守卫防止切图串入，`upsertAnnotation` 保证重复事件幂等，Backend 仍是刷新后的事实源 | 2026-08-26 |
+| D-13 | `propose_annotation` 用必填 `space` 声明坐标系，`view` 坐标由 runtime 按取帧变换换算 | 只收对象像素，要求模型自己换算 | 模型照着看到的图描轮廓时只知道观测帧像素；低倍概览（WSI level 2 的 `scale` 约 0.02）与对象像素相差数十倍，按帧像素直接落库会把标注画到图像左上角（已在验收中发生）。必填避免两种坐标系混用；换算与 `locate_roi`、`segment_region` 同一路径 | 2026-10-04 |
 
 ## 17. 待确认问题
 
