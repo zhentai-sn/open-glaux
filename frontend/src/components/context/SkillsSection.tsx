@@ -1,24 +1,22 @@
 import { useState } from "react";
 
 import { agentRuntimeApi } from "../../agent/runtime/client";
-import type { AgentItem, ResourceSource, SkillItem } from "../../agent/runtime/types";
+import type { ResourceList, ResourceSource, SkillItem } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import type { I18nKey } from "../../i18n/en";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
-import { errorText, useCurrentProjectId, useResourceList } from "./useResources";
+import { RESOURCE_NAME, confirmLeave, errorText, useDirtyRegistration } from "./shared";
 
-// 「技能」页（SDD 17 §5.1、§7.6）：按来源分组列出 Skills，启停、查看与编辑 SKILL.md。
+// 「技能」分区（SDD 19 §7.3，加载与读写规则见 SDD 17）：按来源分组，列表 → 详情；
 // 内置只读，可复制为用户级；修改在下一个命令生效。
-// 末尾「子智能体」分组只读列出定义（SDD 18 §5.1）。
 
 const SOURCES: ResourceSource[] = ["project", "user", "builtin"];
-const SOURCE_LABEL: Record<ResourceSource, I18nKey> = {
+export const SOURCE_LABEL: Record<ResourceSource, I18nKey> = {
   project: "res_source_project",
   user: "res_source_user",
   builtin: "res_source_builtin",
 };
-const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 interface Editing {
   source: ResourceSource;
@@ -30,48 +28,29 @@ interface Editing {
   isNew?: boolean;
 }
 
-function AgentsSection({ agents }: { agents: AgentItem[] }) {
-  const { t } = useI18n();
-  return (
-    <section className="res-group" data-testid="agents-section">
-      <div className="res-group-head">
-        <Icon icon={ICONS.subagent} size="sm" /> {t("res_agents_title")}
-      </div>
-      <div className="res-hint">{t("res_agents_hint")}</div>
-      {!agents.length && <div className="res-empty">{t("res_empty")}</div>}
-      {agents.map((item) => (
-        <div key={`${item.source}-${item.name}`} className="res-item" title={item.path}>
-          <div className="res-item-main static">
-            <span className="res-item-name">{item.name}</span>
-            <span className="res-item-desc">{item.description}</span>
-            <span className="res-item-desc mono">
-              {item.tools ? item.tools.join(", ") : t("res_agent_tools_all")} · {t("res_agent_max_turns", { n: item.max_turns })}
-            </span>
-          </div>
-          <span className="res-badge">{t(SOURCE_LABEL[item.source])}</span>
-          {item.overridden_by && <span className="res-badge">{t("res_overridden")}</span>}
-        </div>
-      ))}
-    </section>
-  );
-}
-
 const scaffold = (name: string) => `---\nname: ${name}\ndescription: \n---\n\n`;
 
-export function SkillsView() {
+export function SkillsSection({
+  projectId,
+  list,
+  reload,
+  onChanged,
+}: {
+  projectId: string | null;
+  list: ResourceList | null;
+  reload: () => Promise<void>;
+  onChanged: () => void;
+}) {
   const { t } = useI18n();
-  const projectId = useCurrentProjectId();
-  const { list, error, reload } = useResourceList(projectId);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [newSource, setNewSource] = useState<"user" | "project">("user");
   const [newName, setNewName] = useState("");
-
   const dirty = editing ? editing.content !== editing.original : false;
-  const leave = () => !dirty || window.confirm(t("res_unsaved_confirm"));
+  useDirtyRegistration("skill", dirty);
+  const leave = () => confirmLeave(t("res_unsaved_confirm"));
 
   const open = async (item: SkillItem) => {
-    if (!leave()) return;
     try {
       const skill = await agentRuntimeApi.getSkill(item.source, item.name, projectId);
       setEditing({ source: item.source, name: item.name, content: skill.content, original: skill.content, editable: skill.editable, path: skill.path });
@@ -83,7 +62,7 @@ export function SkillsView() {
 
   const create = () => {
     const name = newName.trim();
-    if (!NAME.test(name) || !leave()) return;
+    if (!RESOURCE_NAME.test(name)) return;
     setEditing({ source: newSource, name, content: scaffold(name), original: "", editable: true, isNew: true });
     setNewName("");
     setStatus(null);
@@ -95,6 +74,7 @@ export function SkillsView() {
       const result = await agentRuntimeApi.putSkill(editing.source, editing.name, editing.content, projectId);
       setEditing({ ...editing, original: editing.content, isNew: false, path: result.item.path });
       setStatus(t("res_saved"));
+      onChanged();
       await reload();
     } catch (err) {
       setStatus(errorText(err));
@@ -107,6 +87,7 @@ export function SkillsView() {
       await agentRuntimeApi.deleteSkill(editing.source, editing.name, projectId);
       setEditing(null);
       setStatus(null);
+      onChanged();
       await reload();
     } catch (err) {
       setStatus(errorText(err));
@@ -116,6 +97,7 @@ export function SkillsView() {
   const toggle = async (item: SkillItem) => {
     try {
       await agentRuntimeApi.setSkillEnabled(item.name, !item.enabled);
+      onChanged();
       await reload();
     } catch (err) {
       setStatus(errorText(err));
@@ -128,73 +110,20 @@ export function SkillsView() {
     setStatus(null);
   };
 
-  return (
-    <div className="res-view" data-testid="skills-view">
-      <div className="res-head">
-        <b>{t("res_skills_title")}</b>
-        <span className="res-hint">{t("res_skills_hint")}</span>
-      </div>
-      <div className="res-new">
-        <input
-          value={newName}
-          placeholder={t("res_new_name")}
-          aria-label={t("res_new_name")}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        {projectId && (
-          <select value={newSource} aria-label={t("res_new_source")} onChange={(event) => setNewSource(event.target.value as "user" | "project")}>
-            <option value="user">{t("res_source_user")}</option>
-            <option value="project">{t("res_source_project")}</option>
-          </select>
-        )}
-        <button type="button" disabled={!NAME.test(newName.trim())} onClick={create}>
-          <Icon icon={ICONS.plus} size="sm" /> {t("res_new_skill")}
+  if (editing) {
+    return (
+      <section className="ctx-section ctx-detail" aria-label={editing.name}>
+        <button type="button" className="ctx-back" onClick={() => leave() && setEditing(null)}>
+          <Icon icon={ICONS.chevronLeft} size="sm" /> {t("ctx_back")}
         </button>
-      </div>
-      {error && <div className="res-error" role="alert">{error}</div>}
-      {list?.diagnostics.map((d) => (
-        <div className="res-warning" key={`${d.path}-${d.code}`} role="status">
-          <Icon icon={ICONS.warning} size="sm" /> {d.message} <span className="mono">{d.path}</span>
-        </div>
-      ))}
-      {SOURCES.filter((source) => source !== "project" || projectId).map((source) => {
-        const items = (list?.skills ?? []).filter((skill) => skill.source === source);
-        return (
-          <section key={source} className="res-group">
-            <div className="res-group-head">{t(SOURCE_LABEL[source])}</div>
-            {!items.length && <div className="res-empty">{t("res_empty")}</div>}
-            {items.map((item) => (
-              <div
-                key={`${item.source}-${item.name}`}
-                className={"res-item" + (editing?.source === item.source && editing.name === item.name ? " on" : "")}
-              >
-                <input
-                  type="checkbox"
-                  checked={item.enabled}
-                  aria-label={t("res_enabled", { name: item.name })}
-                  onChange={() => void toggle(item)}
-                />
-                <button type="button" className="res-item-main" onClick={() => void open(item)}>
-                  <span className="res-item-name">{item.name}</span>
-                  <span className="res-item-desc">{item.description}</span>
-                </button>
-                {item.overridden_by && <span className="res-badge">{t("res_overridden")}</span>}
-                {!item.model_invocable && <span className="res-badge">{t("res_manual_only")}</span>}
-              </div>
-            ))}
-          </section>
-        );
-      })}
-      <AgentsSection agents={list?.agents ?? []} />
-      {editing && (
-        <section className="res-editor" aria-label={editing.name}>
+        <div className="res-editor">
           <div className="res-editor-head">
             <b>{editing.name}</b>
             <span className="res-badge">{t(SOURCE_LABEL[editing.source])}</span>
             {editing.path && <span className="res-path mono" title={editing.path}>{editing.path}</span>}
           </div>
           <textarea
-            className="res-textarea mono"
+            className="res-textarea mono ctx-textarea"
             value={editing.content}
             readOnly={!editing.editable}
             aria-label="SKILL.md"
@@ -213,11 +142,63 @@ export function SkillsView() {
             {!editing.editable && (
               <button type="button" onClick={copyToUser}>{t("res_copy_to_user")}</button>
             )}
-            <button type="button" onClick={() => leave() && setEditing(null)}>{t("ui_close")}</button>
             {status && <span className="res-status" role="status">{status}</span>}
           </div>
-        </section>
-      )}
-    </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="ctx-section" data-testid="ctx-skills">
+      <div className="res-new">
+        <input
+          value={newName}
+          placeholder={t("res_new_name")}
+          aria-label={t("res_new_name")}
+          onChange={(event) => setNewName(event.target.value)}
+        />
+        {projectId && (
+          <select value={newSource} aria-label={t("res_new_source")} onChange={(event) => setNewSource(event.target.value as "user" | "project")}>
+            <option value="user">{t("res_source_user")}</option>
+            <option value="project">{t("res_source_project")}</option>
+          </select>
+        )}
+        <button type="button" disabled={!RESOURCE_NAME.test(newName.trim())} onClick={create}>
+          <Icon icon={ICONS.plus} size="sm" /> {t("res_new_skill")}
+        </button>
+      </div>
+      {status && <div className="res-error" role="alert">{status}</div>}
+      {list?.diagnostics.map((d) => (
+        <div className="res-warning" key={`${d.path}-${d.code}`} role="status">
+          <Icon icon={ICONS.warning} size="sm" /> {d.message} <span className="mono">{d.path}</span>
+        </div>
+      ))}
+      {SOURCES.filter((source) => source !== "project" || projectId).map((source) => {
+        const items = (list?.skills ?? []).filter((skill) => skill.source === source);
+        return (
+          <section key={source} className="res-group">
+            <div className="res-group-head">{t(SOURCE_LABEL[source])}</div>
+            {!items.length && <div className="res-empty">{t("res_empty")}</div>}
+            {items.map((item) => (
+              <div key={`${item.source}-${item.name}`} className="res-item">
+                <input
+                  type="checkbox"
+                  checked={item.enabled}
+                  aria-label={t("res_enabled", { name: item.name })}
+                  onChange={() => void toggle(item)}
+                />
+                <button type="button" className="res-item-main" onClick={() => void open(item)}>
+                  <span className="res-item-name">{item.name}</span>
+                  <span className="res-item-desc">{item.description}</span>
+                </button>
+                {item.overridden_by && <span className="res-badge">{t("res_overridden")}</span>}
+                {!item.model_invocable && <span className="res-badge">{t("res_manual_only")}</span>}
+              </div>
+            ))}
+          </section>
+        );
+      })}
+    </section>
   );
 }

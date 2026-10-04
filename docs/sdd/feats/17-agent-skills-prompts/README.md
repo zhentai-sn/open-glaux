@@ -26,7 +26,7 @@ status: implemented
 2. **提示词模板**：用户级、项目级两层，用户在输入框以 `/名称 参数` 调用。
 3. **自定义说明**：用户级与项目级各一份 `GLAUX.md`，追加进系统提示词。
 4. **管理接口**：runtime 提供 Skills、模板、说明的读写与 Skills 启停，以及「当前会话实际系统提示词」预览。
-5. **管理页面**：侧边栏新增「技能」与「提示词」两个页面（Focus 左侧竖条与 Workbench 活动栏都有入口）。
+5. **管理页面**：由 [SDD 19](../19-context-management/README.md) 的上下文页承载（系统提示词、提示词模板、技能分区）。
 6. **显式调用**：输入框 `/` 菜单列出可调用的 Skills 与模板；调用 Skill 的消息在对话中以紧凑形式显示。
 
 ## 2. 本 SDD 不负责什么
@@ -39,9 +39,9 @@ status: implemented
 
 ## 3. 当前阶段目标
 
-- 用户在「技能」页新建一个用户级 Skill 后，新会话的系统提示词出现该 Skill 的目录条目；模型可用 `read` 读取全文，不触发审批。
+- 用户在「上下文 › 技能」新建一个用户级 Skill 后，新会话的系统提示词出现该 Skill 的目录条目；模型可用 `read` 读取全文，不触发审批。
 - 用户在输入框输入 `/` 能看到并调用 Skill 与模板。
-- 用户在「提示词」页编辑 `GLAUX.md`，下一个命令即生效，并能预览当前会话实际收到的系统提示词。
+- 用户在「上下文 › 系统提示词」编辑 `GLAUX.md`，下一个命令即生效，并能预览当前会话实际收到的系统提示词。
 
 ## 4. 输入来源
 
@@ -62,19 +62,18 @@ status: implemented
 
 | 输入 | 位置 | 说明 |
 | --- | --- | --- |
-| 新建、编辑、删除 Skill | 「技能」页 | 只能操作用户级与项目级；内置只读 |
-| 启用 / 停用 Skill | 「技能」页 | 写用户级停用列表 |
-| 编辑自定义说明 | 「提示词」页 | 用户级；会话绑定项目时另有项目级 |
-| 新建、编辑、删除模板 | 「提示词」页 | 用户级；会话绑定项目时另有项目级 |
-| 预览系统提示词 | 「提示词」页 | 针对当前会话与当前连接、焦点 |
+| 新建、编辑、删除 Skill | 「上下文 › 技能」 | 只能操作用户级与项目级；内置只读 |
+| 启用 / 停用 Skill | 「上下文 › 技能」 | 写用户级停用列表 |
+| 编辑自定义说明 | 「上下文 › 系统提示词」 | 用户级；会话绑定项目时另有项目级 |
+| 新建、编辑、删除模板 | 「上下文 › 提示词模板」 | 用户级；会话绑定项目时另有项目级 |
+| 预览系统提示词 | 「上下文 › 系统提示词」 | 针对当前会话与当前连接、焦点 |
 | `/名称 参数` | 输入框 | 调用 Skill 或模板 |
 
 ## 5. 输出结果
 
 ### 5.1 用户可见输出
 
-- 「技能」页：按来源分组的列表（名称、描述、来源、启停开关、加载告警）；详情为 `SKILL.md` 源文本编辑区；被同名覆盖的 Skill 标注「已被覆盖」。
-- 「提示词」页：自定义说明编辑区、模板列表与编辑区、系统提示词预览（文本与已挂载工具清单）。
+- 管理页面的布局与展示见 [SDD 19](../19-context-management/README.md) §5.1：技能分区按来源分组列出 Skill（名称、描述、来源、启停开关、加载告警），详情为 `SKILL.md` 源文本编辑区，被同名覆盖的 Skill 标注「已被覆盖」；系统提示词分区含自定义说明编辑区与分段预览；提示词模板分区含模板列表与编辑区。
 - 输入框 `/` 菜单：Skills 与模板，按名称前缀过滤。
 - 对话中调用 Skill 的用户消息显示为「技能：名称」加附加说明，不展开 Skill 全文。
 
@@ -121,7 +120,7 @@ sequenceDiagram
 2. 同名 Skill 只保留优先级最高的一份（项目级 > 用户级 > 内置），其余标记「已被覆盖」。
 3. 名称在停用列表中的 Skill 不进入 harness 资源。
 4. `disable-model-invocation: true` 的 Skill 进入 harness 资源（可被用户显式调用），但不进系统提示词目录。
-5. 加载告警（缺字段、解析失败）不阻断命令，在「技能」页显示。
+5. 加载告警（缺字段、解析失败）不阻断命令，在「上下文 › 技能」显示。
 
 ### 7.2 系统提示词
 
@@ -152,15 +151,15 @@ sequenceDiagram
 4. 删除 Skill：删除 `<根>/<name>/` 整个目录。
 5. 写入均先写临时文件再 rename。
 6. 启停：修改用户级 `settings.json` 的 `skills.disabled`，保留其他字段（同 SDD 15 §9.2）。
-7. 预览：按给定的连接与查看器上下文、会话的项目与权限模式，组装与真实命令相同的系统提示词与工具清单，不启动命令、不调用模型。
+7. 预览：按给定的连接与查看器上下文、会话的项目与权限模式，组装与真实命令相同的系统提示词与工具，不启动命令、不调用模型；响应结构见 [SDD 19](../19-context-management/README.md) §9.2。
 
 ### 7.6 管理页面
 
-1. Focus 左侧竖条在「图谱」之后新增「技能」「提示词」两个入口，打开右侧栏对应页面；Workbench 活动栏新增同名两个视图。
-2. 「技能」「提示词」页的项目级内容跟随当前会话的项目；当前会话未归属时不显示项目级。
+1. 入口、布局与分区编排见 [SDD 19](../19-context-management/README.md) §7。
+2. 项目级内容跟随当前会话的项目；当前会话未归属时不显示项目级。
 3. 编辑区为等宽文本框，「保存」后提示「下一个命令生效」；未保存离开时提示。
 4. 内置 Skill 只读，提供「复制为用户级」。
-5. chat 发行版不显示这两个入口。
+5. chat 发行版不显示管理页面入口。
 
 ### 7.7 输入框 `/` 菜单
 
@@ -185,9 +184,9 @@ sequenceDiagram
 | 位置 | 变化 |
 | --- | --- |
 | `agent/runtime/client.ts`、`types.ts` | 资源接口与命令字段 |
-| `components/resources/`（新） | `SkillsView`、`PromptsView` |
-| `components/focus/SessionRail.tsx`、`FocusSidePanel.tsx`、`store/session.ts` | `sideView` 增加 `skills`、`prompts` |
-| `components/ActivityBar.tsx`、`SideBar.tsx` | Workbench 视图 |
+| `components/context/` | 技能、系统提示词、提示词模板分区（[SDD 19](../19-context-management/README.md)） |
+| `components/focus/SessionRail.tsx`、`FocusSidePanel.tsx`、`store/session.ts` | `sideView` 的 `context` 入口（[SDD 19](../19-context-management/README.md)） |
+| `components/ActivityBar.tsx`、`SideBar.tsx` | Workbench「上下文」视图（[SDD 19](../19-context-management/README.md)） |
 | `components/agent/ConversationComposer.tsx` | `/` 菜单与发送 |
 | `components/agent/AgentConversation.tsx` | Skill 调用消息的紧凑显示 |
 
@@ -248,7 +247,7 @@ interface ResourceList {
 | `DELETE /agent-api/v1/prompts/{source}/{name}?project_id=` | — | `204` |
 | `GET /agent-api/v1/instructions/{scope}?project_id=` | — | `{scope, path, content}`（不存在时 `content` 为空串） |
 | `PUT /agent-api/v1/instructions/{scope}?project_id=` | `{content}` | `InstructionsItem` |
-| `POST /agent-api/v1/sessions/{id}/system-prompt` | `{connection, viewer?}` | `{prompt, tools: string[]}` |
+| `POST /agent-api/v1/sessions/{id}/system-prompt` | `{connection, viewer?}` | `SystemPromptPreview`（[SDD 19](../19-context-management/README.md) §9.2） |
 
 错误码：`invalid_name`、`invalid_skill`、`not_found`、`project_not_found`、`read_only`（写内置）、`unknown_resource`。
 
@@ -285,7 +284,7 @@ type PromptCommand = {
 
 | 情况 | 处理 |
 | --- | --- |
-| Skill 文件解析失败 | 跳过该 Skill，告警显示在「技能」页 |
+| Skill 文件解析失败 | 跳过该 Skill，告警显示在「上下文 › 技能」 |
 | 项目目录取不到 | 不加载项目级资源；管理接口的项目级请求返回 `404 project_not_found` |
 | 说明文件超过 32 KiB | 截断并在系统提示词中注明 |
 | 调用已停用或不存在的 Skill | `422 unknown_resource`，前端提示 |
@@ -298,7 +297,8 @@ type PromptCommand = {
 | [SDD 15](../15-agent-plugins-permissions/README.md) | 设置文件增加 `skills.disabled`；系统提示词组成增加两段 |
 | [SDD 16](../16-agent-basic-tools/README.md) | `read` 对 Skills 根目录只读放行 |
 | [SDD 00](../00-reference-agent-conversations/README.md) | `prompt` 命令增加 `skill`、`template` 字段 |
-| [SDD 01](../01-dual-mode-shell/README.md) | 左侧竖条与活动栏各增加两个入口 |
+| [SDD 01](../01-dual-mode-shell/README.md) | 左侧竖条与活动栏的「上下文」入口 |
+| [SDD 19](../19-context-management/README.md) | 管理页面编排与预览响应结构 |
 
 ## 15. 验收标准
 
@@ -320,8 +320,8 @@ type PromptCommand = {
 
 - [x] Skills、模板、说明的读写删与启停符合 §7.5，非法名称、写内置、项目不存在返回对应错误（契约测试）。——`resources-api.test.ts`
 - [x] 预览返回的系统提示词与同条件下真实命令的系统提示词一致（集成测试）。——`resources-api.test.ts`（逐字相等）
-- [x] 「技能」「提示词」页能新建、编辑、删除、启停，项目级随当前会话变化（组件测试）。——`ResourcesViews.test.tsx`
-- [x] Focus 竖条与 Workbench 活动栏出现两个入口；chat 发行版不出现（组件测试）。——`SessionRail.test.tsx`；chat 发行版沿用竖条已有的 `CHAT_EDITION` 判断，未另写用例
+- [x] 技能、提示词模板、系统提示词分区能新建、编辑、删除、启停，项目级随当前会话变化（组件测试）。——`ContextPanel.test.tsx`
+- [x] Focus 竖条与 Workbench 活动栏出现管理页面入口；chat 发行版不出现（组件测试）。——`SessionRail.test.tsx`、`ActivityBar.test.tsx`（入口为 SDD 19 的「上下文」）；chat 发行版沿用竖条已有的 `CHAT_EDITION` 判断，未另写用例
 
 ### 15.4 工程
 

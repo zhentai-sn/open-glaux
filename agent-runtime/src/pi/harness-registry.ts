@@ -28,7 +28,7 @@ import {
   createModelRuntime,
   type ModelRuntime,
 } from "./model-runtime.js";
-import { activePlugins, availableTools, pluginTools, promptFragments } from "../plugins/registry.js";
+import { activePlugins, availableTools, pluginTools, promptFragmentParts } from "../plugins/registry.js";
 import { installHooks } from "../plugins/compose.js";
 import { mapPiEvent } from "../transport/event-map.js";
 import { ProjectScope } from "./tools/project-guard.js";
@@ -40,7 +40,8 @@ import { VideoTurn } from "./video-turn.js";
 import { InteractionTable } from "../interaction/table.js";
 import { resolveBudget, RunBudget } from "../budget/run-budget.js";
 import { installWindDown } from "../budget/wind-down.js";
-import { loadResources, type LoadedResources } from "../resources/load.js";
+import { loadResources, type LoadedResources, type PromptExtraPart } from "../resources/load.js";
+import { buildPreview, type SystemPromptPreview } from "./prompt-preview.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
 import type { AgentDefinition } from "../resources/agents.js";
@@ -104,9 +105,47 @@ const SYSTEM_PROMPT =
   "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
   "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.";
 
+/** SDD 19 §9.2：系统提示词的一段；`text` 不含段间分隔符。 */
+export interface PromptSegmentDraft {
+  kind: "base" | "plugin" | "instructions" | "skills" | "viewer";
+  plugin?: string;
+  scope?: "user" | "project";
+  text: string;
+}
+
+function composePrompt(head: string, extras: string, tail: string): string {
+  return extras ? `${head}\n\n${extras}\n\n${tail}` : `${head} ${tail}`;
+}
+
+/** 系统提示词按来源分段：基础段 → 插件片段 → 说明段与 Skills 目录段 → 查看器上下文（SDD 17 §7.2）。 */
+export function systemPromptSegments(
+  viewer: ViewerContext | undefined,
+  tools: HarnessTool[],
+  context: HarnessToolContext,
+  videoDescription?: { duration_ms: number; has_audio: boolean },
+  extras: readonly PromptExtraPart[] = [],
+): PromptSegmentDraft[] {
+  const mounted = new Set(tools.map((tool) => tool.name));
+  return [
+    { kind: "base", text: SYSTEM_PROMPT },
+    ...promptFragmentParts(context, mounted).map((part): PromptSegmentDraft => ({ kind: "plugin", plugin: part.plugin, text: part.text })),
+    ...extras.map((part): PromptSegmentDraft => part.kind === "instructions"
+      ? { kind: "instructions", scope: part.scope, text: part.text }
+      : { kind: "skills", text: part.text }),
+    { kind: "viewer", text: viewerTail(viewer, context, videoDescription) },
+  ];
+}
+
+/** 按 SDD 17 §7.2 的分隔规则把分段拼成系统提示词。 */
+export function joinSystemPrompt(segments: readonly PromptSegmentDraft[]): string {
+  const text = (kinds: PromptSegmentDraft["kind"][], separator: string) =>
+    segments.filter((segment) => kinds.includes(segment.kind)).map((segment) => segment.text).join(separator);
+  return composePrompt(text(["base", "plugin"], ""), text(["instructions", "skills"], "\n\n"), text(["viewer"], ""));
+}
+
 /**
  * 系统提示词 = 基础段 + 插件片段 + 说明段与 Skills 目录段（`extras`，SDD 17 §7.2）+ 查看器上下文。
- * `extras` 为空时与 SDD 17 之前逐字一致。
+ * `extras` 为空时与 SDD 17 之前逐字一致。子智能体在 `extras` 中追加自己的定义段。
  */
 export function systemPromptFor(
   viewer: ViewerContext | undefined,
@@ -115,10 +154,12 @@ export function systemPromptFor(
   videoDescription?: { duration_ms: number; has_audio: boolean },
   extras = "",
 ): string {
-  const mounted = new Set(tools.map((tool) => tool.name));
-  const head = SYSTEM_PROMPT + promptFragments(context, mounted);
-  const tail = viewerTail(viewer, context, videoDescription);
-  return extras ? `${head}\n\n${extras}\n\n${tail}` : `${head} ${tail}`;
+  const segments = systemPromptSegments(viewer, tools, context, videoDescription);
+  return composePrompt(
+    segments.filter((segment) => segment.kind !== "viewer").map((segment) => segment.text).join(""),
+    extras,
+    segments.at(-1)!.text,
+  );
 }
 
 function viewerTail(
@@ -160,6 +201,8 @@ interface Assembled {
   toolContext: HarnessToolContext;
   tools: HarnessTool[];
   systemPrompt: string;
+  /** `systemPrompt` 的来源分段（SDD 19 §9.2）。 */
+  segments: PromptSegmentDraft[];
 }
 
 function assertRequiredResources(requires: HarnessStartOptions["requires"], resources: LoadedResources | undefined): void {
@@ -482,11 +525,12 @@ export class HarnessRegistry {
         });
       }
       const tools = chatEdition() ? [] : this.toolFactory(toolContext);
-      const systemPrompt = chatEdition()
-        ? CHAT_SYSTEM_PROMPT
-        : systemPromptFor(options.viewer, tools, toolContext, videoDescription, resources?.promptExtras);
+      const segments: PromptSegmentDraft[] = chatEdition()
+        ? [{ kind: "base", text: CHAT_SYSTEM_PROMPT }]
+        : systemPromptSegments(options.viewer, tools, toolContext, videoDescription, resources?.promptExtraParts);
+      const systemPrompt = chatEdition() ? CHAT_SYSTEM_PROMPT : joinSystemPrompt(segments);
       return {
-        runtime, projectId, toolContext, tools, systemPrompt,
+        runtime, projectId, toolContext, tools, systemPrompt, segments,
         ...(videoTurn ? { videoTurn } : {}),
         ...(permission ? { permission } : {}),
         ...(resources ? { resources } : {}),
@@ -564,10 +608,13 @@ export class HarnessRegistry {
     };
   }
 
-  /** SDD 17 §7.5 规则 7：按当前连接与查看器上下文组装系统提示词与工具清单，不启动命令、不调用模型。 */
+  /**
+   * SDD 17 §7.5 规则 7、SDD 19 §9.2：按当前连接与查看器上下文组装系统提示词与工具，
+   * 返回分段、工具定义与未挂载原因；不启动命令、不调用模型。
+   */
   async previewSystemPrompt(
     sessionId: string, connection: ConnectionInput, viewer?: ViewerContext,
-  ): Promise<{ prompt: string; tools: string[] }> {
+  ): Promise<SystemPromptPreview> {
     const meta = this.sessions.metaRepo.get(sessionId);
     if (!meta) throw new RuntimeError("session_not_found", "Session not found.", 404);
     const session = await this.sessions.openSession(sessionId);
@@ -577,7 +624,13 @@ export class HarnessRegistry {
         ...(viewer ? { viewer } : {}),
       });
       assembled.runtime.disposeCredential();
-      return { prompt: assembled.systemPrompt, tools: assembled.tools.map((tool) => tool.name) };
+      return buildPreview({
+        prompt: assembled.systemPrompt,
+        segments: assembled.segments,
+        tools: assembled.tools,
+        context: chatEdition() ? undefined : assembled.toolContext,
+        mode: assembled.toolContext.permissionMode ?? "controlled",
+      });
     } finally {
       await this.sessions.closeSession(session);
     }

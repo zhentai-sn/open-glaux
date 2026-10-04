@@ -50,7 +50,12 @@ import {
   Sun,
   Trash2,
   Waves,
+  Wrench,
   X,
+  Brain,
+  FileText,
+  Layers,
+  Server,
   type LucideIcon,
 } from "lucide-react";
 
@@ -92,7 +97,18 @@ export const KIND_ICON: Record<string, LucideIcon> = {
 };
 
 // Focus 右侧栏的舞台 / 文件 / 图谱（入口在左侧栏活动栏，SDD 01 D22）
-export const TAB_ICON = { stage: Image, files: Files, atlas: BookOpen, skills: Sparkles, prompts: ScrollText } as const;
+export const TAB_ICON = { stage: Image, files: Files, atlas: BookOpen, context: Layers } as const;
+
+// 上下文页分区（SDD 19 §5.1）
+export const CONTEXT_ICON = {
+  system: ScrollText,
+  templates: FileText,
+  tools: Wrench,
+  agents: Bot,
+  skills: Sparkles,
+  memory: Brain,
+  mcp: Server,
+} as const;
 
 // 通用动作 / 结构图标
 export const ICONS = {

@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 19 · 上下文管理
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 维护者评审通过，进入实现 |
+| 状态 | `implemented` |
+| 当前阶段 | 已实现，自动化门禁与开发侧浏览器走查通过，自查见 §15；提示词模板、子智能体分区的浏览器走查与业务验收待补 |
 | 来源 | 2026-10-04 维护者提出：把系统提示词、提示词模板、工具、子智能体、技能收拢为「上下文管理」，记忆与 MCP 预留入口 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 17 Skills 与提示词管理](../17-agent-skills-prompts/README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 18 子智能体](../18-agent-subagents/README.md) · [SDD 01 双模式外壳](../01-dual-mode-shell/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -131,7 +131,7 @@ flowchart LR
 1. Focus 左侧竖条删除「技能」「提示词」两个入口，在原位置新增「上下文」一个入口。点击行为与「设置」一致：打开时切换为 `sideView: "context"`，再次点击收起。
 2. 上下文页占据的位置与设置页相同，铺满对话列（SDD 01 D25）。
 3. 上下文页与设置页共用同一个竖向分区布局组件，视觉一致。
-4. Workbench 活动栏的「技能」「提示词」两个视图合并为「上下文」一个视图，在侧边栏内渲染同一页面。容器宽度小于 480px 时，分区导航改为排在内容上方。
+4. Workbench 活动栏的「技能」「提示词」两个视图合并为「上下文」一个视图，在侧边栏内渲染同一页面。容器宽度不超过 520px 时，分区导航改为排在内容上方的横排，并隐藏分组标题（与设置页同一断点）。
 5. chat 发行版不显示入口。
 
 ### 7.2 分区
@@ -213,8 +213,9 @@ flowchart LR
 | `components/focus/SessionRail.tsx` | 两个入口合并为「上下文」 |
 | `components/focus/FocusSidePanel.tsx`、`FocusShell.tsx` | `sideView="context"` 时按设置页方式渲染上下文页 |
 | `store/session.ts` | `FocusSideView` 去掉 `skills`、`prompts`，增加 `context`；旧值迁移；Workbench `View` 同样合并 |
-| `components/focus/SettingsPanel.tsx` | 抽出竖向分区布局组件，与上下文页共用 |
-| `components/context/`（新） | `ContextPanel` 与各分区组件 |
+| `components/SectionedPanel.tsx`（新）、`components/focus/SettingsPanel.tsx` | 竖向分区布局组件，设置页与上下文页共用 |
+| `components/context/`（新） | `ContextPanel`、各分区组件、`shared.ts`（资源清单、预览、未保存登记） |
+| `store/contextSection.ts`（新） | 当前分区与持久化 |
 | `components/resources/` | `SkillsView`、`PromptsView` 拆入 `components/context/` 的各分区后删除 |
 | `components/ActivityBar.tsx`、`SideBar.tsx` | Workbench 视图合并 |
 | `agent/runtime/client.ts`、`types.ts` | §9 类型 |
@@ -279,7 +280,7 @@ interface SystemPromptPreview {
 
 - `tools` 由 `string[]` 改为 `MountedTool[]`，属非兼容变更。前后端同仓同版发布，不保留旧形态。
 - 分段与 `prompt` 的关系：各段 `text` 不含段间分隔符；`prompt` 去掉全部空白后，等于各段 `text` 去掉空白后按顺序拼接的结果。
-- 测试注入自定义 `toolFactory` 时，不在目录中的已挂载工具 `plugin` 记为 `""`；目录中未被挂载且没有命中任何原因的工具不进 `unmounted`。
+- 测试注入自定义 `toolFactory` 时，不在目录中的已挂载工具 `plugin`、`effect` 记为 `""`；目录中未被挂载且没有命中任何原因的工具不进 `unmounted`。
 - chat 发行版：`segments` 只有一段 `base`，`tools`、`unmounted` 为空数组。
 
 ### 9.3 token 估算
@@ -325,7 +326,7 @@ interface SystemPromptPreview {
 | 情况 | 处理 |
 | --- | --- |
 | `GET /resources` 失败 | 各列表分区显示错误文本与「重试」；导航可用 |
-| 预览 `404 session_not_found` | 预览区显示「会话不存在」，清空旧结果 |
+| 预览 `404 session_not_found` | 预览区显示错误码与信息，清空旧结果 |
 | 预览其他错误（凭据、运行时） | 预览区显示错误文本；静态目录照常显示 |
 | 本地分区记录不可读或非法 | 回到「系统提示词」 |
 | 旧布局 `sideView` 为 `skills` / `prompts` | 按 §7.2 规则 4 迁移，不白屏 |
@@ -335,7 +336,7 @@ interface SystemPromptPreview {
 
 | SDD | 关系 |
 | --- | --- |
-| [SDD 17](../17-agent-skills-prompts/README.md) | 页面编排（§1 第 5 项、§4.2、§5.1、§7.6、§8.2）由本 SDD 取代；预览响应（§9.2）由本 SDD §9.2 取代。实现时把 SDD 17 对应章节改为引用本 SDD |
+| [SDD 17](../17-agent-skills-prompts/README.md) | 页面编排（§1 第 5 项、§4.2、§5.1、§7.6、§8.2）由本 SDD 取代；预览响应（§9.2）由本 SDD §9.2 取代；SDD 17 对应章节引用本 SDD |
 | [SDD 15](../15-agent-plugins-permissions/README.md) | 工具目录读取插件登记表；未挂载原因 `mode` 依据 §7.4 的挂载规则 |
 | [SDD 18](../18-agent-subagents/README.md) | 子智能体分区展示 `AgentItem`，字段不变 |
 | [SDD 01](../01-dual-mode-shell/README.md) | 竖条入口由「技能、提示词」改为「上下文」；`sideView` 取值与迁移；上下文页与设置页同位置（D25） |
@@ -344,31 +345,31 @@ interface SystemPromptPreview {
 
 ### 15.1 runtime
 
-- [ ] `GET /resources` 返回 `tools`，包含登记表中全部插件工具，顺序与登记顺序一致，`plugin`、`effect`、`requires` 与插件声明一致（契约测试）。
-- [ ] 预览的 `prompt` 与同条件下真实命令的系统提示词逐字相等；SDD 17 之前的快照测试不变（集成测试、快照测试）。
-- [ ] 预览的 `segments` 满足 §9.2 的空白归一化拼接等式；有说明、有 Skills、有焦点三种条件各覆盖一次（单元测试）。
-- [ ] 观察模式下，`bash` 出现在 `unmounted` 且 `reason` 为 `mode`；未归属项目的会话中，`list_files` 的 `reason` 为 `needs_project`；连接不支持图像时，需要图像的工具 `reason` 为 `needs_vision`（单元测试）。
-- [ ] `tools` 中每项的 `description`、`parameters` 与真实命令挂载的工具定义一致（集成测试）。
-- [ ] `est_tokens` 字段齐全且为非负整数；`est_tokens.tools` 等于各工具估算之和（单元测试）。
+- [x] `GET /resources` 返回 `tools`，包含登记表中全部插件工具，顺序与登记顺序一致，`plugin`、`effect`、`requires` 与插件声明一致（契约测试）。——`resources-api.test.ts`、`prompt-preview.test.ts`
+- [x] 预览的 `prompt` 与同条件下真实命令的系统提示词逐字相等；SDD 17 之前的快照测试不变（集成测试、快照测试）。——`resources-api.test.ts`（逐字相等）；`system-prompt.test.ts` 快照未变
+- [x] 预览的 `segments` 满足 §9.2 的空白归一化拼接等式；有说明、有 Skills、有焦点三种条件各覆盖一次（单元测试）。——`prompt-preview.test.ts`；HTTP 层另见 `resources-api.test.ts`
+- [x] 观察模式下，`bash` 出现在 `unmounted` 且 `reason` 为 `mode`；未归属项目的会话中，`list_files` 的 `reason` 为 `needs_project`；连接不支持图像时，需要图像的工具 `reason` 为 `needs_vision`（单元测试）。——`prompt-preview.test.ts`（`open_file`）；另覆盖 `plugin_inactive`
+- [x] `tools` 中每项的 `description`、`parameters` 与真实命令挂载的工具定义一致（集成测试）。——`resources-api.test.ts`
+- [x] `est_tokens` 字段齐全且为非负整数；`est_tokens.tools` 等于各工具估算之和（单元测试）。——`prompt-preview.test.ts`
 
 ### 15.2 前端
 
-- [ ] Focus 竖条只有「上下文」入口，没有「技能」「提示词」；点击打开、再点收起；chat 发行版不出现（组件测试）。
-- [ ] 上下文页与设置页使用同一布局组件；导航分组与顺序符合 §5.1（组件测试）。
-- [ ] 记忆、MCP 置灰且 `aria-disabled="true"`，点击不切换（组件测试）。
-- [ ] 切换分区后关闭再打开，停在上次分区；本地存储抛错时回到「系统提示词」（单元测试）。
-- [ ] 持久化 `sideView: "skills"` 迁为 `context` 且分区为「技能」，`"prompts"` 迁为 `context` 且分区为「系统提示词」（单元测试）。
-- [ ] 技能、模板列表进入详情、返回列表；有未保存修改时返回、切换分区会先确认（组件测试）。
-- [ ] 系统提示词分区显示分段、各段来源标签与估算 token，「查看全文」显示 `prompt` 原文（组件测试）。
-- [ ] 工具分区无会话时只显示静态目录；有预览时显示已挂载与未挂载原因，展开已挂载工具可见说明与参数（组件测试）。
-- [ ] 无会话、无模型、预览失败三种状态按 §7.4 规则 2、3 显示（组件测试）。
-- [ ] Workbench 活动栏只有一个「上下文」入口，侧边栏内渲染同一页面（组件测试）。
+- [x] Focus 竖条只有「上下文」入口，没有「技能」「提示词」；点击打开、再点收起；chat 发行版不出现（组件测试）。——`SessionRail.test.tsx`；chat 发行版沿用竖条已有的 `CHAT_EDITION` 判断，未另写用例
+- [x] 上下文页与设置页使用同一布局组件；导航分组与顺序符合 §5.1（组件测试）。——`ContextPanel.test.tsx`、`SettingsPanel.test.tsx`
+- [x] 记忆、MCP 置灰且 `aria-disabled="true"`，点击不切换（组件测试）。——`ContextPanel.test.tsx`
+- [x] 切换分区后关闭再打开，停在上次分区；本地存储抛错时回到「系统提示词」（单元测试）。——`atlasView.test.ts`
+- [x] 持久化 `sideView: "skills"` 迁为 `context` 且分区为「技能」，`"prompts"` 迁为 `context` 且分区为「系统提示词」（单元测试）。——`atlasView.test.ts`
+- [x] 技能、模板列表进入详情、返回列表；有未保存修改时返回、切换分区会先确认（组件测试）。——`ContextPanel.test.tsx`；切走上下文页的确认见 `SessionRail.test.tsx`
+- [x] 系统提示词分区显示分段、各段来源标签与估算 token，「查看全文」显示 `prompt` 原文（组件测试）。——`ContextPanel.test.tsx`
+- [x] 工具分区无会话时只显示静态目录；有预览时显示已挂载与未挂载原因，展开已挂载工具可见说明与参数（组件测试）。——`ContextPanel.test.tsx`
+- [x] 无会话、无模型、预览失败三种状态按 §7.4 规则 2、3 显示（组件测试）。——`ContextPanel.test.tsx`
+- [x] Workbench 活动栏只有一个「上下文」入口，侧边栏内渲染同一页面（组件测试）。——`ActivityBar.test.tsx`
 
 ### 15.3 走查与工程
 
-- [ ] 浏览器走查：Focus 下打开上下文页，依次进入五个可用分区，编辑并保存 GLAUX.md 后刷新预览可见新内容；截图留证。
-- [ ] `make test`、`make lint` 通过。
-- [ ] SDD 17、SDD 01、SDD 15 的相关章节与 SDD 索引同步更新；仓库骨架总览如涉及目录变化同步更新。
+- [ ] 浏览器走查：Focus 下打开上下文页，依次进入五个可用分区，编辑并保存 GLAUX.md 后刷新预览可见新内容；截图留证。——开发侧走查了系统提示词（保存 GLAUX.md → 「内容已变化」→ 刷新后出现「个人 GLAUX.md」分段）、工具（7/16 已挂载，未挂载原因正确，展开可见定义）、技能（内置只读详情）与 480px 窄屏；提示词模板、子智能体分区只有组件测试，待业务验收
+- [x] `make test`、`make lint` 通过。——agent-runtime 470、前端 432，两端 lint 与 `check-literals` 通过；backend、science-core 未改动，未重跑
+- [x] SDD 17、SDD 01、SDD 15 的相关章节与 SDD 索引同步更新；仓库骨架总览如涉及目录变化同步更新。——另含 SDD 18、操作手册、三份 CHANGELOG
 
 ## 16. 决策记录
 

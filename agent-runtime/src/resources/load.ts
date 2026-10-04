@@ -62,9 +62,15 @@ export interface LoadedResources {
   harnessTemplates: PromptTemplate[];
   /** 系统提示词的说明段与 Skills 目录段；都为空时为空串。 */
   promptExtras: string;
+  /** 同上，按段保留来源（SDD 19 §9.2）；`promptExtras` 即各段以空行连接。 */
+  promptExtraParts: PromptExtraPart[];
   /** Skills 根目录：`read` 在其下只读放行（§7.3）。 */
   readableRoots: string[];
 }
+
+export type PromptExtraPart =
+  | { kind: "instructions"; scope: "user" | "project"; text: string }
+  | { kind: "skills"; text: string };
 
 export const MAX_INSTRUCTIONS_BYTES = 32 * 1024;
 const RANK: Record<ResourceSource, number> = { builtin: 1, user: 2, project: 3 };
@@ -139,16 +145,16 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
   }));
 
   const instructions: InstructionsItem[] = [];
-  const blocks: string[] = [];
+  const parts: PromptExtraPart[] = [];
   for (const { scope, path } of dirs.instructions) {
     const read = await readInstructions(path);
     instructions.push({ scope, path, exists: !!read, bytes: read?.bytes ?? 0 });
-    if (read?.text) blocks.push(`<instructions scope="${scope}">\n${read.text}\n</instructions>`);
+    if (read?.text) parts.push({ kind: "instructions", scope, text: `<instructions scope="${scope}">\n${read.text}\n</instructions>` });
   }
   const agents = await loadAgents(dirs.agents);
   const catalog = formatSkillsForSystemPrompt(harnessSkills);
   // 目录段末尾列出各层 Skills 目录，模型新建或覆盖 Skill 时据此选位置（SDD 17 §7.2）。
-  if (catalog) blocks.push(`${catalog}\n${skillFoldersLine(dirs.skills)}`);
+  if (catalog) parts.push({ kind: "skills", text: `${catalog}\n${skillFoldersLine(dirs.skills)}` });
 
   return {
     skills,
@@ -163,7 +169,8 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     ],
     harnessSkills,
     harnessTemplates: [...templateWinner.values()].map(({ promptTemplate }) => promptTemplate),
-    promptExtras: blocks.join("\n\n"),
+    promptExtras: parts.map((part) => part.text).join("\n\n"),
+    promptExtraParts: parts,
     readableRoots: dirs.skills.map((dir) => dir.path),
   };
 }

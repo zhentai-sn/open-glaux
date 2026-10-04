@@ -26,7 +26,7 @@ status: implemented
 2. **`agent` 工具**：参数、挂载条件、提示词片段。
 3. **子智能体运行**：会话、模型、工具子集、系统提示词、权限与预算、中止与并发。
 4. **结果**：交回主智能体的内容与保存在会话里的过程记录。
-5. **展示**：对话中的子智能体卡片、审批卡片标明来源、「技能」页列出定义。
+5. **展示**：对话中的子智能体卡片、审批卡片标明来源、「上下文 › 子智能体」列出定义。
 
 ## 2. 本 SDD 不负责什么
 
@@ -83,7 +83,7 @@ max_turns: 20                           # 可选；1～50，缺省 20
 - 子智能体运行期间，对话中显示「调用 agent」工具行，行内实时显示子智能体的回合数与正在调用的工具（§7.5）。
 - 完成后显示子智能体卡片：定义名、`description`、结局（完成 / 预算用尽 / 已中止 / 失败）、回合数、最终回复；可展开查看过程（消息与工具调用）。
 - 子智能体触发的审批卡片显示「来自子智能体：description」。
-- 「技能」页新增「子智能体」分组，只读列出定义（名称、描述、来源、工具）。
+- 上下文页的「子智能体」分区只读列出定义（名称、描述、来源、工具；SDD 19）。
 
 ### 5.2 系统输出
 
@@ -167,7 +167,7 @@ sequenceDiagram
 | `components/agent/SubagentCard.tsx`（新） | 子智能体卡片 |
 | `components/agent/AgentConversation.tsx` | 渲染卡片 |
 | `components/agent/InteractionCard.tsx` | 显示来源 |
-| `components/resources/SkillsView.tsx` | 「子智能体」分组 |
+| `components/context/AgentsSection.tsx` | 「子智能体」分区（SDD 19） |
 
 ## 9. 数据或字段要求
 
@@ -242,7 +242,7 @@ stateDiagram-v2
 | 情况 | 处理 |
 | --- | --- |
 | `subagent_type` 不存在 | 工具错误，列出可用名称 |
-| 定义文件不合法 | 跳过，告警显示在「技能」页 |
+| 定义文件不合法 | 跳过，告警显示在「上下文 › 技能」 |
 | 子智能体模型请求失败 | 工具错误，`details` 记录已有过程 |
 | 主命令中止 | 子智能体中止，结局 `aborted` |
 
@@ -276,7 +276,7 @@ stateDiagram-v2
 - [x] 对话中显示子智能体卡片，可展开过程（组件测试）。——`SubagentCard.test.tsx`
 - [x] 工具行实时显示子智能体进度，调用结束后清除（组件测试）。——`AgentConversation.test.tsx`、`agentSessions.test.ts`
 - [x] 审批卡片显示来源（组件测试）。——`InteractionCard.test.tsx`
-- [x] 「技能」页列出子智能体定义（组件测试）。——`ResourcesViews.test.tsx`
+- [x] 上下文页列出子智能体定义（组件测试）。——`ContextPanel.test.tsx`
 
 ### 15.4 工程
 

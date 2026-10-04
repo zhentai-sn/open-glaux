@@ -1,4 +1,4 @@
-/** SDD 17 §7.5、§9.2、§15.3：资源管理接口契约与系统提示词预览。 */
+/** SDD 17 §7.5、§9.2、§15.3，SDD 19 §9：资源管理接口契约、工具目录与系统提示词预览。 */
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +7,7 @@ import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { EMPTY_SETTINGS } from "../../src/permission/settings.js";
+import { toolCatalog } from "../../src/plugins/registry.js";
 import { defaultToolFactory } from "../../src/pi/harness-registry.js";
 import { loadResources } from "../../src/resources/load.js";
 import { buildServer } from "../../src/transport/server.js";
@@ -121,11 +122,26 @@ describe("resource management API", () => {
     } finally { await close(); }
   });
 
+  it("lists the static tool catalog with resources (SDD 19 §9.1)", async () => {
+    const { server, close } = await setup();
+    try {
+      const list = (await server.inject({ method: "GET", url: "/agent-api/v1/resources" })).json();
+      expect(list.tools).toEqual(toolCatalog());
+      expect(list.tools.find((tool: { name: string }) => tool.name === "write")).toEqual({ name: "write", plugin: "files", effect: "write", requires: [] });
+    } finally { await close(); }
+  });
+
   it("previews exactly the system prompt a real command receives", async () => {
-    const seen: string[] = [];
+    const seen: { prompt: string; tools: { name: string; description: string; parameters: unknown }[] }[] = [];
     const { fixture, server, close } = await setup([
       [], // 预览也会构造模型运行时，夹具按调用次数发放预设回复
-      [(context) => { seen.push(context.systemPrompt ?? ""); return fauxAssistantMessage("ok"); }],
+      [(context) => {
+        seen.push({
+          prompt: context.systemPrompt ?? "",
+          tools: (context.tools ?? []).map(({ name, description, parameters }) => ({ name, description, parameters })),
+        });
+        return fauxAssistantMessage("ok");
+      }],
     ]);
     try {
       await mkdir(home, { recursive: true });
@@ -137,9 +153,18 @@ describe("resource management API", () => {
       expect(preview.statusCode).toBe(200);
       await fixture.commands.accept(sessionId, { command_id: crypto.randomUUID(), type: "prompt", content: "hi", connection: TEST_CONNECTION });
       await fixture.registry.waitForIdle(sessionId);
-      expect(preview.json().prompt).toBe(seen[0]);
-      expect(preview.json().prompt).toContain("<name>imt</name>");
-      expect(preview.json().tools).toEqual(expect.arrayContaining(["read", "write", "edit"]));
+      const body = preview.json();
+      expect(body.prompt).toBe(seen[0]!.prompt);
+      expect(body.prompt).toContain("<name>imt</name>");
+      expect(body.tools.map((tool: { name: string }) => tool.name)).toEqual(expect.arrayContaining(["read", "write", "edit"]));
+      // SDD 19 §15.1：工具定义与真实命令挂载的一致；分段覆盖 prompt
+      expect(body.tools.map(({ name, description, parameters }: { name: string; description: string; parameters: unknown }) =>
+        ({ name, description, parameters }))).toEqual(JSON.parse(JSON.stringify(seen[0]!.tools)));
+      expect(body.segments.map((segment: { kind: string; scope?: string }) => segment.scope ? `${segment.kind}:${segment.scope}` : segment.kind))
+        .toEqual(expect.arrayContaining(["base", "instructions:user", "skills", "viewer"]));
+      const squash = (text: string) => text.replace(/\s+/gu, "");
+      expect(squash(body.segments.map((segment: { text: string }) => segment.text).join(""))).toBe(squash(body.prompt));
+      expect(body.unmounted.find((tool: { name: string }) => tool.name === "bash")).toBeUndefined();
     } finally { await close(); }
   });
 });

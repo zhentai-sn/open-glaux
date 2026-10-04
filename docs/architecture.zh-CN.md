@@ -147,7 +147,7 @@ open-glaux/
 | 会话列表 | `components/agent/SessionDrawer.tsx` 按项目分组（分组逻辑在 `sessionGroups.ts`）：项目组、「未归属」组、「<项目名>（已移除）」只读组；会话行状态点（运行中、未读、出错）；Focus 的 `SessionRail` 与 Workbench 共用。`ProjectChip` 在输入区上方显示当前会话项目，空会话可切项目；`FolderPicker` 浏览后端文件系统（`/fs/roots`、`/fs/dirs`）并登记项目 |
 | 文件栏 | 项目会话显示 `components/ProjectTree.tsx` 目录树：展开一层列一层，点击文件经 `POST /projects/{id}/objects` 按需登记后 `openObject`，无候选模态的文件点击后以文本预览：`components/DocumentView.tsx` 覆盖在舞台（Focus）或编辑区（Workbench）之上，查看器保持挂载，Markdown 用 `react-markdown` 渲染，其余文本用懒加载的 CodeMirror 6 只读视图（`components/CodeView.tsx`），读取 `GET /projects/{id}/text`（SDD 14）；根下虚拟节点「上传」列本项目上传源；未归属会话保持模态切换器 + `ExplorerTree`，只列 `project_id` 为空的数据源（SDD 13 §7.8） |
 | 图谱（Atlas） | `components/atlas/`：上传入口（图片 · PDF · 网页，上传即入库）、生成描述确认条、列表（多选批量操作）/ 详情（字段编辑、重新框选、添加区域、外发协议勾选）；描述生成经用户确认后走 runtime `/atlas/describe`，凭据不经 backend（SDD 03） |
-| 技能与提示词 | `components/resources/`：`SkillsView`（按来源分组、启停、编辑 SKILL.md；只读的子智能体定义分组）与 `PromptsView`（个人与项目 `GLAUX.md`、模板、系统提示词预览）；Focus 竖条与 Workbench 活动栏各一组入口（SDD 17） |
+| 上下文 | `components/context/`：`ContextPanel` 与设置页共用 `SectionedPanel` 竖向分区布局；分区为系统提示词（个人与项目 `GLAUX.md`、分段预览与 token 估算）、提示词模板、工具（按插件分组的目录与挂载状态）、子智能体、技能，记忆与 MCP 为占位；Focus 竖条与 Workbench 活动栏各一个入口（SDD 19） |
 | 国际化 | 中/英双语（`src/i18n/`） |
 | 安全 | 自定义 Vite 插件向 index.html 注入 CSP meta（开发放行 HMR 所需 inline，生产收紧 script-src 'self'） |
 
@@ -158,7 +158,7 @@ open-glaux/
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
-| 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；交互请求回复 `POST /sessions/{id}/interactions/{request_id}`（SDD 15 §9.4）；Skills、模板、`GLAUX.md` 的管理与系统提示词预览（`/resources`、`/skills/*`、`/prompts/*`、`/instructions/*`、`POST /sessions/{id}/system-prompt`，SDD 17 §9.2）；`connection/test\|models`；`atlas/describe` |
+| 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；交互请求回复 `POST /sessions/{id}/interactions/{request_id}`（SDD 15 §9.4）；Skills、模板、`GLAUX.md` 的管理与系统提示词预览（`/resources`、`/skills/*`、`/prompts/*`、`/instructions/*`、`POST /sessions/{id}/system-prompt`，SDD 17 §9.2；工具目录与分段预览见 SDD 19 §9）；`connection/test\|models`；`atlas/describe` |
 | 会话绑定项目 | `POST /sessions` 接受 `project_id`，写入 Pi 会话 `metadata.glaux_project_id`，创建后不可改；未归属会话不写 metadata。`SessionView` / `SessionListItem` 带 `project_id`；空会话按 `project_id`（含 `null`）各复用一个；同 `session_id` 换 `project_id` 返回 409 `idempotency_conflict`。`glaux_session_meta` 表不存项目（SDD 13 §7.6） |
 | 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`interaction/`（交互请求表与 `ask_user`，SDD 15）、`permission/`（权限判定、设置文件、会话授权，SDD 15）、`budget/`（运行预算，SDD 15）、`workspace/`（工作目录、会话工作区、路径范围、`bash` 环境变量白名单，SDD 16）、`resources/`（Skills、模板、`GLAUX.md`、子智能体定义的加载与读写，SDD 17、SDD 18）、`subagents/`（子智能体运行与并发槽位，SDD 18）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |

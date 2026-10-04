@@ -3,7 +3,9 @@
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import { chatEdition } from "../edition.js";
 import { RuntimeError } from "../errors.js";
+import { toolCatalog } from "../plugins/registry.js";
 import { projectDirOf } from "../permission/load.js";
 import { readSettingsFile, userSettingsPath } from "../permission/settings.js";
 import { loadResources } from "../resources/load.js";
@@ -55,7 +57,15 @@ export function registerResourceRoutes(server: FastifyInstance, deps: ResourceRo
     const ctx = await contextFor(request);
     const disabled = (await readSettingsFile(userSettingsPath(ctx.env))).file?.skillsDisabled ?? [];
     const loaded = await loadResources({ ...ctx, disabledSkills: disabled });
-    return { skills: loaded.skills, templates: loaded.templates, instructions: loaded.instructions, agents: loaded.agents, diagnostics: loaded.diagnostics };
+    return {
+      skills: loaded.skills,
+      templates: loaded.templates,
+      instructions: loaded.instructions,
+      agents: loaded.agents,
+      // SDD 19 §9.1：工具目录不依赖会话；chat 发行版不挂工具
+      tools: chatEdition() ? [] : toolCatalog(),
+      diagnostics: loaded.diagnostics,
+    };
   });
 
   server.get("/agent-api/v1/skills/:source/:name", async (request) =>

@@ -3,16 +3,16 @@ import { type LucideIcon } from "lucide-react";
 import { reRunActiveModel } from "../data/actions";
 import { useI18n } from "../i18n";
 import { useSession, type View } from "../store/session";
+import { confirmLeaveContext } from "./context/ContextPanel";
 import { Icon } from "./Icon";
 import { ICONS, TAB_ICON } from "./iconMap";
 
 // 侧边栏入口——只留 资源管理器 + 插件市场（去掉搜索/源代码管理，见设计稿 §6）。图标统一走 lucide（SDD feats/06）。
-const VIEWS: { id: View; key: "av_explorer" | "av_market" | "av_atlas" | "av_skills" | "av_prompts"; icon: LucideIcon }[] = [
+const VIEWS: { id: View; key: "av_explorer" | "av_market" | "av_atlas" | "av_context"; icon: LucideIcon }[] = [
   { id: "explorer", key: "av_explorer", icon: ICONS.explorer },
   { id: "market", key: "av_market", icon: ICONS.market },
   { id: "atlas", key: "av_atlas", icon: ICONS.atlas },
-  { id: "skills", key: "av_skills", icon: TAB_ICON.skills },
-  { id: "prompts", key: "av_prompts", icon: TAB_ICON.prompts },
+  { id: "context", key: "av_context", icon: TAB_ICON.context }, // SDD 19 §7.1 规则 4
 ];
 
 export function ActivityBar() {
@@ -29,7 +29,10 @@ export function ActivityBar() {
           key={v.id}
           className="act"
           aria-selected={view === v.id}
-          onClick={() => setView(v.id)}
+          onClick={() => {
+            if (view === "context" && v.id !== "context" && !confirmLeaveContext(t("res_unsaved_confirm"))) return;
+            setView(v.id);
+          }}
         >
           <Icon icon={v.icon} size="xl" />
           <span className="tip">{t(v.key)}</span>

@@ -5,8 +5,8 @@ import { type LucideIcon } from "lucide-react";
 import { useI18n, type I18nKey, type Lang } from "../../i18n";
 import { DEFAULT_ACCENT, useTheme, type Theme } from "../../store/theme";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
-import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
+import { SectionedPanel } from "../SectionedPanel";
 import { Segmented } from "../Segmented";
 
 // 设置面板（SDD feats/01 v1.7 D23）——占据右侧工作区，左列分区导航、右列当前分区内容。
@@ -130,36 +130,17 @@ function AppearanceSection() {
 export function SettingsPanel() {
   const { t } = useI18n();
   const [section, setSection] = useState<SectionId>("connection");
-  const current = SECTIONS.find((s) => s.id === section)!;
 
   return (
-    <div className="settings">
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label={t("settings_title")}>
-          <div className="settings-nav-title">{t("settings_title")}</div>
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={"settings-nav-item" + (s.id === section ? " on" : "")}
-              aria-current={s.id === section ? "page" : undefined}
-              onClick={() => setSection(s.id)}
-            >
-              <Icon icon={s.icon} size="sm" /> {t(s.label)}
-            </button>
-          ))}
-        </nav>
-        <section className="settings-body" aria-label={t(current.label)}>
-          <h2>{t(current.label)}</h2>
-          {section === "connection" && (
-            <>
-              <p className="settings-desc">{t("settings_connection_desc")}</p>
-              <ConnectionConfig variant="panel" />
-            </>
-          )}
-          {section === "appearance" && <AppearanceSection />}
-        </section>
-      </div>
-    </div>
+    <SectionedPanel
+      title={t("settings_title")}
+      sections={SECTIONS.map((s) => ({ id: s.id, label: t(s.label), icon: s.icon }))}
+      current={section}
+      onSelect={setSection}
+      desc={section === "connection" ? t("settings_connection_desc") : undefined}
+    >
+      {section === "connection" && <ConnectionConfig variant="panel" />}
+      {section === "appearance" && <AppearanceSection />}
+    </SectionedPanel>
   );
 }

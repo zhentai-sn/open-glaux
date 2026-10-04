@@ -41,14 +41,27 @@ describe("SessionRail 右侧栏入口", () => {
     expect(layout()).toMatchObject({ rightOpen: true, sideView: "stage", browserView: null });
   });
 
-  it("技能与提示词：打开对应页面，再点收起（SDD 17 §7.6）", () => {
-    fireEvent.click(btn("Skills"));
-    expect(layout()).toMatchObject({ rightOpen: true, sideView: "skills" });
-    expect(btn("Skills")).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(btn("Prompts"));
-    expect(layout()).toMatchObject({ rightOpen: true, sideView: "prompts" });
-    fireEvent.click(btn("Prompts"));
+  it("上下文：只有一个入口，打开上下文页，再点收起（SDD 19 §7.1）", () => {
+    expect(screen.queryByRole("button", { name: "Skills" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Prompts" })).toBeNull();
+    fireEvent.click(btn("Context"));
+    expect(layout()).toMatchObject({ rightOpen: true, sideView: "context" });
+    expect(btn("Context")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(btn("Context"));
     expect(layout().rightOpen).toBe(false);
+  });
+
+  it("上下文页有未保存修改时，切走前先确认；取消则留在原处（SDD 19 §7.3 规则 2）", async () => {
+    const { setEditorDirty } = await import("../context/shared");
+    fireEvent.click(btn("Context"));
+    setEditorDirty("skill", true);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    fireEvent.click(btn("Atlas"));
+    expect(layout().sideView).toBe("context");
+    fireEvent.click(btn("Atlas"));
+    expect(layout().sideView).toBe("atlas");
+    expect(confirm).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
   });
 
   it("文件：从图谱态点击 → 回到舞台并打开文件列；再点 → 只关文件列", () => {

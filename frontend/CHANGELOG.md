@@ -6,7 +6,7 @@
 
 ### Added
 
-- 「技能」「提示词」管理页（Focus 竖条与 Workbench 活动栏入口）；输入框 `/` 菜单调用技能与模板，技能调用消息紧凑显示（SDD 17）。
+- 「上下文」页（Focus 竖条与 Workbench 活动栏各一个入口，与设置页同一竖向分区布局）：系统提示词（`GLAUX.md` 编辑、分段预览与 token 估算）、提示词模板、工具（目录与挂载状态）、子智能体、技能，记忆与 MCP 为占位（SDD 19）；输入框 `/` 菜单调用技能与模板，技能调用消息紧凑显示（SDD 17）。
 - 会话内交互卡片：权限审批（允许本次 / 本会话允许 / 总是允许 / 拒绝并附理由）与智能体提问（选项或自由输入），结束后折叠为一行结论；被拦截的工具调用显示理由；权限菜单附模式说明，切到「完全自治」需确认；显示设置文件告警与预算收尾提示（SDD 15 §5.1）。
 - 会话 store 新增唯一观测焦点 `focus`（`object_id` / `kind` / `index` / `region`，写入口 `setFocus` / `setIndex` / `setRegion`）与按模态分组的对象表 `objects`；派生选择器 `activeObject` / `objectsOf`（SDD 10 W3）。
 - 数据动作收敛为 `loadObjects(modality, {open?})`、`openObject(id, modality?)`、`runTask(region?)`。

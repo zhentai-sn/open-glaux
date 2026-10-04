@@ -11,6 +11,39 @@ async function fresh() {
   return { useSession: session.useSession, useAtlasUi: atlas.useAtlasUi, revealExemplar: atlas.revealExemplar };
 }
 
+describe("旧技能、提示词工作区迁为上下文页（SDD 19 §7.2 规则 4）", () => {
+  beforeEach(() => localStorage.clear());
+
+  it.each([
+    ["skills", "skills"],
+    ["prompts", "system"],
+  ])("sideView %s → context，分区 %s", async (legacy, section) => {
+    localStorage.setItem(FOCUS_LAYOUT_KEY, JSON.stringify({ rightOpen: true, sideView: legacy }));
+    const { useSession } = await fresh();
+    const { useContextSection } = await import("./contextSection");
+    expect(useSession.getState().focusLayout.sideView).toBe("context");
+    expect(useContextSection.getState().section).toBe(section);
+    expect(localStorage.getItem("glaux.contextSection.v1")).toBe(section);
+  });
+
+  it("分区记录非法或存储抛错时回到系统提示词", async () => {
+    localStorage.setItem("glaux.contextSection.v1", "memory");
+    vi.resetModules();
+    expect((await import("./contextSection")).useContextSection.getState().section).toBe("system");
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.resetModules();
+    expect((await import("./contextSection")).useContextSection.getState().section).toBe("system");
+    getItem.mockRestore();
+  });
+
+  it("切换分区后持久化，重新载入仍停在该分区", async () => {
+    vi.resetModules();
+    (await import("./contextSection")).useContextSection.getState().setSection("tools");
+    vi.resetModules();
+    expect((await import("./contextSection")).useContextSection.getState().section).toBe("tools");
+  });
+});
+
 describe("sidebarView = atlas", () => {
   beforeEach(() => localStorage.clear());
 

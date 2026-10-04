@@ -6,6 +6,7 @@ import { useAgentSessions } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
 import { useSession, type FocusLayout } from "../../store/session";
 import { SessionDrawer } from "../agent/SessionDrawer";
+import { confirmLeaveContext } from "../context/ContextPanel";
 import { Icon } from "../Icon";
 import { ICONS, TAB_ICON } from "../iconMap";
 
@@ -55,22 +56,14 @@ const WORKSPACE_ENTRIES: RailEntry[] = [
     pressed: (l) => l.rightOpen && l.sideView === "atlas",
     next: (l) => (l.rightOpen && l.sideView === "atlas" ? { rightOpen: false } : { rightOpen: true, sideView: "atlas" }),
   },
-  // SDD 17 §7.6：技能与提示词管理页，与图谱同为右侧栏工作区。
+  // SDD 19 §7.1：上下文页，与设置页同样铺满对话列。
   {
-    id: "skills",
-    icon: TAB_ICON.skills,
-    label: "focus_tab_skills",
+    id: "context",
+    icon: TAB_ICON.context,
+    label: "focus_tab_context",
     onTitle: "focus_side_collapse",
-    pressed: (l) => l.rightOpen && l.sideView === "skills",
-    next: (l) => (l.rightOpen && l.sideView === "skills" ? { rightOpen: false } : { rightOpen: true, sideView: "skills" }),
-  },
-  {
-    id: "prompts",
-    icon: TAB_ICON.prompts,
-    label: "focus_tab_prompts",
-    onTitle: "focus_side_collapse",
-    pressed: (l) => l.rightOpen && l.sideView === "prompts",
-    next: (l) => (l.rightOpen && l.sideView === "prompts" ? { rightOpen: false } : { rightOpen: true, sideView: "prompts" }),
+    pressed: (l) => l.rightOpen && l.sideView === "context",
+    next: (l) => (l.rightOpen && l.sideView === "context" ? { rightOpen: false } : { rightOpen: true, sideView: "context" }),
   },
 ];
 
@@ -96,7 +89,12 @@ function RailEntryButton({ entry }: { entry: RailEntry }) {
       title={t(on ? entry.onTitle : entry.label)}
       aria-label={t(entry.label)}
       aria-pressed={on}
-      onClick={() => setFocusLayout(entry.next(layout))}
+      onClick={() => {
+        // 从上下文页切走或收起前确认未保存修改（SDD 19 §7.3 规则 2）
+        const leaving = layout.rightOpen && layout.sideView === "context";
+        if (leaving && !confirmLeaveContext(t("res_unsaved_confirm"))) return;
+        setFocusLayout(entry.next(layout));
+      }}
     >
       <Icon icon={entry.icon} size="md" />
     </button>

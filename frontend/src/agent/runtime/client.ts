@@ -16,6 +16,7 @@ import type {
   SessionListItem,
   SessionStatus,
   SessionView,
+  SystemPromptPreview,
   TransportCommand,
 } from "./types";
 
@@ -152,7 +153,7 @@ export const agentRuntimeApi = {
       body: JSON.stringify({ content }),
     }),
   previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext) =>
-    request<{ prompt: string; tools: string[] }>(`/sessions/${encodeURIComponent(sessionId)}/system-prompt`, {
+    request<SystemPromptPreview>(`/sessions/${encodeURIComponent(sessionId)}/system-prompt`, {
       method: "POST",
       body: JSON.stringify({ connection, ...(viewer ? { viewer } : {}) }),
     }),

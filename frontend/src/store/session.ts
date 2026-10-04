@@ -20,6 +20,7 @@ import type {
 } from "../api/types";
 import type { Attachment } from "../agent/attachments";
 import { readRecent, writeRecent, type RecentItem } from "../data/recent";
+import { useContextSection, type ContextSection } from "./contextSection";
 
 /** 一条 VLM 连接（SDD 2026-07-14-001 §4）——provider + 端点 + 密钥 + 选定模型。 */
 export interface Connection {
@@ -100,11 +101,13 @@ const UIMODE_KEY = "glaux.uiMode.v1"; // 字面量存储；改语义时 bump 版
 const FOCUS_LAYOUT_KEY = "glaux.focusLayout.v1"; // JSON；损坏回默认
 
 /**
- * Focus 右侧工作区（SDD feats/01 v1.5 D20 / v1.7 D23）：舞台、图谱或设置，占同一位置互换；对话列始终保留。
- * 入口都在左侧栏，不是右侧浏览器列的标签。
+ * Focus 右侧工作区（SDD feats/01 v1.5 D20 / v1.7 D23）：舞台、图谱、上下文或设置，占同一位置互换。
+ * 上下文与设置铺满对话列（D25、SDD 19 §7.1 规则 2）。入口都在左侧栏，不是右侧浏览器列的标签。
  */
-export type FocusSideView = "stage" | "atlas" | "skills" | "prompts" | "settings";
-const SIDE_VIEWS: readonly FocusSideView[] = ["stage", "atlas", "skills", "prompts", "settings"];
+export type FocusSideView = "stage" | "atlas" | "context" | "settings";
+const SIDE_VIEWS: readonly FocusSideView[] = ["stage", "atlas", "context", "settings"];
+/** SDD 19 §7.2 规则 4：旧的技能、提示词工作区迁为上下文页的对应分区。 */
+const LEGACY_CONTEXT_SECTION: Record<string, ContextSection> = { skills: "skills", prompts: "system" };
 /**
  * 舞台旁的浏览器列（SDD feats/01 v1.4 §9 / D16、D18；v1.5 起只剩文件）。
  * `null` = 浏览器列关闭，侧栏纯舞台。
@@ -186,10 +189,14 @@ function loadFocusLayout(): FocusLayout {
         const legacy = p.rightView === "files" ? "files" : null;
         // v1.4 图谱曾是浏览器列之一（browserView/rightView 为 "atlas"）→ v1.5 迁为图谱工作区。
         const legacyAtlas = (p.browserView as unknown) === "atlas" || p.rightView === "atlas";
+        const legacySection = typeof p.sideView === "string" ? LEGACY_CONTEXT_SECTION[p.sideView] : undefined;
+        if (legacySection) useContextSection.getState().setSection(legacySection);
         return {
           railOpen: typeof p.railOpen === "boolean" ? p.railOpen : FOCUS_LAYOUT_DEFAULTS.railOpen,
           rightOpen,
-          sideView: SIDE_VIEWS.includes(p.sideView as FocusSideView) ? p.sideView! : legacyAtlas ? "atlas" : "stage",
+          sideView: SIDE_VIEWS.includes(p.sideView as FocusSideView)
+            ? p.sideView!
+            : legacySection ? "context" : legacyAtlas ? "atlas" : "stage",
           browserView: p.browserView === "files" ? "files" : legacy,
           browserW: loadWidth(p.browserW, BROWSER_W),
           railW: loadWidth(p.railW, RAIL_W),
@@ -203,7 +210,7 @@ function loadFocusLayout(): FocusLayout {
   return { ...FOCUS_LAYOUT_DEFAULTS };
 }
 
-export type View = "explorer" | "market" | "atlas" | "skills" | "prompts"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD 03）/ 技能与提示词（SDD 17）
+export type View = "explorer" | "market" | "atlas" | "context"; // 侧边栏视图：资源管理器 / 插件市场 / 图谱（SDD 03）/ 上下文（SDD 19）
 export type PanelTab = "meas" | "out" | "prob" | "term";
 /**
  * SDD 04：统一工具集合——替代旧的 editli/editma/roi（roi 更名 bbox）。

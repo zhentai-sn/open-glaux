@@ -17,7 +17,7 @@ import { useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import { agentRuntimeApi } from "../../agent/runtime/client";
-import { useCurrentProjectId } from "../resources/useResources";
+import { useCurrentProjectId } from "../context/shared";
 import { parseInvocation, slashItems, slashQuery, type Invocation, type SlashItem } from "./slashCommands";
 import { ProjectChip } from "./ProjectChip";
 

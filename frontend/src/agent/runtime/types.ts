@@ -111,13 +111,61 @@ export interface ResourceDiagnostic {
   path: string;
 }
 
+/** SDD 19 §9.1：工具目录条目。 */
+export type ToolRequirement = "project" | "vision" | "runtime" | "egress";
+
+export interface ToolItem {
+  name: string;
+  plugin: string;
+  effect: ToolEffect;
+  requires: ToolRequirement[];
+}
+
 export interface ResourceList {
   skills: SkillItem[];
   templates: TemplateItem[];
   instructions: InstructionsItem[];
   /** 旧版 runtime 不下发时视为空。 */
   agents?: AgentItem[];
+  /** 旧版 runtime 不下发时视为空。 */
+  tools?: ToolItem[];
   diagnostics: ResourceDiagnostic[];
+}
+
+/** SDD 19 §9.2：系统提示词预览。 */
+export interface PromptSegment {
+  kind: "base" | "plugin" | "instructions" | "skills" | "viewer";
+  plugin?: string;
+  scope?: "user" | "project";
+  text: string;
+  est_tokens: number;
+}
+
+export interface MountedTool {
+  name: string;
+  plugin: string;
+  effect: ToolEffect | "";
+  description: string;
+  parameters: unknown;
+  est_tokens: number;
+}
+
+export type UnmountedReason =
+  | "needs_project" | "needs_vision" | "needs_runtime" | "needs_egress"
+  | "plugin_inactive" | "unsupported_focus" | "mode";
+
+export interface UnmountedTool {
+  name: string;
+  plugin: string;
+  reason: UnmountedReason;
+}
+
+export interface SystemPromptPreview {
+  prompt: string;
+  segments: PromptSegment[];
+  tools: MountedTool[];
+  unmounted: UnmountedTool[];
+  est_tokens: { prompt: number; tools: number };
 }
 
 export interface RuntimeWarning {

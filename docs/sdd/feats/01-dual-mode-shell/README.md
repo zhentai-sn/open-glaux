@@ -85,7 +85,7 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- Focus 布局:左侧栏(按项目分组的会话列表可收起,分组与状态点见 [SDD 13](../13-project-folder-sessions/README.md) §7.4;竖条是活动栏,含会话 ☰ ＋、右侧栏的**舞台 / 文件 / 图谱 / 技能 / 提示词**入口与底部的**设置**,v1.5 D20、v1.6 D22、v1.7 D23;技能与提示词见 [SDD 17](../17-agent-skills-prompts/README.md) §7.6)/ 居中对话流(设置打开时隐藏,D25)/ **右侧工作区**(纯内容区,收起时不渲染;舞台、图谱或设置三选一,设置铺满对话列位置,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20,v1.7 D23)/ 极简顶栏(只有标识,以及仅在开放工作台时出现的模式切换;v1.5 D21,v1.7 D24)。
+- Focus 布局:左侧栏(按项目分组的会话列表可收起,分组与状态点见 [SDD 13](../13-project-folder-sessions/README.md) §7.4;竖条是活动栏,含会话 ☰ ＋、右侧栏的**舞台 / 文件 / 图谱 / 上下文**入口与底部的**设置**,v1.5 D20、v1.6 D22、v1.7 D23;上下文见 [SDD 19](../19-context-management/README.md) §7.1)/ 居中对话流(设置打开时隐藏,D25)/ **右侧工作区**(纯内容区,收起时不渲染;舞台、图谱、上下文或设置四选一,上下文与设置铺满对话列位置,舞台态下文件为贴右缘、可关闭的浏览器列;v1.4 D16–D19,v1.5 D20,v1.7 D23)/ 极简顶栏(只有标识,以及仅在开放工作台时出现的模式切换;v1.5 D21,v1.7 D24)。
 - Workbench 布局:与现状逐像素一致(仅顶栏新增切换按钮);入口缺省关闭,构建时设 `VITE_GLAUX_WORKBENCH=1` 才开放(D21)。
 - 切换后界面即时呈现目标模式,数据原地保留。
 
@@ -231,8 +231,8 @@ flowchart TD
   - 迁移:旧 `rightView:"stage"` → `browserView:null`;`"files"` → `"files"`;`"atlas"` → `"atlas"`;缺失或非法值 → `null`。`browserW` 非有限数/非正数回 `null`,否则 `clamp` 到 [`BROWSER_MIN`=240, `BROWSER_MAX`=480]。
   - 常量:`BROWSER_W = {min:240, max:480, def:240}`(缺省即最窄,D19);`STAGE_MIN = 360`;`SIDE_SPLIT_MIN = 640`(= 浏览器最小 + 舞台最小 + 分隔条余量,低于此值即窄屏降级)。阈值带 24px 迟滞:分栏 → 降级取 `< 640`,降级 → 分栏取 `≥ 664`,避免拖到临界时反复重排。
   - 分栏判定读**实测**侧栏宽度(与 v1.3 `FocusShell.room()` 同一套实测机制),不读持久化的 `sideW`——`sideW` 为 `null` 时没有像素真相值。
-- **右侧工作区(v1.5;v1.7 增 `settings`)**:`FocusLayout` 增 `sideView: "stage" | "atlas" | "settings"`(缺省 `stage`),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump;`sideView` 非法值按下述迁移规则推断,否则回 `stage`。设置面板的当前分区是组件内状态,不持久化(每次打开缺省「模型与连接」)。
-  - 迁移:v1.4 的 `browserView:"atlas"` 或更早的 `rightView:"atlas"` → `sideView:"atlas"`、`browserView:null`;`sideView` 缺失或非法 → 按前述规则推断,否则 `stage`;`browserView` 仅 `"files"` 保留,其余 → `null`(旧 `rightView:"files"` 仍迁为 `"files"`)。
+- **右侧工作区(v1.5;v1.7 增 `settings`)**:`FocusLayout` 增 `sideView: "stage" | "atlas" | "context" | "settings"`(缺省 `stage`;`context` 见 SDD 19),`browserView` 收窄为 `"files" | null`。同存 `glaux.focusLayout.v1`,键名不 bump;`sideView` 非法值按下述迁移规则推断,否则回 `stage`。设置面板的当前分区是组件内状态,不持久化(每次打开缺省「模型与连接」)。
+  - 迁移:v1.4 的 `browserView:"atlas"` 或更早的 `rightView:"atlas"` → `sideView:"atlas"`、`browserView:null`;`sideView` 缺失或非法 → 按前述规则推断,否则 `stage`;`browserView` 仅 `"files"` 保留,其余 → `null`(旧 `rightView:"files"` 仍迁为 `"files"`);旧 `sideView:"skills"` / `"prompts"` → `"context"`,并把上下文页分区设为技能 / 系统提示词(SDD 19 §7.2 规则 4)。
   - 两字段正交:切到图谱不改写 `browserView`,回到舞台时文件列恢复原开合。
 - 舞台**可见性**:v1.1 为 `rightOpen && rightView==="stage"`;v1.4 起 `rightOpen` 即渲染 StagePanel(舞台常驻,浏览器列只是与它并排);v1.5 起为 `rightOpen && sideView==="stage"`。舞台内显示查看器还是占位引导,只由是否存在焦点对象(`activeObject(s)`)决定;占位文案 `focus_stage_empty` 以「对象」指称。会话级 `document` 非空时,文档视图覆盖在查看器或占位之上(SDD 14 §7.3)。
 - 其余展示字段全部复用现有 store,零新增领域字段。

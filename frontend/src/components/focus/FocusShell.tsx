@@ -82,8 +82,8 @@ export function FocusShell() {
   // 「拖到这儿对话列还剩 ≥360px」的动态上界，交给分隔条夹住。
   const { railOpen, rightOpen, railW, sideW, sideView } = useSession((s) => s.focusLayout);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
-  // 设置面板铺满工作区（SDD feats/01 D25）：对话列只隐藏不卸载，进行中的回合不受影响。
-  const settingsFull = rightOpen && sideView === "settings";
+  // 设置面板与上下文页铺满工作区（SDD feats/01 D25、SDD 19 §7.1 规则 2）：对话列只隐藏不卸载，进行中的回合不受影响。
+  const settingsFull = rightOpen && (sideView === "settings" || sideView === "context");
   const bodyRef = useRef<HTMLDivElement>(null);
   // 右侧栏未拖过时按 flex 比例自适应，没有像素真相值——实测一份，供 aria 读数与拖拽起点用。
   const [measured, setMeasured] = useState({ body: 0, side: 0 });
