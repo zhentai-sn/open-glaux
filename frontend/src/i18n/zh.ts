@@ -359,6 +359,7 @@ export const zh: Record<I18nKey, string> = {
   ctx_preview_no_session: "打开或新建一个会话后可预览。",
   ctx_preview_no_model: "先配置模型",
   ctx_preview_loading: "正在组装…",
+  ctx_preview_outdated: "agent-runtime 版本比页面旧，重启 agent-runtime 后刷新。",
   ctx_preview_refresh: "刷新",
   ctx_preview_stale: "内容已变化，刷新查看。",
   ctx_preview_show_full: "查看全文",

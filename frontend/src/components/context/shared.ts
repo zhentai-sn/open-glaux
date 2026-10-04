@@ -45,7 +45,16 @@ export type PreviewState =
   | { status: "no-model" }
   | { status: "loading"; data?: SystemPromptPreview }
   | { status: "ready"; data: SystemPromptPreview; stale: boolean }
-  | { status: "error"; error: string };
+  | { status: "error"; error: string }
+  | { status: "outdated" };
+
+/** 预览响应是否为 SDD 19 §9.2 的结构；旧版 runtime 只返回 `{prompt, tools: string[]}`。 */
+function isPreview(data: unknown): data is SystemPromptPreview {
+  const value = data as Partial<SystemPromptPreview> | null;
+  return !!value && typeof value.prompt === "string" && Array.isArray(value.segments) && Array.isArray(value.unmounted)
+    && Array.isArray(value.tools) && value.tools.every((tool) => typeof tool === "object" && tool !== null)
+    && typeof value.est_tokens === "object" && value.est_tokens !== null;
+}
 
 /**
  * 系统提示词预览（SDD 19 §7.4）：进入「系统提示词」「工具」分区或切换会话时自动请求；
@@ -66,7 +75,8 @@ export function usePreview(active: boolean) {
     setState((prev) => ({ status: "loading", ...(prev.status === "ready" ? { data: prev.data } : {}) }));
     try {
       const data = await agentRuntimeApi.previewSystemPrompt(sessionId, toConnectionInput(connectionRef.current), toViewerContext());
-      setState({ status: "ready", data, stale: false });
+      // 前端热更新后 runtime 可能仍是旧进程，返回旧格式（SDD 19 §13）；不按新格式渲染，免得整块崩溃
+      setState(isPreview(data) ? { status: "ready", data, stale: false } : { status: "outdated" });
     } catch (err) {
       setState({ status: "error", error: errorText(err) });
     }

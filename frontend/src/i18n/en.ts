@@ -366,6 +366,7 @@ export const en = {
   ctx_preview_no_session: "Open or start a conversation to preview.",
   ctx_preview_no_model: "Configure a model first",
   ctx_preview_loading: "Assembling…",
+  ctx_preview_outdated: "The agent runtime is older than this page. Restart agent-runtime and refresh.",
   ctx_preview_refresh: "Refresh",
   ctx_preview_stale: "Content changed — refresh to see it.",
   ctx_preview_show_full: "Show full text",

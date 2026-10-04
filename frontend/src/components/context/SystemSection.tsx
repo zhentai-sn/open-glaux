@@ -96,6 +96,7 @@ export function PreviewNotice({ state }: { state: PreviewState }) {
     );
   }
   if (state.status === "error") return <div className="res-error" role="alert">{state.error}</div>;
+  if (state.status === "outdated") return <div className="res-error" role="alert">{t("ctx_preview_outdated")}</div>;
   if (state.status === "loading" && !state.data) return <div className="res-empty" aria-busy="true">{t("ctx_preview_loading")}</div>;
   return null;
 }
@@ -103,7 +104,7 @@ export function PreviewNotice({ state }: { state: PreviewState }) {
 /** 刷新按钮与「内容已变化」提示。 */
 export function PreviewToolbar({ state, onRefresh }: { state: PreviewState; onRefresh: () => void }) {
   const { t } = useI18n();
-  const canRefresh = state.status === "ready" || state.status === "error" || state.status === "loading";
+  const canRefresh = state.status === "ready" || state.status === "error" || state.status === "outdated" || state.status === "loading";
   return (
     <div className="res-actions">
       <button type="button" disabled={!canRefresh || state.status === "loading"} onClick={onRefresh}>

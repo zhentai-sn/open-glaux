@@ -218,6 +218,13 @@ describe("system prompt", () => {
     expect(preview).not.toHaveBeenCalled();
   });
 
+  it.each(["system", "tools"] as const)("does not crash on the legacy preview shape from an older runtime (%s)", async (section) => {
+    vi.spyOn(agentRuntimeApi, "previewSystemPrompt").mockResolvedValue({ prompt: "You are Glaux…", tools: ["read"] } as never);
+    renderAt(section);
+    expect(await screen.findByText("The agent runtime is older than this page. Restart agent-runtime and refresh.")).toBeInTheDocument();
+    expect(screen.queryByText("This part of Glaux ran into a problem")).toBeNull();
+  });
+
   it("shows preview errors without hiding the editors", async () => {
     vi.spyOn(agentRuntimeApi, "previewSystemPrompt").mockRejectedValue(new AgentRuntimeError(404, "session_not_found", "Session not found."));
     renderAt("system");
