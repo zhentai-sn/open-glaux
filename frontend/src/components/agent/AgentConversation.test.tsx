@@ -57,6 +57,7 @@ describe("AgentConversation", () => {
       error: null,
       resolvedInteractions: {},
       toolErrors: {},
+      toolTimings: {},
       runNotices: {},
     });
     useSession.getState().setConnection({
@@ -197,9 +198,121 @@ describe("AgentConversation", () => {
         },
       },
       toolErrors: { [session.session_id]: { t1: "The user denied run_task." } },
+      toolTimings: { [session.session_id]: { t1: { startedAt: 0, endedAt: 5, blocked: true } } },
     });
     render(<I18nProvider><AgentConversation /></I18nProvider>);
     expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Not run: The user denied run_task.");
+  });
+
+  it("labels a tool that ran and failed as failed, not as not run", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "read", arguments: { path: "." } }] },
+            { role: "toolResult", toolCallId: "t1", toolName: "read", isError: true, content: [{ type: "text", text: "EISDIR: illegal operation\nmore" }] },
+          ],
+        },
+      },
+      toolErrors: { [session.session_id]: { t1: "EISDIR: illegal operation" } },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Failed: EISDIR: illegal operation");
+  });
+
+  it("keeps the agent's text outside the steps group and folds only the tool calls", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "look" },
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "read", arguments: {} }] },
+            { role: "toolResult", toolCallId: "t1", toolName: "read", isError: false, content: [] },
+            { role: "assistant", content: [{ type: "text", text: "I could not list it." }, { type: "toolCall", id: "t2", name: "ask_user", arguments: {} }] },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    // 文字可见；其后已有文字的组收起；ask_user 不进步骤组（由提问卡片与结论行呈现）
+    expect(screen.getByText("I could not list it.")).toBeInTheDocument();
+    const heads = screen.getAllByRole("button", { name: /Tool calls: 1/u });
+    expect(heads.map((head) => head.getAttribute("aria-expanded"))).toEqual(["false"]);
+    fireEvent.click(heads[0]!);
+    expect(screen.getAllByTestId("tool-item").map((item) => item.textContent)).toEqual([expect.stringContaining("read")]);
+  });
+
+  it("excludes the time spent waiting for the user from durations", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "write" },
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "write", arguments: {} }] },
+            { role: "toolResult", toolCallId: "t1", toolName: "write", isError: false, content: [], duration_ms: 20_300, waited_ms: 20_000 },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByRole("button", { name: /Tool calls: 1/u })).toHaveTextContent("300ms");
+    expect(screen.getByTestId("tool-duration")).toHaveTextContent("300ms");
+    expect(screen.getByTestId("tool-waited")).toHaveTextContent("waited 20.0s for you");
+  });
+
+  it("shows the resolved answer of an ask_user call without a steps group", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "go" },
+            { role: "assistant", content: [{ type: "toolCall", id: "q1", name: "ask_user", arguments: {} }] },
+            { role: "toolResult", toolCallId: "q1", toolName: "ask_user", isError: false, content: [{ type: "text", text: "left" }] },
+          ],
+        },
+      },
+      resolvedInteractions: {
+        [session.session_id]: [{
+          request: {
+            request_id: "r1", session_id: session.session_id, command_id: "c", kind: "question", tool_call_id: "q1",
+            created_at: "2026-10-03T00:00:00.000Z", expires_at: "2026-10-03T00:30:00.000Z",
+            question: { question: "Which side?", options: ["left"], allow_free_text: false },
+          },
+          outcome: "answered",
+          reply: { kind: "question", option: 0 },
+        }],
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.queryByTestId("tool-steps")).toBeNull();
+    expect(screen.getByTestId("interaction-resolved")).toHaveTextContent("Which side?");
+  });
+
+  it("shows a sub-agent card inside the steps as a single collapsible line", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "go" },
+            { role: "assistant", content: [{ type: "toolCall", id: "a1", name: "agent", arguments: {} }] },
+            {
+              role: "toolResult", toolCallId: "a1", toolName: "agent", isError: false, content: [],
+              details: { kind: "glaux.subagent_run", subagent_type: "general", description: "List files", outcome: "completed", turns: 3, final: "Long report", transcript: [] },
+            },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByTestId("subagent-card")).toHaveTextContent("List files");
+    expect(screen.queryByText("Long report")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /List files/u }));
+    expect(screen.getByText("Long report")).toBeInTheDocument();
   });
 
   it("places resolved approvals after the tool call they belong to, and unanchored ones at the end", () => {
@@ -232,11 +345,89 @@ describe("AgentConversation", () => {
       },
     });
     const { container } = render(<I18nProvider><AgentConversation /></I18nProvider>);
+    // 有最终回复时步骤组默认收起，展开后审批记录紧跟所属的工具调用
+    fireEvent.click(screen.getByRole("button", { name: /Tool calls: 1/u }));
+    const steps = [...container.querySelectorAll(".tool-steps-body > *")].map((el) => el.textContent ?? "");
+    const toolLine = steps.findIndex((text) => text.includes("run_task"));
+    expect(steps[toolLine + 1]).toContain("tool-r1");
     const order = [...container.querySelectorAll(".conversation-stream > *")].map((el) => el.textContent ?? "");
-    const toolLine = order.findIndex((text) => text.includes("run_task"));
-    expect(order[toolLine + 1]).toContain("tool-r1");
-    expect(order.findIndex((text) => text.includes("Measured."))).toBeGreaterThan(toolLine + 1);
+    expect(order.findIndex((text) => text.includes("Measured."))).toBeGreaterThan(order.findIndex((text) => text.includes("tool-r1")));
     expect(order[order.length - 1]).toContain("tool-r2");
+  });
+
+  it("folds tool steps above the final reply and shows input, output and duration", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "read it" },
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "read", arguments: { path: "README.md" } }] },
+            { role: "toolResult", toolCallId: "t1", toolName: "read", isError: false, content: [{ type: "text", text: "# Title" }], duration_ms: 1234 },
+            { role: "assistant", content: [{ type: "text", text: "It is a title." }] },
+          ],
+        },
+      },
+    });
+    const { container } = render(<I18nProvider><AgentConversation /></I18nProvider>);
+    // 步骤组与其后的回复属于同一段智能体输出，只有一个头像
+    expect(container.querySelectorAll(".conversation-stream .who")).toHaveLength(1);
+    const head = screen.getByRole("button", { name: /Tool calls: 1/u });
+    expect(head).toHaveAttribute("aria-expanded", "false");
+    expect(head).toHaveTextContent("1.2s");
+    expect(screen.queryByTestId("tool-item")).not.toBeInTheDocument();
+    expect(screen.getByText("It is a title.")).toBeInTheDocument();
+
+    fireEvent.click(head);
+    const item = screen.getByTestId("tool-item");
+    expect(item).toHaveTextContent("path=README.md");
+    expect(screen.getByTestId("tool-duration")).toHaveTextContent("1.2s");
+    fireEvent.click(screen.getByRole("button", { name: /^read/u }));
+    expect(screen.getByTestId("tool-output")).toHaveTextContent("# Title");
+    expect(item).toHaveTextContent(/"path": "README.md"/u);
+  });
+
+  it("pairs each call with the next result of the same id when ids are reused across turns", () => {
+    const call = { role: "assistant" as const, content: [{ type: "toolCall" as const, id: "c", name: "read", arguments: { path: "a.md" } }] };
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "one" },
+            call,
+            { role: "toolResult", toolCallId: "c", toolName: "read", isError: true, content: [{ type: "text", text: "ENOENT" }] },
+            { role: "assistant", content: [{ type: "text", text: "missing" }] },
+            { role: "user", content: "two" },
+            call,
+            { role: "toolResult", toolCallId: "c", toolName: "read", isError: false, content: [{ type: "text", text: "# Hello" }] },
+            { role: "assistant", content: [{ type: "text", text: "found" }] },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    screen.getAllByRole("button", { name: /Tool calls: 1/u }).forEach((head) => fireEvent.click(head));
+    screen.getAllByRole("button", { name: /^read/u }).forEach((head) => fireEvent.click(head));
+    expect(screen.getAllByTestId("tool-output").map((el) => el.textContent)).toEqual(["ENOENT", "# Hello"]);
+  });
+
+  it("keeps the steps of a running turn expanded with a live running marker", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          phase: "running",
+          messages: [
+            { role: "user", content: "read it" },
+            { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "read", arguments: { path: "a.md" } }] },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByRole("button", { name: /Tool calls: 1/u })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("tool-duration")).toHaveTextContent("Running…");
   });
 
   it("marks a reply that produced nothing instead of drawing an empty bubble", () => {

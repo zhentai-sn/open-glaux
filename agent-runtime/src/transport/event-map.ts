@@ -24,7 +24,15 @@ function redacted<T extends LiveEvent>(event: T): T {
   return redactStrings(event);
 }
 
-export function mapPiEvent(sessionId: string, commandId: string, event: AgentHarnessEvent): LiveEvent | null {
+/** `tool.end` 的附加信息：被插件拦截的调用标识，与某次调用等待用户回复的时长。 */
+export interface ToolEndContext {
+  blocked?: ReadonlySet<string>;
+  waitedMs?: (toolCallId: string) => number;
+}
+
+export function mapPiEvent(
+  sessionId: string, commandId: string, event: AgentHarnessEvent, toolEnd: ToolEndContext = {},
+): LiveEvent | null {
   const base = { session_id: sessionId, command_id: commandId };
   switch (event.type) {
     case "message_update": {
@@ -41,6 +49,7 @@ export function mapPiEvent(sessionId: string, commandId: string, event: AgentHar
       });
     case "tool_execution_end": {
       const result = event.result as { details?: unknown; content?: unknown } | undefined;
+      const waited = toolEnd.waitedMs?.(event.toolCallId) ?? 0;
       return redacted({
         event: "tool.end",
         data: {
@@ -48,6 +57,8 @@ export function mapPiEvent(sessionId: string, commandId: string, event: AgentHar
           tool_call_id: event.toolCallId,
           tool_name: event.toolName,
           is_error: event.isError,
+          ...(toolEnd.blocked?.has(event.toolCallId) ? { blocked: true as const } : {}),
+          ...(waited > 0 ? { waited_ms: waited } : {}),
           details: result?.details ?? null,
           ...(event.isError ? { error_text: resultText(result?.content).slice(0, MAX_ERROR_TEXT) } : {}),
         },

@@ -19,9 +19,11 @@ import type {
   SessionPhase,
   SessionStatus,
   SessionView,
+  TranscriptBlock,
   TranscriptMessage,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
+import { redactText } from "../security/redact.js";
 import { toTranscript } from "../transport/transcript.js";
 import { removeWorkspace } from "../workspace/cwd.js";
 import { GlauxMetaRepo } from "../storage/glaux-meta-repo.js";
@@ -33,6 +35,9 @@ import { FILE_READ_DETAILS_KIND } from "../plugins/files.js";
 import { SUBAGENT_RUN_DETAILS_KIND } from "../subagents/run.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
+
+/** 工具耗时审计记录：`{tool_call_id, duration_ms, waited_ms?, blocked?}`，命令结束时写入（SDD 15 §12）。 */
+export const TOOL_TIMING_ENTRY = "glaux.tool.timing";
 
 export interface SessionServiceOptions {
   workspaceDir: string;
@@ -240,8 +245,18 @@ export class SessionService {
     const projectId = sessionProjectId(await session.getMetadata());
     const branch = await session.getBranch();
     const context = await session.buildContext();
+    // 同一标识可能跨回合复用（部分 OpenAI 兼容端点），耗时按记录顺序逐个对应工具结果
+    const durations = new Map<string, ToolTiming[]>();
+    for (const entry of branch) {
+      if (entry.type !== "custom" || entry.customType !== TOOL_TIMING_ENTRY) continue;
+      const data = entry.data as { tool_call_id?: unknown; duration_ms?: unknown; waited_ms?: unknown; blocked?: unknown };
+      if (typeof data?.tool_call_id !== "string" || typeof data.duration_ms !== "number") continue;
+      const waited = typeof data.waited_ms === "number" ? data.waited_ms : 0;
+      const timing = { duration_ms: data.duration_ms, waited_ms: waited, blocked: data.blocked === true };
+      durations.set(data.tool_call_id, [...(durations.get(data.tool_call_id) ?? []), timing]);
+    }
     const messages = branch.flatMap((entry) =>
-      entry.type === "message" ? visibleMessage(entry.message) : [],
+      entry.type === "message" ? visibleMessage(entry.message, durations) : [],
     );
     const videoAnswers = branch.flatMap((entry) => {
       if (entry.type !== "custom" || entry.customType !== "glaux.video.answer") return [];
@@ -348,22 +363,48 @@ const VIEWABLE_DETAILS_KINDS = new Set([
   SUBAGENT_RUN_DETAILS_KIND,
 ]);
 
+/** 快照里每个工具结果保留的输出文本上限（SDD 15 §9.6）。 */
+export const MAX_TOOL_OUTPUT_TEXT = 2000;
+
+/** 工具输出：只留文本块，合并后脱敏、截断；图像块不进快照（图谱案例图是几百 KB 的 base64）。 */
+function toolOutput(content: TranscriptBlock[]): TranscriptBlock[] {
+  const text = redactText(content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n"));
+  if (!text) return [];
+  return [{ type: "text", text: text.length > MAX_TOOL_OUTPUT_TEXT ? `${text.slice(0, MAX_TOOL_OUTPUT_TEXT)}…` : text }];
+}
+
 /**
  * 会话视图里保留哪些消息。
  *
- * user / assistant 原样保留。`toolResult` 原本整条丢弃，卡片就只能靠实时事件、刷新即消失；
- * 带可呈现 details 的工具结果改为保留，但**剥掉 content**——图谱案例图是几百 KB 的 base64，
- * 前端只用 details 渲染卡片（案例图另经 `/atlas/exemplars/{id}/crop` 取），不必进快照。
+ * user / assistant 原样保留。`toolResult` 全部保留，供对话流展示工具的输出与耗时
+ * （SDD 15 §5.1）：content 只留截断后的文本；details 只在可呈现卡片时保留——失败的结果
+ * 不呈现卡片，子智能体例外（SDD 18 §7.3 规则 4）。
  */
-function visibleMessage(message: AgentMessage): TranscriptMessage[] {
+interface ToolTiming {
+  duration_ms: number;
+  waited_ms: number;
+  blocked: boolean;
+}
+
+function visibleMessage(message: AgentMessage, durations: Map<string, ToolTiming[]>): TranscriptMessage[] {
   const transcript = toTranscript(message);
   if (!transcript) return [];
   if (transcript.role === "user" || transcript.role === "assistant") return [transcript];
   const kind = (transcript.details as { kind?: unknown } | undefined)?.kind;
-  if (typeof kind !== "string" || !VIEWABLE_DETAILS_KINDS.has(kind)) return [];
-  // 失败的子智能体仍保留卡片（SDD 18 §7.3 规则 4）；其余失败结果不呈现。
-  if (transcript.isError && kind !== SUBAGENT_RUN_DETAILS_KIND) return [];
-  return [{ ...transcript, content: [] }];
+  const card = typeof kind === "string" && VIEWABLE_DETAILS_KINDS.has(kind)
+    && (!transcript.isError || kind === SUBAGENT_RUN_DETAILS_KIND);
+  const timing = durations.get(transcript.toolCallId)?.shift();
+  return [{
+    role: "toolResult",
+    toolCallId: transcript.toolCallId,
+    toolName: transcript.toolName,
+    isError: transcript.isError,
+    content: toolOutput(transcript.content),
+    ...(card ? { details: transcript.details } : {}),
+    ...(timing ? { duration_ms: timing.duration_ms } : {}),
+    ...(timing?.waited_ms ? { waited_ms: timing.waited_ms } : {}),
+    ...(timing?.blocked ? { blocked: true as const } : {}),
+  }];
 }
 
 export function normalizeTitle(title: string): string {

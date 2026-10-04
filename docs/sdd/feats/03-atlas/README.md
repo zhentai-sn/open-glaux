@@ -294,7 +294,7 @@ sequenceDiagram
 | REST | `backend/app/routers/atlas.py`（新增） | §5.2 端点 |
 | 检索先验接入 | `agent-runtime/src/pi/tools/consult-atlas.ts`（v1.2 D-21；02 的 `locate_roi` 落地后共用 `selectExemplars`）| 调 search，拼 few-shot，把选中案例作图像块交给模型 |
 | 工具门控 | `agent-runtime/src/pi/harness-registry.ts` 的 `defaultToolFactory` | 仅在 `connection.vision === true` 且非 `observe` 时挂 `consult_atlas`（D-22） |
-| 卡片持久化 | `agent-runtime/src/pi/session-service.ts` 的 `visibleMessage` | 会话视图保留带 `glaux.atlas_referenced` 的 `toolResult`（剥空 content） |
+| 卡片持久化 | `agent-runtime/src/pi/session-service.ts` 的 `visibleMessage` | 会话视图保留带 `glaux.atlas_referenced` 的 `toolResult`：content 只留截断后的文本，图像块不进快照（SDD 15 §9.6） |
 | 会话卡片 | `frontend/src/components/agent/AtlasRefCard.tsx`，由 `AgentConversation` 按工具结果 details 渲染 | "参考图谱 N 条" |
 | CLI | `scripts/` 或 backend 模块入口 | 数据集批量导入 |
 
@@ -466,7 +466,7 @@ v1.1 自查里"无法验证（依赖 SDD 02 `locate_roi`）"的三条，除定�
 
 - 检索链与卡片已在真实会话链路里跑通（工具单测 + 经 harness 的集成用例 + 前端历史渲染用例）。
 - 卡片随会话历史持久化：`session-service.visibleMessage` 保留带 `glaux.atlas_referenced` 的
-  `toolResult` 并剥空 content——案例图不进快照，前端另经 `/atlas/exemplars/{id}/crop` 取。
+  `toolResult`，content 只留文本——案例图不进快照，前端另经 `/atlas/exemplars/{id}/crop` 取。
 - 模型连接不是回环时 `local-only` 案例不随行、卡片提示排除数——`egressFor` 只对回环 base_url 放开 `any`，
   `excluded_by_egress` 计数在 `consult_atlas` 结果文案与卡片中均呈现（有测试）；`GLAUX_ANNOT_ALLOW_EGRESS`
   只约束第三方分割服务（02 §7.4），不参与这里的判定。

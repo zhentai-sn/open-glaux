@@ -311,9 +311,11 @@ describe("consult_atlas through the harness (integration)", () => {
       const view = await fixture.sessions.getSession(sessionId);
       const card = view.messages.find(
         (m) => (m as { role?: string }).role === "toolResult",
-      ) as { details?: { kind?: string }; content?: unknown[] } | undefined;
+      ) as { details?: { kind?: string }; content?: { type: string }[]; duration_ms?: number } | undefined;
       expect(card?.details?.kind).toBe(ATLAS_REFERENCED_DETAILS_KIND);
-      expect(card?.content).toEqual([]); // 案例图不进快照，前端另经 /atlas/.../crop 取
+      // 案例图不进快照（只留文本输出），前端另经 /atlas/.../crop 取
+      expect(card?.content?.every((block) => block.type === "text")).toBe(true);
+      expect(card?.duration_ms).toEqual(expect.any(Number));
       expect(JSON.stringify(view.messages)).not.toContain(CROP_B64);
     } finally {
       await fixture.close();

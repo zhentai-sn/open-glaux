@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { describe, expect, it } from "vitest";
 
-import { SessionService } from "../../src/pi/session-service.js";
+import { MAX_TOOL_OUTPUT_TEXT, SessionService, TOOL_TIMING_ENTRY } from "../../src/pi/session-service.js";
 import { ANNOTATION_PROPOSED_DETAILS_KIND } from "../../src/pi/tools/propose-annotation.js";
 
 async function createService() {
@@ -116,7 +116,7 @@ describe("SessionService lifecycle", () => {
     expect((await readFile(join(dataDir, "glaux-meta.sqlite"))).length).toBeGreaterThan(0);
   });
 
-  it("keeps successful annotation proposal details in snapshots and strips tool content", async () => {
+  it("keeps tool output text and durations in snapshots, card details only for successful results", async () => {
     const { service } = await createService();
     const sessionId = crypto.randomUUID();
 
@@ -127,7 +127,10 @@ describe("SessionService lifecycle", () => {
         role: "toolResult",
         toolCallId: "proposal-ok",
         toolName: "propose_annotation",
-        content: [{ type: "text", text: "large tool prose that the view does not need" }],
+        content: [
+          { type: "text", text: "x".repeat(MAX_TOOL_OUTPUT_TEXT + 10) },
+          { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+        ],
         details: {
           kind: ANNOTATION_PROPOSED_DETAILS_KIND,
           payload: {
@@ -146,22 +149,29 @@ describe("SessionService lifecycle", () => {
         role: "toolResult",
         toolCallId: "proposal-error",
         toolName: "propose_annotation",
-        content: [{ type: "text", text: "failed" }],
+        content: [{ type: "text", text: "failed: api_key=sk-secret" }],
         details: { kind: ANNOTATION_PROPOSED_DETAILS_KIND },
         isError: true,
         timestamp: Date.now(),
       });
+      await session.appendCustomEntry(TOOL_TIMING_ENTRY, { tool_call_id: "proposal-ok", duration_ms: 42 });
       await service.closeSession(session);
 
       const toolResults = (await service.getSession(sessionId)).messages.filter(
         (message) => (message as { role?: string }).role === "toolResult",
-      ) as Array<{ content?: unknown[]; details?: { kind?: string; payload?: unknown } }>;
-      expect(toolResults).toHaveLength(1);
+      ) as Array<{ content?: { type: string; text?: string }[]; details?: { kind?: string; payload?: unknown }; duration_ms?: number }>;
+      expect(toolResults).toHaveLength(2);
       expect(toolResults[0]?.details).toMatchObject({
         kind: ANNOTATION_PROPOSED_DETAILS_KIND,
         payload: { annotation_id: "ann-1", image_id: "natural_cat" },
       });
-      expect(toolResults[0]?.content).toEqual([]);
+      // 只留文本，截断到上限；图像块不进快照
+      expect(toolResults[0]?.content).toEqual([{ type: "text", text: `${"x".repeat(MAX_TOOL_OUTPUT_TEXT)}…` }]);
+      expect(toolResults[0]?.duration_ms).toBe(42);
+      // 失败结果保留输出（已脱敏），不保留卡片 details
+      expect(toolResults[1]?.details).toBeUndefined();
+      expect(toolResults[1]?.content?.[0]?.text).not.toContain("sk-secret");
+      expect(toolResults[1]?.duration_ms).toBeUndefined();
     } finally {
       await service.close();
     }

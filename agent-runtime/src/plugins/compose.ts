@@ -93,14 +93,22 @@ export async function composeContext(
   return current;
 }
 
-/** 每种钩子至多注册一个 handler；没有插件声明该钩子时不注册。返回注销函数。 */
+/**
+ * 每种钩子至多注册一个 handler；没有插件声明该钩子时不注册。返回注销函数。
+ * `onBlock` 收到被拦截的工具调用标识，供展示区分「未执行」与「执行失败」（SDD 15 §5.1）。
+ */
 export function installHooks(
   harness: Pick<AgentHarness, "on">, plugins: GlauxPlugin[], ctx: RunContext, logger: HookLogger = defaultLogger,
+  onBlock?: (toolCallId: string) => void,
 ): () => void {
   const disposers: (() => void)[] = [];
   const has = (name: "tool_call" | "tool_result" | "context") => plugins.some((plugin) => plugin.hooks?.[name]);
   if (has("tool_call")) {
-    disposers.push(harness.on("tool_call", (event) => composeToolCall(plugins, event, ctx, logger)));
+    disposers.push(harness.on("tool_call", async (event) => {
+      const result = await composeToolCall(plugins, event, ctx, logger);
+      if (result?.block) onBlock?.(event.toolCallId);
+      return result;
+    }));
   }
   if (has("tool_result")) {
     disposers.push(harness.on("tool_result", (event) => composeToolResult(plugins, event, ctx, logger)));

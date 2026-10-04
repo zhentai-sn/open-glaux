@@ -97,6 +97,24 @@ describe("InteractionTable.waitedMs", () => {
     table.forgetCommand("s", "c");
     expect(table.waitedMs("s", "c")).toBe(0);
   });
+
+  it("splits the wait by the tool call each request belongs to", async () => {
+    let now = 0;
+    const table = new InteractionTable({ emit: () => undefined, now: () => now });
+    const input = (tool_call_id: string) => ({
+      session_id: "s", command_id: "c", kind: "question" as const, tool_call_id,
+      question: { question: "q", options: [], allow_free_text: true },
+    });
+    void table.create(input("t1"));
+    void table.create(input("t2"));
+    now = 20;
+    const [first] = table.pending("s");
+    table.reply("s", first!.request_id, { kind: "question", text: "x" });
+    now = 50;
+    expect(table.waitedForCall("s", "c", "t1")).toBe(20);
+    expect(table.waitedForCall("s", "c", "t2")).toBe(50);
+    expect(table.waitedForCall("s", "c", "t3")).toBe(0);
+  });
 });
 
 describe("wind-down turns (SDD 15 §7.8 rule 3)", () => {

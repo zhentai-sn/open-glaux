@@ -92,7 +92,7 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- 会话中的工具调用状态行（沿用既有"⚙ 调用 &lt;tool&gt;"渲染）与产出卡片：图谱引用卡片、
+- 会话中的工具调用条目（SDD 15 §5.1）与产出卡片：图谱引用卡片、
   建议标注卡片（含"确认 / 驳回"，含失败与"本次未提出"两种降级态）。
 - 影像视口中的建议态标注：**橙色虚线**，与人工标注的实线一眼可辨；确认后换回实线，
   驳回后从画布消失（库中留 `rejected`）。
@@ -168,7 +168,7 @@ sequenceDiagram
 `run_task` 保留为命中任务注册表能力时的调用路径。需要图像字节的工具统一调用
 `fetchObservation(base, focus)`，不各自读取 `/image/{id}`；分割供应商实现 `SegmenterPort.segment`。
 前端已有把工具产出写回查看器的桥（`frontend/src/agent/toolBridge.ts`，监听 `tool.end`）和
-"⚙ 调用 <tool>"状态行渲染。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
+工具调用条目渲染（SDD 15 §5.1）。工具桥必须按 `details.kind`/工具名显式分派：`run_task` 写回
 Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `image_id` 仍等于
 `focus.object_id` 时应用，视频还须匹配 `focus.index.t`。用户已切换焦点则丢弃实时写回。
 
@@ -319,7 +319,7 @@ stateDiagram-v2
 ## 12. 审计或事件规则
 
 **不新增 SSE 事件类型**（D-11）：工具调用的起止已由 pi 既有事件流覆盖（前端已渲染
-"⚙ 调用 &lt;tool&gt;"状态行），产出经**工具结果的 `details`** 进入会话，与 SDD 03 D-21 的
+工具调用条目），产出经**工具结果的 `details`** 进入会话，与 SDD 03 D-21 的
 `glaux.atlas_referenced` 同一范式。这样卡片随会话历史天然持久化，不必另建回放通道。
 
 Agent Runtime 的会话视图必须保留 `glaux.annotation_proposed` 与 `glaux.atlas_referenced` 两类

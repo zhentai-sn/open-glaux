@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { TranscriptBlock, TranscriptMessage } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import type { I18nKey } from "../../i18n/en";
@@ -72,17 +74,40 @@ function StepLine({ message }: { message: TranscriptMessage }) {
   );
 }
 
-export function SubagentCard({ payload }: { payload: SubagentRunPayload }) {
+/**
+ * `collapsible`：卡片挂在步骤组的工具调用条目下时只显示标题行，点开再看最终回复与过程，
+ * 避免长回复占满对话流（SDD 15 §5.1）。
+ */
+export function SubagentCard({ payload, collapsible = false }: { payload: SubagentRunPayload; collapsible?: boolean }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(!collapsible);
+  const head = (
+    <>
+      <Icon icon={collapsible ? (open ? ICONS.chevronDown : ICONS.chevronRight) : ICONS.subagent} size="sm" />
+      <b>{payload.description}</b>
+      <span className="subagent-type mono">{payload.subagent_type}</span>
+      <span className={`subagent-outcome ${payload.outcome}`}>{t(OUTCOME_LABEL[payload.outcome])}</span>
+      <span className="subagent-turns">{t("subagent_turns", { n: payload.turns })}</span>
+    </>
+  );
+  return (
+    <div className={`subagent-card ${payload.outcome}${collapsible ? " collapsible" : ""}`} data-testid="subagent-card" aria-label={t("subagent_label", { name: payload.subagent_type })}>
+      {collapsible ? (
+        <button type="button" className="subagent-head" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+          {head}
+        </button>
+      ) : (
+        <div className="subagent-head">{head}</div>
+      )}
+      {open && <SubagentBody payload={payload} />}
+    </div>
+  );
+}
+
+function SubagentBody({ payload }: { payload: SubagentRunPayload }) {
   const { t } = useI18n();
   return (
-    <div className={`subagent-card ${payload.outcome}`} data-testid="subagent-card" aria-label={t("subagent_label", { name: payload.subagent_type })}>
-      <div className="subagent-head">
-        <Icon icon={ICONS.subagent} size="sm" />
-        <b>{payload.description}</b>
-        <span className="subagent-type mono">{payload.subagent_type}</span>
-        <span className={`subagent-outcome ${payload.outcome}`}>{t(OUTCOME_LABEL[payload.outcome])}</span>
-        <span className="subagent-turns">{t("subagent_turns", { n: payload.turns })}</span>
-      </div>
+    <>
       <div className="subagent-final">
         {payload.final ? <Markdown text={payload.final} /> : <span className="subagent-empty">{t("subagent_no_reply")}</span>}
       </div>
@@ -94,6 +119,6 @@ export function SubagentCard({ payload }: { payload: SubagentRunPayload }) {
           </ol>
         </details>
       )}
-    </div>
+    </>
   );
 }

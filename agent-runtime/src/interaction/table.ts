@@ -58,8 +58,8 @@ export class InteractionTable {
   private readonly resolved = new Map<string, ResolvedEntry>();
   private readonly timeoutMs: number;
   private readonly now: () => number;
-  /** 每个命令的等待区间 [开始, 结束]；结束为空表示仍在等待。并行审批的区间取并集计时。 */
-  private readonly waits = new Map<string, [number, number | undefined][]>();
+  /** 每个命令的等待区间 [开始, 结束, 关联的工具调用]；结束为空表示仍在等待。并行审批的区间取并集计时。 */
+  private readonly waits = new Map<string, [number, number | undefined, string | undefined][]>();
 
   constructor(private readonly options: InteractionTableOptions) {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_INTERACTION_TIMEOUT_MS;
@@ -86,7 +86,7 @@ export class InteractionTable {
       timer.unref?.();
       this.open.set(request.request_id, { request, createdAt, timer, settle: resolve });
       const key = waitKey(request.session_id, request.command_id);
-      this.waits.set(key, [...(this.waits.get(key) ?? []), [createdAt, undefined]]);
+      this.waits.set(key, [...(this.waits.get(key) ?? []), [createdAt, undefined, request.tool_call_id]]);
       this.options.emit(request.session_id, { event: "interaction.request", data: request });
     });
   }
@@ -118,8 +118,17 @@ export class InteractionTable {
 
   /** 本命令等待用户回复的总时长（毫秒），含仍在等待中的部分；重叠区间只计一次。 */
   waitedMs(sessionId: string, commandId: string): number {
+    return this.union(this.waits.get(waitKey(sessionId, commandId)) ?? []);
+  }
+
+  /** 某次工具调用等待用户回复的时长（审批、`ask_user`，以及它派出的子智能体的请求）；重叠区间只计一次。 */
+  waitedForCall(sessionId: string, commandId: string, toolCallId: string): number {
+    return this.union((this.waits.get(waitKey(sessionId, commandId)) ?? []).filter((span) => span[2] === toolCallId));
+  }
+
+  private union(raw: [number, number | undefined, string | undefined][]): number {
     const now = this.now();
-    const spans = (this.waits.get(waitKey(sessionId, commandId)) ?? [])
+    const spans = raw
       .map(([start, end]) => [start, end ?? now] as const)
       .sort((a, b) => a[0] - b[0]);
     let total = 0;

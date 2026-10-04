@@ -1,17 +1,19 @@
 import { CHAT_EDITION } from "../../edition";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   messageImages,
   messageRole,
   messageText,
   messageToolCalls,
+  messageToolResult,
   messageToolResultDetails,
   type MessageToolCall,
+  type MessageToolResult,
 } from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
-import { useAgentSessions, type ResolvedInteraction, type SubagentProgress } from "../../store/agentSessions";
+import { useAgentSessions, type ResolvedInteraction, type SubagentProgress, type ToolTiming } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
@@ -39,37 +41,157 @@ const PERMISSION_MODES: PermissionMode[] = [
   "autonomous",
 ];
 
-// 工具调用状态行（退役 orchestration P3）："⚙ 调用 run_task"，让智能体的工具动作可见；
-// 悬停显示入参。工具结果本身不在此渲染——run_task 的产出经 toolBridge 写回查看器。
-// 被拦截或失败的调用在下方附一行理由（SDD 15 §5.1）。
-function ToolCallLine({
+/**
+ * 耗时：快照里的 `duration_ms` 优先，运行中用 `tool.start` / `tool.end` 的到达时刻。
+ * `ms` 扣除了等待用户回复（审批、`ask_user`）的时长，`waited` 单独给出。
+ */
+function toolDuration(
+  result: MessageToolResult | undefined, timing: ToolTiming | undefined,
+): { ms: number; waited: number } | undefined {
+  const total = result?.durationMs ?? (timing?.endedAt !== undefined ? timing.endedAt - timing.startedAt : undefined);
+  if (total === undefined) return undefined;
+  const waited = (result ? result.waitedMs : timing?.waitedMs) ?? 0;
+  return { ms: Math.max(0, total - waited), waited };
+}
+
+/** 等待用户回复本身就是交互，不进步骤组：提问卡片与回答后的结论行已呈现它。 */
+const INTERACTIVE_TOOLS = new Set(["ask_user"]);
+const isStepCall = (call: MessageToolCall) => !INTERACTIVE_TOOLS.has(call.name);
+
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+}
+
+// 工具调用条目（SDD 15 §5.1）：标题行为工具名、入参摘要、耗时，点开看完整输入与输出；
+// 产出卡片（文件、对象、子智能体等）挂在条目下方。run_task 的产出另经 toolBridge 写回查看器。
+// 被拦截或失败的调用在标题行附理由。
+function ToolCallItem({
   call,
+  result,
+  timing,
   error,
   progress,
+  card,
+  running,
 }: {
   call: MessageToolCall;
+  result?: MessageToolResult | undefined;
+  timing?: ToolTiming | undefined;
   error?: string | undefined;
   progress?: SubagentProgress | undefined;
+  card?: ReactNode;
+  running: boolean;
 }) {
   const { t } = useI18n();
+  const [open, setOpen] = useState(false);
   const args = Object.entries(call.arguments)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join("  ");
+  const duration = toolDuration(result, timing);
+  const pending = !result && !error && running;
+  const failed = Boolean(error || result?.isError);
+  // 被插件拦截的标「未执行」，其余错误标「失败」；理由取实时报错或输出首行
+  const blocked = Boolean(result?.blocked || timing?.blocked);
+  const reason = error ?? (result?.isError ? result.output.split("\n")[0] : undefined) ?? "";
+  const output = result
+    ? result.output || t("agent_tool_no_output")
+    : error ?? (pending ? t("agent_tool_running") : t("agent_tool_no_output"));
   return (
-    <div className="tool-call" title={args || undefined}>
-      <Icon icon={ICONS.config} size="sm" className="tool-call-icon" />
-      <span>{t("agent_tool_call", { tool: call.name })}</span>
-      {args && <span className="tool-call-args mono">{args}</span>}
-      {error && <span className="tool-call-error" data-testid="tool-call-error">{t("agent_tool_not_run", { reason: error })}</span>}
-      {progress && (
-        <span className="tool-call-progress" data-testid="subagent-progress">
-          {progress.toolName
-            ? t("subagent_progress_tool", { n: progress.turns, tool: progress.toolName })
-            : t("subagent_progress_turn", { n: progress.turns })}
+    <div className={`tool-item${failed ? " failed" : ""}`} data-testid="tool-item">
+      <button
+        type="button"
+        className="tool-item-head"
+        aria-expanded={open}
+        title={args || undefined}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" className="tool-item-chevron" />
+        <span className="tool-item-name mono">{call.name}</span>
+        {args && <span className="tool-call-args mono">{args}</span>}
+        {failed && (
+          <span className="tool-call-error" data-testid="tool-call-error">
+            {t(blocked ? "agent_tool_not_run" : "agent_tool_failed", { reason })}
+          </span>
+        )}
+        {progress && (
+          <span className="tool-call-progress" data-testid="subagent-progress">
+            {progress.toolName
+              ? t("subagent_progress_tool", { n: progress.turns, tool: progress.toolName })
+              : t("subagent_progress_turn", { n: progress.turns })}
+          </span>
+        )}
+        {duration && duration.waited >= 1000 && (
+          <span className="tool-item-waited" data-testid="tool-waited">
+            {t("agent_tool_waited", { time: formatDuration(duration.waited) })}
+          </span>
+        )}
+        <span className="tool-item-meta" data-testid="tool-duration">
+          {pending ? t("agent_tool_running") : duration ? formatDuration(duration.ms) : ""}
         </span>
+      </button>
+      {open && (
+        <div className="tool-item-body">
+          <div className="tool-io-label">{t("agent_tool_input")}</div>
+          <pre className="tool-io mono">{JSON.stringify(call.arguments, null, 2)}</pre>
+          <div className="tool-io-label">{t("agent_tool_output")}</div>
+          <pre className={`tool-io mono${failed ? " error" : ""}`} data-testid="tool-output">{output}</pre>
+        </div>
       )}
+      {card && <div className="tool-item-card">{card}</div>}
     </div>
   );
+}
+
+/**
+ * 对话流的渲染单元：单条消息（只渲染正文）、一段连续的工具调用组成的步骤组，
+ * 或只含交互类调用（`ask_user`）的消息——只渲染它已处理的交互结论行。
+ */
+type StreamBlock =
+  | { kind: "message"; index: number }
+  | { kind: "interactions"; index: number }
+  | { kind: "steps"; start: number; indices: number[]; calls: number; trailing: boolean };
+
+/**
+ * 连续的工具调用（及其结果）归为一个步骤组；模型的文字不进组、始终可见（Claude Code 式）。
+ * 同一条消息里先有文字再有调用时，文字照常显示，调用另起一组。
+ * 位于对话流末尾的组（`trailing`）默认展开，其后已有文字的组默认收起。
+ */
+function streamBlocks(messages: unknown[]): StreamBlock[] {
+  const blocks: StreamBlock[] = [];
+  let group: Extract<StreamBlock, { kind: "steps" }> | null = null;
+  const flush = () => {
+    if (group) blocks.push(group);
+    group = null;
+  };
+  messages.forEach((message, index) => {
+    if (messageToolResult(message)) {
+      // 结果紧跟在调用之后，挂进当前组；不在组里的结果（调用已不在当前分支）单独渲染卡片
+      if (group) group.indices.push(index);
+      else blocks.push({ kind: "message", index });
+      return;
+    }
+    const allCalls = messageRole(message) === "assistant" ? messageToolCalls(message) : [];
+    const calls = allCalls.filter(isStepCall).length;
+    if (!allCalls.length || messageText(message) || messageImages(message).length) {
+      flush();
+      blocks.push({ kind: "message", index });
+    }
+    if (!allCalls.length) return;
+    if (!calls) {
+      flush();
+      blocks.push({ kind: "interactions", index });
+      return;
+    }
+    group ??= { kind: "steps", start: index, indices: [], calls: 0, trailing: false };
+    group.indices.push(index);
+    group.calls += calls;
+  });
+  flush();
+  const last = blocks[blocks.length - 1];
+  if (last?.kind === "steps") last.trailing = true;
+  return blocks;
 }
 
 // 上下文用量环形图（Claude Code 式）：环弧 = 已用 / 窗口；悬停/聚焦弹出精确数字。
@@ -160,6 +282,11 @@ export function AgentConversation() {
   const toolErrors = useAgentSessions((state) =>
     state.currentSessionId ? state.toolErrors[state.currentSessionId] : undefined,
   );
+  const toolTimings = useAgentSessions((state) =>
+    state.currentSessionId ? state.toolTimings[state.currentSessionId] : undefined,
+  );
+  // 步骤组的展开状态，按「会话:组起始消息下标」记录；未点过的组用默认值
+  const [stepsOpen, setStepsOpen] = useState<Record<string, boolean>>({});
   const runNotice = useAgentSessions((state) =>
     state.currentSessionId ? state.runNotices[state.currentSessionId] : undefined,
   );
@@ -253,72 +380,162 @@ export function AgentConversation() {
   const trailingInteractions: ResolvedInteraction[] = [];
   for (const item of resolvedInteractions ?? []) {
     const id = item.request.tool_call_id;
-    const at = id
-      ? messages.findIndex((message) => messageRole(message) === "assistant" && messageToolCalls(message).some((call) => call.id === id))
-      : -1;
+    // 取最后一条含该调用的消息：部分端点跨回合复用调用标识，请求总是属于最近的那次调用
+    let at = -1;
+    for (let index = messages.length - 1; id && index >= 0 && at < 0; index -= 1) {
+      const message = messages[index];
+      if (messageRole(message) === "assistant" && messageToolCalls(message).some((call) => call.id === id)) at = index;
+    }
     if (at < 0) trailingInteractions.push(item);
     else anchoredInteractions.set(at, [...(anchoredInteractions.get(at) ?? []), item]);
   }
 
-  const renderMessage = (message: (typeof messages)[number], index: number) => {
+  // 工具结果挂到对应的工具调用条目上：取调用之后第一条同标识的结果——
+  // 部分 OpenAI 兼容端点跨回合复用调用标识，不能只按标识查。
+  const toolResultList = messages.flatMap((message, index) => {
+    const result = messageToolResult(message);
+    return result ? [{ result, index }] : [];
+  });
+  const resultFor = (callId: string, callIndex: number) =>
+    toolResultList.find((item) => item.index > callIndex && item.result.toolCallId === callId);
+  // 已有结果时以结果为准；实时的出错理由只覆盖还没有结果的调用。
+  const errorFor = (callId: string, result: MessageToolResult | undefined) =>
+    result && !result.isError ? undefined : toolErrors?.[callId];
+
+  const blocks = streamBlocks(messages);
+  // 头像只标一段智能体输出的开头：前一块不是用户消息（正文、步骤组、卡片、交互结论）时不再重复。
+  function continuesAgent(previous: StreamBlock | undefined) {
+    return previous !== undefined && (previous.kind !== "message" || messageRole(messages[previous.index]) !== "user");
+  }
+  // 待决交互卡片接在智能体输出之后时同样不重复头像
+  const pendingContinues = continuesAgent(blocks[blocks.length - 1]);
+
+  const owl = (
+    <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+      <OwlLogo size={18} />
+    </div>
+  );
+
+  // 工具结果的产出卡片；`actionable` 的卡片等人确认，不收进折叠的步骤组。
+  // `inSteps`：卡片挂在步骤组的条目下方，子智能体卡片收成一行，点开看最终回复与过程。
+  const resultCard = (message: unknown, inSteps = false): { node: ReactNode; key: string; actionable?: true } | null => {
+    if (CHAT_EDITION) return null;
     const toolDetails = messageToolResultDetails(message);
     // 图谱引用卡片：consult_atlas 的工具结果（SDD 03 §12 / D-21），随历史持久呈现
     const atlasRef = parseAtlasReferenced(toolDetails);
-    if (!CHAT_EDITION && atlasRef) {
-      return (
-        <div className="turn assistant tool" key={`atlas-${index}-${atlasRef.trace_id}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-          <AtlasRefCard payload={atlasRef} />
-        </div>
-      );
-    }
+    if (atlasRef) return { node: <AtlasRefCard payload={atlasRef} />, key: `atlas-${atlasRef.trace_id}` };
     // 对象卡片：open_file 的工具结果（SDD 13 §7.3 规则 4），是否上舞台由人来点
     const opened = parseObjectOpened(toolDetails);
-    if (!CHAT_EDITION && opened) {
-      return (
-        <div className="turn assistant tool" key={`obj-${index}-${opened.id}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-          <ObjectCard payload={opened} />
-        </div>
-      );
-    }
+    if (opened) return { node: <ObjectCard payload={opened} />, key: `obj-${opened.id}` };
     // 文件卡片：read_file 的工具结果（SDD 14 §7.4 规则 7），是否在舞台预览由人来点
     const fileRead = parseFileRead(toolDetails);
-    if (!CHAT_EDITION && fileRead) {
-      return (
-        <div className="turn assistant tool" key={`file-${index}-${fileRead.path}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-          <FileCard payload={fileRead} />
-        </div>
-      );
-    }
+    if (fileRead) return { node: <FileCard payload={fileRead} />, key: `file-${fileRead.path}` };
     // 子智能体卡片：agent 的工具结果（SDD 18 §5.1），随历史持久呈现
     const subagentRun = parseSubagentRun(toolDetails);
-    if (!CHAT_EDITION && subagentRun) {
-      return (
-        <div className="turn assistant tool" key={`subagent-${index}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-          <SubagentCard payload={subagentRun} />
-        </div>
-      );
-    }
+    if (subagentRun) return { node: <SubagentCard payload={subagentRun} collapsible={inSteps} />, key: "subagent" };
     // 建议标注卡片：propose_annotation 的工具结果（SDD 02 §6），确认/驳回由人来点
     const proposed = parseAnnotationProposed(toolDetails);
-    if (!CHAT_EDITION && proposed?.annotation_id) {
+    if (proposed?.annotation_id) {
+      return { node: <SuggestionCard payload={proposed} />, key: `sugg-${proposed.annotation_id}`, actionable: true };
+    }
+    return null;
+  };
+
+  // `withOwl`：接在智能体输出之后的组不再重复头像。
+  const renderSteps = (block: Extract<StreamBlock, { kind: "steps" }>, withOwl: boolean) => {
+    const links = block.indices.flatMap((index) =>
+      messageRole(messages[index]) === "assistant"
+        ? messageToolCalls(messages[index]).flatMap((call, position) => {
+            if (!isStepCall(call)) return [];
+            const linked = resultFor(call.id, index);
+            return [{ key: `${index}:${position}`, callId: call.id, linked, error: errorFor(call.id, linked?.result) }];
+          })
+        : [],
+    );
+    const linkFor = (index: number, position: number) => links.find((link) => link.key === `${index}:${position}`);
+    const linkedIndices = new Set(links.flatMap((link) => (link.linked ? [link.linked.index] : [])));
+    const actionable: ReactNode[] = [];
+    const items = block.indices.map((index) => {
+      const message = messages[index];
+      const result = messageToolResult(message);
+      if (result) {
+        // 已挂到调用条目上的结果不再单独渲染；找不到调用（已不在当前分支）时照常显示卡片
+        const card = linkedIndices.has(index) ? null : resultCard(message);
+        if (card?.actionable) actionable.push(<Fragment key={`${card.key}-${index}`}>{card.node}</Fragment>);
+        return card && !card.actionable ? <Fragment key={`${card.key}-${index}`}>{card.node}</Fragment> : null;
+      }
+      if (messageRole(message) !== "assistant") return null;
       return (
-        <div className="turn assistant tool" key={`sugg-${index}-${proposed.annotation_id}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
+        <Fragment key={`step-${index}`}>
+          {messageToolCalls(message).map((call, position) => {
+            if (!isStepCall(call)) return null;
+            const { linked, error } = linkFor(index, position) ?? {};
+            const card = linked ? resultCard(messages[linked.index], true) : null;
+            if (card?.actionable) actionable.push(<Fragment key={`${card.key}-${call.id}`}>{card.node}</Fragment>);
+            return (
+              <ToolCallItem
+                key={call.id || call.name}
+                call={call}
+                result={linked?.result}
+                timing={toolTimings?.[call.id]}
+                error={error}
+                progress={subagentProgress?.[call.id]}
+                card={card && !card.actionable ? card.node : null}
+                running={Boolean(running)}
+              />
+            );
+          })}
+          {!CHAT_EDITION && anchoredInteractions.get(index)?.map((item) => (
+            <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
+          ))}
+        </Fragment>
+      );
+    });
+    const key = `${currentSessionId}:${block.start}`;
+    // 对话流末尾的组默认展开（运行中可看进度），其后已有文字的组默认收起
+    const open = stepsOpen[key] ?? block.trailing;
+    // 总耗时：全部调用都有耗时才给出（运行中用实时计时）
+    const totalMs = links.reduce<number | null>((sum, link) => {
+      const duration = toolDuration(link.linked?.result, toolTimings?.[link.callId]);
+      return sum === null || duration === undefined ? null : sum + duration.ms;
+    }, 0);
+    const failed = links.filter((link) => link.error || link.linked?.result.isError).length;
+    return (
+      <Fragment key={`steps-${block.start}`}>
+        <div className={`turn assistant tool${withOwl ? "" : " continued"}`}>
+          {withOwl && owl}
+          <div className="tool-steps" data-testid="tool-steps">
+            <button
+              type="button"
+              className="tool-steps-head"
+              aria-expanded={open}
+              onClick={() => setStepsOpen((state) => ({ ...state, [key]: !open }))}
+            >
+              <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
+              <span>{t("agent_steps", { n: block.calls })}</span>
+              {failed > 0 && <span className="tool-call-error">{t("agent_steps_failed", { n: failed })}</span>}
+              {totalMs !== null && <span className="tool-item-meta">{formatDuration(totalMs)}</span>}
+            </button>
+            {open && <div className="tool-steps-body">{items}</div>}
           </div>
-          <SuggestionCard payload={proposed} />
+        </div>
+        {actionable.map((node, i) => (
+          <div className="turn assistant tool" key={`actionable-${block.start}-${i}`}>
+            {owl}
+            {node}
+          </div>
+        ))}
+      </Fragment>
+    );
+  };
+
+  const renderMessage = (message: (typeof messages)[number], index: number, withOwl: boolean) => {
+    const card = resultCard(message);
+    if (card) {
+      return (
+        <div className={`turn assistant tool${withOwl ? "" : " continued"}`} key={`${card.key}-${index}`}>
+          {withOwl && owl}
+          {card.node}
         </div>
       );
     }
@@ -338,40 +555,14 @@ export function AgentConversation() {
         </div>
       );
     }
-    const toolCalls = role === "assistant" ? messageToolCalls(message) : [];
-    // 只含工具调用、无正文的 assistant 消息 → 一条小状态行（不渲染空气泡）
-    if (role === "assistant" && !text && toolCalls.length) {
-      return (
-        <div className="turn assistant tool" key={`tool-${index}-${toolCalls[0].id}`}>
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-          <div className="tool-calls">
-            {toolCalls.map((call) => (
-              <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
-            ))}
-          </div>
-        </div>
-      );
-    }
+    // 带工具调用的 assistant 消息都在步骤组里渲染（streamBlocks），这里只剩正文消息。
     return (
       <div
         className={`turn ${role === "user" ? "user" : "assistant"}`}
         key={`${role}-${index}-${text.slice(0, 24)}`}
       >
-        {role === "assistant" && (
-          <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-            <OwlLogo size={18} />
-          </div>
-        )}
+        {role === "assistant" && withOwl && owl}
         <div className={role === "user" ? "bubble" : "abody plain"}>
-          {toolCalls.length > 0 && (
-            <div className="tool-calls">
-              {toolCalls.map((call) => (
-                <ToolCallLine key={call.id || call.name} call={call} error={toolErrors?.[call.id]} progress={subagentProgress?.[call.id]} />
-              ))}
-            </div>
-          )}
           {images.length > 0 && (
             <div className="message-images">
               {images.map((image, imageIndex) => (
@@ -399,7 +590,7 @@ export function AgentConversation() {
           )}
           {role === "assistant" && text ? (
             <Markdown text={text} />
-          ) : running || images.length || role !== "assistant" || toolCalls.length ? (
+          ) : running || images.length || role !== "assistant" ? (
             text || (running && !images.length ? "…" : "")
           ) : (
             // 模型尚未输出就被中止或出错的回复：不留空气泡，仍可「重新生成」
@@ -537,20 +728,29 @@ export function AgentConversation() {
         {loading && !view && (
           <div className="agent-empty">{t("agent_loading")}</div>
         )}
-        {messages.map((message, index) => (
-          <Fragment key={`m-${index}`}>
-            {renderMessage(message, index)}
-            {!CHAT_EDITION && anchoredInteractions.get(index)?.map((item) => (
-              <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
-            ))}
-          </Fragment>
-        ))}
+        {blocks.map((block, i) =>
+          // 已处理的交互请求锚在带工具调用的消息上，随步骤组渲染（renderSteps）
+          block.kind === "steps" ? renderSteps(block, !continuesAgent(blocks[i - 1]))
+          : block.kind === "interactions" ? (
+            !CHAT_EDITION && (
+              <Fragment key={`i-${block.index}`}>
+                {anchoredInteractions.get(block.index)?.map((item) => (
+                  <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
+                ))}
+              </Fragment>
+            )
+          ) : (
+            <Fragment key={`m-${block.index}`}>
+              {renderMessage(messages[block.index], block.index, !continuesAgent(blocks[i - 1]))}
+            </Fragment>
+          ),
+        )}
         {!CHAT_EDITION && trailingInteractions.map((item) => (
           <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
         ))}
-        {!CHAT_EDITION && currentSessionId && view?.pending_interactions?.map((request) => (
-          <div className="turn assistant tool" key={`interaction-${request.request_id}`}>
-            <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
+        {!CHAT_EDITION && currentSessionId && view?.pending_interactions?.map((request, i) => (
+          <div className={`turn assistant tool${pendingContinues || i > 0 ? " continued" : ""}`} key={`interaction-${request.request_id}`}>
+            {!pendingContinues && i === 0 && owl}
             <InteractionCard
               request={request}
               onReply={(reply) => replyInteraction(currentSessionId, request.request_id, reply)}

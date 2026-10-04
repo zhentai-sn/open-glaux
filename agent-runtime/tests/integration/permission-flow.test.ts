@@ -71,12 +71,14 @@ describe("permission flow", () => {
       await fixture.registry.waitForIdle(sessionId);
       expect(counter.runs).toBe(1);
       expect(seen).toEqual([["measured"]]);
+      const view = await fixture.sessions.getSession(sessionId);
+      expect(view.messages.find((m) => m.role === "toolResult")).not.toHaveProperty("blocked");
     } finally { await fixture.close(); }
   });
 
   it("returns the denial reason to the model without running the tool", async () => {
     const seen: string[][] = [];
-    const { fixture, sessionId, counter, prompt } = await setup([[callRunTask(), (ctx) => { seen.push(toolResultTexts(ctx.messages)); return fauxAssistantMessage("ok"); }]], "suggest");
+    const { fixture, sessionId, counter, prompt, events } = await setup([[callRunTask(), (ctx) => { seen.push(toolResultTexts(ctx.messages)); return fauxAssistantMessage("ok"); }]], "suggest");
     try {
       await prompt();
       const request = await nextRequest(fixture, sessionId);
@@ -84,6 +86,13 @@ describe("permission flow", () => {
       await fixture.registry.waitForIdle(sessionId);
       expect(counter.runs).toBe(0);
       expect(seen[0]?.[0]).toMatch(/The user denied run_task: not now/u);
+      // 被拦截的调用在实时事件与快照里都标为未执行（SDD 15 §5.1）
+      expect(events.find((e) => e.event === "tool.end")?.data).toMatchObject({ is_error: true, blocked: true });
+      const view = await fixture.sessions.getSession(sessionId);
+      const result = view.messages.find((m) => m.role === "toolResult") as { duration_ms?: number; waited_ms?: number } | undefined;
+      expect(result).toMatchObject({ isError: true, blocked: true, duration_ms: expect.any(Number) });
+      // 等待审批的时长是总耗时的一部分（同一毫秒内回复时为 0，字段省略）
+      expect(result!.waited_ms ?? 0).toBeLessThanOrEqual(result!.duration_ms!);
       const session = await fixture.sessions.openSession(sessionId);
       try {
         const decision = (await session.getEntries()).find((e) => e.type === "custom" && e.customType === "glaux.permission.decision");

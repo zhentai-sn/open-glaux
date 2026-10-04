@@ -1463,42 +1463,119 @@ canvas {
 }
 .sheet-ft { margin-top: var(--space-4); color: var(--faint); font-size: var(--font-xs); text-align: center; }
 
-/* 工具调用状态行——比正文更淡、更小的一行"⚙ 调用 run_task"，不占气泡 */
+/* 工具步骤组：一轮回复中最终回复之前的工具调用，可折叠到最终回复上方（Claude Code 式） */
 .turn.assistant.tool {
   gap: 8px;
 }
-.tool-calls {
+.tool-steps {
   display: flex;
   flex-direction: column;
   gap: 4px;
   width: 100%;
+  min-width: 0;
 }
-.abody .tool-calls {
-  margin-bottom: 8px;
-}
-.tool-call {
-  display: inline-flex;
+.tool-steps-head,
+.tool-item-head {
+  display: flex;
   align-items: center;
   gap: 6px;
-  align-self: flex-start;
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
   color: var(--faint);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: left;
   white-space: nowrap;
-  max-width: 100%;
+  overflow: hidden;
+}
+.tool-item-head .tool-call-error,
+.tool-item-head .tool-call-progress {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tool-call-icon {
-  color: var(--agent);
+.tool-steps-head:hover,
+.tool-item-head:hover {
+  color: var(--ink);
+  background: var(--sidebar);
 }
+.tool-steps-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  margin-left: 9px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+/* 紧跟智能体正文的步骤组不再重复头像，贴近上方正文 */
+.turn.assistant.tool.continued { margin-top: -6px; }
+.tool-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+.tool-item-name {
+  flex: none;
+  color: var(--bright);
+}
+.tool-item.failed .tool-item-name { color: var(--warn); }
 .tool-call-args {
+  flex: 1 1 auto;
+  min-width: 0;
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 等待用户回复的时长：不计入耗时，淡色单列 */
+.tool-item-waited {
+  flex: none;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 10.5px;
+  color: var(--faint);
+  opacity: 0.8;
+}
+.tool-item-waited + .tool-item-meta { margin-left: 0; }
+.tool-item-meta {
+  flex: none;
+  margin-left: auto;
+  padding-left: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.tool-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 2px 0 6px 18px;
+}
+.tool-io-label {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.tool-io {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--input);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-io.error { color: var(--warn); }
+.tool-item-card {
+  margin: 2px 0 4px 18px;
 }
 .agent-regenerate {
   padding: 2px 5px;
@@ -3098,48 +3175,160 @@ body.resizing .focus-rail { transition: none; }
 
 /* ==== 交互卡片（SDD 15 §5.1）：权限审批与 ask_user 提问；与建议卡片同一视觉语言 ==== */
 .interaction-card {
+  width: 100%;
   margin: 6px 0;
-  padding: 8px 10px;
-  border: 1px solid var(--agent-line);
-  background: var(--agent-dim);
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  background: var(--sidebar);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+  font-size: 12.5px;
+  outline: none;
 }
-.interaction-card.pending { border-left: 3px solid var(--warn); }
-.interaction-head { display: flex; align-items: center; gap: 6px; }
-.interaction-head b { color: var(--bright); }
-.interaction-effect { margin-left: auto; font-size: 10.5px; color: var(--warn); }
-.interaction-args {
-  margin-top: 4px;
-  color: var(--mid);
-  font-size: 10.5px;
+.interaction-card:focus-visible { border-color: var(--agent-line); }
+.interaction-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.interaction-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--agent-dim);
+  color: var(--agent);
+}
+.interaction-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: 600;
+}
+.interaction-status { flex: none; margin-left: auto; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+.interaction-question {
+  margin-top: 10px;
+  color: var(--bright);
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.interaction-question { margin-top: 4px; color: var(--ink); white-space: pre-wrap; }
-.interaction-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
-.interaction-actions button {
-  padding: 3px 12px;
-  font-size: 11.5px;
+/* 选项：纵向整行，左侧序号键；单击或按数字键作答 */
+.interaction-options { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.interaction-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--editor);
   color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
   cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
-.interaction-actions button:hover:not(:disabled) { border-color: var(--agent-line); }
-.interaction-actions button:disabled { opacity: 0.5; cursor: default; }
-.interaction-actions .btn-primary { background: var(--accent); color: var(--bright); }
-.interaction-reason,
-.interaction-answer {
+.interaction-option:hover:not(:disabled),
+.interaction-option:focus-visible {
+  border-color: var(--agent-line);
+  background: var(--agent-dim);
+  color: var(--bright);
+  outline: none;
+}
+.interaction-option:disabled { opacity: 0.5; cursor: default; }
+.interaction-option.other { color: var(--mid); }
+.interaction-key {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--input);
+  color: var(--mid);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.interaction-option-text { min-width: 0; overflow-wrap: anywhere; }
+.interaction-other-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 3px 3px 10px;
+  border: 1px solid var(--agent-line);
+  border-radius: 8px;
+  background: var(--editor);
+}
+.interaction-other-form .interaction-input { padding: 5px 0; border: none; background: transparent; }
+.interaction-input {
   flex: 1 1 120px;
   min-width: 0;
-  padding: 3px 8px;
-  font-size: 11.5px;
+  padding: 6px 10px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--editor);
   color: var(--ink);
+  font-size: 12px;
+  outline: none;
 }
+.interaction-input:focus { border-color: var(--agent-line); }
+.interaction-send {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--agent);
+  color: var(--on-agent);
+}
+.interaction-send:disabled { opacity: 0.4; cursor: default; }
+.interaction-hint { margin-top: 8px; font-size: 10.5px; color: var(--faint); }
+/* 权限审批：副作用等级 + 入参摘要；主按钮「允许本次」，拒绝与理由另起一行 */
+.interaction-body { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; }
+.interaction-effect {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  color: var(--mid);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.interaction-effect.risky { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.interaction-args {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--editor);
+  color: var(--mid);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.interaction-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.interaction-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  background: var(--editor);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.interaction-btn:hover:not(:disabled) { border-color: var(--agent-line); color: var(--bright); }
+.interaction-btn.primary { border-color: transparent; background: var(--agent); color: var(--on-agent); font-weight: 600; }
+.interaction-btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
+.interaction-btn.danger:hover:not(:disabled) { border-color: var(--crit); color: var(--crit); }
+.interaction-btn:disabled { opacity: 0.5; cursor: default; }
+.interaction-deny-row { display: flex; gap: 6px; margin-top: 8px; }
 .interaction-resolved {
   display: flex;
   gap: 8px;
@@ -3184,6 +3373,10 @@ body.resizing .focus-rail { transition: none; }
 .subagent-card.aborted { border-left: 3px solid var(--warn); }
 .subagent-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .subagent-head b { color: var(--bright); min-width: 0; overflow-wrap: anywhere; }
+/* 步骤组内的子智能体卡片：标题行即开关，收起时只占一行 */
+.subagent-card.collapsible { margin: 2px 0; padding: 4px 8px; }
+button.subagent-head { width: 100%; flex-wrap: nowrap; text-align: left; font-size: 12px; color: var(--ink); }
+button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subagent-type { font-size: 10.5px; color: var(--faint); }
 .subagent-outcome { margin-left: auto; font-size: 10.5px; color: var(--good); }
 .subagent-outcome.failed,

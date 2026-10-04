@@ -80,8 +80,15 @@ status: implemented
 
 ### 5.1 用户可见输出
 
-- 对话流中的审批卡片与提问卡片，回复后折叠为一行结论，显示在主对话中关联的工具调用之后（`tool_call_id`）；找不到该调用时显示在消息末尾。
-- 被拒绝的工具调用在工具卡片上显示「已拒绝」与理由。
+- 对话流中的审批卡片与提问卡片，回复后折叠为一行结论，显示在主对话中关联的工具调用之后（`tool_call_id`，同一标识有多条调用时取最后一条）；找不到该调用时显示在消息末尾。
+- 交互卡片：中性底色、单一强调色（`--agent`）；标题行为类型标题与「运行已暂停 · N 分钟后过期」。
+  - 提问卡片：问题为视觉中心；选项纵向整行排列，左侧序号键 1–9，单击或按数字键作答；有选项时「其他回答…」点开才出现输入框，无选项时直接给输入框。卡片出现时，焦点不在输入框就移到卡片上，不抢正在输入的焦点。
+  - 审批卡片：副作用等级标签（`write`、`exec`、`egress`、`delegate` 用警示色）与入参摘要；「允许本次」为主按钮；拒绝理由与「拒绝」另起一行。
+- 工具调用条目：标题行为工具名、入参摘要、耗时（运行中显示「运行中…」）。耗时扣除等待用户回复（审批、`ask_user`）的时长，等待满 1 秒时另以淡色显示「等你 N 秒」；点开显示完整输入（JSON）与输出（截断后的文本）。产出卡片（文件、对象、子智能体、图谱引用）挂在条目下方。
+- 工具步骤组：连续的工具调用归为一组，标题为「调用了 N 次工具」、失败数与总耗时（扣除等待时长；全部调用都有耗时才显示）。`ask_user` 不进步骤组：提问卡片与回答后的结论行已呈现它，只含 `ask_user` 的消息只显示结论行。模型的文字不进组、始终可见；同一条消息里先有文字再有调用时，文字照常显示，调用另起一组。位于对话流末尾的组默认展开，其后已有文字的组默认收起；用户可随时展开或收起。待人确认的建议标注卡片不收进组内。
+- 组内的子智能体卡片只显示标题行（任务、类型、结局、回合数），点开再看最终回复与过程。
+- 工具结果与调用按「调用之后第一条同标识的结果」配对：部分 OpenAI 兼容端点跨回合复用调用标识。
+- 被插件拦截的调用（权限拒绝、越界、预算用尽）在条目标题行显示「未执行：理由」；执行后出错的显示「失败：理由」，理由取输出首行。
 - 预算用尽时，最终回复前显示一行「已达本次运行上限（N 回合 / M 分钟）」。
 - 权限下拉菜单每项附一句说明；切换到 `autonomous` 时的确认对话框。
 
@@ -398,7 +405,7 @@ type InteractionOutcome = "answered" | "expired" | "cancelled";
 | `message.delta` | `{session_id, command_id, message: TranscriptMessage}` | pi `message_update`（仅 assistant） |
 | `message.end` | `{session_id, command_id}` | pi `message_end` |
 | `tool.start` | `{session_id, command_id, tool_call_id, tool_name, args}` | pi `tool_execution_start` |
-| `tool.end` | `{session_id, command_id, tool_call_id, tool_name, is_error, details, error_text?}` | pi `tool_execution_end`；`error_text` 只在出错时给出，为结果文本前 2000 字符 |
+| `tool.end` | `{session_id, command_id, tool_call_id, tool_name, is_error, blocked?, waited_ms?, details, error_text?}` | pi `tool_execution_end`；`error_text` 只在出错时给出，为结果文本前 2000 字符；`blocked: true` 表示被插件 `tool_call` 钩子拦截、未执行；`waited_ms` 为该调用等待用户回复的时长，无等待时不出现 |
 | `subagent.progress` | `{session_id, command_id, tool_call_id, turns, tool_name?}` | 子智能体回合与工具调用开始（SDD 18 §9.4） |
 | `interaction.request` | `InteractionRequest` | 交互请求表 |
 | `interaction.resolved` | `{session_id, request_id, outcome}` | 交互请求表 |
@@ -418,10 +425,21 @@ type TranscriptBlock =
 type TranscriptMessage =
   | { role: "user"; content: string | TranscriptBlock[] }
   | { role: "assistant"; content: TranscriptBlock[] }
-  | { role: "toolResult"; toolCallId: string; toolName: string; content: TranscriptBlock[]; details?: unknown; isError: boolean };
+  | { role: "toolResult"; toolCallId: string; toolName: string; content: TranscriptBlock[]; details?: unknown; isError: boolean; duration_ms?: number };
 ```
 
 thinking 等其他块类型由 runtime 丢弃，不进快照。
+
+快照中的 `toolResult`（`session-service.ts` 的 `visibleMessage`）：
+
+| 字段 | 规则 |
+| --- | --- |
+| 保留范围 | 全部工具结果，含失败的结果 |
+| `content` | 只留文本块，合并后经 `redactText` 脱敏，截断到前 2000 字符（超出时末尾加 `…`）；图像块不进快照 |
+| `details` | 只在 `details.kind` 属于可呈现卡片时保留；失败的结果不保留，子智能体例外（SDD 18 §7.3 规则 4） |
+| `duration_ms` | 取自 `glaux.tool.timing` 记录（§12）；同一标识有多条记录时按顺序对应。运行中的命令尚未写入，前端用 `tool.start` / `tool.end` 的到达时刻计时 |
+| `blocked` | 同取自 `glaux.tool.timing`；被拦截时为 `true`，否则不出现 |
+| `waited_ms` | 同取自 `glaux.tool.timing`；`duration_ms` 中等待用户回复的部分，无等待时不出现 |
 
 ### 9.7 `SessionView` 增量
 
@@ -475,6 +493,7 @@ stateDiagram-v2
 | `glaux.permission.grant` | 工具名 | 用户选「本会话允许」 |
 | `glaux.interaction` | `InteractionRequest` 与结局 | 请求结束时 |
 | `glaux.budget` | 回合数、时长、是否进入收尾、结局 | 命令结束时 |
+| `glaux.tool.timing` | `{tool_call_id, duration_ms, waited_ms?, blocked?}`：`duration_ms` 为 pi `tool_execution_start` 到 `tool_execution_end` 的时长；`waited_ms` 为其中等待用户回复的时长，按交互请求的 `tool_call_id` 归属（子智能体的请求归到所属 `agent` 调用），重叠区间只计一次；`blocked` 标出被拦截的调用 | 每次工具调用结束时入队，命令结束时写入 |
 
 参数摘要写入前经 `redactText` 脱敏。
 
@@ -539,7 +558,17 @@ stateDiagram-v2
 - [x] 前端代码中不再出现 `pi.event`、`tool_execution_end`、`message_update` 等 pi 事件名。——源码检索为零
 - [x] 流式回复、`run_task` 结果写回查看器、后台会话未读标记行为与迁移前一致。——`agentSessions`、`toolBridge`、`objectFocus` 测试；浏览器走查（流式回复）
 
-### 15.6 工程
+### 15.6 工具调用展示
+
+- [x] 快照保留全部工具结果，输出脱敏并截断，图像块不进快照，带 `duration_ms`。——`session-lifecycle`、`consult-atlas-tool` 集成测试
+- [x] 有最终回复时工具步骤组收起在其上方，展开后条目显示输入、输出与耗时；运行中的最后一轮默认展开。——`AgentConversation` 测试；浏览器走查（假模型，失败与成功的 `read` 各一次）
+- [x] 跨回合复用调用标识时，每个调用配对到自己之后的结果，审批记录锚到最后一条同标识的调用。——`AgentConversation` 测试；浏览器走查
+- [x] 模型文字不进步骤组；组内子智能体卡片收成一行。——`AgentConversation` 测试；浏览器走查（deepseek 会话）
+- [x] 被拦截的调用标「未执行」，执行后出错的标「失败」，实时事件与快照一致。——`permission-flow` 集成测试、`AgentConversation` 测试；浏览器走查（拒绝 `write`）
+- [x] 提问卡片按数字键作答，「其他回答」点开输入；审批卡片与提问卡片同一视觉。——`InteractionCard` 测试；浏览器走查（假模型）
+- [x] 耗时扣除等待用户回复的时长并单列；`ask_user` 不进步骤组。——`budget`（`waitedForCall`）、`permission-flow`、`AgentConversation` 测试；浏览器走查（等待审批 12 秒的 `write` 显示 8ms 与「等你 12.1s」）
+
+### 15.7 工程
 
 - [x] `make test`、`make lint` 通过。
 - [x] 仓库骨架总览、SDD 00、SDD 02 §7.3、SDD 13 越界守卫描述同步更新。——另含操作手册 §3.1 与两份 CHANGELOG
@@ -565,6 +594,8 @@ stateDiagram-v2
 | D-14 | 收尾宽限 3 回合或 2 分钟 | 留出一次收尾回复的余量，又不让模型长期无视拦截 |
 | D-15 | 设置文件格式错误时忽略该文件并告警，不阻断命令 | 模式默认值本身安全；一个坏文件不应让智能体整体不可用 |
 | D-16 | `TranscriptMessage` 不保留 thinking 块 | 前端当前不展示思考过程；需要时另立需求 |
+| D-17 | 快照保留全部工具结果的截断文本，耗时另记审计记录 | 对话流要展示每次工具调用的输出与耗时；只留 2000 字符文本控制快照体积；pi 的工具结果消息没有起始时刻，耗时只能由 runtime 在事件流上测得 |
+| D-18 | 「未执行」由 runtime 标出，不由前端按报错文本推断 | 拦截只发生在插件 `tool_call` 钩子；在钩子组合处记录被拦截的标识最可靠，文本推断会随理由措辞失效 |
 
 ## 17. 待确认问题
 

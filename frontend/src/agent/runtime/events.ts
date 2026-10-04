@@ -119,9 +119,36 @@ export function messageToolCalls(message: unknown): MessageToolCall[] {
   });
 }
 
+export interface MessageToolResult {
+  toolCallId: string;
+  /** 截断后的输出文本（SDD 15 §9.6）。 */
+  output: string;
+  isError: boolean;
+  /** 被插件拦截、未执行。 */
+  blocked: boolean;
+  durationMs?: number;
+  /** `durationMs` 中等待用户回复的部分。 */
+  waitedMs?: number;
+}
+
+/** `toolResult` 消息的输出与耗时；不是工具结果时为 null。 */
+export function messageToolResult(message: unknown): MessageToolResult | null {
+  if (!message || typeof message !== "object") return null;
+  const m = message as { role?: unknown; toolCallId?: unknown; isError?: unknown; blocked?: unknown; duration_ms?: unknown; waited_ms?: unknown };
+  if (m.role !== "toolResult" || typeof m.toolCallId !== "string") return null;
+  return {
+    toolCallId: m.toolCallId,
+    output: messageText(message),
+    isError: m.isError === true,
+    blocked: m.blocked === true,
+    ...(typeof m.duration_ms === "number" ? { durationMs: m.duration_ms } : {}),
+    ...(typeof m.waited_ms === "number" ? { waitedMs: m.waited_ms } : {}),
+  };
+}
+
 /**
  * `toolResult` 消息里的图谱引用产物（SDD 03 §12 / D-21）——runtime 侧 `consult_atlas` 把
- * `details = {kind, payload}` 写进 transcript，会话视图保留该条消息（content 已剥空），
+ * `details = {kind, payload}` 写进 transcript，会话视图保留该条消息（content 只留截断后的文本），
  * 卡片因此刷新后仍在。返回原始 details，交由 `parseAtlasReferenced` 校形。
  */
 export function messageToolResultDetails(message: unknown): unknown {

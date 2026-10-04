@@ -26,6 +26,12 @@ export type TranscriptMessage =
       content: TranscriptBlock[];
       details?: unknown;
       isError: boolean;
+      /** 工具执行耗时；命令结束后的快照才有（SDD 15 §9.6）。 */
+      duration_ms?: number;
+      /** 被插件拦截、未执行；命令结束后的快照才有。 */
+      blocked?: true;
+      /** `duration_ms` 中等待用户回复的部分；无等待时不出现。 */
+      waited_ms?: number;
     };
 
 export type ToolEffect = "read" | "annotate" | "compute" | "egress" | "write" | "exec" | "delegate";
@@ -337,6 +343,10 @@ export interface ToolEndData {
   tool_call_id: string;
   tool_name: string;
   is_error: boolean;
+  /** 被插件拦截、未执行（权限拒绝、越界、预算用尽）。 */
+  blocked?: true;
+  /** 该调用等待用户回复（审批、`ask_user`）的时长；无等待时不出现。 */
+  waited_ms?: number;
   details: unknown;
   error_text?: string;
 }

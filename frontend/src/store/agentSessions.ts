@@ -60,6 +60,15 @@ export interface SubagentProgress {
   toolName?: string;
 }
 
+export interface ToolTiming {
+  startedAt: number;
+  endedAt?: number;
+  /** `tool.end` 标为被插件拦截、未执行。 */
+  blocked?: boolean;
+  /** `tool.end` 给出的等待用户回复时长。 */
+  waitedMs?: number;
+}
+
 export interface RunNotice {
   outcome: RunOutcome;
   turns: number;
@@ -83,7 +92,9 @@ interface AgentSessionsState {
   runNotices: Record<string, RunNotice>;
   /** 运行中子智能体的进度，按会话、`agent` 调用标识保存；调用结束即删除（SDD 18 §7.5）。 */
   subagentProgress: Record<string, Record<string, SubagentProgress>>;
-  error: { code: string; message: string; traceId?: string } | null;
+  /** 运行中工具的起止时刻（`tool.start` / `tool.end`），按会话、工具调用标识保存；快照带 `duration_ms` 后以快照为准。 */
+  toolTimings: Record<string, Record<string, ToolTiming>>;
+  error:{ code: string; message: string; traceId?: string } | null;
 
   initialize: () => Promise<void>;
   /**
@@ -273,6 +284,7 @@ export function createAgentSessionsStore(
       toolErrors: {},
       runNotices: {},
       subagentProgress: {},
+      toolTimings: {},
       error: null,
 
       initialize: async () => {
@@ -517,6 +529,24 @@ export function createAgentSessionsStore(
 
       applyRuntimeEvent: (event) => {
         const sessionId = event.data.session_id;
+        if (event.event === "tool.start" || event.event === "tool.end") {
+          const toolCallId = event.data.tool_call_id;
+          const now = Date.now();
+          set((state) => {
+            const timings = state.toolTimings[sessionId] ?? {};
+            const timing = event.event === "tool.start"
+              ? { startedAt: now }
+              : timings[toolCallId]
+                ? {
+                  ...timings[toolCallId],
+                  endedAt: now,
+                  ...(event.data.blocked ? { blocked: true } : {}),
+                  ...(event.data.waited_ms ? { waitedMs: event.data.waited_ms } : {}),
+                }
+                : undefined;
+            return timing ? { toolTimings: { ...state.toolTimings, [sessionId]: { ...timings, [toolCallId]: timing } } } : {};
+          });
+        }
         if (event.event === "interaction.request") {
           const request = event.data;
           set((state) => {

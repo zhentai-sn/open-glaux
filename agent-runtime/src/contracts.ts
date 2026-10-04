@@ -56,6 +56,12 @@ export type TranscriptMessage =
       content: TranscriptBlock[];
       details?: unknown;
       isError: boolean;
+      /** 工具执行耗时；只在快照中、命令结束后给出（SDD 15 §9.6）。 */
+      duration_ms?: number;
+      /** 被插件拦截、未执行；只在快照中、命令结束后给出。 */
+      blocked?: true;
+      /** `duration_ms` 中等待用户回复的部分；无等待时不出现。 */
+      waited_ms?: number;
     };
 
 /** SDD 15 §9.3：等待用户回复的交互请求（权限审批或 `ask_user` 提问）。 */
@@ -311,6 +317,10 @@ export type TransportEvent =
         tool_call_id: string;
         tool_name: string;
         is_error: boolean;
+        /** 被插件拦截、未执行（权限拒绝、越界、预算用尽）。 */
+        blocked?: true;
+        /** 该调用等待用户回复（审批、`ask_user`）的时长；无等待时不出现。 */
+        waited_ms?: number;
         details: unknown;
         /** 出错时工具结果的文本（≤ 2000 字符），供前端显示拒绝或失败理由。 */
         error_text?: string;

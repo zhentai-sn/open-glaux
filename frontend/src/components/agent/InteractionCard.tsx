@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 
 import type { InteractionReply, InteractionRequest } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
@@ -27,6 +28,39 @@ function OriginLine({ request }: { request: InteractionRequest }) {
   );
 }
 
+/** 有副作用的权限等级，标签用警示色。 */
+const RISKY_EFFECTS = new Set(["write", "exec", "egress", "delegate"]);
+
+/** 距过期的分钟数，每 30 秒刷新；时间无法解析时为 null。 */
+function useMinutesLeft(expiresAt: string): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const expires = Date.parse(expiresAt);
+  return Number.isNaN(expires) ? null : Math.max(0, Math.ceil((expires - now) / 60_000));
+}
+
+/** 卡片标题行：类型、标题与「运行已暂停 · N 分钟后过期」。 */
+function CardHead({ request, icon, title }: { request: InteractionRequest; icon: LucideIcon; title: string }) {
+  const { t } = useI18n();
+  const minutes = useMinutesLeft(request.expires_at);
+  return (
+    <div className="interaction-head">
+      <span className="interaction-icon"><Icon icon={icon} size="sm" /></span>
+      <b className="interaction-title">{title}</b>
+      <span className="interaction-status">
+        {minutes === null ? t("interaction_paused") : t("interaction_paused_expires", { n: minutes })}
+      </span>
+    </div>
+  );
+}
+
+const isEditable = (element: Element | null) =>
+  element instanceof HTMLElement
+  && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName));
+
 export function InteractionCard({
   request,
   onReply,
@@ -39,32 +73,42 @@ export function InteractionCard({
   const [reason, setReason] = useState("");
   const [answer, setAnswer] = useState("");
   const [sent, setSent] = useState(false);
+  const [otherOpen, setOtherOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const reply = (value: InteractionReply) => {
     setSent(true);
     void Promise.resolve(onReply(value)).then((delivered) => {
       if (delivered === false) setSent(false);
     });
   };
+  // 提问卡片出现时，焦点不在输入框就移到卡片上，数字键即可作答；不抢正在输入的焦点
+  const isQuestion = request.kind === "question" && Boolean(request.question);
+  useEffect(() => {
+    if (isQuestion && !isEditable(document.activeElement)) cardRef.current?.focus({ preventScroll: true });
+  }, [isQuestion]);
 
   if (request.kind === "permission" && request.permission) {
     const permission = request.permission;
+    const title = t("interaction_permission_title", { tool: permission.tool_name });
+    const deny = () => reply({ kind: "permission", decision: "deny", ...(reason.trim() ? { reason: reason.trim() } : {}) });
     return (
-      <div className="interaction-card pending" data-testid="interaction-card" role="group" aria-label={t("interaction_permission_title", { tool: permission.tool_name })}>
-        <div className="interaction-head">
-          <Icon icon={ICONS.config} size="sm" />
-          <b>{t("interaction_permission_title", { tool: permission.tool_name })}</b>
-          <span className="interaction-effect">{t(`interaction_effect_${permission.effect}`)}</span>
-        </div>
+      <div className="interaction-card" data-testid="interaction-card" role="group" aria-label={title}>
+        <CardHead request={request} icon={ICONS.config} title={title} />
         <OriginLine request={request} />
-        {permission.args_summary && permission.args_summary !== "{}" && (
-          <div className="interaction-args mono">{permission.args_summary}</div>
-        )}
+        <div className="interaction-body">
+          <span className={`interaction-effect${RISKY_EFFECTS.has(permission.effect) ? " risky" : ""}`}>
+            {t(`interaction_effect_${permission.effect}`)}
+          </span>
+          {permission.args_summary && permission.args_summary !== "{}" && (
+            <div className="interaction-args mono">{permission.args_summary}</div>
+          )}
+        </div>
         <div className="interaction-actions">
           {permission.grant_options.map((option) => (
             <button
               key={option}
               type="button"
-              className={option === "once" ? "btn-primary" : undefined}
+              className={option === "once" ? "interaction-btn primary" : "interaction-btn"}
               disabled={sent}
               data-testid={`interaction-${option}`}
               onClick={() => reply({ kind: "permission", decision: option })}
@@ -72,8 +116,16 @@ export function InteractionCard({
               {t(GRANT_LABEL[option])}
             </button>
           ))}
+        </div>
+        <form
+          className="interaction-deny-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            deny();
+          }}
+        >
           <input
-            className="interaction-reason"
+            className="interaction-input"
             value={reason}
             maxLength={500}
             placeholder={t("interaction_deny_reason")}
@@ -81,15 +133,10 @@ export function InteractionCard({
             disabled={sent}
             onChange={(event) => setReason(event.target.value)}
           />
-          <button
-            type="button"
-            disabled={sent}
-            data-testid="interaction-deny"
-            onClick={() => reply({ kind: "permission", decision: "deny", ...(reason.trim() ? { reason: reason.trim() } : {}) })}
-          >
+          <button type="submit" className="interaction-btn danger" disabled={sent} data-testid="interaction-deny">
             {t("interaction_deny")}
           </button>
-        </div>
+        </form>
       </div>
     );
   }
@@ -99,50 +146,86 @@ export function InteractionCard({
   const submitText = () => {
     if (answer.trim()) reply({ kind: "question", text: answer.trim() });
   };
+  // 没有选项时直接给输入框；有选项时「其他回答」点开才出现
+  const showInput = question.allow_free_text && (otherOpen || question.options.length === 0);
   return (
-    <div className="interaction-card pending" data-testid="interaction-card" role="group" aria-label={t("interaction_question_title")}>
-      <div className="interaction-head">
-        <Icon icon={ICONS.skill} size="sm" />
-        <b>{t("interaction_question_title")}</b>
-      </div>
+    <div
+      ref={cardRef}
+      className="interaction-card"
+      data-testid="interaction-card"
+      role="group"
+      tabIndex={-1}
+      aria-label={t("interaction_question_title")}
+      onKeyDown={(event) => {
+        if (sent || isEditable(event.target as Element) || event.altKey || event.ctrlKey || event.metaKey) return;
+        const index = Number(event.key) - 1;
+        if (Number.isInteger(index) && index >= 0 && index < question.options.length) {
+          event.preventDefault();
+          reply({ kind: "question", option: index });
+        }
+      }}
+    >
+      <CardHead request={request} icon={ICONS.skill} title={t("interaction_question_title")} />
       <OriginLine request={request} />
       <div className="interaction-question">{question.question}</div>
-      {question.options.length > 0 && (
-        <div className="interaction-actions">
-          {question.options.map((option, index) => (
-            <button
-              key={`${index}-${option}`}
-              type="button"
-              disabled={sent}
-              data-testid={`interaction-option-${index}`}
-              onClick={() => reply({ kind: "question", option: index })}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
-      {question.allow_free_text && (
-        <form
-          className="interaction-actions"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitText();
-          }}
-        >
-          <input
-            className="interaction-answer"
-            value={answer}
-            maxLength={2000}
-            placeholder={t("interaction_answer_placeholder")}
-            aria-label={t("interaction_answer_placeholder")}
+      <div className="interaction-options">
+        {question.options.map((option, index) => (
+          <button
+            key={`${index}-${option}`}
+            type="button"
+            className="interaction-option"
             disabled={sent}
-            onChange={(event) => setAnswer(event.target.value)}
-          />
-          <button type="submit" className="btn-primary" disabled={sent || !answer.trim()}>
-            {t("interaction_submit")}
+            data-testid={`interaction-option-${index}`}
+            onClick={() => reply({ kind: "question", option: index })}
+          >
+            {index < 9 && <kbd className="interaction-key">{index + 1}</kbd>}
+            <span className="interaction-option-text">{option}</span>
           </button>
-        </form>
+        ))}
+        {question.allow_free_text && !showInput && (
+          <button
+            type="button"
+            className="interaction-option other"
+            disabled={sent}
+            data-testid="interaction-other"
+            onClick={() => setOtherOpen(true)}
+          >
+            <span className="interaction-key"><Icon icon={ICONS.edit} size="sm" /></span>
+            <span className="interaction-option-text">{t("interaction_other")}</span>
+          </button>
+        )}
+        {showInput && (
+          <form
+            className="interaction-other-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitText();
+            }}
+          >
+            <input
+              className="interaction-input"
+              value={answer}
+              maxLength={2000}
+              autoFocus={otherOpen}
+              placeholder={t("interaction_answer_placeholder")}
+              aria-label={t("interaction_answer_placeholder")}
+              disabled={sent}
+              onChange={(event) => setAnswer(event.target.value)}
+            />
+            <button
+              type="submit"
+              className="interaction-send"
+              disabled={sent || !answer.trim()}
+              aria-label={t("interaction_submit")}
+              title={t("interaction_submit")}
+            >
+              <Icon icon={ICONS.send} size="sm" />
+            </button>
+          </form>
+        )}
+      </div>
+      {question.options.length > 0 && (
+        <div className="interaction-hint">{t("interaction_keys_hint", { n: Math.min(question.options.length, 9) })}</div>
       )}
     </div>
   );

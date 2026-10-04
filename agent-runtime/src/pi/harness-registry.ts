@@ -23,7 +23,7 @@ import type {
   ViewerContext,
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
-import { sessionProjectId, type SessionService } from "./session-service.js";
+import { sessionProjectId, TOOL_TIMING_ENTRY, type SessionService } from "./session-service.js";
 import {
   createModelRuntime,
   type ModelRuntime,
@@ -272,6 +272,8 @@ export class HarnessRegistry {
       ...(resources ? { resources: { skills: resources.harnessSkills, promptTemplates: resources.harnessTemplates } } : {}),
     });
     // SDD 15 §7.2：每种钩子只注册一个组合后的 handler；chat 发行版不挂插件。
+    // 被拦截的工具调用：`tool.end` 与耗时记录据此标出「未执行」（SDD 15 §5.1）
+    const blocked = new Set<string>();
     const uninstallHooks = chatEdition() ? () => undefined : installHooks(harness, activePlugins(toolContext), {
       sessionId,
       commandId,
@@ -279,14 +281,36 @@ export class HarnessRegistry {
       ...(options.viewer ? { viewer: options.viewer } : {}),
       ...(permission ? { permission } : {}),
       ...(budget ? { budget } : {}),
-    });
+    }, undefined, (toolCallId) => blocked.add(toolCallId));
     const stats = { turns: 0, startedAt: Date.now() };
+    const audit: HarnessSlot["audit"] = [];
+    // 工具耗时（SDD 15 §12）：含等待审批的时间，与用户感知一致。
+    const toolStarts = new Map<string, number>();
+    // 其中等待用户回复（审批、ask_user）的时长另记，展示时从耗时里扣除
+    const waitedMs = (toolCallId: string) => this.interactions.waitedForCall(sessionId, commandId, toolCallId);
     const unsubscribeEvents = harness.subscribe((event) => {
       if (event.type === "turn_start") {
         stats.turns += 1;
         budget?.onTurnStart();
       }
-      const mapped = mapPiEvent(sessionId, commandId, event);
+      if (event.type === "tool_execution_start") toolStarts.set(event.toolCallId, Date.now());
+      if (event.type === "tool_execution_end") {
+        const started = toolStarts.get(event.toolCallId);
+        toolStarts.delete(event.toolCallId);
+        if (started !== undefined) {
+          const waited = waitedMs(event.toolCallId);
+          audit.push({
+            customType: TOOL_TIMING_ENTRY,
+            data: {
+              tool_call_id: event.toolCallId,
+              duration_ms: Date.now() - started,
+              ...(waited > 0 ? { waited_ms: waited } : {}),
+              ...(blocked.has(event.toolCallId) ? { blocked: true } : {}),
+            },
+          });
+        }
+      }
+      const mapped = mapPiEvent(sessionId, commandId, event, { blocked, waitedMs });
       if (mapped) this.emit(sessionId, mapped);
     });
     // SDD 15 §7.8 规则 3：收尾回合禁止调用工具。
@@ -305,7 +329,7 @@ export class HarnessRegistry {
       unsubscribeHarness,
       completion: Promise.resolve(),
       stats,
-      audit: [],
+      audit,
       ...(budget ? { budget } : {}),
     };
     this.slots.set(sessionId, slot);
