@@ -42,7 +42,7 @@ import {
   RotateCcw,
   Scale,
   Settings,
-  Shield,
+  ShieldAlert,
   ShieldCheck,
   ScrollText,
   Sparkles,
@@ -56,6 +56,7 @@ import {
   Brain,
   FileText,
   Layers,
+  Lightbulb,
   Server,
   type LucideIcon,
 } from "lucide-react";
@@ -139,7 +140,11 @@ export const ICONS = {
   swap: ArrowLeftRight,
   send: ArrowUp,
   stop: Square,
-  permission: Shield, // 输入框底栏的权限模式下拉（SDD 15 §7.4）
+  // 输入框底栏的权限模式菜单（SDD 15 §7.4）：只读 → 建议 → 受控 → 完全
+  permObserve: Eye,
+  permSuggest: Lightbulb,
+  permControlled: ShieldCheck,
+  permAutonomous: ShieldAlert,
   back: ArrowLeft,
   regenerate: RefreshCw,
   archive: Archive,

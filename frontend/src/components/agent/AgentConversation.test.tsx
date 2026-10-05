@@ -92,7 +92,7 @@ describe("AgentConversation", () => {
     expect(
       screen.getByLabelText(/Context usage 128 \/ 32,768/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveValue("controlled");
+    expect(screen.getByRole("button", { name: "Permission: Controlled" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Instruct the agent…" })).toBeEnabled();
   });
 
@@ -151,15 +151,24 @@ describe("AgentConversation", () => {
     useAgentSessions.setState({ setPermissionMode });
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<I18nProvider><AgentConversation /></I18nProvider>);
-    const select = screen.getByRole("combobox");
+    const pick = (name: string) => {
+      fireEvent.click(screen.getByRole("button", { name: /^Permission:/u }));
+      fireEvent.click(screen.getByRole("menuitemradio", { name: new RegExp(`^${name}`, "u") }));
+    };
 
-    fireEvent.change(select, { target: { value: "autonomous" } });
+    // 菜单每项附说明，当前项打勾
+    fireEvent.click(screen.getByRole("button", { name: /^Permission:/u }));
+    expect(screen.getByRole("menuitemradio", { name: /^Controlled/u })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(4);
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    pick("Autonomous");
     expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/run commands on this computer/u));
     expect(setPermissionMode).not.toHaveBeenCalled();
-    expect(select).toHaveValue("controlled");
 
     confirm.mockReturnValue(true);
-    fireEvent.change(select, { target: { value: "autonomous" } });
+    pick("Autonomous");
     expect(setPermissionMode).toHaveBeenCalledWith(session.session_id, "autonomous");
     confirm.mockRestore();
   });

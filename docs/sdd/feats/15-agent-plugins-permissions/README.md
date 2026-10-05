@@ -299,7 +299,7 @@ pi-agent-core 对 `tool_call`、`tool_result`、`context` 的多个 handler 传�
 | `store/agentSessions.ts` | `applyPiEvent` 改为按 Glaux 事件分发；保存 `pending_interactions` |
 | `agent/toolBridge.ts` | 由 `tool_execution_end` 改为 `tool.end` |
 | `components/agent/`（新组件） | `InteractionCard`：审批与提问两种形态 |
-| `components/agent/AgentConversation.tsx` | 权限下拉菜单附说明；切换到 `autonomous` 的确认对话框 |
+| `components/agent/PermissionMenu.tsx`、`AgentConversation.tsx` | 输入框底栏的权限菜单：向上弹出，每项图标、名称与一句说明，当前项打勾，方向键与 Esc 可操作；切换到 `autonomous` 的确认对话框在 `AgentConversation` |
 
 ## 9. 数据或字段要求
 

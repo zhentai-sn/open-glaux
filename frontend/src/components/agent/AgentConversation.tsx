@@ -18,7 +18,6 @@ import { useProjects } from "../../store/projects";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
-import type { PermissionMode } from "../../agent/runtime/types";
 import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
 import { ObjectCard, parseObjectOpened } from "./ObjectCard";
@@ -26,6 +25,7 @@ import { FileCard, parseFileRead } from "./FileCard";
 import { SubagentCard, parseSubagentRun } from "./SubagentCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
+import { PermissionMenu } from "./PermissionMenu";
 import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
 import { projectWritable } from "./sessionGroups";
@@ -33,13 +33,6 @@ import { OwlLogo } from "../OwlLogo";
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
 import { InteractionCard, ResolvedInteractionLine } from "./InteractionCard";
 import { parseSkillMessage } from "./slashCommands";
-
-const PERMISSION_MODES: PermissionMode[] = [
-  "observe",
-  "suggest",
-  "controlled",
-  "autonomous",
-];
 
 /**
  * 耗时：快照里的 `duration_ms` 优先，运行中用 `tool.start` / `tool.end` 的到达时刻。
@@ -761,30 +754,15 @@ export function AgentConversation() {
               {connection.model || t("agent_model_none")}
             </button>
             {!CHAT_EDITION && (
-              <label className="composer-permission" title={t(`agent_permission_${view?.permission_mode ?? "controlled"}_hint`)}>
-                <Icon icon={ICONS.permission} size="sm" />
-                <select
-                  aria-label={t("agent_permission")}
-                  value={view?.permission_mode ?? "controlled"}
-                  disabled={!view}
-                  onChange={(event) => {
-                    const mode = event.target.value as PermissionMode;
-                    // 最高权限需显式确认（SDD 15 §7.4 规则 3）；取消则模式不变。
-                    if (mode === "autonomous" && !window.confirm(t("agent_permission_autonomous_confirm"))) {
-                      event.target.value = view?.permission_mode ?? "controlled";
-                      return;
-                    }
-                    if (currentSessionId) void setPermissionMode(currentSessionId, mode);
-                  }}
-                >
-                  {PERMISSION_MODES.map((mode) => (
-                    <option key={mode} value={mode} title={t(`agent_permission_${mode}_hint`)}>
-                      {t(`agent_permission_${mode}`)}
-                    </option>
-                  ))}
-                </select>
-                <Icon icon={ICONS.chevronDown} size="sm" />
-              </label>
+              <PermissionMenu
+                value={view?.permission_mode ?? "controlled"}
+                disabled={!view}
+                onChange={(mode) => {
+                  // 最高权限需显式确认（SDD 15 §7.4 规则 3）；取消则模式不变。
+                  if (mode === "autonomous" && !window.confirm(t("agent_permission_autonomous_confirm"))) return;
+                  if (currentSessionId) void setPermissionMode(currentSessionId, mode);
+                }}
+              />
             )}
           </>
         }
