@@ -10,7 +10,7 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | 已实现，自动化门禁与开发侧浏览器走查（faux 模型生成的演示会话）通过，自查见 §15；真实模型走查与业务验收待补 |
+| 当前阶段 | 已实现，自动化门禁与开发侧浏览器走查（faux 模型生成的演示会话）通过，自查见 §15；2026-10-05 维护者端到端审查初步验收通过，正式业务验收待补 |
 | 来源 | 2026-10-05 维护者提出：在上下文页披露运行消息，参照 deepseek-harness 的开发者工具（Trajectory 标签页）管理运行时上下文 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 19 上下文管理](../19-context-management/README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 18 子智能体](../18-agent-subagents/README.md) · [SDD 20 提示词随界面语言切换](../20-prompt-language/README.md) · [SDD 00 内置参考智能体](../00-reference-agent-conversations/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -486,7 +486,7 @@ interface RequestContext {
 
 ### 15.3 走查与工程
 
-- [ ] 浏览器走查：真实模型跑一条含工具调用的命令，轨迹中能看到请求头、模型调用耗时、工具耗时；改 GLAUX.md 后再跑一条，差异标签列出 GLAUX.md 分段变化；截图留证。——开发侧用 faux 模型生成的三轮会话走查通过：工具调用、5 张图的裁剪、预算收尾、中英文切换引起的请求头差异、请求重建一致、窄宽度无横向溢出；真实模型走查待维护者端到端审查
+- [x] 浏览器走查：真实模型跑一条含工具调用的命令，轨迹中能看到请求头、模型调用耗时、工具耗时；改 GLAUX.md 后再跑一条，差异标签列出 GLAUX.md 分段变化；截图留证。——开发侧用 faux 模型生成的三轮会话走查通过：工具调用、5 张图的裁剪、预算收尾、中英文切换引起的请求头差异、请求重建一致、窄宽度无横向溢出；2026-10-05 维护者在真实数据上端到端审查，初步验收通过
 - [x] `make test`、`make lint` 通过。——agent-runtime 498、前端 451，两端 lint 与 `check-literals` 通过；backend、science-core 未改动，未重跑
 - [x] SDD 19、SDD 索引、仓库骨架总览（新增 `src/trajectory/`）同步更新。——另含三份 CHANGELOG
 
