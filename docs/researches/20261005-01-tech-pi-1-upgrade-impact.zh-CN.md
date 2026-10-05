@@ -11,7 +11,7 @@ status: done
 
 - 1.0 不是版本号意义上的升级，而是底座替换：`pi-agent-core` 1.0.0 删除了整个 `AgentHarness` 及其会话、存储、工具、技能、压缩、`NodeExecutionEnv`，只保留 `Agent` 与 agent loop。
 - 替代品 `@earendil-works/pi-durable` 是全新设计的持久化 harness，README 标注 **Experimental, API changes without notice**，1.0.2 之后的 Unreleased 段已有新的破坏性变更。
-- 建议：近期维持 0.82.1，不升级；等 `pi-durable` 去掉 Experimental 标注或出现必须依赖新版本的功能时，按「迁移到 pi-durable」方案单独立项（新 SDD）。
+- 决定（2026-10-05）：近期维持 0.82.1，不升级；等 `pi-durable` 去掉 Experimental 标注或出现必须依赖新版本的功能时，按「迁移到 pi-durable」方案单独立项（新 SDD）。
 
 ## 版本现状
 
@@ -52,6 +52,39 @@ status: done
 - 技能与提示模板：`loadSkills`、`loadSourcedSkills`、`loadSourcedPromptTemplates`、`formatSkillsForSystemPrompt`、`Skill`、`PromptTemplate`、`parseCommandArgs`
 - 压缩与 token 估算：`shouldCompact`、`DEFAULT_COMPACTION_SETTINGS`、`estimateTokens`、`estimateContextTokens`
 - 其他：`uuidv7`
+
+## 拆分 pi-durable 的动机
+
+上游没有单独说明拆分理由。以下依据 changelog、`pi-durable` README、设计文档 `packages/durable/docs/spec.md` 与 `pico-v5-handoff.md`，以及上游源码对 harness 的引用情况归纳。
+
+### 隔离稳定核心与实验性 harness
+
+- harness 在 `pi-agent-core` 内反复重做：0.84 把 v2 harness 升为默认入口并把会话换成 v4；handoff 文档记录了 pico、pico3、pico4 原型被删除，pico5 成为 `pi-durable`。
+- 上游产品 `pi-coding-agent` 的正式代码不依赖 `AgentHarness`，只有 `experimental/` 下 2 个文件引用；它用自己的 `AgentSession` / `SessionManager`。
+- harness 放在 `pi-agent-core` 内，每次重做都会破坏所有 `pi-agent-core` 使用者，本仓库在 0.84 的会话层失效即属此类。
+- 拆分后 `pi-agent-core` 只含 `Agent`、agent loop、proxy stream，可给出 1.0 稳定承诺；harness 在独立包中保持 Experimental 并继续迭代。
+
+### 新 harness 的设计目标
+
+spec 的核心规则：Session 原子提交不可变条目、完整任务记录和 Chord 跟踪的文档，只有已提交状态可见。由此得到：
+
+- 崩溃恢复：生成、工具调用、压缩都是带检查点的持久任务；进程在一轮中途退出后，重新打开存储从最后检查点继续；工具以 `replay: "safe"` 声明能否重跑。
+- 幂等提交：相同 `requestId` 的重复提交返回同一个 submission。
+- 可见状态等于持久状态：流式部分结果默认每 100 ms 提交一次，不存在仅在内存中的可见状态；多客户端订阅、迟到加入、断线重连都从当前视图开始，变更以 `@earendil-works/chord` 操作同步。
+- 可移植：存储核心不依赖 Node API，可运行在 Bun、Cloudflare Durable Objects；执行环境可按会话分配（如每会话一个容器）。
+- 统一所有权：子智能体、子任务归属父任务；中止自底向上传播，后台任务作为边界，父会话空闲判定有明确规则。
+
+### 对本仓库的潜在收益
+
+| 本仓库自研能力 | pi-durable 原生对应 |
+| --- | --- |
+| 重启恢复（SDD 00、13） | 任务检查点 + `resume()`，可从一轮中途恢复 |
+| 运行轨迹采集（SDD 21） | 已提交状态本身可追溯；`pi.system` 记录 system prompt 变化，`pi.usage` 记录用量 |
+| 事件映射到前端 | `viewState()` / `watch()`，支持迟到加入与重连 |
+| 子智能体生命周期（SDD 18） | 所有权树与中止语义 |
+| 自定义条目存交互状态 | `defineDoc()` 定义带类型的文档，与条目原子提交 |
+
+收益成立的前提是 API 稳定；当前缺口见下节。
 
 ## 迁移到 pi-durable 的映射
 
