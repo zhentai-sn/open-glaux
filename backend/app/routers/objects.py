@@ -112,6 +112,25 @@ def object_meta(object_id: str) -> ObjectMeta:
     return resolve(object_id)[1]
 
 
+def _overlay(object_id: str, index: Index, data: bytes, mime: str, frame) -> tuple[bytes, str]:
+    """SDD 22 §7.3：取当前索引上的标注并画到帧图上；返回新图与图例头。
+
+    2D 对象标注不带索引；体数据与视频按层／帧精确匹配；切片（WSI）标注为 level-0 坐标，
+    与查看的金字塔层无关，不按层过滤。
+    """
+    from .. import config
+    from ..frame_overlay import draw_overlay, legend, overlay_rows
+    from .annotations import get_store
+
+    axis = next((name for name in ("z", "t") if getattr(index, name) is not None), None)
+    store = get_store()
+    rows = store.list(object_id, z=getattr(index, axis)) if axis else store.list(object_id)
+    tagged = overlay_rows(rows)
+    if tagged:
+        data = draw_overlay(data, mime, frame, tagged, config.ANNOTATIONS_ROOT)
+    return data, json.dumps(legend(tagged), ensure_ascii=True, separators=(",", ":"))
+
+
 @router.get("/{object_id}/frame")
 def object_frame(
     object_id: str,
@@ -121,8 +140,12 @@ def object_frame(
     roi: str | None = Query(default=None, description="x0,y0,x1,y1（level-0 / 帧像素）"),
     size: int = Query(default=SIZE_DEFAULT, description="输出最长边上限"),
     window: str | None = Query(default=None, description="ww,wl"),
+    overlay: bool = Query(default=False, description="叠加当前索引上的标注（SDD 22 §7.3）"),
 ) -> Response:
-    """单帧观测 + ``X-Glaux-Frame``（``ReferenceFrame`` 紧凑 JSON）。"""
+    """单帧观测 + ``X-Glaux-Frame``（``ReferenceFrame`` 紧凑 JSON）。
+
+    ``overlay=true`` 时把标注画到图上并返回 ``X-Glaux-Overlay`` 图例；只给智能体看图用。
+    """
     ref, obj = resolve(object_id)
     index = Index(z=z, t=t, level=level)
     try:
@@ -163,6 +186,8 @@ def object_frame(
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     headers = {"X-Glaux-Frame": _frame_header(frame)}
+    if overlay:
+        data, headers["X-Glaux-Overlay"] = _overlay(object_id, index, data, mime, frame)
     time_ms = ref.source.frame_time_ms(ref.datasource, object_id, index)
     if time_ms is not None:
         headers["X-Glaux-Frame-Time"] = str(time_ms)
