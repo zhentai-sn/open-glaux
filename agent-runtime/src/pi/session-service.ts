@@ -33,6 +33,7 @@ import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js"
 import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
 import { FILE_READ_DETAILS_KIND } from "../plugins/files.js";
 import { SUBAGENT_RUN_DETAILS_KIND } from "../subagents/run.js";
+import { ANNOTATION_REVISED_DETAILS_KIND } from "./tools/revise-annotation.js";
 import type { RequestContext, Trajectory } from "../contracts.js";
 import { fullBranch } from "../trajectory/branch.js";
 import { projectTrajectory } from "../trajectory/project.js";
@@ -390,6 +391,8 @@ const VIEWABLE_DETAILS_KINDS = new Set([
   FILE_READ_DETAILS_KIND,
   // SDD 18 §7.3：子智能体卡片（最终回复与过程）随快照保留。
   SUBAGENT_RUN_DETAILS_KIND,
+  // SDD 22 §5.1：修订卡片随快照保留。
+  ANNOTATION_REVISED_DETAILS_KIND,
 ]);
 
 /** 快照里每个工具结果保留的输出文本上限（SDD 15 §9.6）。 */

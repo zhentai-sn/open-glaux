@@ -3,7 +3,9 @@ import { langOf, localizeTool, type Bilingual } from "../i18n/prompt-lang.js";
 import type { HarnessTool } from "../pi/harness-registry.js";
 import { createLocateRoiTool, LOCATE_ROI_TOOL_NAME, LOCATE_ROI_ZH } from "../pi/tools/locate-roi.js";
 import { createProposeAnnotationTool, PROPOSE_ANNOTATION_TOOL_NAME, PROPOSE_ANNOTATION_ZH } from "../pi/tools/propose-annotation.js";
+import { createReviseAnnotationTool, REVISE_ANNOTATION_TOOL_NAME, REVISE_ANNOTATION_ZH } from "../pi/tools/revise-annotation.js";
 import { createSegmentRegionTool, SEGMENT_REGION_TOOL_NAME, SEGMENT_REGION_ZH } from "../pi/tools/segment-region.js";
+import { viewRegistryFor } from "../pi/tools/view-registry.js";
 import type { GlauxPlugin } from "./types.js";
 
 const LOCATE_PROMPT: Bilingual = {
@@ -30,6 +32,17 @@ const PROPOSE_PROMPT: Bilingual = {
     "每条建议都等待用户确认或拒绝；你从不确认自己的结果，并应明确说明标注只是建议。",
 };
 
+/** SDD 22 §7.5：提出后放大复核，偏差就修订原建议。 */
+const REVISE_PROMPT: Bilingual = {
+  en: " After proposing a region, check it: call view_current_image with a region around it to see your outline drawn on " +
+    "the enlarged picture, and compare it with the structure's edges. If it is off, fix that same suggestion with " +
+    "revise_annotation (using the view_id of the zoomed view) instead of proposing another; withdraw it if it was wrong. " +
+    "Zoom in again to confirm, and stop once the fit is good.",
+  zh: "提出区域后要复核：用 view_current_image 传入框附近的 region，在放大的画面上看你画的轮廓，与结构边缘对照。" +
+    "有偏差就用 revise_annotation 修正同一条建议（用放大视图的 view_id），不要再提一条；判断错了就撤回。" +
+    "修正后再放大确认，贴合后即可停止。",
+};
+
 export const annotationPlugin: GlauxPlugin = {
   name: "annotation",
   applies: () => true,
@@ -46,8 +59,13 @@ export const annotationPlugin: GlauxPlugin = {
     },
     {
       name: PROPOSE_ANNOTATION_TOOL_NAME, effect: "annotate", projectScoped: true, requires: {}, supports: (focus) => !!focus,
-      create: (ctx) => localizeTool(createProposeAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }), langOf(ctx), PROPOSE_ANNOTATION_ZH) as HarnessTool,
+      create: (ctx) => localizeTool(createProposeAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}), views: viewRegistryFor(ctx.run) }), langOf(ctx), PROPOSE_ANNOTATION_ZH) as HarnessTool,
       promptFragment: (ctx) => PROPOSE_PROMPT[langOf(ctx)],
+    },
+    {
+      name: REVISE_ANNOTATION_TOOL_NAME, effect: "annotate", projectScoped: true, requires: {}, supports: (focus) => !!focus,
+      create: (ctx) => localizeTool(createReviseAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}), views: viewRegistryFor(ctx.run) }), langOf(ctx), REVISE_ANNOTATION_ZH) as HarnessTool,
+      promptFragment: (ctx) => REVISE_PROMPT[langOf(ctx)],
     },
   ],
 };

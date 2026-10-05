@@ -212,7 +212,9 @@ export type Region =
 export interface Focus { object_id: string; kind: ObjectKind; index: Index; region: Region | null }
 export interface ReferenceFrame { object_id: string; index: Index; origin: [number, number]; scale: number; width: number; height: number }
 /** `time_ms`：时间序列对象该帧的源呈现时间（`X-Glaux-Frame-Time`），其余对象缺省。 */
-export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame; time_ms?: number }
+/** SDD 22 §9.1：叠加在看图结果上的标注图例。 */
+export interface OverlayEntry { tag: string; annotation_id: string; label: string; status: string; source: string }
+export interface Observation { bytes: Uint8Array; mime: string; frame: ReferenceFrame; time_ms?: number; overlay?: OverlayEntry[] }
 export interface ToolProvider {
   name: string;
   /** `project`：只对绑定了项目的会话挂载（SDD 13 §7.3 规则 1）。 */

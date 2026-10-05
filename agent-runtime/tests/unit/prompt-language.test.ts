@@ -115,9 +115,9 @@ describe("system prompt language", () => {
 describe("tool definition language", () => {
   const byName = (tools: HarnessTool[]) => new Map(tools.map((tool) => [tool.name, tool]));
 
-  it("mounts all 16 tools in the full context", () => {
+  it("mounts all 17 tools in the full context", () => {
     enableSegmentation();
-    expect(defaultToolFactory(fullContext("zh"))).toHaveLength(16);
+    expect(defaultToolFactory(fullContext("zh"))).toHaveLength(17);
   });
 
   it("translates every tool description and parameter description", () => {

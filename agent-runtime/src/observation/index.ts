@@ -1,8 +1,29 @@
 /** SDD 10 §6.4：runtime 唯一取帧入口。坐标以 X-Glaux-Frame 为准。 */
-import type { Focus, Index, Observation, ReferenceFrame, Region } from "../contracts.js";
+import type { Focus, Index, Observation, OverlayEntry, ReferenceFrame, Region } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 
-export interface ObservationOptions { size?: number; signal?: AbortSignal; fetch?: typeof globalThis.fetch }
+export interface ObservationOptions {
+  size?: number;
+  signal?: AbortSignal;
+  fetch?: typeof globalThis.fetch;
+  /** 取这块对象区域，代替焦点上的选区（SDD 22 §7.1）。 */
+  region?: Extract<Region, { kind: "box" }>;
+  /** 叠加当前索引上的标注并解析图例（SDD 22 §7.3）。 */
+  overlay?: boolean;
+}
+
+/** 图例头缺失（backend 不支持叠加）时返回 undefined，由调用方如实告知模型；格式非法才报错。 */
+function parseOverlay(raw: string | null): OverlayEntry[] | undefined {
+  if (raw === null) return undefined;
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { unavailable("X-Glaux-Overlay 不是合法 JSON"); }
+  if (!Array.isArray(value)) unavailable("X-Glaux-Overlay 形状非法");
+  return value.map((item) => {
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.tag !== "string" || typeof entry.annotation_id !== "string") unavailable("X-Glaux-Overlay 条目非法");
+    return { tag: entry.tag, annotation_id: entry.annotation_id, label: String(entry.label ?? ""), status: String(entry.status ?? ""), source: String(entry.source ?? "") };
+  });
+}
 
 function unavailable(message: string): never {
   throw new RuntimeError("image_unavailable", message, 502);
@@ -42,12 +63,14 @@ export async function fetchObservation(base: string, focus: Focus, opts: Observa
     const value = focus.index[axis];
     if (value !== undefined && value !== null) url.searchParams.set(axis, String(value));
   }
-  if (focus.region?.kind === "box") {
-    const { x0, y0, x1, y1 } = focus.region;
+  const region = opts.region ?? (focus.region?.kind === "box" ? focus.region : undefined);
+  if (region) {
+    const { x0, y0, x1, y1 } = region;
     // 标注可存浮点对象坐标，frame 端点按离散像素接收整数 ROI；向外取整以完整包含选区。
     url.searchParams.set("roi", [Math.floor(x0), Math.floor(y0), Math.ceil(x1), Math.ceil(y1)].join(","));
   }
   if (opts.size !== undefined) url.searchParams.set("size", String(opts.size));
+  if (opts.overlay) url.searchParams.set("overlay", "true");
   const response = await (opts.fetch ?? fetch)(url, opts.signal ? { signal: opts.signal } : {});
   if (!response.ok) unavailable(`取图失败：HTTP ${response.status}（object_id=${focus.object_id}）`);
   const mime = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
@@ -58,7 +81,12 @@ export async function fetchObservation(base: string, focus: Focus, opts: Observa
   if (time !== undefined && (!Number.isInteger(time) || time < 0)) unavailable("X-Glaux-Frame-Time 非法");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (!bytes.length) unavailable("取图返回空字节");
-  return { bytes, mime, frame, ...(time !== undefined ? { time_ms: time } : {}) };
+  const overlay = opts.overlay ? parseOverlay(response.headers.get("X-Glaux-Overlay")) : undefined;
+  return {
+    bytes, mime, frame,
+    ...(time !== undefined ? { time_ms: time } : {}),
+    ...(overlay ? { overlay } : {}),
+  };
 }
 
 /** 返回对象像素坐标，不把帧尺寸当作对象尺寸。 */

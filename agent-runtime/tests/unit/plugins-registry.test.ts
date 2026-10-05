@@ -32,6 +32,7 @@ describe("plugin registry", () => {
       locate_roi: "compute",
       segment_region: "egress",
       propose_annotation: "annotate",
+      revise_annotation: "annotate",
       list_files: "read",
       open_file: "read",
       read: "read",

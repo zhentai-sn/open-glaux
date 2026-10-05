@@ -102,7 +102,7 @@ describe("浏览工具挂载条件（SDD 13 §7.3 规则 1）", () => {
 
   it("越界判定只针对作用于当前对象的工具", () => {
     expect(pluginTools().filter((tool) => tool.projectScoped).map((tool) => tool.name).sort()).toEqual([
-      "locate_roi", "observe_video_interval", "propose_annotation", "run_task",
+      "locate_roi", "observe_video_interval", "propose_annotation", "revise_annotation", "run_task",
       "segment_region", "submit_video_answer", "view_current_image",
     ]);
   });

@@ -22,7 +22,8 @@ import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
 import { fetchObservation, toObjectPoint } from "../../observation/index.js";
-import type { Index, ViewerContext } from "../../contracts.js";
+import { viewRegistryFor, type ViewRegistry } from "./view-registry.js";
+import type { Index, ReferenceFrame, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
 
 export const PROPOSE_ANNOTATION_TOOL_NAME = "propose_annotation";
@@ -43,6 +44,10 @@ const ProposeAnnotationParams = Type.Object({
       "when you drew the region yourself from what you saw; it is converted for you, even when that picture is a " +
       "downscaled overview. \"object\": object pixels, e.g. a polygon or box copied verbatim from segment_region or locate_roi.",
   }),
+  view_id: Type.Optional(Type.String({
+    description: "With space \"view\": the view_id of the picture whose pixels you used (view_current_image reports it). "
+      + "Defaults to your most recent view.",
+  })),
   bbox: Type.Optional(
     Type.Array(Type.Number(), {
       minItems: 4,
@@ -101,6 +106,8 @@ function notProposed(
 
 export interface ProposeAnnotationToolOptions {
   viewer?: ViewerContext;
+  /** 本命令的视图登记（SDD 22 §7.2）。 */
+  views?: ViewRegistry;
   backendBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
@@ -123,6 +130,7 @@ export function createProposeAnnotationTool(
   const base = (options.backendBaseUrl ?? backendBaseUrl()).replace(/\/+$/u, "");
   const viewer = options.viewer ?? {};
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const views = options.views ?? viewRegistryFor(undefined);
 
   return {
     name: PROPOSE_ANNOTATION_TOOL_NAME,
@@ -166,8 +174,10 @@ export function createProposeAnnotationTool(
       let bbox = params.bbox;
       let polygon = params.polygon as Array<[number, number]> | undefined;
       if (params.space === "view") {
-        // 与 view_current_image 同一请求取帧，按 X-Glaux-Frame 把看到的像素换算成对象像素
-        const { frame } = await fetchObservation(base, focus, { signal: combined, fetch: doFetch });
+        // SDD 22 §7.2：按模型照着画的那张图换算；未指定时用最近一次视图，本命令尚未看图时按全图概览
+        const resolved = await viewFrame(views, params.view_id, () => fetchObservation(base, focus, { signal: combined, fetch: doFetch }).then((o) => o.frame));
+        if (typeof resolved === "string") return notProposed(imageId, params.label, "unknown_view", resolved);
+        const frame = resolved;
         if (bbox) {
           const [ax, ay] = toObjectPoint([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], frame);
           const [bx, by] = toObjectPoint([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], frame);
@@ -241,8 +251,24 @@ export function createProposeAnnotationTool(
   };
 }
 
+/**
+ * `space: "view"` 的换算基准（SDD 22 §7.2 规则 3）：指定的视图；未指定时最近一次视图；
+ * 本命令尚未看图时按全图概览（取帧）。未知视图返回原因文字。
+ */
+export async function viewFrame(
+  views: ViewRegistry,
+  viewId: string | undefined,
+  overview: () => Promise<ReferenceFrame>,
+): Promise<ReferenceFrame | string> {
+  if (viewId !== undefined) {
+    const view = views.get(viewId);
+    return view ? view.frame : `Unknown view_id "${viewId}". Use the view_id that view_current_image reported in this turn.`;
+  }
+  return views.latest()?.frame ?? overview();
+}
+
 /** bbox 归一化为左上/右下，退化（零宽或零高）返回 null。 */
-function bboxPrimitive(
+export function bboxPrimitive(
   bbox: readonly number[],
 ): Record<string, unknown> | null {
   const [ax, ay, bx, by] = bbox;
@@ -262,6 +288,7 @@ export const PROPOSE_ANNOTATION_ZH: ToolZh = {
   parameters: {
     label: "这条标注标记的是什么，用用户的语言（例如 \"左肾\"、\"nucleus\"）。",
     space: "bbox / polygon 的坐标系。\"view\"：view_current_image 给你看的那张画面的像素——你根据所见自己画出区域时用它；即使那张画面是缩小的概览图，也会替你换算。\"object\"：对象像素，例如从 segment_region 或 locate_roi 原样复制的多边形或框。",
+    view_id: "space 为 \"view\" 时，你所依据的那张画面的 view_id（view_current_image 会报告）。缺省为你最近一次查看的视图。",
     bbox: "矩形 [x0, y0, x1, y1]，坐标系由 space 指定。bbox 与 polygon 二选一。",
     polygon: "闭合轮廓 [[x, y], ...]，坐标系由 space 指定。bbox 与 polygon 二选一。",
     note: "显示在建议旁、给用户看的简短理由（你为什么认为它是这个）。",
