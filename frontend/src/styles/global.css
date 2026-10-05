@@ -3145,37 +3145,60 @@ body.resizing .focus-rail { transition: none; }
 .video-evidence-frame img { display: block; max-width: 100%; max-height: 260px; }
 .video-evidence-region { position: absolute; box-sizing: border-box; border: 2px solid var(--agent); pointer-events: none; }
 
-/* ==== 建议标注卡片（SDD 02 §6）：agent 提出、人来确认 ==== */
+/* ==== 建议标注卡片（SDD 02 §6）：agent 提出、人来确认；与交互卡片同一视觉语言 ==== */
 .suggestion-card {
+  width: 100%;
   margin: 6px 0;
-  padding: 8px 10px;
-  border: 1px solid var(--agent-line);
-  background: var(--agent-dim);
-  border-radius: 8px;
-  font-size: 12px;
-}
-/* 待确认的建议用左侧竖条点出"这里等你处理"，与画布上的橙色虚线同色呼应 */
-.suggestion-card.pending { border-left: 3px solid var(--warn); }
-.suggestion-head { display: flex; align-items: center; gap: 6px; }
-.suggestion-head b { color: var(--bright); }
-.suggestion-note { margin-top: 4px; color: var(--mid); font-size: 11px; }
-.suggestion-badge { font-size: 10.5px; color: var(--faint); margin-left: auto; }
-.suggestion-badge.suggested { color: var(--warn); }
-.suggestion-badge.confirmed { color: var(--good); }
-.suggestion-badge.rejected,
-.suggestion-badge.missing { color: var(--faint); }
-.suggestion-actions { display: flex; gap: 6px; margin-top: 8px; }
-.suggestion-actions button {
-  padding: 3px 12px;
-  font-size: 11.5px;
+  padding: 12px 14px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
-  background: var(--editor);
-  color: var(--ink);
-  cursor: pointer;
+  border-radius: 10px;
+  background: var(--sidebar);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+  font-size: 12.5px;
 }
-.suggestion-actions button:hover { border-color: var(--agent-line); }
-.suggestion-actions .btn-primary { background: var(--accent); color: var(--bright); }
+/* 已确认、已驳回、已删除的建议是历史记录，整体减弱 */
+.suggestion-card.confirmed,
+.suggestion-card.rejected,
+.suggestion-card.missing { box-shadow: none; }
+.suggestion-card.rejected .suggestion-title b,
+.suggestion-card.missing .suggestion-title b { color: var(--mid); }
+.suggestion-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.suggestion-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--agent-dim);
+  color: var(--agent);
+}
+.suggestion-card.missing .suggestion-icon,
+.suggestion-card.rejected .suggestion-icon { background: var(--hover); color: var(--faint); }
+.suggestion-title { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+.suggestion-title small { font-size: 11px; color: var(--faint); }
+.suggestion-title b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-size: 13px;
+  font-weight: 600;
+}
+.suggestion-note { margin-top: 10px; color: var(--mid); font-size: 12px; line-height: 1.6; }
+/* 状态胶囊：待确认用警示色（与画布上的橙色虚线呼应），已确认用正常色，其余中性 */
+.suggestion-badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.suggestion-badge.suggested { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.suggestion-badge.confirmed { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.suggestion-actions { display: flex; gap: 6px; margin-top: 12px; }
 
 /* ==== 交互卡片（SDD 15 §5.1）：权限审批与 ask_user 提问；与建议卡片同一视觉语言 ==== */
 .interaction-card {

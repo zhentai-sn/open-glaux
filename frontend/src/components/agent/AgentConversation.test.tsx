@@ -364,6 +364,30 @@ describe("AgentConversation", () => {
     expect(order[order.length - 1]).toContain("tool-r2");
   });
 
+  it("keeps one avatar when a suggestion card follows the tool steps", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "mark it" },
+            { role: "assistant", content: [{ type: "toolCall", id: "p1", name: "propose_annotation", arguments: { label: "fold" } }] },
+            {
+              role: "toolResult", toolCallId: "p1", toolName: "propose_annotation", isError: false,
+              content: [{ type: "text", text: "Proposed." }],
+              details: { kind: "glaux.annotation_proposed", payload: { annotation_id: "a1", image_id: "img_1", label: "fold" } },
+            },
+            { role: "assistant", content: [{ type: "text", text: "Proposed a box." }] },
+          ],
+        },
+      },
+    });
+    const { container } = render(<I18nProvider><AgentConversation /></I18nProvider>);
+    // 建议卡片等人确认，留在步骤组外；它与步骤组、回复同属一段输出，只有一个头像
+    expect(screen.getByTestId("suggestion-card")).toBeInTheDocument();
+    expect(container.querySelectorAll(".conversation-stream .who")).toHaveLength(1);
+  });
+
   it("folds tool steps above the final reply and shows input, output and duration", () => {
     useAgentSessions.setState({
       views: {

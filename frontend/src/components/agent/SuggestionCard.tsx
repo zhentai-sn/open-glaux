@@ -65,10 +65,13 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
   const pending = status === "suggested";
 
   return (
-    <div className={"suggestion-card" + (pending ? " pending" : "")} data-testid="suggestion-card">
+    <div className={`suggestion-card ${status}`} data-testid="suggestion-card">
       <div className="suggestion-head">
-        <Icon icon={ICONS.annotation} size="sm" />
-        <b>{t("suggestion_title", { label: payload.label })}</b>
+        <span className="suggestion-icon" aria-hidden="true"><Icon icon={ICONS.annotation} size="sm" /></span>
+        <div className="suggestion-title">
+          <small>{t("suggestion_kind")}</small>
+          <b>{payload.label}</b>
+        </div>
         <StatusBadge status={status} />
       </div>
       {payload.note && <div className="suggestion-note">{payload.note}</div>}
@@ -76,7 +79,7 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
         <div className="suggestion-actions">
           <button
             type="button"
-            className="btn-primary"
+            className="interaction-btn primary"
             data-testid="suggestion-confirm"
             onClick={() => void resolveSuggestion(live.id, live.seq, "confirmed")}
           >
@@ -84,6 +87,7 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
           </button>
           <button
             type="button"
+            className="interaction-btn"
             data-testid="suggestion-reject"
             onClick={() => void resolveSuggestion(live.id, live.seq, "rejected")}
           >

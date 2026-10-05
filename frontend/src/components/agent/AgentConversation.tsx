@@ -513,8 +513,7 @@ export function AgentConversation() {
           </div>
         </div>
         {actionable.map((node, i) => (
-          <div className="turn assistant tool" key={`actionable-${block.start}-${i}`}>
-            {owl}
+          <div className="turn assistant tool continued" key={`actionable-${block.start}-${i}`}>
             {node}
           </div>
         ))}
