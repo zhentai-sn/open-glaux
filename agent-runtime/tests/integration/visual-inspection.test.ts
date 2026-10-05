@@ -94,6 +94,16 @@ describe("view_current_image zoom", () => {
     expect(text(raw)).toMatch(/Annotations are not drawn/u);
   });
 
+  it("lets the backend pick the WSI level so zooming reaches finer levels", async () => {
+    const backend = fakeBackend([46000, 32914]);
+    const v = viewerOn(ID, { kind: "slide", index: { level: 2 } });
+    v.object!.axes = [{ name: "x", size: 46000 }, { name: "y", size: 32914 }, { name: "level", size: 3 }];
+    const tool = createViewCurrentImageTool({ fetch: backend.fetch, viewer: v, views: new ViewRegistry() });
+    const zoom = await tool.execute("c1", { region: [35300, 4300, 36100, 5300] }, undefined, undefined, undefined);
+    expect(frames(backend.calls)[0]!.url.searchParams.has("level")).toBe(false);
+    expect(text(zoom)).toMatch(/View v1: /u); // 返回帧的层与焦点不同也接受
+  });
+
   it("answers invalid or oversized regions with text instead of failing the command", async () => {
     const backend = fakeBackend([4000, 3000]);
     const tool = createViewCurrentImageTool({ fetch: backend.fetch, viewer: viewer([4000, 3000]), views: new ViewRegistry() });

@@ -10,6 +10,8 @@ export interface ObservationOptions {
   region?: Extract<Region, { kind: "box" }>;
   /** 叠加当前索引上的标注并解析图例（SDD 22 §7.3）。 */
   overlay?: boolean;
+  /** 不传焦点的 `level`，由 backend 按输出尺寸选层；返回帧的层可与焦点不同（SDD 22 §7.1）。 */
+  fitLevel?: boolean;
 }
 
 /** 图例头缺失（backend 不支持叠加）时返回 undefined，由调用方如实告知模型；格式非法才报错。 */
@@ -31,7 +33,7 @@ function unavailable(message: string): never {
 
 function finite(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value); }
 
-function parseFrame(raw: string | null, focus: Focus): ReferenceFrame {
+function parseFrame(raw: string | null, focus: Focus, fitLevel = false): ReferenceFrame {
   if (!raw) unavailable("取图响应缺少 X-Glaux-Frame 坐标头");
   let value: unknown;
   try { value = JSON.parse(raw); } catch { unavailable("X-Glaux-Frame 不是合法 JSON"); }
@@ -48,6 +50,7 @@ function parseFrame(raw: string | null, focus: Focus): ReferenceFrame {
     parsedIndex[axis] = n as number;
   }
   for (const axis of ["z", "t", "level"] as const) {
+    if (axis === "level" && fitLevel) continue;
     if ((parsedIndex[axis] ?? null) !== (focus.index[axis] ?? null)) unavailable(`X-Glaux-Frame.index.${axis} 与焦点不一致`);
   }
   const origin = frame.origin;
@@ -60,6 +63,7 @@ function parseFrame(raw: string | null, focus: Focus): ReferenceFrame {
 export async function fetchObservation(base: string, focus: Focus, opts: ObservationOptions = {}): Promise<Observation> {
   const url = new URL(`${base.replace(/\/+$/u, "")}/objects/${encodeURIComponent(focus.object_id)}/frame`);
   for (const axis of ["z", "t", "level"] as const) {
+    if (axis === "level" && opts.fitLevel) continue;
     const value = focus.index[axis];
     if (value !== undefined && value !== null) url.searchParams.set(axis, String(value));
   }
@@ -75,7 +79,7 @@ export async function fetchObservation(base: string, focus: Focus, opts: Observa
   if (!response.ok) unavailable(`取图失败：HTTP ${response.status}（object_id=${focus.object_id}）`);
   const mime = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
   if (mime !== "image/png" && mime !== "image/jpeg") unavailable(`取图返回不支持的 MIME：${mime}`);
-  const frame = parseFrame(response.headers.get("X-Glaux-Frame"), focus);
+  const frame = parseFrame(response.headers.get("X-Glaux-Frame"), focus, opts.fitLevel);
   const rawTime = response.headers.get("X-Glaux-Frame-Time");
   const time = rawTime === null ? undefined : Number(rawTime);
   if (time !== undefined && (!Number.isInteger(time) || time < 0)) unavailable("X-Glaux-Frame-Time 非法");

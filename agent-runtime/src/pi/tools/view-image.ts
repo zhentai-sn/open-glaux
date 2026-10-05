@@ -166,6 +166,8 @@ export function createViewCurrentImageTool(
           fetch: doFetch,
           size: VIEW_SIZE,
           overlay: wantOverlay,
+          // WSI 按输出尺寸选层：放大时取到细节，不在查看器当前的粗层上裁小图（SDD 22 §7.1 规则 5）
+          fitLevel: focus.index.level !== undefined && focus.index.level !== null,
           ...(region ? { region: { kind: "box" as const, x0: region[0], y0: region[1], x1: region[2], y1: region[3] } } : {}),
         });
       } catch (error) {
