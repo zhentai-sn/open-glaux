@@ -1,11 +1,14 @@
 // 左侧栏右侧栏入口（SDD feats/01 v1.6 D20/D22、v1.7 D23，活动栏式）：舞台 / 文件 / 图谱 / 设置的按下态与点击语义。
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../../i18n";
+import { useAgentSessions } from "../../store/agentSessions";
 import { FOCUS_LAYOUT_DEFAULTS, useSession, type FocusLayout } from "../../store/session";
 
-vi.mock("../agent/SessionDrawer", () => ({ SessionDrawer: () => null }));
+vi.mock("../agent/SessionDrawer", () => ({
+  SessionDrawer: () => <button type="button" className="session-select">Current session</button>,
+}));
 
 import { SessionRail } from "./SessionRail";
 
@@ -90,5 +93,37 @@ describe("SessionRail 右侧栏入口", () => {
     expect(btn("Stage")).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(btn("Atlas"));
     expect(layout().rightOpen).toBe(false);
+  });
+});
+
+// 设置页铺满时，左侧栏的会话操作回到对话（SDD feats/01 D29）
+describe("SessionRail 会话操作离开设置页", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("glaux.lang", "en");
+    useAgentSessions.setState({ currentSessionId: "s1", newSession: vi.fn(async () => undefined) });
+    start({ railOpen: true, rightOpen: true, sideView: "settings" });
+    render(<I18nProvider><SessionRail /></I18nProvider>);
+  });
+
+  it("切换到另一个会话 → 收起设置页", () => {
+    act(() => useAgentSessions.setState({ currentSessionId: "s2" }));
+    expect(layout().rightOpen).toBe(false);
+  });
+
+  it("点当前会话（id 不变）→ 也收起设置页", () => {
+    fireEvent.click(btn("Current session"));
+    expect(layout().rightOpen).toBe(false);
+  });
+
+  it("新建会话 → 收起设置页", () => {
+    fireEvent.click(screen.getByTitle("New conversation"));
+    expect(layout().rightOpen).toBe(false);
+  });
+
+  it("上下文页与对话并排，切换会话不收起它", () => {
+    start({ railOpen: true, rightOpen: true, sideView: "context" });
+    act(() => useAgentSessions.setState({ currentSessionId: "s3" }));
+    expect(layout()).toMatchObject({ rightOpen: true, sideView: "context" });
   });
 });

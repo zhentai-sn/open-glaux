@@ -77,7 +77,7 @@ export function FocusSidePanel() {
     );
   }
 
-  // SDD 19 §7.1 规则 2：上下文页与设置页同位，铺满对话列
+  // SDD 19 §7.1 规则 2：上下文页与舞台、图谱同位，与对话列并排
   if (sideView === "context") {
     return (
       <aside className="focus-side" ref={asideRef} aria-label={t("focus_side_panel")}>

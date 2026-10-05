@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { type LucideIcon } from "lucide-react";
 
 import { CHAT_EDITION } from "../../edition";
@@ -56,7 +57,7 @@ const WORKSPACE_ENTRIES: RailEntry[] = [
     pressed: (l) => l.rightOpen && l.sideView === "atlas",
     next: (l) => (l.rightOpen && l.sideView === "atlas" ? { rightOpen: false } : { rightOpen: true, sideView: "atlas" }),
   },
-  // SDD 19 §7.1：上下文页，与设置页同样铺满对话列。
+  // SDD 19 §7.1：上下文页，与舞台、图谱同样和对话列并排。
   {
     id: "context",
     icon: TAB_ICON.context,
@@ -76,6 +77,11 @@ const SETTINGS_ENTRY: RailEntry = {
   pressed: (l) => l.rightOpen && l.sideView === "settings",
   next: (l) => (l.rightOpen && l.sideView === "settings" ? { rightOpen: false } : { rightOpen: true, sideView: "settings" }),
 };
+
+function leaveSettings() {
+  const { focusLayout, setFocusLayout } = useSession.getState();
+  if (focusLayout.rightOpen && focusLayout.sideView === "settings") setFocusLayout({ rightOpen: false });
+}
 
 function RailEntryButton({ entry }: { entry: RailEntry }) {
   const { t } = useI18n();
@@ -116,6 +122,16 @@ export function SessionRail() {
     (s) => s.sessions.find((x) => x.session_id === s.currentSessionId)?.project_id ?? null,
   );
   const projectName = useProjects((s) => (projectId ? (s.known[projectId]?.name ?? null) : null));
+  const currentSessionId = useAgentSessions((s) => s.currentSessionId);
+
+  // 设置页铺满时选会话或新建会话 = 回到对话（SDD feats/01 D29）。切换会话靠 currentSessionId 变化捕获，
+  // 点当前会话 id 不变，由会话行的点击捕获兜住。
+  // 初次载入（null → 会话）不算切换，刷新时停在设置页的用户不被踢回对话。
+  const lastSession = useRef(currentSessionId);
+  useEffect(() => {
+    if (lastSession.current !== null && lastSession.current !== currentSessionId) leaveSettings();
+    lastSession.current = currentSessionId;
+  }, [currentSessionId]);
 
   return (
     <div className={"focus-rail" + (railOpen ? " open" : "")}>
@@ -134,7 +150,10 @@ export function SessionRail() {
           type="button"
           title={projectName ? `${t("agent_new_session")} · ${projectName}` : t("agent_new_session")}
           disabled={loading}
-          onClick={() => void newSession()}
+          onClick={() => {
+            leaveSettings();
+            void newSession();
+          }}
         >
           <Icon icon={ICONS.plus} size="md" />
         </button>
@@ -149,7 +168,12 @@ export function SessionRail() {
         <RailEntryButton entry={SETTINGS_ENTRY} />
       </div>
       {railOpen && (
-        <div className="focus-rail-body">
+        <div
+          className="focus-rail-body"
+          onClickCapture={(e) => {
+            if ((e.target as Element).closest(".session-select")) leaveSettings();
+          }}
+        >
           <SessionDrawer />
         </div>
       )}
