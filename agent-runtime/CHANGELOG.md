@@ -16,6 +16,7 @@
 - `bash` 工具：只在「完全自治」下挂载，环境变量白名单（关闭对 `process.env` 的继承），缺省超时 120 秒、上限 600 秒，规则按命令前缀匹配（SDD 16 §7.5）。
 - 运行预算：每个命令默认 50 回合、20 分钟（设置文件或 `GLAUX_AGENT_MAX_TURNS` / `GLAUX_AGENT_MAX_MINUTES` 可改），用尽后拦截工具调用要求模型收尾，宽限用尽中止并记结局 `budget_exceeded`；每次模型请求只保留最近 4 个工具结果中的图像（SDD 15 §7.8、§7.9）。
 - 内置 Skill `skill-creator`：引导智能体按需求起草、保存、测试与改进 Skill；系统提示词的 Skills 目录段末尾列出各层 Skills 目录（SDD 17 D-6）。
+- 运行轨迹（SDD 21）：每条命令写会话条目 `glaux.request.header`（系统提示词分段、工具定义、模型与语言，同分支相同哈希只写一次全文），每次模型调用写 `glaux.model.call`（首 token 时间、总耗时、请求条数、裁剪图像数、运行时追加的消息、消息估算 token）；新增 `GET /agent-api/v1/sessions/{id}/trajectory`（从叶子到根的完整路径投影为轮次、步骤、工具、压缩与提示）与 `GET .../trajectory/requests/{item_id}`（按 harness 同一路径重建某次请求的消息并校验条数）。
 - 子智能体（SDD 18）：`agent` 工具（effect `delegate`）把子任务交给子智能体，只交回最终回复；定义文件 `<name>.md` 分内置（`agents/general.md`）、用户级（`~/.glaux/agents/`）、项目级（`<项目>/.glaux/agents/`）三层；子智能体在内存会话中运行，共用主会话的权限状态，独立计回合（定义的 `max_turns`，缺省 20），同一命令内并发不超过 3 个；结果 `details` 为 `glaux.subagent_run` 并进入快照；交互请求新增 `origin` 与 `tool_call_id`（主对话中关联的工具调用）；资源清单新增 `agents`；SSE 新增 `subagent.progress` 推送子智能体回合数与当前工具。
 
 ### Changed

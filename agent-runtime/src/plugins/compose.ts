@@ -96,10 +96,13 @@ export async function composeContext(
 /**
  * 每种钩子至多注册一个 handler；没有插件声明该钩子时不注册。返回注销函数。
  * `onBlock` 收到被拦截的工具调用标识，供展示区分「未执行」与「执行失败」（SDD 15 §5.1）。
+ * `onContext` 收到 `context` 钩子组合前后的消息，供运行轨迹记录请求摘要（SDD 21 §7.1 规则 5）；
+ * 传入时即使没有插件声明 `context` 也注册 handler。
  */
 export function installHooks(
   harness: Pick<AgentHarness, "on">, plugins: GlauxPlugin[], ctx: RunContext, logger: HookLogger = defaultLogger,
   onBlock?: (toolCallId: string) => void,
+  onContext?: (before: AgentMessage[], after: AgentMessage[]) => void,
 ): () => void {
   const disposers: (() => void)[] = [];
   const has = (name: "tool_call" | "tool_result" | "context") => plugins.some((plugin) => plugin.hooks?.[name]);
@@ -113,8 +116,17 @@ export function installHooks(
   if (has("tool_result")) {
     disposers.push(harness.on("tool_result", (event) => composeToolResult(plugins, event, ctx, logger)));
   }
-  if (has("context")) {
-    disposers.push(harness.on("context", async (event) => ({ messages: await composeContext(plugins, event.messages, ctx, logger) })));
+  if (has("context") || onContext) {
+    disposers.push(harness.on("context", async (event) => {
+      const messages = await composeContext(plugins, event.messages, ctx, logger);
+      try {
+        onContext?.(event.messages, messages);
+      } catch (error) {
+        // 轨迹采集失败不影响命令（SDD 21 §7.1 规则 6）
+        report(logger, "trajectory", "context", error);
+      }
+      return { messages };
+    }));
   }
   return () => disposers.forEach((dispose) => dispose());
 }

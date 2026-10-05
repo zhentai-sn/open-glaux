@@ -100,6 +100,14 @@ export function registerRoutes(
   );
 
   // SDD 17 §7.5 规则 7：按当前连接与查看器上下文预览系统提示词，不启动命令。
+  // SDD 21 §9.3、§9.4：运行轨迹与单次请求上下文，只读。
+  server.get("/agent-api/v1/sessions/:sessionId/trajectory", async (request) => sessions.trajectory(sessionIdFrom(request)));
+
+  server.get("/agent-api/v1/sessions/:sessionId/trajectory/requests/:itemId", async (request) => {
+    const { itemId } = request.params as { itemId: string };
+    return sessions.requestContext(sessionIdFrom(request), itemId);
+  });
+
   server.post("/agent-api/v1/sessions/:sessionId/system-prompt", async (request) => {
     const body = asObject(request.body);
     const viewer = parseViewer(body.viewer);

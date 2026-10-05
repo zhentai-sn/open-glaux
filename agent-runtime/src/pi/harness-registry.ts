@@ -47,6 +47,9 @@ import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
 import type { AgentDefinition } from "../resources/agents.js";
 import { createSlots, runSubagent, type SubagentRequest, type SubagentResult } from "../subagents/run.js";
+import type { RequestHeaderEntry } from "../contracts.js";
+import { fullBranch } from "../trajectory/branch.js";
+import { MODEL_CALL_ENTRY, ModelCallRecorder, REQUEST_HEADER_ENTRY, requestHeader } from "../trajectory/capture.js";
 
 export interface HarnessRuntimeFactory {
   (connection: ConnectionInput): ModelRuntime;
@@ -334,6 +337,13 @@ export class HarnessRegistry {
       throw error;
     }
     const { runtime, videoTurn, projectId, permission, resources, toolContext, tools, systemPrompt } = assembled;
+    // SDD 21 §7.1 规则 1、2：请求头随审计队列在命令结束时写入；同分支已有相同哈希的全文时只写引用。
+    let header: RequestHeaderEntry | undefined;
+    try {
+      header = await this.requestHeaderFor(session, commandId, assembled, options);
+    } catch (error) {
+      console.error("request header capture failed", { sessionId, error });
+    }
     // SDD 15 §7.8：预算上限取自已加载的设置；宽限用尽时异步中止，不在 pi 回调内等待空闲。
     const budget = permission ? new RunBudget({
       limits: resolveBudget(permission.settings),
@@ -351,16 +361,17 @@ export class HarnessRegistry {
     // SDD 15 §7.2：每种钩子只注册一个组合后的 handler；chat 发行版不挂插件。
     // 被拦截的工具调用：`tool.end` 与耗时记录据此标出「未执行」（SDD 15 §5.1）
     const blocked = new Set<string>();
-    const uninstallHooks = chatEdition() ? () => undefined : installHooks(harness, activePlugins(toolContext), {
+    const recorder = new ModelCallRecorder(commandId);
+    const uninstallHooks = installHooks(harness, chatEdition() ? [] : activePlugins(toolContext), {
       sessionId,
       commandId,
       ...(projectId ? { projectId } : {}),
       ...(options.viewer ? { viewer: options.viewer } : {}),
       ...(permission ? { permission } : {}),
       ...(budget ? { budget } : {}),
-    }, undefined, (toolCallId) => blocked.add(toolCallId));
+    }, undefined, (toolCallId) => blocked.add(toolCallId), (before, after) => recorder.onContext(before, after));
     const stats = { turns: 0, startedAt: Date.now() };
-    const audit: HarnessSlot["audit"] = [];
+    const audit: HarnessSlot["audit"] = header ? [{ customType: REQUEST_HEADER_ENTRY, data: header }] : [];
     // 工具耗时（SDD 15 §12）：含等待审批的时间，与用户感知一致。
     const toolStarts = new Map<string, number>();
     // 其中等待用户回复（审批、ask_user）的时长另记，展示时从耗时里扣除
@@ -369,6 +380,12 @@ export class HarnessRegistry {
       if (event.type === "turn_start") {
         stats.turns += 1;
         budget?.onTurnStart();
+      }
+      try {
+        const modelCall = recorder.onEvent(event);
+        if (modelCall) audit.push({ customType: MODEL_CALL_ENTRY, data: modelCall });
+      } catch (error) {
+        console.error("model call capture failed", { sessionId, error });
       }
       if (event.type === "tool_execution_start") toolStarts.set(event.toolCallId, Date.now());
       if (event.type === "tool_execution_end") {
@@ -668,6 +685,37 @@ export class HarnessRegistry {
     } finally {
       await this.sessions.closeSession(session);
     }
+  }
+
+  /** SDD 21 §9.1：本命令的请求头；分段、工具与估算与预览同一构造。 */
+  private async requestHeaderFor(
+    session: Session, commandId: string, assembled: Assembled, options: HarnessStartOptions,
+  ): Promise<RequestHeaderEntry> {
+    const knownHashes = new Set<string>();
+    for (const entry of await fullBranch(session)) {
+      if (entry.type !== "custom" || entry.customType !== REQUEST_HEADER_ENTRY) continue;
+      const data = entry.data as Partial<RequestHeaderEntry> | undefined;
+      if (typeof data?.hash === "string" && data.body) knownHashes.add(data.hash);
+    }
+    const mode = assembled.toolContext.permissionMode ?? "controlled";
+    const { prompt, segments, tools, est_tokens } = buildPreview({
+      prompt: assembled.systemPrompt,
+      segments: assembled.segments,
+      tools: assembled.tools,
+      context: undefined,
+      mode,
+    });
+    const model = assembled.runtime.model;
+    return requestHeader({
+      commandId,
+      body: { prompt, segments, tools, est_tokens },
+      provider: model.provider,
+      model: model.id,
+      contextWindow: model.contextWindow,
+      lang: options.lang ?? "en",
+      permissionMode: chatEdition() ? "" : mode,
+      knownHashes,
+    });
   }
 
   /** SDD 15 §7.5：本命令的权限判定状态。越界作用域与设置加载可由测试注入。 */

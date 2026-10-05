@@ -361,3 +361,176 @@ export type TransportEvent =
         trace_id: string;
       };
     };
+
+// ---------------------------------------------------------------------------
+// SDD 21 运行轨迹
+// ---------------------------------------------------------------------------
+
+/** 模型返回的用量（pi-ai `Usage` 的子集，SDD 21 §7.4 规则 2）。 */
+export interface TrajectoryUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  reasoning?: number;
+}
+
+export type TrajectoryBlock =
+  | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
+  | { type: "image"; mimeType: string; bytes: number }
+  | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
+
+export interface TrajectorySegment {
+  kind: "base" | "plugin" | "instructions" | "skills" | "viewer";
+  plugin?: string;
+  scope?: "user" | "project";
+  text: string;
+  est_tokens: number;
+}
+
+export interface TrajectoryTool {
+  name: string;
+  plugin: string;
+  effect: string;
+  description: string;
+  parameters: unknown;
+  est_tokens: number;
+}
+
+export interface RequestHeaderBody {
+  prompt: string;
+  segments: TrajectorySegment[];
+  tools: TrajectoryTool[];
+  est_tokens: { prompt: number; tools: number };
+}
+
+/** 会话条目 `glaux.request.header` 的数据（SDD 21 §9.1）。 */
+export interface RequestHeaderEntry {
+  command_id: string;
+  hash: string;
+  provider: string;
+  model: string;
+  context_window: number;
+  lang: string;
+  permission_mode: string;
+  body?: RequestHeaderBody;
+}
+
+/** 会话条目 `glaux.model.call` 的数据（SDD 21 §9.2）。 */
+export interface ModelCallEntry {
+  command_id: string;
+  step: number;
+  started_at: number;
+  first_token_ms?: number;
+  duration_ms: number;
+  request: {
+    message_count: number;
+    pruned_images: number;
+    injected: { role: "user"; text: string }[];
+    est_tokens: { messages: number };
+  };
+}
+
+interface TrajectoryItemBase {
+  item_id: string;
+  at: number;
+}
+
+export type TrajectoryItem =
+  | (TrajectoryItemBase & { kind: "user"; content: TrajectoryBlock[] })
+  | (TrajectoryItemBase & {
+      kind: "header";
+      hash: string;
+      provider: string;
+      model: string;
+      context_window: number;
+      lang: string;
+      permission_mode: string;
+      changed: "initial" | "same" | "changed";
+    })
+  | (TrajectoryItemBase & {
+      kind: "model";
+      step: number;
+      content: TrajectoryBlock[];
+      stop_reason: string;
+      error_message?: string;
+      usage: TrajectoryUsage;
+      timing?: { started_at: number; first_token_ms?: number; duration_ms: number };
+      request?: {
+        message_count: number;
+        pruned_images: number;
+        injected_count: number;
+        est_tokens: { system: number; tools: number; messages: number };
+      };
+    })
+  | (TrajectoryItemBase & {
+      kind: "tool";
+      tool_call_id: string;
+      name: string;
+      arguments: Record<string, unknown>;
+      result: TrajectoryBlock[];
+      is_error: boolean;
+      blocked: boolean;
+      duration_ms?: number;
+      waited_ms?: number;
+      subagent?: {
+        subagent_type: string;
+        description: string;
+        outcome: string;
+        turns: number;
+        transcript: TranscriptMessage[];
+      };
+    })
+  | (TrajectoryItemBase & {
+      kind: "compaction";
+      tokens_before: number;
+      summary: string;
+      summary_est_tokens: number;
+      kept: { count: number; est_tokens: number };
+      usage?: TrajectoryUsage;
+    })
+  | (TrajectoryItemBase & {
+      kind: "notice";
+      type: "budget" | "permission" | "model_change";
+      /** 原条目的数据，由前端按 `type` 格式化（界面双语）。 */
+      data: Record<string, unknown>;
+    });
+
+export interface TrajectoryTurn {
+  index: number;
+  command_id?: string;
+  command_type?: string;
+  started_at?: number;
+  ended_at?: number;
+  outcome: RunOutcome | "running" | "unknown";
+  items: TrajectoryItem[];
+}
+
+export interface Trajectory {
+  session_id: string;
+  turns: TrajectoryTurn[];
+  headers: Record<string, RequestHeaderBody>;
+  totals: {
+    turns: number;
+    model_calls: number;
+    tool_calls: number;
+    usage: { input: number; output: number; cache_read: number; cache_write: number };
+  };
+}
+
+export interface RequestContextMessage {
+  role: "user" | "assistant" | "toolResult" | "compactionSummary" | "branchSummary" | "custom";
+  content: TrajectoryBlock[];
+  est_tokens: number;
+  marks: ("pruned" | "injected")[];
+}
+
+export interface RequestContext {
+  item_id: string;
+  header_hash?: string;
+  turn_index: number;
+  matched: boolean;
+  recorded_count?: number;
+  messages: RequestContextMessage[];
+}

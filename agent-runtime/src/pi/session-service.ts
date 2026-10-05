@@ -33,10 +33,15 @@ import { ANNOTATION_PROPOSED_DETAILS_KIND } from "./tools/propose-annotation.js"
 import { OBJECT_OPENED_DETAILS_KIND } from "./tools/open-file.js";
 import { FILE_READ_DETAILS_KIND } from "../plugins/files.js";
 import { SUBAGENT_RUN_DETAILS_KIND } from "../subagents/run.js";
+import type { RequestContext, Trajectory } from "../contracts.js";
+import { fullBranch } from "../trajectory/branch.js";
+import { projectTrajectory } from "../trajectory/project.js";
+import { requestContext } from "../trajectory/request.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
 /** 工具耗时审计记录：`{tool_call_id, duration_ms, waited_ms?, blocked?}`，命令结束时写入（SDD 15 §12）。 */
+
 export const TOOL_TIMING_ENTRY = "glaux.tool.timing";
 
 export interface SessionServiceOptions {
@@ -205,6 +210,30 @@ export class SessionService {
       await removeWorkspace(this.workspacesRoot, sessionId).catch((error: unknown) => {
         console.error("workspace removal failed", { sessionId, error });
       });
+    }
+  }
+
+  /** SDD 21 §9.3：运行轨迹。 */
+  async trajectory(sessionId: string): Promise<Trajectory> {
+    const session = await this.openSession(sessionId);
+    try {
+      return projectTrajectory({
+        sessionId,
+        entries: await fullBranch(session),
+        running: this.phaseForSession(sessionId) !== "idle",
+      });
+    } finally {
+      await this.closeSession(session);
+    }
+  }
+
+  /** SDD 21 §9.4：某次模型调用实际发送的消息。 */
+  async requestContext(sessionId: string, itemId: string): Promise<RequestContext> {
+    const session = await this.openSession(sessionId);
+    try {
+      return await requestContext(session, await fullBranch(session), itemId);
+    } finally {
+      await this.closeSession(session);
     }
   }
 
