@@ -51,6 +51,7 @@ stateDiagram-v2
 | 17 | [智能体 Skills 与提示词管理](feats/17-agent-skills-prompts/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 | 18 | [子智能体](feats/18-agent-subagents/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 | 19 | [上下文管理](feats/19-context-management/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-04 |
+| 20 | [提示词随界面语言切换](feats/20-prompt-language/README.md) | `ready` | Glaux 项目维护者 | 2026-10-05 |
 
 ## 维护约定
 
