@@ -665,6 +665,8 @@ export const en = {
   atlas_ref_missing: "exemplar unavailable (retired or deleted)",
   atlas_ref_open: "Open in Atlas",
   // 建议标注卡片（SDD 02）——agent 只能提出，确认与否由人决定
+  revision_updated: "Revised suggestion",
+  revision_withdrawn: "Withdrew suggestion",
   suggestion_kind: "Suggested annotation",
   suggestion_confirm: "Confirm",
   suggestion_reject: "Reject",

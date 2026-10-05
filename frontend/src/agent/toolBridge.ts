@@ -9,6 +9,8 @@ export const TASK_OUTPUT_DETAILS_KIND = "glaux.task_output";
 export const RUN_TASK_TOOL_NAME = "run_task";
 export const ANNOTATION_PROPOSED_DETAILS_KIND = "glaux.annotation_proposed";
 export const PROPOSE_ANNOTATION_TOOL_NAME = "propose_annotation";
+export const ANNOTATION_REVISED_DETAILS_KIND = "glaux.annotation_revised";
+export const REVISE_ANNOTATION_TOOL_NAME = "revise_annotation";
 
 interface TaskOutputDetails {
   kind: typeof TASK_OUTPUT_DETAILS_KIND;
@@ -96,6 +98,35 @@ function asProposedAnnotation(value: unknown): Annotation | null {
   };
 }
 
+/** SDD 22 §9.3：修订结果；未生效（带 reason）时返回 null。`update` 带回 backend 的新标注。 */
+function asRevision(value: unknown): { action: "withdraw"; id: string; imageId: string } | { action: "update"; annotation: Annotation } | null {
+  if (!value || typeof value !== "object") return null;
+  const details = value as Record<string, unknown>;
+  if (details.kind !== ANNOTATION_REVISED_DETAILS_KIND || typeof details.reason === "string") return null;
+  if (typeof details.annotation_id !== "string" || typeof details.image_id !== "string") return null;
+  if (details.action === "withdraw") return { action: "withdraw", id: details.annotation_id, imageId: details.image_id };
+  if (details.action !== "update" || !details.annotation || typeof details.annotation !== "object") return null;
+  const a = details.annotation as Record<string, unknown>;
+  const primitive = asAnnotationPrimitive(a.primitive);
+  const index = asIndex(a.index ?? {});
+  if (!primitive || !index || typeof a.label !== "string" || !Number.isInteger(a.seq)) return null;
+  if (a.id !== details.annotation_id || a.image_id !== details.image_id) return null;
+  return {
+    action: "update",
+    annotation: {
+      id: details.annotation_id,
+      image_id: details.image_id,
+      index,
+      primitive,
+      label: a.label,
+      class_id: null,
+      status: "suggested",
+      source: "agent",
+      seq: a.seq as number,
+    },
+  };
+}
+
 /** 工具结果的目标比对一律用唯一焦点（SDD 10 §7 规则 20），不按模态取活动 id。 */
 function focusedId(): string | null {
   return useSession.getState().focus?.object_id ?? null;
@@ -141,6 +172,21 @@ export function applyToolExecutionEvent(event: unknown, sink: TaskOutputSink = f
     const existing = session.annotations.find((item) => item.id === annotation.id);
     // SSE 重复送达不得把已经确认/驳回、seq 更高的状态退回 suggested。
     if (!existing || existing.seq < annotation.seq) session.upsertAnnotation(annotation);
+    return true;
+  }
+  if (e.tool_name === REVISE_ANNOTATION_TOOL_NAME) {
+    const revision = asRevision(e.details);
+    if (!revision) return false;
+    const session = useSession.getState();
+    if (revision.action === "withdraw") {
+      if (focusedId() !== revision.imageId) return false;
+      session.removeAnnotation(revision.id);
+      return true;
+    }
+    if (focusedId() !== revision.annotation.image_id) return false;
+    const existing = session.annotations.find((item) => item.id === revision.annotation.id);
+    // 与提出时同理：重复送达不得把更高 seq 的状态退回
+    if (!existing || existing.seq < revision.annotation.seq) session.upsertAnnotation(revision.annotation);
     return true;
   }
   if (e.tool_name !== RUN_TASK_TOOL_NAME) return false;

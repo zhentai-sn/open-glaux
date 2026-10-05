@@ -266,3 +266,36 @@ describe("toViewerContext", () => {
     });
   });
 });
+
+describe("revise_annotation results (SDD 22 §9.3)", () => {
+  const revised = (extra: Record<string, unknown>) => ({
+    kind: "glaux.annotation_revised",
+    annotation_id: "ann-cat-1",
+    image_id: "natural_cat",
+    ...extra,
+  });
+
+  it("moves the suggestion in the viewer on update and removes it on withdraw", async () => {
+    const { session, bridge } = await fresh();
+    focusOn(session, "natural_cat");
+    bridge.applyToolExecutionEvent(toolEnd(PROPOSED_DETAILS, { tool_name: "propose_annotation" }));
+
+    const moved = { id: "ann-cat-1", image_id: "natural_cat", index: null, primitive: { kind: "bbox", x0: 230, y0: 240, x1: 1200, y1: 2700 }, label: "小猫", status: "suggested", source: "agent", seq: 2 };
+    expect(bridge.applyToolExecutionEvent(toolEnd(revised({ action: "update", annotation: moved }), { tool_name: "revise_annotation" }))).toBe(true);
+    expect(session.getState().annotations[0]).toMatchObject({ seq: 2, primitive: { kind: "bbox", x0: 230, y0: 240, x1: 1200, y1: 2700 } });
+
+    expect(bridge.applyToolExecutionEvent(toolEnd(revised({ action: "withdraw" }), { tool_name: "revise_annotation" }))).toBe(true);
+    expect(session.getState().annotations).toEqual([]);
+  });
+
+  it("ignores revisions that did not take effect or belong to another image", async () => {
+    const { session, bridge } = await fresh();
+    focusOn(session, "natural_cat");
+    bridge.applyToolExecutionEvent(toolEnd(PROPOSED_DETAILS, { tool_name: "propose_annotation" }));
+    expect(bridge.applyToolExecutionEvent(toolEnd(revised({ action: "withdraw", reason: "conflict" }), { tool_name: "revise_annotation" }))).toBe(false);
+    focusOn(session, "natural_dog");
+    expect(bridge.applyToolExecutionEvent(toolEnd(revised({ action: "withdraw" }), { tool_name: "revise_annotation" }))).toBe(false);
+    focusOn(session, "natural_cat");
+    expect(session.getState().annotations).toHaveLength(1);
+  });
+});

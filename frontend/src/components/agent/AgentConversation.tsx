@@ -20,6 +20,7 @@ import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import { AtlasRefCard, parseAtlasReferenced } from "./AtlasRefCard";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
+import { RevisionCard, parseAnnotationRevised } from "./RevisionCard";
 import { ObjectCard, parseObjectOpened } from "./ObjectCard";
 import { FileCard, parseFileRead } from "./FileCard";
 import { SubagentCard, parseSubagentRun } from "./SubagentCard";
@@ -431,6 +432,9 @@ export function AgentConversation() {
     if (proposed?.annotation_id) {
       return { node: <SuggestionCard payload={proposed} />, key: `sugg-${proposed.annotation_id}`, actionable: true };
     }
+    // 修订记录卡片：revise_annotation 的工具结果（SDD 22 §5.1）
+    const revised = parseAnnotationRevised(toolDetails);
+    if (revised) return { node: <RevisionCard payload={revised} />, key: `rev-${revised.annotation_id}-${revised.action}` };
     return null;
   };
 

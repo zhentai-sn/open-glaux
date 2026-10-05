@@ -658,6 +658,8 @@ export const zh: Record<I18nKey, string> = {
   atlas_ref_missing: "案例不可用（已下架或删除）",
   atlas_ref_open: "在图谱中打开",
   // 建议标注卡片（SDD 02）——agent 只能提出，确认与否由人决定
+  revision_updated: "已修订建议",
+  revision_withdrawn: "已撤回建议",
   suggestion_kind: "建议标注",
   suggestion_confirm: "确认",
   suggestion_reject: "驳回",
