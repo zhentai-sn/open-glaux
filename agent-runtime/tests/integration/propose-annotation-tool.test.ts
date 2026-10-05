@@ -47,6 +47,13 @@ function textOf(result: { content: Array<{ type: string; text?: string }> }): st
   return result.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
 
+/** 夹具缺省 64×48；看图换算会截到对象范围，换算类用例要给真实量级的 level-0 尺寸。 */
+function largeSlide() {
+  const v = viewerOn("slide_002", { index: { level: 2 } });
+  v.object!.axes = [{ name: "x", size: 100_000 }, { name: "y", size: 80_000 }, { name: "level", size: 4 }];
+  return v;
+}
+
 describe("propose_annotation", () => {
   it("落库恒为 suggested + agent——agent 不能自己确认标注", async () => {
     const captured: Captured[] = [];
@@ -129,7 +136,7 @@ describe("propose_annotation", () => {
   it("space=view 把看到的概览像素换算成对象像素", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: viewerOn("slide_002", { index: { level: 2 } }),
+      viewer: largeSlide(),
       fetch: frameBackend(captured, { origin: [0, 0], scale: 1 / 16 }),
     });
     await tool.execute(
@@ -145,7 +152,7 @@ describe("propose_annotation", () => {
   it("space=view 的 bbox 计入选区原点", async () => {
     const captured: Captured[] = [];
     const tool = createProposeAnnotationTool({
-      viewer: viewerOn("slide_002", { index: { level: 2 } }),
+      viewer: largeSlide(),
       fetch: frameBackend(captured, { origin: [1000, 2000], scale: 0.5 }),
     });
     await tool.execute("v2", { space: "view", label: "x", bbox: [10, 20, 30, 40] }, undefined, undefined, undefined);

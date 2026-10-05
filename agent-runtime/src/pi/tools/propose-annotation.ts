@@ -21,8 +21,8 @@ import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
-import { fetchObservation, toObjectPoint } from "../../observation/index.js";
-import { viewRegistryFor, type ViewRegistry } from "./view-registry.js";
+import { fetchObservation } from "../../observation/index.js";
+import { objectSize, viewPointToObject, viewRegistryFor, type ViewRegistry } from "./view-registry.js";
 import type { Index, ReferenceFrame, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
 
@@ -178,12 +178,13 @@ export function createProposeAnnotationTool(
         const resolved = await viewFrame(views, params.view_id, () => fetchObservation(base, focus, { signal: combined, fetch: doFetch }).then((o) => o.frame));
         if (typeof resolved === "string") return notProposed(imageId, params.label, "unknown_view", resolved);
         const frame = resolved;
+        const size = objectSize(viewer);
         if (bbox) {
-          const [ax, ay] = toObjectPoint([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], frame);
-          const [bx, by] = toObjectPoint([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], frame);
+          const [ax, ay] = viewPointToObject([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], frame, size);
+          const [bx, by] = viewPointToObject([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], frame, size);
           bbox = [ax, ay, bx, by];
         }
-        if (polygon) polygon = polygon.map((point) => toObjectPoint(point, frame));
+        if (polygon) polygon = polygon.map((point) => viewPointToObject(point, frame, size));
       }
 
       const primitive = hasBbox

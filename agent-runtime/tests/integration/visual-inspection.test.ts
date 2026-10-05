@@ -129,6 +129,19 @@ describe("drawing on a view", () => {
     expect(text(unknown)).toMatch(/Unknown view_id "v9"/u);
     expect(backend.calls.filter((c) => c.method === "POST")).toHaveLength(3);
   });
+
+  it("clamps view pixels at the picture edge to the object (rounded overview width overshoots)", async () => {
+    // 1280×2777：概览 scale = 1024/2777，宽取整为 472，472/scale ≈ 1280.1 越界
+    const backend = fakeBackend([1280, 2777]);
+    const views = new ViewRegistry();
+    const v = viewer([1280, 2777]);
+    await createViewCurrentImageTool({ fetch: backend.fetch, viewer: v, views }).execute("c1", {}, undefined, undefined, undefined);
+    const propose = createProposeAnnotationTool({ fetch: backend.fetch, viewer: v, views });
+    await propose.execute("p1", { label: "paw", space: "view", bbox: [383, 197, 472, 1030] }, undefined, undefined, undefined);
+    const primitive = backend.calls.find((c) => c.method === "POST")!.body!.primitive as Record<string, number>;
+    expect(primitive.x1).toBe(1280);
+    expect(primitive.y1).toBe(2777);
+  });
 });
 
 describe("revise_annotation", () => {

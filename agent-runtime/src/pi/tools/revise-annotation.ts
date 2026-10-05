@@ -12,9 +12,9 @@ import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
 import type { ViewerContext } from "../../contracts.js";
-import { fetchObservation, toObjectPoint } from "../../observation/index.js";
+import { fetchObservation } from "../../observation/index.js";
 import { bboxPrimitive, viewFrame } from "./propose-annotation.js";
-import { viewRegistryFor, type ViewRegistry } from "./view-registry.js";
+import { objectSize, viewPointToObject, viewRegistryFor, type ViewRegistry } from "./view-registry.js";
 
 export const REVISE_ANNOTATION_TOOL_NAME = "revise_annotation";
 export const ANNOTATION_REVISED_DETAILS_KIND = "glaux.annotation_revised";
@@ -142,12 +142,13 @@ export function createReviseAnnotationTool(
         if (params.space !== "object") {
           const resolved = await viewFrame(views, params.view_id, () => fetchObservation(base, focus, { signal: combined, fetch: doFetch }).then((o) => o.frame));
           if (typeof resolved === "string") return answer(`${resolved} Nothing was changed.`, { reason: "unknown_view" });
+          const size = objectSize(viewer);
           if (bbox) {
-            const [ax, ay] = toObjectPoint([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], resolved);
-            const [bx, by] = toObjectPoint([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], resolved);
+            const [ax, ay] = viewPointToObject([bbox[0] ?? Number.NaN, bbox[1] ?? Number.NaN], resolved, size);
+            const [bx, by] = viewPointToObject([bbox[2] ?? Number.NaN, bbox[3] ?? Number.NaN], resolved, size);
             bbox = [ax, ay, bx, by];
           }
-          if (polygon) polygon = polygon.map((point) => toObjectPoint(point, resolved));
+          if (polygon) polygon = polygon.map((point) => viewPointToObject(point, resolved, size));
         }
         primitive = bbox ? bboxPrimitive(bbox) ?? undefined : { kind: "polyline", closed: true, points: polygon! };
         if (!primitive) return answer("That bbox is degenerate (zero width or height). Nothing was changed.", { reason: "degenerate_geometry" });

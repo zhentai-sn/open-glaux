@@ -25,7 +25,7 @@ import { backendBaseUrl } from "../../atlas/client.js";
 import type { OverlayEntry, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
 import { fetchObservation } from "../../observation/index.js";
-import { viewRegistryFor, type Box, type ViewRegistry } from "./view-registry.js";
+import { objectSize, viewRegistryFor, type Box, type ViewRegistry } from "./view-registry.js";
 
 export const VIEW_CURRENT_IMAGE_TOOL_NAME = "view_current_image";
 export const IMAGE_VIEWED_DETAILS_KIND = "glaux.image_viewed";
@@ -83,13 +83,6 @@ const VIEW_SIZE = 1024;
 
 function textOnly(text: string, details: ImageViewedDetails) {
   return { content: [{ type: "text", text } satisfies TextContent], details };
-}
-
-function objectSize(viewer: ViewerContext): [number, number] | undefined {
-  const axes = viewer.object?.axes;
-  const w = axes?.find((axis) => axis.name === "x")?.size;
-  const h = axes?.find((axis) => axis.name === "y")?.size;
-  return w && h ? [w, h] : undefined;
 }
 
 /** 校验区域并截到对象范围；非法或与对象无交集时返回原因（SDD 22 §7.1 规则 1）。 */
