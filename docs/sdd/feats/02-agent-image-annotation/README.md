@@ -113,6 +113,9 @@ status: implemented
 - `propose_annotation` 成功事件到达前端后，当前对象的 Viewer 必须立即出现建议态标注；
   不得依赖切图、刷新或轮询才能显示。
 - 建议卡片必须随会话快照持久化；页面刷新后仍可恢复确认/驳回入口。
+- 建议卡片按所属 `image_id` 判定状态：所属对象是焦点对象时取 Viewer store 的实时 status，
+  store 中查不到才显示"标注已不存在"；所属对象不是焦点对象时显示"在其他对象上"，
+  对象已在对象清单中则给出"在舞台打开"入口，不显示确认/驳回。
 
 ## 6. 核心流程
 
@@ -262,7 +265,7 @@ Detection，`propose_annotation` 写回统一 Annotation Store；后者只在 `i
 | 建议态落库 | `backend/app/routers/annotations.py` + `annotations/store.py` | REST 暴露 `status`/`source`；建议态不派发 `on_commit`，确认时补派 |
 | 建议态渲染 | `frontend/src/annotation/csAnno.ts` | `suggested` 橙色虚线；`rejected` 不进画布 |
 | 确认流 | `frontend/src/annotation/bridge.ts` 的 `resolveSuggestion` | PATCH status；确认走 `applyHook` 回流 |
-| 建议卡片 | `frontend/src/components/agent/SuggestionCard.tsx` | 确认/驳回；状态取 store 实时值 |
+| 建议卡片 | `frontend/src/components/agent/SuggestionCard.tsx` | 确认/驳回；焦点对象取 store 实时值，非焦点对象显示"在其他对象上"并可打开 |
 | 坐标转换 | 前端 `csAnno`（D-9） | 图像像素坐标 → cornerstone 世界坐标 |
 
 ## 9. 数据或字段要求
@@ -416,7 +419,7 @@ trace_id；不记录图像内容与 API key。
 | `propose_annotation` | `propose-annotation-tool.test.ts`（12 例，含"恒 suggested+agent"） |
 | `locate_roi` | `locate-roi-tool.test.ts`（15 例，含坐标换算/裁剪/退化/先验退化） |
 | 建议态落库与确认 | `backend/tests/test_annotations.py`（8 例，含钩子派发时机） |
-| 前端渲染与确认流 | `SuggestionCard.test.tsx`（11 例）+ `csAnno.test.ts` 建议态 3 例 |
+| 前端渲染与确认流 | `SuggestionCard.test.tsx`（16 例，含非焦点对象不判已删除）+ `csAnno.test.ts` 建议态 3 例 |
 | 建议态实时写回 | `toolBridge.test.ts`：bbox/polygon 即时 upsert、重复事件幂等、已确认状态不回退、切图/错误/畸形 details 拒绝；Frontend 全量 `150 passed` |
 | 建议卡片快照 | `session-lifecycle.test.ts`：成功 details 保留且正文剥离、失败结果过滤；Agent Runtime 全量 `161 passed`；真实会话 `ad44e71f-…` 快照已恢复 `glaux.annotation_proposed` |
 

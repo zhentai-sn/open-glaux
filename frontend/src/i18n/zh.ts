@@ -667,6 +667,7 @@ export const zh: Record<I18nKey, string> = {
   suggestion_state_confirmed: "已确认",
   suggestion_state_rejected: "已驳回",
   suggestion_state_missing: "标注已不存在",
+  suggestion_state_elsewhere: "在其他对象上",
   // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
   err_title: "这块区域出问题了",
   err_hint: "Glaux 其余部分仍可正常使用。重新加载这块区域可再试一次。",

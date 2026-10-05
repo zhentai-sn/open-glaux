@@ -2,13 +2,15 @@
  * 建议标注卡片（SDD 02 §6 / §7.3）。
  *
  * 守住的不变量：卡片状态取自 store 里那条标注的**实时** status，不是提出时的快照；
- * 确认/驳回只发一次 PATCH 且带 base_seq；未提出（annotation_id 为 null）不渲染卡片。
+ * 确认/驳回只发一次 PATCH 且带 base_seq；未提出（annotation_id 为 null）不渲染卡片；
+ * 卡片所属对象不在舞台上时显示"在其他对象上"而非"已不存在"（store 只装焦点对象的标注）。
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Annotation } from "../../api/types";
+import type { Annotation, ObjectMeta } from "../../api/types";
+import * as actions from "../../data/actions";
 import { I18nProvider } from "../../i18n";
 import { useSession } from "../../store/session";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
@@ -44,9 +46,15 @@ function show(payload: Parameters<typeof SuggestionCard>[0]["payload"]) {
 const PAYLOAD = { annotation_id: "ann_1", image_id: "img_1", label: "左肾" };
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   updateMock.mockReset();
   updateMock.mockResolvedValue({ annotation: ann({ status: "confirmed", seq: 4 }) });
-  useSession.setState({ annotations: [ann()] });
+  useSession.setState({
+    annotations: [ann()],
+    focus: { object_id: "img_1", kind: "image", index: {}, region: null },
+    objects: {},
+    uiMode: "focus",
+  });
 });
 
 describe("parseAnnotationProposed", () => {
@@ -116,6 +124,61 @@ describe("SuggestionCard", () => {
     show(PAYLOAD);
     expect(screen.getByTestId("suggestion-badge").className).toContain("missing");
     expect(screen.queryByTestId("suggestion-confirm")).toBeNull();
+  });
+
+  it("舞台换成其他对象时显示「在其他对象上」，不判为已删除", () => {
+    // 焦点切到 WSI 后 store 只装 WSI 的标注
+    useSession.setState({
+      annotations: [ann({ id: "ann_wsi", image_id: "wsi_1" })],
+      focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null },
+    });
+    show(PAYLOAD);
+    const badge = screen.getByTestId("suggestion-badge");
+    expect(badge.className).toContain("elsewhere");
+    expect(badge.className).not.toContain("missing");
+    expect(screen.queryByTestId("suggestion-confirm")).toBeNull();
+  });
+
+  it("没有焦点对象时同样不判为已删除", () => {
+    useSession.setState({ annotations: [], focus: null });
+    show(PAYLOAD);
+    expect(screen.getByTestId("suggestion-badge").className).toContain("elsewhere");
+  });
+
+  it("所属对象在对象清单里时给出打开入口，点击切到该对象并展开舞台", async () => {
+    const open = vi.spyOn(actions, "openObject").mockResolvedValue(undefined);
+    const cat = { id: "img_1", kind: "image", modality: "natural_image" } as ObjectMeta;
+    useSession.setState({
+      annotations: [],
+      focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null },
+      objects: { natural_image: [cat] },
+    });
+    useSession.getState().setFocusLayout({ rightOpen: false, sideView: "context" });
+    show(PAYLOAD);
+    fireEvent.click(screen.getByTestId("suggestion-open-object"));
+    expect(open).toHaveBeenCalledWith("img_1", "natural_image");
+    await waitFor(() => expect(useSession.getState().focusLayout.rightOpen).toBe(true));
+    expect(useSession.getState().focusLayout.sideView).toBe("stage");
+  });
+
+  it("所属对象不在对象清单里时只显示状态，不给打开入口", () => {
+    useSession.setState({
+      annotations: [],
+      focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null },
+    });
+    show(PAYLOAD);
+    expect(screen.queryByTestId("suggestion-open-object")).toBeNull();
+  });
+
+  it("切回所属对象后恢复实时状态与动作", () => {
+    useSession.setState({ focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null }, annotations: [] });
+    show(PAYLOAD);
+    expect(screen.getByTestId("suggestion-badge").className).toContain("elsewhere");
+    act(() =>
+      useSession.setState({ focus: { object_id: "img_1", kind: "image", index: {}, region: null }, annotations: [ann()] }),
+    );
+    expect(screen.getByTestId("suggestion-badge").className).toContain("suggested");
+    expect(screen.getByTestId("suggestion-confirm")).toBeTruthy();
   });
 
   it("本次未提出（annotation_id 为 null）不渲染卡片", () => {

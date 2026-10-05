@@ -674,6 +674,7 @@ export const en = {
   suggestion_state_confirmed: "confirmed",
   suggestion_state_rejected: "rejected",
   suggestion_state_missing: "no longer exists",
+  suggestion_state_elsewhere: "on another object",
   // error boundary（局部崩溃兜底 — 信任可见 G5，不打成黑屏）
   err_title: "This section stopped responding",
   err_hint: "The rest of Glaux keeps working. Reload this section to try again.",
