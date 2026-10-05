@@ -650,43 +650,6 @@ export function AgentConversation() {
         )}
       </header>
 
-      <div className="agent-configbar">
-        <button type="button" onClick={openConfig}>
-          {connection.provider === "openai_compatible"
-            ? "OpenAI-compatible"
-            : "Anthropic"}
-          <span> · {connection.model || "—"}</span>
-        </button>
-        {!CHAT_EDITION && <label>
-          <span>{t("agent_permission")}</span>
-          <select
-            value={view?.permission_mode ?? "controlled"}
-            disabled={!view}
-            title={t(`agent_permission_${view?.permission_mode ?? "controlled"}_hint`)}
-            onChange={(event) => {
-              const mode = event.target.value as PermissionMode;
-              // 最高权限需显式确认（SDD 15 §7.4 规则 3）；取消则模式不变。
-              if (mode === "autonomous" && !window.confirm(t("agent_permission_autonomous_confirm"))) {
-                event.target.value = view?.permission_mode ?? "controlled";
-                return;
-              }
-              if (currentSessionId) void setPermissionMode(currentSessionId, mode);
-            }}
-          >
-            {PERMISSION_MODES.map((mode) => (
-              <option key={mode} value={mode} title={t(`agent_permission_${mode}_hint`)}>
-                {t(`agent_permission_${mode}`)}
-              </option>
-            ))}
-          </select>
-        </label>}
-        <ContextRing
-          tokens={context?.tokens ?? null}
-          windowSize={contextWindow}
-          label={t("agent_context")}
-        />
-      </div>
-
       {(!connected || error) && (
         <div className="agent-error" role="alert">
           <span>
@@ -786,6 +749,45 @@ export function AgentConversation() {
         disabled={inputDisabled}
         onSend={send}
         onAbort={abort}
+        controls={
+          <>
+            <ContextRing
+              tokens={context?.tokens ?? null}
+              windowSize={contextWindow}
+              label={t("agent_context")}
+            />
+            {/* 只显示模型名：服务类型对用户没有决策价值，点击进连接设置 */}
+            <button className="composer-model" type="button" title={t("cfg_title")} onClick={openConfig}>
+              {connection.model || t("agent_model_none")}
+            </button>
+            {!CHAT_EDITION && (
+              <label className="composer-permission" title={t(`agent_permission_${view?.permission_mode ?? "controlled"}_hint`)}>
+                <Icon icon={ICONS.permission} size="sm" />
+                <select
+                  aria-label={t("agent_permission")}
+                  value={view?.permission_mode ?? "controlled"}
+                  disabled={!view}
+                  onChange={(event) => {
+                    const mode = event.target.value as PermissionMode;
+                    // 最高权限需显式确认（SDD 15 §7.4 规则 3）；取消则模式不变。
+                    if (mode === "autonomous" && !window.confirm(t("agent_permission_autonomous_confirm"))) {
+                      event.target.value = view?.permission_mode ?? "controlled";
+                      return;
+                    }
+                    if (currentSessionId) void setPermissionMode(currentSessionId, mode);
+                  }}
+                >
+                  {PERMISSION_MODES.map((mode) => (
+                    <option key={mode} value={mode} title={t(`agent_permission_${mode}_hint`)}>
+                      {t(`agent_permission_${mode}`)}
+                    </option>
+                  ))}
+                </select>
+                <Icon icon={ICONS.chevronDown} size="sm" />
+              </label>
+            )}
+          </>
+        }
       />
       {drawerOpen && <SessionDrawer />}
     </aside>

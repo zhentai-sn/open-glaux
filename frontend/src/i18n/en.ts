@@ -263,6 +263,7 @@ export const en = {
   agent_new_title: "New conversation",
   agent_archived_readonly: "Archived conversations are read-only.",
   agent_model_required: "Choose a model in connection settings to chat.",
+  agent_model_none: "No model",
   tl_cursor: "Select / Pan",
   tl_bbox: "Bounding box",
   tl_polygon: "Polygon",

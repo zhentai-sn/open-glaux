@@ -258,6 +258,7 @@ export const zh: Record<I18nKey, string> = {
   agent_new_title: "新会话",
   agent_archived_readonly: "已归档会话为只读状态。",
   agent_model_required: "请先在连接设置中选择模型。",
+  agent_model_none: "未选模型",
   tl_cursor: "选择 / 平移",
   tl_bbox: "框标注",
   tl_polygon: "多边形标注",

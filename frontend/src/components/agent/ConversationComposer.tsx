@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   addFiles,
@@ -27,6 +27,8 @@ interface ConversationComposerProps {
   /** `invocation` 存在时为显式调用 Skill 或模板（SDD 17 §7.4），`content` 仍为输入框原文。 */
   onSend: (content: string, images: PromptImage[], invocation?: Invocation) => Promise<void>;
   onAbort: () => Promise<void>;
+  /** 底栏右侧、发送键之前的会话控件（上下文用量、模型、权限），由对话列提供。 */
+  controls?: ReactNode;
 }
 
 export function ConversationComposer({
@@ -34,6 +36,7 @@ export function ConversationComposer({
   disabled,
   onSend,
   onAbort,
+  controls,
 }: ConversationComposerProps) {
   const { t } = useI18n();
   // 草稿在 store（非组件 state）：模式切换会重挂载对话列，未发送内容不得丢（SDD feats/01 §8/§15）。
@@ -263,7 +266,6 @@ export function ConversationComposer({
         }}
       />
       <div className="composer-actions">
-        {!CHAT_EDITION && <ProjectChip />}
         <input
           ref={fileInputRef}
           type="file"
@@ -283,26 +285,35 @@ export function ConversationComposer({
           aria-label={t(CHAT_EDITION ? "agent_attach_image" : "agent_attach_file")}
           onClick={() => fileInputRef.current?.click()}
         >
-          ＋ {uploading ? t("agent_video_uploading") : t(CHAT_EDITION ? "agent_attach_image" : "agent_attach_file")}
+          <Icon icon={uploading ? ICONS.spinner : ICONS.plus} size="md" />
         </button>
-        {running ? (
-          <button
-            className="composer-primary stop"
-            type="button"
-            onClick={() => void onAbort()}
-          >
-            ■ {t("agent_stop")}
-          </button>
-        ) : (
-          <button
-            className="composer-primary"
-            type="button"
-            disabled={disabled || uploading || (!content.trim() && !attachments.length)}
-            onClick={() => void submit()}
-          >
-            <Icon icon={ICONS.send} size="sm" /> {t("agent_send")}
-          </button>
-        )}
+        {uploading && <span className="composer-uploading">{t("agent_video_uploading")}</span>}
+        {!CHAT_EDITION && <ProjectChip />}
+        <div className="composer-end">
+          {controls}
+          {running ? (
+            <button
+              className="composer-primary stop"
+              type="button"
+              title={t("agent_stop")}
+              aria-label={t("agent_stop")}
+              onClick={() => void onAbort()}
+            >
+              <Icon icon={ICONS.stop} size="sm" />
+            </button>
+          ) : (
+            <button
+              className="composer-primary"
+              type="button"
+              title={t("agent_send")}
+              aria-label={t("agent_send")}
+              disabled={disabled || uploading || (!content.trim() && !attachments.length)}
+              onClick={() => void submit()}
+            >
+              <Icon icon={ICONS.send} size="md" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

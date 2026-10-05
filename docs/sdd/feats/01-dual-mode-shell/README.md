@@ -148,7 +148,7 @@ flowchart TD
 
 ## 7. 交互规则
 
-1. **对话优先**:Focus 下对话流是唯一常驻主体;空状态为居中输入框 + 示例任务卡(Codex 式空状态)。非空状态下输入框与其下方状态行和消息阅读列同宽同轴(≤720px,两侧内缩 = 消息流内边距 + 对称预留的滚动条槽)。
+1. **对话优先**:Focus 下对话流是唯一常驻主体;空状态为居中输入框 + 示例任务卡(Codex 式空状态)。非空状态下输入框与消息阅读列同宽同轴(≤720px,两侧内缩 = 消息流内边距 + 对称预留的滚动条槽)。
 2. **右侧工作区(v1.6,修订 v1.4/v1.5 的标签条与折叠竖条)**:Focus 右侧栏是**纯内容区**,承载一个工作区:**舞台**或**图谱**(`sideView`),二者占同一位置互换,对话列始终保留(D20)。右侧栏没有自己的标签条、按钮与折叠竖条;收起(`rightOpen=false`)时整栏不渲染(D22)。
    - **舞台态**分两列——左列是**舞台**;右列是**文件浏览器**(模态切换 + 图像导航,复用 Workbench 资源管理器视图,可整列关闭),贴屏幕最右缘(D19)。无活动图时舞台显示占位引导(D13),不整块消失。
    - **入口**统一在左侧栏活动栏(会话 ☰ ＋ 之下,分隔线隔开),三枚图标带按下态(`aria-pressed`):
@@ -172,7 +172,7 @@ flowchart TD
      - 「高级」组(仅 OpenAI 兼容):可折叠,缺省折叠,标题行显示当前上下文窗口与最大输出;最大输出不小于上下文窗口时自动展开并标红。
      - 所有字段有可见标签:设置面板中左标签右控件(面板宽 < 520px 时改为上下排列),Workbench 浮层中标签在控件上方。
    - 「外观」:主题(深色 / 浅色,写 SDD 12 的 `useTheme`)与界面语言(中文 / English,写 i18n 语言),均为分段单选、即时生效。
-   - 其余打开连接配置的入口(对话状态行、视频模型提示、「请先配置模型」提示、空状态示例卡)在 Focus 下一律打开设置面板;Workbench 仍用浮层。
+   - 其余打开连接配置的入口(输入框底栏的模型名、视频模型提示、「请先配置模型」提示、空状态示例卡)在 Focus 下一律打开设置面板;Workbench 仍用浮层。
 6. **反长回规则(硬约束)**:后续新能力默认 Workbench 独占;进入 Focus 必须显式设计并更新本 SDD——防止 Focus 逐渐长回一个 IDE。
 7. **栏宽可调(v1.3;v1.4 增第三条)**:Focus 栏间各有一条拖拽分隔条——会话栏 ⇄ 对话列、对话列 ⇄ 右侧栏,以及(v1.4)右侧栏内的**舞台 ⇄ 浏览器列**。第三条只在分栏态渲染:浏览器列关闭或处于窄屏降级态时不渲染。它夹在 `BROWSER_W` 范围内,并保证舞台不小于 `STAGE_MIN`;交互(双击复位、`role="separator"`、←/→ 16px、Home 复位)与前两条完全一致,复用同一 `PaneResizer`。拖拽**在允许范围内**改变两侧栏宽度,对话列吃剩余空间(始终 ≥ 360px);越界即被夹住,不产生横向滚动、不把任一栏拖没。折叠态的栏不可拖(会话栏收成 40px 活动栏,右侧栏收起即不渲染),分隔条隐藏;展开后恢复。双击分隔条复位为默认宽度。分隔条为 `role="separator"` 可聚焦,←/→ 每次 16px、Home 复位(与 feats/05 键盘可达一致)。宽度随 `focusLayout` 持久化,刷新与模式往返保持。
 8. **动效**(按[纲领 §5](../../../designs/frontend-design-charter.zh-CN.md)):模式切换为 ≤320ms 朴素 crossfade(两模式是同一世界的两种视角,不做戏剧化转场);舞台/会话栏开合 200–280ms ease-out,退场更短;`prefers-reduced-motion` 下全部降级为瞬时切换,功能语义不依赖动效;动效时长/缓动用 token,不写死。
@@ -211,7 +211,7 @@ flowchart TD
 | 改动(SDD 04 v1.1) | `StagePanel` | 工具条与读数条的装配改读 `useEditorChrome`,段顺序为模式 → 绘制提示 → 模式选项 → 视图 → 弹性占位 → 动作 → 运行中指示,读数条在工具条下方;`onTool` 不再处理 `reset`;紧凑模式判据不变;契约见 SDD 04 §6.4、§7.5 |
 | 改动(v1.7) | `ConnectionConfig` | 增 `variant: "popover" \| "panel"`;`panel` 去掉浮层外框、标题与关闭钮,嵌入设置面板「模型与连接」分区;按 D26 重排为状态卡 + 服务 / 模型 / 能力 / 高级四组,连接字段与存储不变 |
 | 新增(v1.7) | `Segmented` | 分段单选控件,设置面板与连接表单共用 |
-| 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时对话状态行、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
+| 改动(v1.7) | `AgentConversation` | `uiMode="focus"` 时输入框底栏的模型名、视频模型提示、「请先配置模型」提示改为打开设置面板(`{rightOpen:true, sideView:"settings"}`);Workbench 仍开浮层 |
 | 新增(v1.7) | `SettingsPanel` | 设置面板:分区导航(模型与连接 / 外观)+ 内容;外观分区写 `useTheme` 与 i18n 语言;容器查询 < 520px 时导航横排 |
 | 改动(v1.7) | `SessionRail` / `FocusSidePanel` / `ChatShell` | 竖条底部增 ⚙ 设置入口(chat 发行版也有);`FocusSidePanel` 在 `sideView="settings"` 时整栏渲染 `SettingsPanel`;`ChatShell` 在同条件下于对话列右侧渲染 |
 | 改动(v1.7) | `FocusTopBar` / `FocusShell` | 顶栏删除图像上下文 chip、主题按钮与 ⚙ 弹层,只剩标识与 ⇄;`FocusShell` 删除 `configOpen` 状态,示例卡改为打开设置面板(D24) |
@@ -219,7 +219,7 @@ flowchart TD
 | 改动 | `App.tsx` | 按 `uiMode` 分叉渲染两棵子树(§6.2);数据装载 effect 不动 |
 | 改动 | `TitleBar` | 右侧加 ModeSwitch |
 | Focus 不渲染 | ActivityBar、SideBar、BottomPanel、TerminalView、StatusBar、dockview | DOM 级不存在(§15 有断言) |
-| Focus 内 CSS 隐藏/重排 | AgentConversation 顶部工具条、其内嵌 SessionDrawer 浮层与空态占位;空状态下配置条只留权限下拉(发出首条消息前即可选定权限),连接与上下文用量隐藏;非空状态下连接/权限条经 flex order 移至输入框下方(Claude Code 式状态行) | 会话操作归 SessionRail、连接配置归左侧栏「设置」、空态归 FocusHero(G3 收纳);空状态 Composer 经 CSS 化为设计稿的「输入框卡片」;作用域覆盖集中在 global.css Focus 段并注释 |
+| Focus 内 CSS 隐藏/重排 | AgentConversation 顶部工具条、其内嵌 SessionDrawer 浮层与空态占位;空状态下输入框底栏隐藏上下文用量,模型名与权限下拉照常显示(发出首条消息前即可选定权限) | 会话操作归 SessionRail、连接配置归左侧栏「设置」、空态归 FocusHero(G3 收纳);空状态 Composer 经 CSS 化为设计稿的「输入框卡片」;作用域覆盖集中在 global.css Focus 段并注释 |
 
 ## 9. 状态与展示字段
 
@@ -358,7 +358,7 @@ v1.5(图谱一级入口 + 工作台入口缺省关闭):
 - [x] 会话卡片"在图谱中打开"写 `sideView:"atlas"`;顶栏 chip 写 `sideView:"stage"` + `browserView:"files"`。——`atlasView.test.ts` / `AtlasRefCard.test.tsx` / `FocusTopBar.test.tsx`
 - [x] 旧持久化 `browserView:"atlas"`、`rightView:"atlas"` 迁为 `sideView:"atlas"`,不白屏。——`atlasView.test.ts`
 - [x] 未设 `VITE_GLAUX_WORKBENCH` 时:无 ⇄ 按钮,`Ctrl/Cmd+Shift+M` 不切换,速查面板无该项,已持久化的 `workbench` 回落 Focus。——`workbenchFlag.test.tsx`;浏览器走查
-- [x] 非空状态下输入框、状态行与消息阅读列左右边界一致。——浏览器实测三者 left/right 相等
+- [x] 非空状态下输入框与消息阅读列左右边界一致。——浏览器实测二者 left/right 相等
 
 开发侧验证(2026-09-25,浏览器走查 + `248 passed` / eslint / tsc 全绿):
 
@@ -383,7 +383,7 @@ v1.7(设置面板 + 顶栏精简):
 - [x] 设置面板缺省打开「模型与连接」分区,内嵌面板形态的连接表单;切到「外观」后可选深色 / 浅色与中文 / English,即时生效。——`SettingsPanel.test.tsx`;浏览器走查深浅往返
 - [x] 设置面板宽 < 520px 时导航改为顶部横排、设置行改为上下排列,无横向滚动。——浏览器实测(面板宽 424px)
 - [x] Focus 顶栏只剩标识与 ⇄(开放工作台时);无图像上下文 chip、主题按钮与 ⚙ 弹层。——`FocusTopBar.test.tsx`
-- [x] Focus 下对话状态行等连接配置入口打开设置面板而非浮层。——实现见 `AgentConversation.openConfig`;浏览器走查
+- [x] Focus 下输入框底栏的模型名等连接配置入口打开设置面板而非浮层。——实现见 `AgentConversation.openConfig`;浏览器走查
 - [x] 设置面板打开时对话列隐藏但仍挂载,面板铺满会话栏右侧;关闭后对话列原样恢复。——浏览器实测(对话列 `display:none`、面板 788/1024px;关闭后对话列恢复)
 - [x] 宽屏下设置导航贴左、内容列居中。——浏览器实测(视口 1800px:导航左偏移 0;内容列宽 760px,左右留白各 279px)
 - [x] 「模型与连接」按 D26 分组:状态卡四态、改连接字段后回到「未测试」、测试异常显示失败原因、密钥可切明文、Anthropic 下隐藏服务地址 / 能力 / 高级、最大输出越界时高级组自动展开并标红。——`ConnectionConfig.test.tsx`(11 项,含原元数据预填 6 项);浏览器走查 OpenAI 兼容与 Anthropic 两态

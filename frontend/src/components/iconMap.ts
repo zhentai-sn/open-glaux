@@ -42,6 +42,7 @@ import {
   RotateCcw,
   Scale,
   Settings,
+  Shield,
   ShieldCheck,
   ScrollText,
   Sparkles,
@@ -137,6 +138,8 @@ export const ICONS = {
   skill: Sparkles,
   swap: ArrowLeftRight,
   send: ArrowUp,
+  stop: Square,
+  permission: Shield, // 输入框底栏的权限模式下拉（SDD 15 §7.4）
   back: ArrowLeft,
   regenerate: RefreshCw,
   archive: Archive,

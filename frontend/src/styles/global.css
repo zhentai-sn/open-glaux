@@ -1275,46 +1275,6 @@ canvas {
   background: var(--good);
   box-shadow: 0 0 0 2px rgba(78, 201, 138, 0.14);
 }
-.agent-configbar {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 34px;
-  padding: 5px 8px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.08);
-}
-.agent-configbar > button {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--mid);
-  font-size: 10.5px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.agent-configbar > button span {
-  color: var(--agent);
-  font-family: var(--mono);
-}
-.agent-configbar label {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--faint);
-  font-size: 10px;
-}
-.agent-configbar select {
-  max-width: 86px;
-  padding: 2px 3px;
-  color: var(--mid);
-  border: 1px solid var(--line2);
-  border-radius: 4px;
-  background: var(--input);
-  font-size: 10px;
-}
 .context-usage {
   flex: 0 0 auto;
   color: var(--faint);
@@ -1646,14 +1606,54 @@ canvas {
 .conversation-composer textarea:disabled {
   opacity: 0.55;
 }
+/* 输入框底栏：左侧加号、项目；右侧上下文用量、模型、权限、发送 */
 .composer-actions {
   display: flex;
+  flex-wrap: wrap; /* 窄栏放不下时右侧一组整体换行，靠右 */
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
-/* 有项目胶囊时左侧为「胶囊 + 附件」，发送键靠右 */
-.composer-actions .composer-primary { margin-left: auto; }
+.composer-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-left: auto;
+}
+.composer-uploading { color: var(--faint); font-size: 11px; white-space: nowrap; }
+.composer-model,
+.composer-permission {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 7px;
+  color: var(--mid);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.composer-model { overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.composer-model:hover,
+.composer-permission:hover { color: var(--bright); background: var(--hover); }
+.composer-permission { position: relative; cursor: pointer; }
+/* 原生 select 去掉外观，箭头用图标；整块 label 都是点击区 */
+.composer-permission select {
+  appearance: none;
+  padding: 0;
+  color: inherit;
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.composer-permission select option { color: var(--ink); background: var(--panel); }
+.composer-permission:focus-within { box-shadow: 0 0 0 1px var(--agent-line); }
+.composer-permission:has(select:disabled) { opacity: 0.5; cursor: default; }
+.composer-actions .context-ring { padding: 0 4px; }
+.conversation-composer .context-ring-tip { top: auto; bottom: 19px; }
 
 /* 输入区项目胶囊（SDD 13 §7.5） */
 .project-chip-wrap { position: relative; min-width: 0; }
@@ -1868,18 +1868,18 @@ canvas {
 .folder-picker-ft .primary { color: var(--on-agent); border-color: var(--agent); background: var(--agent); }
 /* 附件入口 + 缩略图条（SDD 00 D-021） */
 .composer-attach {
-  overflow: hidden;
-  padding: 4px 7px;
+  display: grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
   color: var(--mid);
-  border: 1px solid var(--line2);
-  border-radius: 6px;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-radius: 50%;
+  background: var(--hover);
 }
 .composer-attach:hover:not(:disabled) {
-  color: var(--ink);
-  border-color: var(--agent-line);
+  color: var(--bright);
+  background: var(--input);
 }
 .composer-attach:disabled {
   opacity: 0.4;
@@ -2027,13 +2027,15 @@ canvas {
   border-color: var(--crit);
 }
 .composer-primary {
-  min-width: 64px;
-  padding: 5px 9px;
+  display: grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  place-items: center;
   color: var(--on-agent);
-  border-radius: 6px;
+  border-radius: 50%;
   background: var(--agent);
-  font-size: 11px;
-  font-weight: 700;
 }
 .composer-primary:disabled {
   opacity: 0.4;
@@ -2491,7 +2493,6 @@ body.resizing .focus-rail { transition: none; }
 .focus-conversation .agent-toolbar { display: none; }
 /* 输入框/状态行与消息列同宽：两侧内缩 = 消息流内边距 12px + thin 滚动条槽 10px（槽两侧对称预留）。 */
 .focus-conversation { --focus-conv-inset: 22px; }
-.focus-conversation .agent-configbar,
 .focus-conversation .agent-error,
 .focus-conversation .conversation-composer {
   width: calc(100% - 2 * var(--focus-conv-inset));
@@ -2558,32 +2559,14 @@ body.resizing .focus-rail { transition: none; }
 .focus-conversation .md blockquote,
 .focus-conversation .md table { margin-top: var(--space-1); margin-bottom: var(--space-1); }
 .focus-conversation .md hr { margin: var(--space-2) 0; }
-/* 连接/权限条移到输入框下方（Claude Code 式状态行）：flex order 重排 + 弱化为无边框小字。
-   Workbench 不受影响（作用域仅 .focus-conversation）。
-   注意：opacity<1 会创建 stacking context 且本条 DOM 序在 composer 之前——必须抬 z-index，
-   否则其内的上下文 tooltip 上弹时被 composer 盖住。 */
-.focus-conversation .agent > * { order: 0; }
-.focus-conversation .agent-configbar {
-  order: 2;
-  position: relative;
-  z-index: 5;
-  overflow: visible; /* 基础样式为 hidden，会把上弹的上下文 tooltip 裁掉 */
-  border-top: none;
-  border-bottom: none;
-  padding: 3px 10px 8px;
-  min-height: 0;
-  opacity: 0.75;
-}
-.focus-conversation .agent-configbar:hover { opacity: 1; }
-/* Composer 在 Focus 内始终是「输入框卡片」：发送/附件收进卡内同一行，聚焦整卡亮紫色光晕。 */
+/* Composer 在 Focus 内始终是「输入框卡片」：底栏控件收进卡内同一行，聚焦整卡亮紫色光晕。 */
 .focus-conversation .conversation-composer {
-  order: 1;
   border-top: none;
   background: var(--sidebar);
   border: 1px solid var(--line2);
   border-radius: 12px;
   padding: 10px 12px;
-  margin-bottom: 2px;
+  margin-bottom: 12px;
   transition:
     border-color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out);
@@ -2602,24 +2585,14 @@ body.resizing .focus-rail { transition: none; }
   outline: none;
   box-shadow: none;
 }
-.focus-conversation .composer-attach {
-  font-size: 11px;
-  color: var(--mid);
-  border: 1px dashed var(--line2);
-  border-radius: 6px;
-  padding: 2px 8px;
-}
 /* 空状态：hero → 输入框卡片 → 示例卡，整组垂直居中（顺序按设计稿视图 ①）。
    用 margin-auto 而非 justify-content:center：内容超高时降级为顶对齐可滚动，不裁切顶部。 */
 .focus-conversation.empty { overflow-y: auto; }
 .focus-conversation.empty .focus-hero { margin-top: auto; }
 .focus-conversation.empty > .focus-cards { flex: none; margin-bottom: auto; padding-bottom: 12px; }
 .focus-conversation.empty .conversation-stream { display: none; }
-/* 空状态的配置条只留权限下拉：首条消息前就要能定权限；模型信息经顶栏 ⚙，开聊后整条再出现。 */
-.focus-conversation.empty .agent-configbar { justify-content: flex-end; }
-.focus-conversation.empty .agent-configbar:not(:has(label)) { display: none; } /* chat 发行版无权限下拉 */
-.focus-conversation.empty .agent-configbar > button,
-.focus-conversation.empty .agent-configbar .context-ring { display: none; }
+/* 空状态还没有用量，上下文环不显示 */
+.focus-conversation.empty .composer-actions .context-ring { display: none; }
 /* 空状态只管布局（卡片外观/光晕/透明 textarea 已泛化到上方 Focus 通用段）。 */
 .focus-conversation.empty .agent {
   flex: none;
@@ -2811,8 +2784,6 @@ body.resizing .focus-rail { transition: none; }
 }
 .context-ring:hover .context-ring-tip,
 .context-ring:focus-visible .context-ring-tip { opacity: 1; }
-/* Focus 内配置行贴底，tooltip 向上弹 */
-.focus-conversation .context-ring-tip { top: auto; bottom: 19px; }
 .who svg { flex: none; }
 
 /* ---- 对话消息 Markdown 渲染（feats/00 §5.1；react-markdown，无原始 HTML） ---- */
