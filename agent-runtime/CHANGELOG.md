@@ -6,6 +6,7 @@
 
 ### Added
 
+- 看图缩放与复核（SDD 22）：`view_current_image` 新增 `region`、`annotations` 参数与视图编号；`propose_annotation` 新增 `view_id`；新工具 `revise_annotation`（effect `annotate`）修改或撤回智能体自己的建议态标注。
 - 工具按插件登记，每个工具声明副作用等级 `effect`；插件钩子经组合器每种只注册一个 handler（SDD 15）。
 - 交互请求表与回复端点 `POST /agent-api/v1/sessions/{id}/interactions/{request_id}`；新工具 `ask_user`；SSE 新增 `interaction.request`、`interaction.resolved`，快照 `pending_interactions` 给出待决请求（SDD 15 §7.6、§7.7）。
 - 权限引擎：工具按 effect 与权限模式挂载、放行或审批；支持用户级与项目级 `settings.json` 的 allow / deny / ask 规则、「本会话允许」「总是允许」与审计记录；快照 `warnings` 给出设置文件告警（SDD 15 §7.4、§7.5）。

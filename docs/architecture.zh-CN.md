@@ -169,11 +169,12 @@ open-glaux/
 | 工具 | 作用 | 额外挂载条件 |
 | --- | --- | --- |
 | `run_task` | 调 backend `/task/run` 执行注册表任务，结果写回查看器 | 无；命中任务注册表能力时的调用路径（SDD 02 §7.2），长期保留，不被标注工具取代 |
-| `view_current_image` | 把当前焦点帧交给模型 | 有焦点且连接支持视觉 |
+| `view_current_image` | 把当前焦点帧交给模型；可传 `region` 放大、平移、缩回，缺省叠加已有标注并登记视图编号（SDD 22） | 有焦点且连接支持视觉 |
 | `consult_atlas` | 只读检索图谱案例，返回图块与摘要 | 连接支持视觉 |
 | `locate_roi` | 按描述定位对象像素矩形区域，可带图谱先验 | 有焦点且连接支持视觉 |
 | `segment_region` | 调外部分割后端取 mask，runtime 侧转对象像素多边形 | 有焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且 `GLAUX_SEG_API_TOKEN` 非空 |
-| `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认 | 有焦点 |
+| `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认；`space: "view"` 按 `view_id` 换算 | 有焦点 |
+| `revise_annotation` | 修改或撤回智能体自己尚未被处理的建议（SDD 22 §7.4） | 有焦点 |
 | `observe_video_interval` / `submit_video_answer` | Qwen 原生音画区间观察、结构化证据校验与会话记录（SDD 11） | 当前焦点为视频、连接显式选择 `qwen-omni`；`observe` 权限也可挂载 |
 | `list_files` | 经 backend `GET /projects/{id}/entries` 列项目内一层条目（名称、类型、候选模态、已登记的对象 id），单次最多 200 条，超出返回总数 | 会话绑定了项目（SDD 13 §7.3） |
 | `open_file` | 经 backend `POST /projects/{id}/objects` 按需打开项目内文件，取首帧或代表帧返回模型；不改会话焦点，`details` 供前端渲染对象卡片 | 会话绑定了项目且连接支持视觉 |
