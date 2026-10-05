@@ -173,6 +173,19 @@ describe("interaction and run events (SDD 15 §9.5)", () => {
     expect(vi.mocked(client.command).mock.lastCall![1]).toMatchObject({ content: "", template: { name: "compare", args: "A B" } });
   });
 
+  it("sends the interface language with prompt and regenerate commands (SDD 20 §15.2)", async () => {
+    localStorage.clear();
+    const { client, store } = fixture();
+    await store.getState().initialize();
+    const connection = { provider: "anthropic" as const, model: "m" };
+    localStorage.setItem("glaux.lang", "zh");
+    await store.getState().sendPrompt("你好", [], connection);
+    expect(vi.mocked(client.command).mock.lastCall![1]).toMatchObject({ type: "prompt", lang: "zh" });
+    localStorage.setItem("glaux.lang", "en");
+    await store.getState().regenerate(connection);
+    expect(vi.mocked(client.command).mock.lastCall![1]).toMatchObject({ type: "regenerate", lang: "en" });
+  });
+
   it("records tool errors and the budget notice, cleared by the next prompt", async () => {
     localStorage.clear();
     const { handlers, store } = fixture();

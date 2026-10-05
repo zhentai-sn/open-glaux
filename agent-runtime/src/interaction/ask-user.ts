@@ -1,4 +1,5 @@
 /** SDD 15 §7.7：`ask_user` 向用户提问并按回答继续。 */
+import type { ToolZh } from "../i18n/prompt-lang.js";
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -68,3 +69,13 @@ export function createAskUserTool(options: AskUserToolOptions): AgentHarnessTool
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const ASK_USER_ZH: ToolZh = {
+  description: "向用户提问并等待回答。只在缺少继续所需的信息、或存在多个合理方向时使用。不要用它请求权限；权限由系统处理。",
+  parameters: {
+    question: "展示给用户的问题。",
+    options: "至多 4 个简短的回答选项。",
+    allow_free_text: "是否允许用户自行输入回答；缺省为 true，没有选项时强制开启。",
+  },
+};

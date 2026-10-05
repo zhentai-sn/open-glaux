@@ -8,6 +8,7 @@
  * - 工具说明提示候选模态为 `-` 的文件可用 `read` 读取（SDD 16 §7.3）。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -122,3 +123,11 @@ export function createListFilesTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const LIST_FILES_ZH: ToolZh = {
+  description: "列出本对话绑定的项目文件夹中的一层（只读）。返回目录与文件，附候选模态（按扩展名猜测；\"-\" 表示 Glaux 无法把它当作视觉对象打开，如图像、视频、CT 体数据或切片），以及文件是否已作为 Glaux 对象打开。路径相对项目根目录且不能越出项目。最多返回 200 项；列出子目录以缩小范围。候选模态为 \"-\" 的文件可能是文本（报告、笔记、JSON、配置、脚本）；用 read 读取。",
+  parameters: {
+    path: "要列出的目录，相对项目根目录（例如 \"cases/liver\"）。省略或留空表示根目录。",
+  },
+};

@@ -16,6 +16,7 @@
  * 但 local-only 图谱案例是否随行，仍由 `egressFor(connection)` 判定（本机模型才带）。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { randomUUID } from "node:crypto";
 
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
@@ -224,3 +225,14 @@ export function createLocateRoiTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const LOCATE_ROI_ZH: ToolZh = {
+  description: "结合你自己的视觉与策展过的图谱案例，在查看器当前打开的图像中找出所描述结构的位置。返回图像像素坐标的边界框及置信度。通用分割器不认识的领域结构（超声、CT、电镜、切片上的所见）用这个工具。它给出矩形，不是精确轮廓——后续用 run_task 做标定测量，或用 propose_annotation 把框交给用户。结构不可见时不返回任何内容；直接说明，不要编造位置。",
+  parameters: {
+    target: "要定位的结构，按专科人员的叫法描述（例如 \"electron-dense deposits\"、\"左侧颈动脉斑块\"）。",
+    use_atlas: "定位前先查找该结构的图谱参考案例并自己看一遍（缺省 true）。只有在没有先例也不会认错时才关闭。",
+    max_results: "最多保留的框数（缺省 5）。",
+    min_confidence: "丢弃置信度低于此值的框（缺省 0.2）。",
+  },
+};

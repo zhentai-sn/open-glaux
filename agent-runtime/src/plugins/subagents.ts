@@ -5,6 +5,7 @@
 import { Type, type Static } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
+import { langOf, schemaFor, type Bilingual } from "../i18n/prompt-lang.js";
 import type { HarnessTool, HarnessToolContext } from "../pi/harness-registry.js";
 import { SUBAGENT_RUN_DETAILS_KIND, type SubagentResult } from "../subagents/run.js";
 import type { GlauxPlugin } from "./types.js";
@@ -19,6 +20,18 @@ const AgentParams = Type.Object({
     description: "The complete task. The sub-agent cannot see this conversation, so include every fact, path and object id it needs.",
   }),
 });
+
+const DESCRIPTION: Bilingual = {
+  en: "Hand a self-contained multi-step task to a sub-agent with a fresh context. " +
+    "Only its final reply comes back to you. Several calls in one turn run concurrently.",
+  zh: "把自包含的多步任务交给拥有全新上下文的子智能体。只有它的最终回复会返回给你。同一回合的多次调用会并行运行。",
+};
+
+const PARAMS_ZH = {
+  subagent_type: "要使用的子智能体定义名称。",
+  description: "任务的简短概要（3～10 个词），展示给用户。",
+  prompt: "完整任务。子智能体看不到本对话，因此要写明它需要的每个事实、路径和对象 id。",
+};
 
 export interface SubagentRunDetails {
   kind: typeof SUBAGENT_RUN_DETAILS_KIND;
@@ -46,10 +59,8 @@ function createAgentTool(ctx: HarnessToolContext): AgentHarnessTool<undefined, t
   return {
     name: AGENT_TOOL_NAME,
     label: "Run a sub-agent",
-    description:
-      "Hand a self-contained multi-step task to a sub-agent with a fresh context. " +
-      "Only its final reply comes back to you. Several calls in one turn run concurrently.",
-    parameters: AgentParams,
+    description: DESCRIPTION[langOf(ctx)],
+    parameters: schemaFor(langOf(ctx), AgentParams, PARAMS_ZH),
     async execute(toolCallId, params: Static<typeof AgentParams>, signal) {
       const known = ctx.agents?.map((def) => def.name) ?? [];
       if (!known.includes(params.subagent_type)) {
@@ -83,11 +94,14 @@ export const subagentsPlugin: GlauxPlugin = {
       requires: {},
       supports: () => true,
       create: (ctx) => createAgentTool(ctx) as HarnessTool,
-      promptFragment: (ctx) =>
-        " Use the agent tool for self-contained multi-step tasks that would otherwise fill this conversation with " +
-        "intermediate results. The sub-agent cannot see this conversation: write the complete task in prompt. " +
-        "Only its final reply comes back to you. Available sub-agents: " +
-        (ctx.agents ?? []).map((def) => `${def.name} (${def.description})`).join("; ") + ".",
+      promptFragment: (ctx) => langOf(ctx) === "zh"
+        ? "对于会让本对话塞满中间结果的自包含多步任务，使用 agent 工具。子智能体看不到本对话：请在 prompt 中写出完整任务。" +
+          "只有它的最终回复会返回给你。可用的子智能体：" +
+          (ctx.agents ?? []).map((def) => `${def.name}（${def.description}）`).join("；") + "。"
+        : " Use the agent tool for self-contained multi-step tasks that would otherwise fill this conversation with " +
+          "intermediate results. The sub-agent cannot see this conversation: write the complete task in prompt. " +
+          "Only its final reply comes back to you. Available sub-agents: " +
+          (ctx.agents ?? []).map((def) => `${def.name} (${def.description})`).join("; ") + ".",
     },
   ],
   hooks: {

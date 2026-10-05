@@ -324,7 +324,7 @@ interface GlauxPlugin {
     context?(messages: AgentMessage[], ctx: RunContext): Promise<AgentMessage[]>;
     turn_start?(ctx: RunContext): Promise<void>;
   };
-  promptFragment?(ctx: HarnessToolContext): string;
+  promptFragment?(ctx: HarnessToolContext): string;  // 按 ctx.lang 取中英文（SDD 20 §7.2）
 }
 ```
 

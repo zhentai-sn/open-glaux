@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { agentRuntimeApi, AgentRuntimeError } from "../../agent/runtime/client";
 import type { ResourceList, SystemPromptPreview } from "../../agent/runtime/types";
-import { I18nProvider } from "../../i18n";
+import { I18nProvider, useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useContextSection, type ContextSection } from "../../store/contextSection";
 import { useSession } from "../../store/session";
@@ -223,6 +223,21 @@ describe("system prompt", () => {
     renderAt(section);
     expect(await screen.findByText("The agent runtime is older than this page. Restart agent-runtime and refresh.")).toBeInTheDocument();
     expect(screen.queryByText("This part of Glaux ran into a problem")).toBeNull();
+  });
+
+  it("requests the preview in the interface language and again after switching (SDD 20 §15.2)", async () => {
+    const preview = vi.spyOn(agentRuntimeApi, "previewSystemPrompt").mockResolvedValue(PREVIEW);
+    function LangSwitch() {
+      const { setLang } = useI18n();
+      return <button type="button" onClick={() => setLang("zh")}>to-zh</button>;
+    }
+    useContextSection.setState({ section: "system" });
+    render(<I18nProvider><LangSwitch /><ContextPanel /></I18nProvider>);
+    await waitFor(() => expect(preview).toHaveBeenCalledTimes(1));
+    expect(preview.mock.calls[0]![3]).toBe("en");
+    fireEvent.click(screen.getByRole("button", { name: "to-zh" }));
+    await waitFor(() => expect(preview).toHaveBeenCalledTimes(2));
+    expect(preview.mock.calls[1]![3]).toBe("zh");
   });
 
   it("shows preview errors without hiding the editors", async () => {

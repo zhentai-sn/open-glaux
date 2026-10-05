@@ -19,6 +19,7 @@ import {
   type ExecutionToolContext,
 } from "@earendil-works/pi-agent-core";
 
+import { langOf, schemaFor, type Bilingual, type PromptLang } from "../i18n/prompt-lang.js";
 import type { HarnessTool, HarnessToolContext } from "../pi/harness-registry.js";
 import { READONLY_COMMANDS, readOnlyViolation } from "../permission/readonly-command.js";
 import { resolvePathScope } from "../workspace/path-scope.js";
@@ -88,11 +89,53 @@ async function sniff(path: string): Promise<Uint8Array | undefined> {
   }
 }
 
-/** 把需要 `{env}` 的内置工具转成无上下文的 HarnessTool。 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 内置工具各自的参数 schema 不同
-function bindEnv(tool: AgentHarnessTool<ExecutionToolContext, any, any>, env: ExecutionEnv): HarnessTool {
+/**
+ * pi 内置工具的中文说明（SDD 20 §7.3 规则 2）。英文沿用 pi 原文；截断上限与 pi 的
+ * `DEFAULT_MAX_LINES`（2000 行）、`DEFAULT_MAX_BYTES`（50KB）一致，二者未从包入口导出。
+ */
+interface BuiltinZh { description: string; parameters: Readonly<Record<string, string>> }
+export const BUILTIN_ZH: Record<"read" | "write" | "edit" | "bash", BuiltinZh> = {
+  read: {
+    description: "读取文件内容。支持文本文件与图像（jpg、png、gif、webp、bmp），图像作为附件发送。文本文件的输出截断到 2000 行或 50KB（先到为准）。大文件用 offset/limit 分段读；需要全文时，用 offset 继续读到结束。",
+    parameters: {
+      path: "要读取的文件路径（相对或绝对）",
+      offset: "起始行号（从 1 开始）",
+      limit: "最多读取的行数",
+    },
+  },
+  write: {
+    description: "把内容写入文件。文件不存在时创建，存在时覆盖。自动创建上级目录。",
+    parameters: {
+      path: "要写入的文件路径（相对或绝对）",
+      content: "要写入的内容",
+    },
+  },
+  edit: {
+    description: "用精确文本替换修改单个文件。每个 edits[].oldText 必须匹配原文件中唯一且互不重叠的区域。两处修改涉及同一块或相邻行时，合并为一个 edit，不要产生重叠的 edit。不要为了连接相距较远的修改而带上大段未改动的内容。",
+    parameters: {
+      path: "要修改的文件路径（相对或绝对）",
+      edits: "一处或多处定向替换。每个 edit 都与原文件匹配，而不是逐次累加。不要包含重叠或嵌套的 edit；两处修改涉及同一块或相邻行时，合并为一个 edit。",
+      "edits[].oldText": "一次定向替换的原文。它在原文件中必须唯一，且不能与同一次调用中其他 edits[].oldText 重叠。",
+      "edits[].newText": "这次定向替换的新文本。",
+    },
+  },
+  bash: {
+    description: "在当前工作目录执行 bash 命令，返回 stdout 与 stderr。输出截断到最后 2000 行或 50KB（先到为准），截断时完整输出保存到临时文件。可选传入超时秒数。",
+    parameters: {
+      command: "要执行的 bash 命令",
+      timeout: `超时秒数（可选，缺省 ${BASH_DEFAULT_TIMEOUT_S} 秒，上限 ${BASH_MAX_TIMEOUT_S} 秒）`,
+    },
+  },
+};
+
+/** 把需要 `{env}` 的内置工具转成无上下文的 HarnessTool；按语言换上说明与参数说明。 */
+function bindEnv(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 内置工具各自的参数 schema 不同
+  tool: AgentHarnessTool<ExecutionToolContext, any, any>, env: ExecutionEnv, lang: PromptLang, zh: BuiltinZh,
+): HarnessTool {
   return {
     ...tool,
+    ...(lang === "en" ? {} : { description: zh.description, parameters: schemaFor(lang, tool.parameters, zh.parameters) }),
     execute: (id, params, signal, onUpdate) => tool.execute(id, params, signal, onUpdate, { env }),
   } as HarnessTool;
 }
@@ -108,7 +151,7 @@ const readPathScope: PluginTool["pathScope"] = (args, cwd, roots) => resolvePath
 function createRead(ctx: HarnessToolContext): HarnessTool {
   const env = ctx.execEnv!;
   const cwd = ctx.cwd!;
-  const inner = bindEnv(createReadTool(), env);
+  const inner = bindEnv(createReadTool(), env, langOf(ctx), BUILTIN_ZH.read);
   return {
     ...inner,
     async execute(id, params, signal, onUpdate) {
@@ -145,7 +188,7 @@ async function readDetails(
 
 function createWriter(ctx: HarnessToolContext, op: "write" | "edit"): HarnessTool {
   const cwd = ctx.cwd!;
-  const inner = bindEnv(op === "write" ? createWriteTool() : createEditTool(), ctx.execEnv!);
+  const inner = bindEnv(op === "write" ? createWriteTool() : createEditTool(), ctx.execEnv!, langOf(ctx), BUILTIN_ZH[op]);
   return {
     ...inner,
     async execute(id, params, signal, onUpdate) {
@@ -173,7 +216,7 @@ function createBash(ctx: HarnessToolContext): HarnessTool {
       execution.inheritEnv = false;
       execution.env = buildShellEnv(cwd) as Record<string, string>;
     },
-  }), ctx.execEnv!);
+  }), ctx.execEnv!, langOf(ctx), BUILTIN_ZH.bash);
   return {
     ...inner,
     async execute(id, params, signal, onUpdate) {
@@ -186,23 +229,38 @@ function createBash(ctx: HarnessToolContext): HarnessTool {
   };
 }
 
-const BASH_PROMPT =
-  " You can run shell commands with bash in the working directory. Commands get no credentials from Glaux. " +
-  "Numbers you compute with bash are uncalibrated: report them as such and never present them as calibrated measurements; " +
-  "use run_task for calibrated measurements.";
+const BASH_PROMPT: Bilingual = {
+  en: " You can run shell commands with bash in the working directory. Commands get no credentials from Glaux. " +
+    "Numbers you compute with bash are uncalibrated: report them as such and never present them as calibrated measurements; " +
+    "use run_task for calibrated measurements.",
+  zh: "你可以用 bash 在工作目录中运行 shell 命令。命令不会从 Glaux 获得任何凭据。" +
+    "用 bash 算出的数值未经标定：要如实说明，绝不当作标定测量结果；标定测量请用 run_task。",
+};
 
 /** controlled 下的限制写进提示词，避免模型反复尝试会被拒绝的命令。 */
-const BASH_READONLY_PROMPT =
-  ` In the current permission mode bash only runs read-only commands: ${READONLY_COMMANDS.join(", ")}, ` +
-  "optionally joined with |, on paths inside the working directory that are not hidden. " +
-  "Command chaining (; && ||), redirection, $ expansion, subshells, find -exec/-delete and other options that write files " +
-  "or run programs are rejected. Use bash to list and search files, e.g. find . -maxdepth 2 or grep -rn.";
+const BASH_READONLY_PROMPT: Bilingual = {
+  en: ` In the current permission mode bash only runs read-only commands: ${READONLY_COMMANDS.join(", ")}, ` +
+    "optionally joined with |, on paths inside the working directory that are not hidden. " +
+    "Command chaining (; && ||), redirection, $ expansion, subshells, find -exec/-delete and other options that write files " +
+    "or run programs are rejected. Use bash to list and search files, e.g. find . -maxdepth 2 or grep -rn.",
+  zh: `当前权限模式下，bash 只运行只读命令：${READONLY_COMMANDS.join(", ")}，` +
+    "可以用 | 串接，路径须在工作目录内且不是隐藏路径。" +
+    "命令串联（; && ||）、重定向、$ 展开、子 shell、find -exec/-delete 以及其他会写文件或运行程序的选项都会被拒绝。" +
+    "用 bash 列出和搜索文件，例如 find . -maxdepth 2 或 grep -rn。",
+};
 
 function bashPrompt(ctx: HarnessToolContext): string {
-  return ctx.permissionMode === "controlled" ? BASH_PROMPT + BASH_READONLY_PROMPT : BASH_PROMPT;
+  const lang = langOf(ctx);
+  return ctx.permissionMode === "controlled" ? BASH_PROMPT[lang] + BASH_READONLY_PROMPT[lang] : BASH_PROMPT[lang];
 }
 
 function filesPrompt(ctx: HarnessToolContext): string {
+  if (langOf(ctx) === "zh") {
+    const where = ctx.projectId ? "项目文件夹" : "本对话的私有工作区（删除对话时一并删除其中的文件）";
+    return `你可以用 read、write、edit 读取和修改文件。相对路径以${where}为基准：${ctx.cwd}。` +
+      "读写其外的路径，或 .env、.git 等隐藏路径，需要用户审批。" +
+      "修改文件前先读取它；对已有文件的小改动优先用 edit。文本按 UTF-8 读写。";
+  }
   const where = ctx.projectId
     ? "the project folder"
     : "this conversation's private workspace (files there are deleted with the conversation)";

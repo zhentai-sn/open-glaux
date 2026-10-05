@@ -242,7 +242,7 @@ interface ToolItem {
 
 ### 9.2 预览响应
 
-`POST /agent-api/v1/sessions/{id}/system-prompt` 请求不变（`{connection, viewer?}`），响应改为：
+`POST /agent-api/v1/sessions/{id}/system-prompt` 请求为 `{connection, viewer?, lang?}`（`lang` 见 [SDD 20](../20-prompt-language/README.md) §7.1；前端取界面语言，切换后重新请求），响应为：
 
 ```ts
 interface PromptSegment {

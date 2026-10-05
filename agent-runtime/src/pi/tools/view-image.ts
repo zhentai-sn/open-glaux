@@ -14,6 +14,7 @@
  * 无外发门控：图只发往用户自己配的模型连接（与会话同一条），不经任何第三方。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type ImageContent, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -151,3 +152,10 @@ export function createViewCurrentImageTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const VIEW_CURRENT_IMAGE_ZH: ToolZh = {
+  description: "查看查看器中当前打开的图像——返回用户正在看的实际像素。只要答案取决于画面内容就调用它：用户问打开的是什么、画面描绘了什么、某物是否可见、看起来怎样，或在你判断、描述、评论图像之前。查看器上下文中的对象 id、集合、任务是数据集记录的目录标签，不是观察结果——它们可能有误或过时，也从不告诉你画面里实际有什么。不需要参数；由查看器决定你拿到哪张图像。",
+  parameters: {
+  },
+};

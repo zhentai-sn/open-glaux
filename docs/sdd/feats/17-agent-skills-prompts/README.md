@@ -126,7 +126,7 @@ sequenceDiagram
 
 1. 组成顺序：基础段 → 插件提示词片段 → 自定义说明段 → Skills 目录段 → 查看器上下文。
 2. 自定义说明段：用户级在前、项目级在后，各包在 `<instructions scope="user">…</instructions>` / `<instructions scope="project">…</instructions>` 中；单份超过 32 KiB 时截断并注明。文件不存在或为空时省略该段。
-3. Skills 目录段用 pi `formatSkillsForSystemPrompt` 生成，末尾附一行各层 Skills 目录（按优先级从高到低：项目、个人、内置（只读）；未绑定项目时没有项目层），供模型新建或覆盖 Skill 时选位置；没有可见 Skill 时整段省略。
+3. Skills 目录段的英文版用 pi `formatSkillsForSystemPrompt` 生成，中文版由 runtime 生成同一结构（SDD 20 §7.2 规则 4），末尾附一行各层 Skills 目录（按优先级从高到低：项目、个人、内置（只读）；未绑定项目时没有项目层），供模型新建或覆盖 Skill 时选位置；没有可见 Skill 时整段省略。
 4. chat 发行版不加说明段与目录段。
 
 ### 7.3 按需读取
@@ -247,7 +247,7 @@ interface ResourceList {
 | `DELETE /agent-api/v1/prompts/{source}/{name}?project_id=` | — | `204` |
 | `GET /agent-api/v1/instructions/{scope}?project_id=` | — | `{scope, path, content}`（不存在时 `content` 为空串） |
 | `PUT /agent-api/v1/instructions/{scope}?project_id=` | `{content}` | `InstructionsItem` |
-| `POST /agent-api/v1/sessions/{id}/system-prompt` | `{connection, viewer?}` | `SystemPromptPreview`（[SDD 19](../19-context-management/README.md) §9.2） |
+| `POST /agent-api/v1/sessions/{id}/system-prompt` | `{connection, viewer?, lang?}`（`lang` 见 [SDD 20](../20-prompt-language/README.md) §7.1） | `SystemPromptPreview`（[SDD 19](../19-context-management/README.md) §9.2） |
 
 错误码：`invalid_name`、`invalid_skill`、`not_found`、`project_not_found`、`read_only`（写内置）、`unknown_resource`。
 
@@ -263,6 +263,7 @@ type PromptCommand = {
   viewer?: ViewerContext;
   skill?: string;                          // 与 template 互斥
   template?: { name: string; args: string };
+  lang?: "en" | "zh";                      // SDD 20 §7.1
 };
 ```
 

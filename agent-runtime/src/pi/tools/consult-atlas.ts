@@ -15,6 +15,7 @@
  * - 图谱对 agent 只读（SDD 03 D-1）：本工具只检索 + 记引用（`mark_referenced`），不写案例。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { randomUUID } from "node:crypto";
 
 import { Type, type ImageContent, type Static, type TextContent } from "@earendil-works/pi-ai";
@@ -194,3 +195,14 @@ export function createConsultAtlasTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const CONSULT_ATLAS_ZH: ToolZh = {
+  description: "在 Glaux 的图谱中查找策展过的参考案例。图谱是人工策展、带插图的参考图像案例库（教科书插图、论文图像、带标注的数据集样本），每个案例有图注、标签与描述。返回与查看器中当前打开图像最相似的案例图像，你可以直接查看。在判断某个结构或所见的样子之前、用户询问某个所见时，或你需要先例而不是从零猜测时使用。图谱中没有匹配案例时不返回任何内容——直接说明，不要编造。",
+  parameters: {
+    q: "描述你要找什么的自由文本（所见、结构、模态）。与图注、标签和生成的描述匹配。",
+    tags: "用于缩小范围的标签，例如 [\"TEM\", \"EDD\"]。可选。",
+    collection: "限定搜索的集合路径，例如 \"肾脏/膜性肾病\"。包含子集合。可选。",
+    k: "返回的参考案例数（1～3，缺省 3）。",
+  },
+};

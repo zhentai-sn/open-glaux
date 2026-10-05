@@ -321,6 +321,8 @@ export interface PromptImage {
   mime_type: string;
 }
 
+export type PromptLang = "en" | "zh";
+
 export type TransportCommand =
   | {
       command_id: string;
@@ -332,12 +334,15 @@ export type TransportCommand =
       /** SDD 17 §9.3：显式调用，与 template 互斥。 */
       skill?: string;
       template?: { name: string; args: string };
+      /** SDD 20 §7.1：系统提示词与工具定义的语言，取当前界面语言。 */
+      lang?: PromptLang;
     }
   | {
       command_id: string;
       type: "regenerate";
       connection: ConnectionInput;
       viewer?: ViewerContext;
+      lang?: PromptLang;
     }
   | {
       command_id: string;

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { agentRuntimeApi, AgentRuntimeError } from "../../agent/runtime/client";
 import type { ResourceList, SystemPromptPreview } from "../../agent/runtime/types";
 import { toConnectionInput, toViewerContext } from "../../agent/useConversation";
+import { useI18n } from "../../i18n";
 import { useAgentSessions } from "../../store/agentSessions";
 import { useSession } from "../../store/session";
 
@@ -63,6 +64,8 @@ function isPreview(data: unknown): data is SystemPromptPreview {
 export function usePreview(active: boolean) {
   const sessionId = useAgentSessions((state) => state.currentSessionId);
   const connection = useSession((state) => state.connection);
+  // 预览的语言跟随界面（SDD 20 §15.2）；切换语言后重新请求
+  const { lang } = useI18n();
   const hasModel = !!connection.model.trim();
   // 连接对象可能频繁换引用；自动重取只跟会话与「是否有模型」，请求时读最新连接
   const connectionRef = useRef(connection);
@@ -74,13 +77,13 @@ export function usePreview(active: boolean) {
     if (!hasModel) return setState({ status: "no-model" });
     setState((prev) => ({ status: "loading", ...(prev.status === "ready" ? { data: prev.data } : {}) }));
     try {
-      const data = await agentRuntimeApi.previewSystemPrompt(sessionId, toConnectionInput(connectionRef.current), toViewerContext());
+      const data = await agentRuntimeApi.previewSystemPrompt(sessionId, toConnectionInput(connectionRef.current), toViewerContext(), lang);
       // 前端热更新后 runtime 可能仍是旧进程，返回旧格式（SDD 19 §13）；不按新格式渲染，免得整块崩溃
       setState(isPreview(data) ? { status: "ready", data, stale: false } : { status: "outdated" });
     } catch (err) {
       setState({ status: "error", error: errorText(err) });
     }
-  }, [sessionId, hasModel]);
+  }, [sessionId, hasModel, lang]);
 
   useEffect(() => {
     if (active) void refresh();

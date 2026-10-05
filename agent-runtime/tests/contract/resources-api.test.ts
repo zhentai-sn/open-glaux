@@ -167,4 +167,72 @@ describe("resource management API", () => {
       expect(body.unmounted.find((tool: { name: string }) => tool.name === "bash")).toBeUndefined();
     } finally { await close(); }
   });
+
+  it("previews the Chinese prompt a real command with lang zh receives (SDD 20 §15.1)", async () => {
+    const seen: { prompt: string; tools: { name: string; description: string; parameters: unknown }[] }[] = [];
+    const { fixture, server, close } = await setup([
+      [],
+      [(context) => {
+        seen.push({
+          prompt: context.systemPrompt ?? "",
+          tools: (context.tools ?? []).map(({ name, description, parameters }) => ({ name, description, parameters })),
+        });
+        return fauxAssistantMessage("好");
+      }],
+    ]);
+    try {
+      await server.inject({ method: "PUT", url: "/agent-api/v1/skills/user/imt", payload: { content: VALID } });
+      const sessionId = crypto.randomUUID();
+      await fixture.sessions.createSession({ session_id: sessionId, project_id: "prj-a" });
+      const preview = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/system-prompt`, payload: { connection: TEST_CONNECTION, lang: "zh" },
+      });
+      expect(preview.statusCode).toBe(200);
+      const commandId = crypto.randomUUID();
+      const accepted = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/commands`,
+        payload: { command_id: commandId, type: "prompt", content: "你好", connection: TEST_CONNECTION, lang: "zh" },
+      });
+      expect(accepted.statusCode).toBe(202);
+      await fixture.registry.waitForIdle(sessionId);
+      const body = preview.json();
+      expect(body.prompt).toBe(seen[0]!.prompt);
+      expect(body.prompt).toContain("你是 Glaux 内置的参考助手");
+      expect(body.prompt).toContain("以下 Skill 为特定任务提供专门的说明。");
+      expect(body.tools.map(({ name, description, parameters }: { name: string; description: string; parameters: unknown }) =>
+        ({ name, description, parameters }))).toEqual(JSON.parse(JSON.stringify(seen[0]!.tools)));
+      expect(body.tools.find((tool: { name: string }) => tool.name === "read").description).toMatch(/^读取文件内容/u);
+
+      // §10：同一 command_id 换语言判为冲突
+      const conflict = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/commands`,
+        payload: { command_id: commandId, type: "prompt", content: "你好", connection: TEST_CONNECTION, lang: "en" },
+      });
+      expect(conflict.statusCode).toBe(409);
+      expect(conflict.json().error.code).toBe("idempotency_conflict");
+    } finally { await close(); }
+  });
+
+  it("rejects an unsupported lang on commands and previews (SDD 20 §7.1 规则 2)", async () => {
+    const { fixture, server, close } = await setup();
+    try {
+      const sessionId = crypto.randomUUID();
+      await fixture.sessions.createSession({ session_id: sessionId });
+      const command = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/commands`,
+        payload: { command_id: crypto.randomUUID(), type: "prompt", content: "hi", connection: TEST_CONNECTION, lang: "fr" },
+      });
+      expect(command.statusCode).toBe(400);
+      const regenerate = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/commands`,
+        payload: { command_id: crypto.randomUUID(), type: "regenerate", connection: TEST_CONNECTION, lang: "zh-CN" },
+      });
+      expect(regenerate.statusCode).toBe(400);
+      const preview = await server.inject({
+        method: "POST", url: `/agent-api/v1/sessions/${sessionId}/system-prompt`, payload: { connection: TEST_CONNECTION, lang: 1 },
+      });
+      expect(preview.statusCode).toBe(400);
+      expect(preview.json().error.code).toBe("invalid_request");
+    } finally { await close(); }
+  });
 });

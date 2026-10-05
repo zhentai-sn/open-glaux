@@ -1,4 +1,4 @@
-import { chatEdition, CHAT_SYSTEM_PROMPT } from "../edition.js";
+import { chatEdition, CHAT_SYSTEM_PROMPTS } from "../edition.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -42,6 +42,7 @@ import { resolveBudget, RunBudget } from "../budget/run-budget.js";
 import { installWindDown } from "../budget/wind-down.js";
 import { loadResources, type LoadedResources, type PromptExtraPart } from "../resources/load.js";
 import { buildPreview, type SystemPromptPreview } from "./prompt-preview.js";
+import { langOf, type Bilingual, type PromptLang } from "../i18n/prompt-lang.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
 import type { AgentDefinition } from "../resources/agents.js";
@@ -57,6 +58,8 @@ export interface HarnessStartOptions {
   permissionMode?: PermissionMode;
   /** 显式调用的 Skill 或模板必须存在且可用，否则 422 unknown_resource（SDD 17 §7.4 规则 3）。 */
   requires?: { skill?: string; template?: string };
+  /** 系统提示词与工具定义的语言（SDD 20 §7.1）；缺省英文。子智能体随上下文继承。 */
+  lang?: PromptLang;
 }
 
 /** 工具工厂拿到的完整上下文：领域上下文 + 本次连接与其模型运行时（图谱检索需要向模型发图）。 */
@@ -96,14 +99,46 @@ export const defaultToolFactory: HarnessToolFactory = (context) => {
     .map((provider) => provider.create(context));
 };
 
-const SYSTEM_PROMPT =
-  "You are Glaux's built-in reference assistant for image and video analysis: natural images and video, " +
-  "microscopy and pathology, and medical imaging. For medical and pathology images your output supports research, " +
-  "not clinical diagnosis. " +
-  "Glaux is the environment you act in: it decodes images, runs calibrated segmentation and measurement, " +
-  "and verifies results. When the user asks to measure, segment, or analyse the current image, call the " +
-  "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
-  "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.";
+const SYSTEM_PROMPT: Bilingual = {
+  en: "You are Glaux's built-in reference assistant for image and video analysis: natural images and video, " +
+    "microscopy and pathology, and medical imaging. For medical and pathology images your output supports research, " +
+    "not clinical diagnosis. " +
+    "Glaux is the environment you act in: it decodes images, runs calibrated segmentation and measurement, " +
+    "and verifies results. When the user asks to measure, segment, or analyse the current image, call the " +
+    "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
+    "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.",
+  zh: "你是 Glaux 内置的参考助手，负责图像与视频分析：自然图像与视频、显微与病理图像、医学影像。" +
+    "对医学与病理图像，你的输出用于科研，不用于临床诊断。" +
+    "Glaux 是你工作的环境：它负责解码图像、运行标定过的分割与测量，并核验结果。" +
+    "用户要求测量、分割或分析当前图像时，调用 run_task 工具，不要猜测数值；如实报告返回的指标并带上单位。" +
+    "如果请求超出 Glaux 已登记的任务，直接说明，不要编造结果。",
+};
+
+/** 子智能体系统提示词末尾的说明（SDD 18 §7.2、SDD 20 §5）。 */
+const SUBAGENT_LAST_REPLY: Bilingual = {
+  en: "Only your last reply will be passed to the main agent.",
+  zh: "只有你的最后一条回复会交给主智能体。",
+};
+
+/** 查看器上下文的外层句子（SDD 20 §7.2 规则 3）；机器字段不翻译。 */
+const VIEWER_TEXT = {
+  none: {
+    en: "No image is currently open in the viewer.",
+    zh: "查看器中当前没有打开图像。",
+  },
+  videoUnsupported: {
+    en: "The current connection does not support joint audio-video Q&A. Say so explicitly when asked about the video; ordinary conversation remains available.",
+    zh: "当前连接不支持音画联合问答。被问到视频时要明确说明这一点；普通对话仍然可用。",
+  },
+  frameTime: {
+    en: "average frame period; view_current_image returns the exact source time",
+    zh: "按平均帧间隔估算；view_current_image 返回精确的源时间",
+  },
+  label: {
+    en: "Viewer context (catalogue labels recorded by the dataset and the UI, not a description of what the image shows)",
+    zh: "查看器上下文（数据集与界面记录的目录标签，不是画面内容的描述）",
+  },
+} satisfies Record<string, Bilingual>;
 
 /** SDD 19 §9.2：系统提示词的一段；`text` 不含段间分隔符。 */
 export interface PromptSegmentDraft {
@@ -127,7 +162,7 @@ export function systemPromptSegments(
 ): PromptSegmentDraft[] {
   const mounted = new Set(tools.map((tool) => tool.name));
   return [
-    { kind: "base", text: SYSTEM_PROMPT },
+    { kind: "base", text: SYSTEM_PROMPT[langOf(context)] },
     ...promptFragmentParts(context, mounted).map((part): PromptSegmentDraft => ({ kind: "plugin", plugin: part.plugin, text: part.text })),
     ...extras.map((part): PromptSegmentDraft => part.kind === "instructions"
       ? { kind: "instructions", scope: part.scope, text: part.text }
@@ -167,10 +202,9 @@ function viewerTail(
   context: HarnessToolContext,
   videoDescription?: { duration_ms: number; has_audio: boolean },
 ): string {
-  if (!viewer?.focus) return "No image is currently open in the viewer.";
-  if (viewer.focus.kind === "video" && !context.videoTurn) {
-    return "The current connection does not support joint audio-video Q&A. Say so explicitly when asked about the video; ordinary conversation remains available.";
-  }
+  const lang = langOf(context);
+  if (!viewer?.focus) return VIEWER_TEXT.none[lang];
+  if (viewer.focus.kind === "video" && !context.videoTurn) return VIEWER_TEXT.videoUnsupported[lang];
   const parts = [`object_id=${viewer.focus.object_id}`, `kind=${viewer.object?.kind ?? viewer.focus.kind}`];
   const index = Object.entries(viewer.focus.index).filter(([, value]) => value != null)
     .map(([axis, value]) => `${axis}:${value}`).join(",");
@@ -178,7 +212,8 @@ function viewerTail(
   const t = viewer.focus.index.t;
   const timeAxis = viewer.object?.axes.find((axis) => axis.name === "t" && axis.unit === "ms" && axis.spacing);
   if (t != null && timeAxis?.spacing) {
-    parts.push(`current_frame_time_ms≈${Math.round(t * timeAxis.spacing)} (average frame period; view_current_image returns the exact source time)`);
+    const note = lang === "zh" ? `（${VIEWER_TEXT.frameTime.zh}）` : ` (${VIEWER_TEXT.frameTime.en})`;
+    parts.push(`current_frame_time_ms≈${Math.round(t * timeAxis.spacing)}${note}`);
   }
   if (viewer.task) parts.push(`task=${viewer.task}`);
   if (viewer.collection) parts.push(`collection=${viewer.collection}`);
@@ -186,10 +221,9 @@ function viewerTail(
   if (videoDescription) parts.push(`duration_ms=${videoDescription.duration_ms}`, `has_audio=${videoDescription.has_audio}`);
   // 措辞刻意强调"目录标签"：这几个字段来自数据集与 UI 选择，不代表画面内容。
   // 早期版本只给这一行，模型便把标签当观察复述，用户看到的图与模型说的对不上。
-  return (
-    "Viewer context (catalogue labels recorded by the dataset and the UI, " +
-    `not a description of what the image shows): ${parts.join(", ")}.`
-  );
+  return lang === "zh"
+    ? `${VIEWER_TEXT.label.zh}：${parts.join(", ")}。`
+    : `${VIEWER_TEXT.label.en}: ${parts.join(", ")}.`;
 }
 
 interface Assembled {
@@ -526,9 +560,9 @@ export class HarnessRegistry {
       }
       const tools = chatEdition() ? [] : this.toolFactory(toolContext);
       const segments: PromptSegmentDraft[] = chatEdition()
-        ? [{ kind: "base", text: CHAT_SYSTEM_PROMPT }]
+        ? [{ kind: "base", text: CHAT_SYSTEM_PROMPTS[langOf(options)] }]
         : systemPromptSegments(options.viewer, tools, toolContext, videoDescription, resources?.promptExtraParts);
-      const systemPrompt = chatEdition() ? CHAT_SYSTEM_PROMPT : joinSystemPrompt(segments);
+      const systemPrompt = chatEdition() ? segments[0]!.text : joinSystemPrompt(segments);
       return {
         runtime, projectId, toolContext, tools, systemPrompt, segments,
         ...(videoTurn ? { videoTurn } : {}),
@@ -570,8 +604,7 @@ export class HarnessRegistry {
         const tools = this.toolFactory(childContext).filter((tool) => !allowed || allowed.has(tool.name));
         const extras = [
           parent.resources.promptExtras,
-          `<subagent name="${definition.name}">\n${definition.body}\n</subagent>\n` +
-            "Only your last reply will be passed to the main agent.",
+          `<subagent name="${definition.name}">\n${definition.body}\n</subagent>\n` + SUBAGENT_LAST_REPLY[langOf(childContext)],
         ].filter(Boolean).join("\n\n");
         const viewer = childContext.viewer;
         const waited = () => this.interactions.waitedMs(parent.sessionId, parent.commandId);
@@ -613,7 +646,7 @@ export class HarnessRegistry {
    * 返回分段、工具定义与未挂载原因；不启动命令、不调用模型。
    */
   async previewSystemPrompt(
-    sessionId: string, connection: ConnectionInput, viewer?: ViewerContext,
+    sessionId: string, connection: ConnectionInput, viewer?: ViewerContext, lang?: PromptLang,
   ): Promise<SystemPromptPreview> {
     const meta = this.sessions.metaRepo.get(sessionId);
     if (!meta) throw new RuntimeError("session_not_found", "Session not found.", 404);
@@ -622,6 +655,7 @@ export class HarnessRegistry {
       const assembled = await this.assemble(sessionId, "preview", connection, session, {
         permissionMode: meta.permission_mode,
         ...(viewer ? { viewer } : {}),
+        ...(lang ? { lang } : {}),
       });
       assembled.runtime.disposeCredential();
       return buildPreview({
@@ -659,6 +693,7 @@ export class HarnessRegistry {
     const resources = await (this.permissionDeps.loadResources ?? loadResources)({
       ...(projectDir ? { projectDir } : {}),
       disabledSkills: settings.user?.skillsDisabled ?? [],
+      ...(options.lang ? { lang: options.lang } : {}),
     });
     const permission: PermissionRunState = {
       getMode: () => this.sessions.metaRepo.get(sessionId)?.permission_mode ?? options.permissionMode ?? "controlled",

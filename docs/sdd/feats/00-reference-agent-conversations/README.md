@@ -360,6 +360,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022） |
 | `skill` | text nullable | 仅 `prompt`；显式调用的 Skill 名称，与 `template` 互斥，不接受 `images`（[SDD 17](../17-agent-skills-prompts/README.md) §7.4） |
 | `template` | object nullable | 仅 `prompt`；`{name, args}`，显式调用的提示词模板（SDD 17 §7.4） |
+| `lang` | enum nullable | `prompt`/`regenerate` 可选；`en`、`zh`，系统提示词与工具定义的语言，缺省 `en`；出现时参与命令摘要（[SDD 20](../20-prompt-language/README.md) §7.1、§10） |
 
 ## 10. 幂等性
 

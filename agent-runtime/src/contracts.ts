@@ -255,6 +255,8 @@ export const MAX_PROMPT_IMAGES = 6;
 /** 单条消息附件 base64 合计上限。 */
 export const MAX_PROMPT_IMAGES_TOTAL_BASE64 = 24 * 1024 * 1024;
 
+import type { PromptLang } from "./i18n/prompt-lang.js";
+
 export type TransportCommand =
   | {
       command_id: string;
@@ -267,12 +269,15 @@ export type TransportCommand =
       skill?: string;
       /** 显式调用的提示词模板；`args` 按 pi `parseCommandArgs` 解析。 */
       template?: { name: string; args: string };
+      /** 系统提示词与工具定义的语言（SDD 20 §7.1）；缺省英文。 */
+      lang?: PromptLang;
     }
   | {
       command_id: string;
       type: "regenerate";
       connection: ConnectionInput;
       viewer?: ViewerContext;
+      lang?: PromptLang;
     }
   | {
       command_id: string;

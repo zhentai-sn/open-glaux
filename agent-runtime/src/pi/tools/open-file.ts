@@ -13,6 +13,7 @@
  * 返回图像块，需连接声明 `vision: true` 才挂载（参照 SDD 03 D-21）。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type ImageContent, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -194,3 +195,11 @@ export function createOpenFileTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const OPEN_FILE_ZH: ToolZh = {
+  description: "打开本对话绑定的项目文件夹中的文件并查看：返回其元数据以及首帧或代表帧。只读；路径相对项目根目录且不能越出项目。它不会改变用户在舞台上打开的内容——作用于当前对象的工具（run_task 等）仍使用用户舞台上的对象。outside_project、unsupported_format、corrupt 等错误表示文件无法打开；不要对同一路径重试。",
+  parameters: {
+    path: "要打开的文件，相对项目根目录（例如 \"cases/liver/scan_01.jpg\"）。用 list_files 查找。",
+  },
+};

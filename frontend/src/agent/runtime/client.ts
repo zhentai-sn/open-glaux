@@ -6,6 +6,7 @@ import type {
   ConnectionTestResult,
   InteractionReply,
   PermissionMode,
+  PromptLang,
   ResourceList,
   ResourceSource,
   SkillItem,
@@ -152,10 +153,10 @@ export const agentRuntimeApi = {
       method: "PUT",
       body: JSON.stringify({ content }),
     }),
-  previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext) =>
+  previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext, lang?: PromptLang) =>
     request<SystemPromptPreview>(`/sessions/${encodeURIComponent(sessionId)}/system-prompt`, {
       method: "POST",
-      body: JSON.stringify({ connection, ...(viewer ? { viewer } : {}) }),
+      body: JSON.stringify({ connection, ...(viewer ? { viewer } : {}), ...(lang ? { lang } : {}) }),
     }),
   // 连接探测（退役 orchestration P2：从 backend /intent/vlm/* 迁来，agent-runtime 是唯一模型出口）
   testConnection: (input: ConnectionProbeInput) =>

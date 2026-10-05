@@ -7,6 +7,15 @@ export type Lang = "en" | "zh";
 const DICTS = { en, zh } as const;
 
 // 默认语言：跟随 navigator.language（zh* → 中文），用户切换后记 localStorage（设计稿 §4）。
+// 也是发给 runtime 的提示词语言（SDD 20 §7.1 规则 3）：组件外取当前语言用它。
+export function currentLang(): Lang {
+  try {
+    return initialLang();
+  } catch {
+    return "en";
+  }
+}
+
 function initialLang(): Lang {
   const saved = typeof localStorage !== "undefined" ? localStorage.getItem("glaux.lang") : null;
   if (saved === "en" || saved === "zh") return saved;

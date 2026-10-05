@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 20 · 提示词随界面语言切换
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 范围与译文定稿方式已由维护者确认（2026-10-05），进入实现 |
+| 状态 | `implemented` |
+| 当前阶段 | 已实现，自动化门禁与开发侧浏览器走查通过，自查见 §15；真实模型中文走查与业务验收待补 |
 | 来源 | 2026-10-05 维护者提出：系统提示词按界面语言调整，默认支持中英文 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 19 上下文管理](../19-context-management/README.md) · [SDD 17 Skills 与提示词管理](../17-agent-skills-prompts/README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 00 内置参考智能体](../00-reference-agent-conversations/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -167,24 +167,24 @@ interface SystemPromptPreviewRequest { connection: ConnectionInput; viewer?: Vie
 
 ### 15.1 runtime
 
-- [ ] 不带 `lang` 与 `lang: "en"` 的系统提示词与 SDD 17 快照逐字一致（快照测试）。
-- [ ] `lang: "zh"` 的系统提示词三种场景（无焦点、图像加项目、视频）各有快照，不含英文指令句（快照测试）。
-- [ ] `lang: "zh"` 时 16 个工具的说明与全部参数说明为中文；两种语言的参数 schema 除 `description` 外完全相同（单元测试）。
-- [ ] pi 内置工具替换说明后，参数校验结果与替换前相同（单元测试）。
-- [ ] 中文技能目录与 pi 生成的英文目录 XML 结构相同，名称、描述、路径按原文（单元测试）。
-- [ ] 命令与预览的 `lang` 非法时返回 `400`；`lang` 参与摘要，同一 `command_id` 换语言返回冲突（契约测试）。
-- [ ] 预览 `lang: "zh"` 的 `prompt` 与同条件下真实命令收到的系统提示词逐字相等（集成测试）。
+- [x] 不带 `lang` 与 `lang: "en"` 的系统提示词与 SDD 17 快照逐字一致（快照测试）。——`system-prompt.test.ts` 快照未变；`prompt-language.test.ts` 比对缺省与 `en`
+- [x] `lang: "zh"` 的系统提示词三种场景（无焦点、图像加项目、视频）各有快照，不含英文指令句（快照测试）。——`prompt-language.test.ts`（3 个中文快照）
+- [x] `lang: "zh"` 时 16 个工具的说明与全部参数说明为中文；两种语言的参数 schema 除 `description` 外完全相同（单元测试）。——`prompt-language.test.ts`（含 TypeBox symbol 元数据）
+- [x] pi 内置工具替换说明后，参数校验结果与替换前相同（单元测试）。——`prompt-language.test.ts`（pi `validateToolArguments`）
+- [x] 中文技能目录与 pi 生成的英文目录 XML 结构相同，名称、描述、路径按原文（单元测试）。——`prompt-language.test.ts`
+- [x] 命令与预览的 `lang` 非法时返回 `400`；`lang` 参与摘要，同一 `command_id` 换语言返回冲突（契约测试）。——`resources-api.test.ts`；摘要另见 `prompt-language.test.ts`
+- [x] 预览 `lang: "zh"` 的 `prompt` 与同条件下真实命令收到的系统提示词逐字相等（集成测试）。——`resources-api.test.ts`（含工具定义）
 
 ### 15.2 前端
 
-- [ ] `prompt`、`regenerate` 命令带当前界面语言（单元测试）。
-- [ ] 上下文页预览请求带 `lang`；切换界面语言后重新请求（组件测试）。
+- [x] `prompt`、`regenerate` 命令带当前界面语言（单元测试）。——`agentSessions.test.ts`
+- [x] 上下文页预览请求带 `lang`；切换界面语言后重新请求（组件测试）。——`ContextPanel.test.tsx`
 
 ### 15.3 走查与工程
 
-- [ ] 浏览器走查：界面切换中英文，上下文页的系统提示词与工具说明随之切换；截图留证。
-- [ ] `make test`、`make lint` 通过。
-- [ ] SDD 00、15、17、19 与 SDD 索引同步更新。
+- [x] 浏览器走查：界面切换中英文，上下文页的系统提示词与工具说明随之切换；截图留证。——开发侧走查：中文界面预览为中文全文（约 538 + 924 tokens），在设置里切到英文后预览自动重取为英文（约 1009 + 1579 tokens）
+- [x] `make test`、`make lint` 通过。——agent-runtime 488、前端 436，两端 lint 与 `check-literals` 通过；backend、science-core 未改动，未重跑
+- [x] SDD 00、15、17、19 与 SDD 索引同步更新。——另含两份 CHANGELOG
 
 ## 16. 决策记录
 

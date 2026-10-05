@@ -14,6 +14,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 
+import type { PromptLang } from "../i18n/prompt-lang.js";
 import { loadAgents, type AgentDefinition, type AgentItem } from "./agents.js";
 import { resourceDirs, type ResourceSource } from "./paths.js";
 
@@ -82,32 +83,78 @@ export interface LoadResourcesOptions {
   builtinAgentsDir?: string;
   /** 用户级设置中的停用列表。 */
   disabledSkills?: readonly string[];
+  /** 技能目录引导语、Skills 目录行与截断说明的语言（SDD 20 §7.2）；缺省英文。 */
+  lang?: PromptLang;
 }
 
-async function readInstructions(path: string): Promise<{ text: string; bytes: number } | undefined> {
+async function readInstructions(path: string, lang: PromptLang): Promise<{ text: string; bytes: number } | undefined> {
   const raw = await readFile(path).catch(() => undefined);
   if (!raw) return undefined;
   const bytes = raw.byteLength;
   const truncated = bytes > MAX_INSTRUCTIONS_BYTES;
   const text = new TextDecoder().decode(truncated ? raw.subarray(0, MAX_INSTRUCTIONS_BYTES) : raw).trim();
   if (!text) return { text: "", bytes };
-  return { text: truncated ? `${text}\n[truncated: the file exceeds ${MAX_INSTRUCTIONS_BYTES} bytes]` : text, bytes };
+  const note = lang === "zh"
+    ? `[已截断：文件超过 ${MAX_INSTRUCTIONS_BYTES} 字节]`
+    : `[truncated: the file exceeds ${MAX_INSTRUCTIONS_BYTES} bytes]`;
+  return { text: truncated ? `${text}\n${note}` : text, bytes };
 }
 
-const FOLDER_LABEL: Record<ResourceSource, string> = { project: "project", user: "personal", builtin: "built-in (read-only)" };
+const FOLDER_LABEL: Record<PromptLang, Record<ResourceSource, string>> = {
+  en: { project: "project", user: "personal", builtin: "built-in (read-only)" },
+  zh: { project: "项目", user: "个人", builtin: "内置（只读）" },
+};
 
 /** 按优先级从高到低列出 Skills 目录；未绑定项目时没有项目层。 */
-function skillFoldersLine(dirs: { source: ResourceSource; path: string }[]): string {
-  const folders = [...dirs].sort((a, b) => RANK[b.source] - RANK[a.source])
-    .map((dir) => `${FOLDER_LABEL[dir.source]}: ${dir.path.replace(/[\\/]+$/u, "")}`).join("; ");
+function skillFoldersLine(dirs: { source: ResourceSource; path: string }[], lang: PromptLang): string {
+  const sorted = [...dirs].sort((a, b) => RANK[b.source] - RANK[a.source]);
+  const trim = (path: string) => path.replace(/[\\/]+$/u, "");
+  if (lang === "zh") {
+    const folders = sorted.map((dir) => `${FOLDER_LABEL.zh[dir.source]}：${trim(dir.path)}`).join("；");
+    return `Skills 目录，按优先级从高到低（同名 Skill 以较高目录中的为准）：${folders}。` +
+      "一个 Skill 是目录 <folder>/<name>/，其中包含 SKILL.md。";
+  }
+  const folders = sorted.map((dir) => `${FOLDER_LABEL.en[dir.source]}: ${trim(dir.path)}`).join("; ");
   return `Skill folders, highest priority first (a same-named skill in a higher folder wins): ${folders}. ` +
     "A skill is a folder <folder>/<name>/ containing SKILL.md.";
+}
+
+function escapeXml(value: string): string {
+  return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;").replace(/'/gu, "&apos;");
+}
+
+/**
+ * 技能目录段（SDD 20 §7.2 规则 4）：英文沿用 pi 的 `formatSkillsForSystemPrompt`；中文生成同一 XML 结构，
+ * 只替换引导语，名称、描述、路径按原文。
+ */
+export function formatSkillsCatalog(skills: readonly Skill[], lang: PromptLang): string {
+  if (lang === "en") return formatSkillsForSystemPrompt([...skills]);
+  const visible = skills.filter((skill) => !skill.disableModelInvocation);
+  if (!visible.length) return "";
+  const lines = [
+    "以下 Skill 为特定任务提供专门的说明。",
+    "任务与某个 Skill 的描述相符时，读取它的完整 Skill 文件。",
+    "Skill 文件引用相对路径时，以该 Skill 的目录（SKILL.md 所在目录）为基准解析，并在工具命令中使用解析后的绝对路径。",
+    "",
+    "<available_skills>",
+  ];
+  for (const skill of visible) {
+    lines.push("  <skill>");
+    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
+    lines.push(`    <description>${escapeXml(skill.description)}</description>`);
+    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
+    lines.push("  </skill>");
+  }
+  lines.push("</available_skills>");
+  return lines.join("\n");
 }
 
 export async function loadResources(options: LoadResourcesOptions = {}): Promise<LoadedResources> {
   const dirs = resourceDirs(options);
   const env = new NodeExecutionEnv({ cwd: "/" });
   const disabled = new Set(options.disabledSkills ?? []);
+  const lang = options.lang ?? "en";
 
   const loadedSkills = await loadSourcedSkills(env, dirs.skills);
   const winner = new Map<string, { skill: Skill; source: ResourceSource }>();
@@ -147,14 +194,14 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
   const instructions: InstructionsItem[] = [];
   const parts: PromptExtraPart[] = [];
   for (const { scope, path } of dirs.instructions) {
-    const read = await readInstructions(path);
+    const read = await readInstructions(path, lang);
     instructions.push({ scope, path, exists: !!read, bytes: read?.bytes ?? 0 });
     if (read?.text) parts.push({ kind: "instructions", scope, text: `<instructions scope="${scope}">\n${read.text}\n</instructions>` });
   }
   const agents = await loadAgents(dirs.agents);
-  const catalog = formatSkillsForSystemPrompt(harnessSkills);
+  const catalog = formatSkillsCatalog(harnessSkills, lang);
   // 目录段末尾列出各层 Skills 目录，模型新建或覆盖 Skill 时据此选位置（SDD 17 §7.2）。
-  if (catalog) parts.push({ kind: "skills", text: `${catalog}\n${skillFoldersLine(dirs.skills)}` });
+  if (catalog) parts.push({ kind: "skills", text: `${catalog}\n${skillFoldersLine(dirs.skills, lang)}` });
 
   return {
     skills,

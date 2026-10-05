@@ -1,4 +1,5 @@
 /** SDD 11 的两个受控动作：按需观察音画、提交带证据的回答。 */
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -83,3 +84,18 @@ export function createSubmitVideoAnswerTool(turn: VideoTurn): AgentHarnessTool<u
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。参数说明原本就是中文，两种语言相同。 */
+export const OBSERVE_VIDEO_ZH: ToolZh = {
+  description: "观察当前视频的同步画面与原声。选择以毫秒计的源区间（最长 60 秒）。作出任何画面或声音方面的断言之前先观察；必要时重新观察某段区间。",
+  parameters: {
+    start_ms: "原视频起点，毫秒，含端点",
+    end_ms: "原视频终点，毫秒，不含端点；最长 60000 ms",
+    fps: "Qwen 观察抽帧密度；缺省 2",
+  },
+};
+
+export const SUBMIT_VIDEO_ANSWER_ZH: ToolZh = {
+  description: "只提交你实际观察到的事实，并附观察 ID 与源视频时间区间。先核实问题所预设的事件。缺少证据的部分放进 unanswered。局部画面事实可以附源帧框；音频证据不能附框。",
+  parameters: {},
+};

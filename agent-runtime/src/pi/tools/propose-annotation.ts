@@ -16,6 +16,7 @@
  * 数十倍，不让模型自己换算。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -254,3 +255,15 @@ function bboxPrimitive(
   if (!(x1 > x0) || !(y1 > y0)) return null;
   return { kind: "bbox", x0, y0, x1, y1 };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const PROPOSE_ANNOTATION_ZH: ToolZh = {
+  description: "在查看器当前打开的图像上提出一条标注。它以建议的形式出现，由用户确认或拒绝——它永远不会自行成为已确认的标注，确认由用户决定，不由你决定。说明你使用的坐标系：space 为 \"view\" 表示你看到的那张画面的像素，\"object\" 表示从 segment_region 或 locate_roi 复制来的坐标。每次调用提出一个区域，只提出你确实判断正确的区域。",
+  parameters: {
+    label: "这条标注标记的是什么，用用户的语言（例如 \"左肾\"、\"nucleus\"）。",
+    space: "bbox / polygon 的坐标系。\"view\"：view_current_image 给你看的那张画面的像素——你根据所见自己画出区域时用它；即使那张画面是缩小的概览图，也会替你换算。\"object\"：对象像素，例如从 segment_region 或 locate_roi 原样复制的多边形或框。",
+    bbox: "矩形 [x0, y0, x1, y1]，坐标系由 space 指定。bbox 与 polygon 二选一。",
+    polygon: "闭合轮廓 [[x, y], ...]，坐标系由 space 指定。bbox 与 polygon 二选一。",
+    note: "显示在建议旁、给用户看的简短理由（你为什么认为它是这个）。",
+  },
+};

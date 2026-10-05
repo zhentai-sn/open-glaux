@@ -21,6 +21,7 @@ import {
 } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import type { InteractionReply } from "../interaction/table.js";
+import { isPromptLang, type PromptLang } from "../i18n/prompt-lang.js";
 import { assertResourceName } from "../resources/paths.js";
 import type { CommandService } from "../pi/command-service.js";
 import type { HarnessRegistry } from "../pi/harness-registry.js";
@@ -102,7 +103,8 @@ export function registerRoutes(
   server.post("/agent-api/v1/sessions/:sessionId/system-prompt", async (request) => {
     const body = asObject(request.body);
     const viewer = parseViewer(body.viewer);
-    return registry.previewSystemPrompt(sessionIdFrom(request), parseConnection(body.connection), viewer);
+    const lang = parseLang(body.lang);
+    return registry.previewSystemPrompt(sessionIdFrom(request), parseConnection(body.connection), viewer, lang);
   });
 
   registerResourceRoutes(server, dependencies.resources ?? {});
@@ -301,6 +303,7 @@ function parseCommand(value: unknown): TransportCommand {
     }
     const viewer = parseViewer(body.viewer);
     const invocation = parseInvocation(body.skill, body.template, images.length > 0);
+    const lang = parseLang(body.lang);
     return {
       command_id: body.command_id,
       type: "prompt",
@@ -309,6 +312,7 @@ function parseCommand(value: unknown): TransportCommand {
       connection,
       ...(viewer ? { viewer } : {}),
       ...invocation,
+      ...(lang ? { lang } : {}),
     };
   }
   if (body.content !== undefined) {
@@ -326,7 +330,15 @@ function parseCommand(value: unknown): TransportCommand {
     );
   }
   const viewer = parseViewer(body.viewer);
-  return { command_id: body.command_id, type: "regenerate", connection, ...(viewer ? { viewer } : {}) };
+  const lang = parseLang(body.lang);
+  return { command_id: body.command_id, type: "regenerate", connection, ...(viewer ? { viewer } : {}), ...(lang ? { lang } : {}) };
+}
+
+/** SDD 20 §7.1 规则 2：`lang` 可选，只接受 `en` / `zh`。 */
+function parseLang(value: unknown): PromptLang | undefined {
+  if (value === undefined) return undefined;
+  if (!isPromptLang(value)) throw new RuntimeError("invalid_request", "lang must be \"en\" or \"zh\".", 400);
+  return value;
 }
 
 /**

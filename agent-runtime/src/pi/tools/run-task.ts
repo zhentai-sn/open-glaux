@@ -13,6 +13,7 @@
  * SDD 02 落地 `locate_roi / segment_region / propose_annotation` 后，本工具由更细粒度的工具集取代。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type Static } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -153,6 +154,22 @@ export function createRunTaskTool(
         content: [{ type: "text", text: summarize(task, imageId, output) }],
         details: { kind: TASK_OUTPUT_DETAILS_KIND, task, image_id: imageId, output },
       };
+    },
+  };
+}
+
+/** 中文工具定义（SDD 20 §7.3）；说明末尾随查看器状态变化，与英文版一致。 */
+export function runTaskZh(viewer: ViewerContext = {}): ToolZh {
+  const contextLine = viewer.focus
+    ? `查看器当前显示对象「${viewer.focus.object_id}」${viewer.task ? `，任务为「${viewer.task}」` : ""}。`
+    : "查看器中当前没有打开图像。";
+  return {
+    description: "通过 science-core 后端对图像运行 Glaux 图像分析任务（标定过的分割加测量），并在查看器中显示结果。" +
+      "用户要求对当前图像测量、分割、分析或重新分析时使用。" + contextLine,
+    parameters: {
+      image_id: "要分析的图像、体数据或切片 id。缺省为查看器中当前打开的图像。",
+      task: "注册表中的任务类型 id（例如 far_wall_cca_imt、fetal_hc、totalseg_liver_kidney、nuclei_detection）。缺省为查看器当前的任务。",
+      method: "覆盖使用的分割适配器或模型 id（可选）。",
     },
   };
 }

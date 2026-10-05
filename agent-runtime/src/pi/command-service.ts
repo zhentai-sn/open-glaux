@@ -124,6 +124,7 @@ export class CommandService {
         {
           permissionMode: current.permission_mode,
           ...(command.viewer ? { viewer: command.viewer } : {}),
+          ...(command.lang ? { lang: command.lang } : {}),
           ...(command.type === "prompt" && (command.skill !== undefined || command.template !== undefined)
             ? { requires: { ...(command.skill !== undefined ? { skill: command.skill } : {}), ...(command.template ? { template: command.template.name } : {}) } }
             : {}),
@@ -236,6 +237,8 @@ export function commandDigest(
         // SDD 17 §10：显式调用参与摘要，同一 command_id 换 Skill 判为冲突。
         ...(command.type === "prompt" && command.skill !== undefined ? { skill: command.skill } : {}),
         ...(command.type === "prompt" && command.template !== undefined ? { template: command.template } : {}),
+        // SDD 20 §10：语言出现时参与摘要；不出现时与实施前相同。
+        ...(command.lang !== undefined ? { lang: command.lang } : {}),
       }),
     )
     .digest("hex");

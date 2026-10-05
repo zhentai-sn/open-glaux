@@ -12,6 +12,7 @@ import {
   type EventConnector,
 } from "../agent/runtime/events";
 import { applyToolExecutionEvent, type TaskOutputSink } from "../agent/toolBridge";
+import { currentLang } from "../i18n";
 import { useProjects } from "./projects";
 import type { Invocation } from "../components/agent/slashCommands";
 import { useSession } from "./session";
@@ -425,6 +426,7 @@ export function createAgentSessionsStore(
             ...(images.length ? { images } : {}),
             connection,
             ...(viewer ? { viewer } : {}),
+            lang: currentLang(),
           });
           get().applySnapshot(snapshot);
           ensureEvents(sessionId, store);
@@ -447,6 +449,7 @@ export function createAgentSessionsStore(
             type: "regenerate",
             connection,
             ...(viewer ? { viewer } : {}),
+            lang: currentLang(),
           }),
         );
       },

@@ -18,6 +18,7 @@
  * 挂着一个必然失败的工具只会诱导模型反复重试。
  */
 
+import type { ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -220,3 +221,13 @@ export function createSegmentRegionTool(
     },
   };
 }
+
+/** 中文工具定义（SDD 20 §7.3）。 */
+export const SEGMENT_REGION_ZH: ToolZh = {
+  description: "根据简短描述，在查看器当前打开的图像中勾画结构。返回像素级精确的多边形（带置信度与边界框），之后可作为标注建议提出。最适合日常物体和边界清晰的结构；它是通用分割器，不是医学模型——标定测量或特定模态的结构（IMT、CT 器官分割、切片上的细胞核）请改用 run_task；什么都没找到时直接说明，不要猜坐标。",
+  parameters: {
+    target: "要分割的对象，用英文简短名词短语（例如 \"left kidney\"、\"cell nucleus\"）。它与模型的开放词表匹配——描述对象，而不是动作。",
+    max_results: "最多保留的区域数，按面积从大到小（缺省 10）。",
+    min_confidence: "丢弃置信度低于此值的区域（缺省 0.3）。",
+  },
+};
