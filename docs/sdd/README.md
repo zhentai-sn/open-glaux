@@ -53,6 +53,7 @@ stateDiagram-v2
 | 19 | [上下文管理](feats/19-context-management/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-04 |
 | 20 | [提示词随界面语言切换](feats/20-prompt-language/README.md) | `implemented`（真实模型走查、业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
 | 21 | [运行轨迹](feats/21-run-trajectory/README.md) | `implemented`（维护者初步验收通过，正式业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
+| 22 | [智能体看图：缩放与复核](feats/22-agent-visual-inspection/README.md) | `ready` | Glaux 项目维护者 | 2026-10-05 |
 
 ## 维护约定
 
