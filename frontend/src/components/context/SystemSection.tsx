@@ -73,9 +73,35 @@ const SEGMENT_LABEL: Record<PromptSegment["kind"], I18nKey> = {
   viewer: "ctx_seg_viewer",
 };
 
-function segmentLabel(t: (key: I18nKey, vars?: Record<string, string | number>) => string, segment: PromptSegment): string {
+export function segmentLabel(
+  t: (key: I18nKey, vars?: Record<string, string | number>) => string,
+  segment: Pick<PromptSegment, "kind" | "plugin" | "scope">,
+): string {
   if (segment.kind === "instructions") return t(segment.scope === "project" ? "ctx_seg_instructions_project" : "ctx_seg_instructions_user");
   return t(SEGMENT_LABEL[segment.kind], { plugin: segment.plugin ?? "" });
+}
+
+/** 分段列表：来源标签、估算 token，可展开正文（SDD 19 §7.4 规则 4）；运行轨迹的请求头详情复用（SDD 21 §7.4）。 */
+export function SegmentList({ segments, readonlyBadges = false }: { segments: PromptSegment[]; readonlyBadges?: boolean }) {
+  const { t } = useI18n();
+  return (
+    <ul className="ctx-segments">
+      {segments.map((segment, index) => (
+        <li key={index}>
+          <details className="ctx-segment">
+            <summary>
+              <span className="ctx-segment-label">{segmentLabel(t, segment)}</span>
+              {readonlyBadges && (segment.kind === "base" || segment.kind === "plugin" || segment.kind === "viewer") && (
+                <span className="res-badge">{t("ctx_readonly")}</span>
+              )}
+              <span className="ctx-tokens">{t("ctx_tokens", { n: segment.est_tokens })}</span>
+            </summary>
+            <pre className="res-preview mono">{segment.text}</pre>
+          </details>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** 预览不可用时的说明（SDD 19 §7.4 规则 2、3）；有结果时返回 null。 */
@@ -133,22 +159,7 @@ function Preview({ state, onRefresh }: { state: PreviewState; onRefresh: () => v
               total: data.est_tokens.prompt + data.est_tokens.tools,
             })}
           </div>
-          <ul className="ctx-segments">
-            {data.segments.map((segment, index) => (
-              <li key={index}>
-                <details className="ctx-segment">
-                  <summary>
-                    <span className="ctx-segment-label">{segmentLabel(t, segment)}</span>
-                    {(segment.kind === "base" || segment.kind === "plugin" || segment.kind === "viewer") && (
-                      <span className="res-badge">{t("ctx_readonly")}</span>
-                    )}
-                    <span className="ctx-tokens">{t("ctx_tokens", { n: segment.est_tokens })}</span>
-                  </summary>
-                  <pre className="res-preview mono">{segment.text}</pre>
-                </details>
-              </li>
-            ))}
-          </ul>
+          <SegmentList segments={data.segments} readonlyBadges />
           <div className="res-actions">
             <button type="button" aria-expanded={full} onClick={() => setFull((v) => !v)}>
               {t(full ? "ctx_preview_hide_full" : "ctx_preview_show_full")}

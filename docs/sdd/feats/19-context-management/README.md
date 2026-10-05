@@ -70,6 +70,7 @@ status: implemented
 - **导航**：标题「上下文」，下设三组：
   - 指令：系统提示词、提示词模板
   - 能力：工具、子智能体、技能
+  - 运行：轨迹（[SDD 21](../21-run-trajectory/README.md)）
   - 扩展：记忆、MCP（置灰，标「暂未开放」）
 - **系统提示词**：用户级 GLAUX.md 编辑区；项目级 GLAUX.md 编辑区（仅项目会话）；预览区。
   - 预览区包括合计估算 token（系统提示词、工具定义、两者之和）和分段列表。
@@ -292,7 +293,7 @@ interface SystemPromptPreview {
 
 | 键 | 值 | 说明 |
 | --- | --- | --- |
-| `glaux.contextSection.v1` | `"system" \| "templates" \| "tools" \| "agents" \| "skills"` | 上次分区；读写包在 try/catch 中 |
+| `glaux.contextSection.v1` | `"system" \| "templates" \| "tools" \| "agents" \| "skills" \| "trajectory"` | 上次分区；读写包在 try/catch 中；`trajectory` 见 SDD 21 |
 | `glaux.focusLayout.v1` 的 `sideView` | 增加 `"context"`，去掉 `"skills"`、`"prompts"` | 迁移见 §7.2 规则 4，键名不 bump |
 
 ## 10. 幂等规则
@@ -340,6 +341,7 @@ interface SystemPromptPreview {
 | [SDD 17](../17-agent-skills-prompts/README.md) | 页面编排（§1 第 5 项、§4.2、§5.1、§7.6、§8.2）由本 SDD 取代；预览响应（§9.2）由本 SDD §9.2 取代；SDD 17 对应章节引用本 SDD |
 | [SDD 15](../15-agent-plugins-permissions/README.md) | 工具目录读取插件登记表；未挂载原因 `mode` 依据 §7.4 的挂载规则 |
 | [SDD 18](../18-agent-subagents/README.md) | 子智能体分区展示 `AgentItem`，字段不变 |
+| [SDD 21](../21-run-trajectory/README.md) | 新增分组「运行」与分区「轨迹」；请求头详情复用分段结构（§9.2）与估算口径（§9.3） |
 | [SDD 01](../01-dual-mode-shell/README.md) | 竖条入口由「技能、提示词」改为「上下文」；`sideView` 取值与迁移；上下文页与设置页同位置（D25） |
 
 ## 15. 验收标准

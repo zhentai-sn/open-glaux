@@ -3805,6 +3805,66 @@ button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space:
 .ctx-effect-write, .ctx-effect-exec, .ctx-effect-egress { color: var(--warn); }
 .ctx-mount { margin-left: auto; font-size: 11px; color: var(--faint); display: inline-flex; align-items: center; gap: 3px; }
 .ctx-mount.on { color: var(--good); }
+/* ---- 运行轨迹（SDD 21）：泳道色 输入=accent2、模型=agent、工具=good，警示=crit ---- */
+.traj { --lane-input: var(--accent2); --lane-model: var(--agent); --lane-tool: var(--good); min-width: 0; }
+.traj-toolbar button[aria-pressed="true"] { background: var(--agent-dim); border-color: var(--agent-line); color: var(--bright); }
+.traj-timeline { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.traj-lane-labels { display: grid; grid-template-rows: repeat(3, 14px); row-gap: 4px; padding-top: 14px; color: var(--faint); font-size: 10.5px; line-height: 14px; }
+.traj-lanes-scroll { overflow-x: auto; min-width: 0; }
+.traj-lanes { display: grid; grid-template-rows: repeat(3, 14px); row-gap: 4px; column-gap: 2px; padding-top: 14px; position: relative; }
+.traj-block { height: 14px; min-width: 0; padding: 0; border: none; border-radius: 3px; cursor: pointer; opacity: 0.85; }
+.traj-block:hover, .traj-block:focus-visible { opacity: 1; outline: 1px solid var(--bright); }
+.traj-lane-input { background: var(--lane-input); }
+.traj-lane-model { background: var(--lane-model); }
+.traj-lane-tool { background: var(--lane-tool); }
+.traj-block.warn { background: var(--crit); }
+/* 轮次边界：竖虚线，轮次号浮在泳道上方 */
+.traj-turn-mark { border-left: 1px dashed var(--line2); margin: -14px 0 0 -2px; padding-left: 2px; font-size: 9.5px; line-height: 12px; color: var(--faint); pointer-events: none; z-index: 1; }
+.traj-turns, .traj-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.traj-turns { gap: 6px; }
+.traj-turn { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.traj-turn-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border: none; background: var(--input); color: var(--ink); font-size: 12px; cursor: pointer; text-align: left; }
+.traj-turn-head b { color: var(--bright); }
+.traj-outcome-failed, .traj-outcome-budget_exceeded { color: var(--crit); border-color: var(--crit); }
+.traj-outcome-running { color: var(--accent2); border-color: var(--accent2); }
+.traj-row { border-top: 1px solid var(--line); min-width: 0; }
+.traj-row-head { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 5px 10px; border: none; background: none; color: var(--ink); font-size: 12px; cursor: pointer; text-align: left; }
+.traj-row-head:hover { background: var(--hover); }
+.traj-badge { flex: none; min-width: 48px; text-align: center; font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: var(--input); color: var(--mid); }
+.traj-badge-user, .traj-badge-header, .traj-badge-notice { color: var(--lane-input); background: color-mix(in srgb, var(--lane-input) 14%, transparent); }
+.traj-badge-model, .traj-badge-compaction { color: var(--lane-model); background: color-mix(in srgb, var(--lane-model) 14%, transparent); }
+.traj-badge-tool { color: var(--lane-tool); background: color-mix(in srgb, var(--lane-tool) 14%, transparent); }
+.traj-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traj-kind-tool .traj-summary { font-family: var(--mono); font-size: 11px; }
+.traj-duration { flex: none; color: var(--faint); font-size: 11px; }
+.traj-blocked { color: var(--crit); border-color: var(--crit); }
+.traj-detail { display: flex; flex-direction: column; gap: 8px; padding: 4px 10px 10px; min-width: 0; }
+.traj-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line); }
+.traj-tabs button { padding: 4px 10px; border: none; border-bottom: 2px solid transparent; background: none; color: var(--mid); font-size: 11.5px; cursor: pointer; }
+.traj-tabs button.on { color: var(--bright); border-bottom-color: var(--agent); }
+.traj-panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.traj-blocks { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.traj-thinking > summary { color: var(--faint); font-size: 11px; cursor: pointer; }
+.traj-facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; font-size: 11.5px; }
+.traj-facts > div { display: contents; }
+.traj-facts dt { color: var(--faint); }
+.traj-facts dd { margin: 0; color: var(--ink); font-family: var(--mono); }
+.traj-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--input); }
+.traj-bar > span { flex-basis: 0; min-width: 2px; }
+.traj-bar-system { background: var(--lane-input); }
+.traj-bar-tools { background: var(--lane-tool); }
+.traj-bar-messages { background: var(--lane-model); }
+.traj-list, .traj-messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.traj-list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.traj-diff-added .res-badge { color: var(--good); border-color: var(--good); }
+.traj-diff-removed .res-badge { color: var(--crit); border-color: var(--crit); }
+.traj-diff-changed .res-badge { color: var(--warn); border-color: var(--warn); }
+.traj-messages > li { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); min-width: 0; }
+.traj-message-head { display: flex; align-items: center; gap: 6px; }
+.traj-mark-pruned { color: var(--warn); border-color: var(--warn); }
+.traj-mark-injected { color: var(--accent2); border-color: var(--accent2); }
+.traj-request { display: flex; flex-direction: column; gap: 6px; }
+.traj-request > .ctx-link { align-self: flex-start; font-size: 11.5px; }
 
 /* ==== 输入框 / 菜单与 Skill 调用消息（SDD 17 §7.7、§5.1） ==== */
 .conversation-composer { position: relative; }

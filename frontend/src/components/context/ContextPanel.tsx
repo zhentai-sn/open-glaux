@@ -8,8 +8,9 @@ import { SkillsSection } from "./SkillsSection";
 import { SystemSection } from "./SystemSection";
 import { TemplatesSection } from "./TemplatesSection";
 import { ToolsSection } from "./ToolsSection";
+import { TrajectorySection } from "./TrajectorySection";
 
-// 上下文页（SDD 19）：与设置页同一竖向分区布局；记忆、MCP 暂未开放。
+// 上下文页（SDD 19）：与设置页同一竖向分区布局；记忆、MCP 暂未开放。「运行 → 轨迹」见 SDD 21。
 
 type SectionId = ContextSection | "memory" | "mcp";
 
@@ -19,6 +20,7 @@ const SECTIONS: { id: SectionId; label: I18nKey; group: I18nKey; disabled?: true
   { id: "tools", label: "ctx_tools", group: "ctx_group_capabilities" },
   { id: "agents", label: "ctx_agents", group: "ctx_group_capabilities" },
   { id: "skills", label: "ctx_skills", group: "ctx_group_capabilities" },
+  { id: "trajectory", label: "ctx_trajectory", group: "ctx_group_runtime" },
   { id: "memory", label: "ctx_memory", group: "ctx_group_extensions", disabled: true },
   { id: "mcp", label: "ctx_mcp", group: "ctx_group_extensions", disabled: true },
 ];
@@ -29,6 +31,7 @@ const DESC: Partial<Record<SectionId, I18nKey>> = {
   tools: "ctx_tools_desc",
   agents: "ctx_agents_desc",
   skills: "ctx_skills_desc",
+  trajectory: "ctx_trajectory_desc",
 };
 
 /** 离开上下文页前的确认（SDD 19 §7.3 规则 2）；左侧竖条与活动栏切走时调用。 */
@@ -70,7 +73,7 @@ export function ContextPanel() {
         <SystemSection projectId={projectId} preview={preview.state} onRefresh={() => void preview.refresh()} onChanged={preview.markStale} />
       )}
       {/* 资源清单失败只影响列表分区；系统提示词分区自取 GLAUX.md 与预览（SDD 19 §13） */}
-      {error && section !== "system" && (
+      {error && section !== "system" && section !== "trajectory" && (
         <div className="res-error ctx-list-error" role="alert">
           {error}
           <button type="button" onClick={() => void reload()}>{t("exp_retry")}</button>
@@ -84,6 +87,7 @@ export function ContextPanel() {
       {section === "skills" && (
         <SkillsSection projectId={projectId} list={list} reload={reload} onChanged={preview.markStale} />
       )}
+      {section === "trajectory" && <TrajectorySection />}
     </SectionedPanel>
   );
 }

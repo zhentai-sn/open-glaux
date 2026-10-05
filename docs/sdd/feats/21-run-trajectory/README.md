@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 21 · 运行轨迹
@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 可进入实现：范围、契约、验收完整，开放问题为零 |
+| 状态 | `implemented` |
+| 当前阶段 | 已实现，自动化门禁与开发侧浏览器走查（faux 模型生成的演示会话）通过，自查见 §15；真实模型走查与业务验收待补 |
 | 来源 | 2026-10-05 维护者提出：在上下文页披露运行消息，参照 deepseek-harness 的开发者工具（Trajectory 标签页）管理运行时上下文 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 19 上下文管理](../19-context-management/README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 18 子智能体](../18-agent-subagents/README.md) · [SDD 20 提示词随界面语言切换](../20-prompt-language/README.md) · [SDD 00 内置参考智能体](../00-reference-agent-conversations/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -74,8 +74,8 @@ status: ready
 
 | 条目 | 写入时机 | 说明 |
 | --- | --- | --- |
-| `custom` `glaux.request.header` | 每条命令装配完成后、调用模型前 | §9.1 |
-| `custom` `glaux.model.call` | 每次模型调用的 `message_end` 之后 | §9.2 |
+| `custom` `glaux.request.header` | 装配完成后生成，随审计队列在命令结束时写入 | §9.1 |
+| `custom` `glaux.model.call` | 每次模型调用的 `message_end` 时生成，随审计队列在命令结束时写入 | §9.2 |
 
 ### 4.3 接口
 
@@ -144,7 +144,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    A[会话分支 getBranch] --> B[按 accepted / settled 切轮次]
+    A[叶子到根的完整路径] --> B[按 accepted / settled 切轮次]
     B --> C[轮次内条目转为 TrajectoryItem]
     C --> D[GET /trajectory]
     A --> E[定位目标模型调用]
@@ -160,31 +160,37 @@ flowchart LR
 
 ### 7.1 采集
 
-1. `glaux.request.header` 每条命令写一条，内容来自 `assemble` 产出的系统提示词分段与已挂载工具，与 SDD 19 预览同一路径。
-2. 请求头按 `hash`（§9.1）去重：同一会话分支中已有相同 `hash` 的完整请求头时，本条只写 `hash` 与元数据，不写 `body`。
-3. `glaux.model.call` 每次模型调用写一条，在该次调用的 assistant 消息落盘之后写入，二者按顺序一一对应。
+1. `glaux.request.header` 每条命令写一条，内容来自 `assemble` 产出的系统提示词分段与已挂载工具，经 `buildPreview` 构造，与 SDD 19 预览同一路径。装配完成后生成、排在审计队列最前，命令结束时写入：运行中直接写会与 harness 的写入并发；重新生成会切换分支，命令开始时写入会落在旧分支上。
+2. 请求头按 `hash`（§9.1）去重：从叶子到根的路径上已有相同 `hash` 的完整请求头时，本条只写 `hash` 与元数据，不写 `body`。
+3. `glaux.model.call` 每次模型调用写一条，同样经审计队列在命令结束时写入，晚于该命令的全部消息；按 `step` 与轮次内第几条 assistant 消息对应。
 4. 计时：
    - `started_at` 取 assistant 的 `message_start` 时刻。
    - `first_token_ms` 取首个 `message_update` 距 `started_at` 的毫秒数；没有任何 `message_update` 时省略。
    - `duration_ms` 取 `message_end` 距 `started_at` 的毫秒数。
-5. 请求摘要在插件 `context` 钩子组合完成后计算（`installHooks` 的 `context` handler 返回前）：
+5. 请求摘要在插件 `context` 钩子组合完成后计算（`installHooks` 的 `context` handler 返回前）。chat 发行版不挂插件，也注册该 handler，只做记录：
    - `message_count`：改写后的消息条数。
-   - `pruned_images`：被 `context-pruning` 替换为占位文字的图像块数量。
-   - `injected`：改写后存在、改写前不存在的消息（按对象引用判定），原文记录；当前只有预算插件的收尾提示。
-   - `est_tokens.messages`：改写后消息的估算 token（`estimateContextTokens`）。
-6. 采集写入失败只打日志，不影响命令；与现有审计条目同一缓冲与落盘路径（`slot.audit` / `flushAudit`）。
+   - `pruned_images`：同位置消息改写前后的图像块数之差的合计，即被 `context-pruning` 替换为占位文字的图像块数量。
+   - `injected`：改写后末尾超出原条数、且不在原列表中的消息（按对象引用判定），原文记录；裁剪在原位置换成新对象，不算追加。当前只有预算插件的收尾提示。
+   - `est_tokens.messages`：改写后各消息 `estimateTokens` 之和（pi 压缩判定在没有 usage 时的同一口径）。
+6. 采集失败只打日志，不影响命令：`context` handler 与事件订阅中的采集代码各自捕获异常；写入与现有审计条目同一缓冲与落盘路径（`slot.audit` / `flushAudit`）。
 7. 子智能体的模型调用不写本节条目，过程仍只来自 `glaux.subagent_run.transcript`。
 
 ### 7.2 投影
 
-1. 轨迹只读会话当前分支（`getBranch`），不读其他分支。
-2. 轮次：一对 `glaux.command.accepted` 与其后同 `command_id` 的 `glaux.command.settled` 之间的条目为一轮。`settled` 缺失且命令仍在运行时，该轮 `outcome` 为 `running`；缺失且命令不在运行时为 `unknown`。
-3. 第一条 `accepted` 之前的条目归入编号 0 的「轮次之前」分组（旧会话或导入数据），没有条目时不出现。
+1. 轨迹读从当前叶子沿父链到根的完整路径，不读其他分支。不用 pi 的 `getBranch()`：它在最近一次压缩的保留起点处截断，只够构建模型上下文。
+2. 轮次：`glaux.command.accepted` 开始一轮，`glaux.command.settled` 结束一轮，轮次的 `command_id`、`command_type` 以结束记录为准。
+   - 重新生成的命令把受理记录写在旧分支上，新分支上沿用被重答那一轮的受理记录，并以自己的结束记录收尾，因此按结束记录识别。
+   - 结束记录之后、下一条受理记录之前出现消息或压缩时，开始一个没有受理记录的轮次。
+   - 轮次之外的其他条目（模型切换、审计等）并入下一轮。
+   - 最后一轮缺少结束记录且会话正在运行时，`outcome` 为 `running`；其他缺少结束记录的轮次为 `unknown`。
+3. 第一条受理或结束记录之前的消息与压缩归入编号 0 的「轮次之前」分组（旧会话或导入数据），没有条目时不出现。
 4. 一轮内的步骤：每条 assistant 消息为一个模型调用，`step` 从 1 起编号；其后的 toolResult 按 `toolCallId` 挂到产生它的工具调用。
-5. 工具调用的耗时、等待审批时间、是否被拦截来自 `glaux.tool.timing`，配对规则与会话快照一致（同一标识按记录顺序逐个对应，SDD 15）。
-6. 压缩条目在其所在位置单独成行，不属于任何模型调用。
-7. 字符串在返回前逐个执行 `redactText`，与 SSE 同一规则（SDD 15 §7.10 规则 1）。
-8. 图像块在轨迹中只返回 `mimeType` 与字节数，不返回数据；§9.4 同样处理。
+5. 工具调用的耗时、等待审批时间、是否被拦截来自本轮内的 `glaux.tool.timing`，同一标识按记录顺序逐个对应（与会话快照同一规则，SDD 15）。
+6. 压缩条目在其所在位置单独成行，不属于任何模型调用；`kept` 取压缩条目的 `retainedTail`，没有时取保留起点到压缩条目之间的消息。
+7. 请求头项排在本轮第一行，`at` 取轮次开始时间。
+8. 提示项：`glaux.budget` 只在 `exhausted` 为真时出现；`glaux.permission.decision` 在 `decision` 为 `deny` 或 `ask` 时出现。
+9. 字符串在返回前逐个执行 `redactText`，与 SSE 同一规则（SDD 15 §7.10 规则 1）。
+10. 图像块在轨迹中只返回 `mimeType` 与字节数，不返回数据；§9.4 同样处理。
 
 ### 7.3 记录类型
 
@@ -227,7 +233,7 @@ flowchart LR
 ### 7.6 请求重建
 
 1. 「请求」标签展开时调用 §9.4，不随轨迹一次返回。
-2. 重建范围：目标模型调用之前、本分支最近一次压缩之后的上下文，即 pi `buildSessionContext`（`@earendil-works/pi-agent-core`）对截至目标调用前一条目的分支前缀所得的消息。计数口径与 `context` 钩子收到的消息相同，都在 `convertToLlm` 之前。
+2. 重建范围：目标模型调用之前、本分支最近一次压缩之后的上下文，即 pi `buildSessionContext`（`@earendil-works/pi-agent-core`）对 `getBranch(目标调用的父条目)` 所得的消息，与 harness 构建上下文同一路径（`getBranch` 在压缩的保留起点截断）。计数口径与 `context` 钩子收到的消息相同，都在 `convertToLlm` 之前。
 3. 依次套用：图像裁剪（`pruneImages`，与 `context-pruning` 同一函数），再在末尾追加 `glaux.model.call.request.injected` 中记录的消息。
 4. 校验：重建后的条数等于 `message_count` 时 `matched: true`。不等或缺少 `glaux.model.call` 时 `matched: false`，界面在列表上方提示「重建结果与实际发送不一致：重建 N 条，实际 M 条」或「无请求记录，按会话推算」。
 5. 系统提示词与工具不在消息列表中重复，界面在列表顶部显示一行「系统提示词与工具：见第 N 轮上下文」，点击跳转。
@@ -236,9 +242,10 @@ flowchart LR
 ### 7.7 刷新与生命周期
 
 1. 进入「轨迹」分区时请求一次；当前会话切换后再次请求。
-2. 收到当前会话的 `run.settled`、`context.compacted` 时自动重新请求；命令运行中不按增量事件实时追加，最后一轮显示「运行中」。
+2. 当前会话的阶段（快照 `phase`）变化时自动重新请求。阶段随 `run.settled`、`context.compacted` 触发的快照更新，因此命令结束与压缩后都会刷新；命令运行中不按增量事件实时追加，最后一轮显示「运行中」。
 3. 刷新保留各轮次的折叠状态与已展开的行（按 `item_id` 匹配）。
 4. 没有当前会话时显示「打开或新建一个会话后可查看轨迹」。
+5. runtime 回 `404 not_found`（旧进程没有该路由）或响应不是 §9.3 结构时，按「agent-runtime 版本比页面旧」提示。
 
 ### 7.8 旧会话兼容
 
@@ -252,10 +259,10 @@ flowchart LR
 
 | 位置 | 变化 |
 | --- | --- |
-| `src/pi/harness-registry.ts` | 装配后写 `glaux.request.header`；订阅 `message_start` / `message_update` / `message_end` 记计时；写 `glaux.model.call` |
-| `src/plugins/compose.ts` | `context` handler 返回前计算请求摘要，交给当前命令的采集器 |
-| `src/plugins/context-pruning.ts` | `pruneImages` 返回裁剪数量（或另导出计数函数），供摘要与重建共用 |
-| `src/trajectory/`（新） | `project.ts`（会话树 → 轨迹）、`request.ts`（请求重建）、`header.ts`（哈希与去重） |
+| `src/pi/harness-registry.ts` | 装配后生成请求头入审计队列；chat 发行版也调用 `installHooks`（插件为空）；事件订阅交给记录器，生成 `glaux.model.call` |
+| `src/plugins/compose.ts` | `installHooks` 增加 `onContext` 回调：传入时总是注册 `context` handler，组合完成后回调组合前后的消息 |
+| `src/trajectory/`（新） | `capture.ts`（请求头哈希与去重、请求摘要、`ModelCallRecorder`）、`branch.ts`（叶子到根的完整路径）、`project.ts`（会话树 → 轨迹）、`request.ts`（请求重建，复用 `pruneImages`） |
+| `src/pi/session-service.ts` | `trajectory()`、`requestContext()` |
 | `src/transport/routes.ts` | 两个 GET 路由 |
 | `src/contracts.ts` | §9 类型 |
 
@@ -265,8 +272,8 @@ flowchart LR
 | --- | --- |
 | `components/context/ContextPanel.tsx` | 新增分组「运行」与分区 `trajectory` |
 | `components/context/TrajectorySection.tsx`（新） | 工具栏、时间线、记录表、详情 |
-| `components/context/trajectory/`（新） | `Timeline.tsx`、`RecordTable.tsx`、各类型详情组件、`diff.ts`（请求头差异） |
-| `components/context/SystemSection.tsx` | 分段列表抽成可复用组件，供请求头详情使用 |
+| `components/context/trajectory/`（新） | `Timeline.tsx`、`Details.tsx`（各类型详情）、`format.ts`（摘要与泳道）、`diff.ts`（请求头差异）、`useTrajectory.ts`（请求与刷新） |
+| `components/context/SystemSection.tsx` | 分段列表抽成 `SegmentList`，供请求头详情使用 |
 | `store/contextSection.ts` | `ContextSection` 增加 `trajectory` |
 | `components/iconMap.ts` | `CONTEXT_ICON.trajectory` |
 | `agent/runtime/client.ts`、`types.ts` | §9.3、§9.4 类型与请求函数 |
@@ -366,7 +373,8 @@ type TrajectoryItem =
                               transcript: TranscriptMessage[] } }
   | ItemBase & { kind: "compaction"; tokens_before: number; summary: string;
                  kept: { count: number; est_tokens: number }; summary_est_tokens: number; usage?: Usage }
-  | ItemBase & { kind: "notice"; type: "budget" | "permission" | "model_change"; text: string };
+  | ItemBase & { kind: "notice"; type: "budget" | "permission" | "model_change";
+                 data: Record<string, unknown> };   // 原条目数据，前端按 type 格式化（界面双语）
 ```
 
 - `header.changed`：本轮 `hash` 与上一条 `header` 相同为 `same`，不同为 `changed`，本分支第一条为 `initial`。
@@ -457,30 +465,30 @@ interface RequestContext {
 
 ### 15.1 runtime
 
-- [ ] 一条命令写且只写一条 `glaux.request.header`；连续两条请求头相同的命令，第二条无 `body`；第一条 `body.prompt` 与发给模型的系统提示词逐字相等（集成测试）。
-- [ ] 每次模型调用写一条 `glaux.model.call`，`step` 连续；`duration_ms >= first_token_ms >= 0`（单元测试，注入假时钟）。
-- [ ] 历史中有 5 个含图像的工具结果时，`pruned_images` 为裁剪的图像块数；预算收尾回合的 `injected` 含收尾提示原文（单元测试）。
-- [ ] 轨迹的轮次划分、步骤编号、工具配对、压缩行位置符合 §7.2；运行中的命令最后一轮 `outcome` 为 `running`（单元测试）。
-- [ ] 轨迹与请求上下文中的字符串经过 `redactText`；图像块不含数据（单元测试）。
-- [ ] 无压缩、有压缩、有裁剪、有收尾提示四种情况下，请求重建条数与记录相等，`matched: true`（集成测试）。
-- [ ] 缺少两种新条目的旧会话可以返回轨迹，字段按 §7.8 降级（单元测试，用固定的旧会话数据）。
+- [x] 一条命令写且只写一条 `glaux.request.header`；连续两条请求头相同的命令，第二条无 `body`；第一条 `body.prompt` 与发给模型的系统提示词逐字相等（集成测试）。——`tests/integration/trajectory.test.ts`
+- [x] 每次模型调用写一条 `glaux.model.call`，`step` 连续；`duration_ms >= first_token_ms >= 0`（单元测试，注入假时钟）。——`tests/unit/trajectory.test.ts`（`ModelCallRecorder`）；集成测试另验 `step` 序列
+- [x] 历史中有 5 个含图像的工具结果时，`pruned_images` 为裁剪的图像块数；预算收尾回合的 `injected` 含收尾提示原文。——集成测试（真实 harness）；单元测试另覆盖「裁剪不算追加」
+- [x] 轨迹的轮次划分、步骤编号、工具配对、压缩行位置符合 §7.2；运行中的命令最后一轮 `outcome` 为 `running`（单元测试）。——含重新生成轮次与轮次外的模型切换
+- [x] 轨迹与请求上下文中的字符串经过 `redactText`；图像块不含数据（单元测试）。——请求上下文的图像另见集成测试
+- [x] 无压缩、有压缩、有裁剪、有收尾提示四种情况下，请求重建条数与记录相等，`matched: true`（集成测试）。
+- [x] 缺少两种新条目的旧会话可以返回轨迹，字段按 §7.8 降级（单元测试，用固定的旧会话数据）。
 
 ### 15.2 前端
 
-- [ ] 上下文页导航出现分组「运行」与分区「轨迹」，位于「能力」与「扩展」之间（组件测试）。
-- [ ] 记录表按轮次分组，六种记录的徽标与摘要符合 §7.3；轮次、调用开关能一键折叠、展开（组件测试）。
-- [ ] 时间线三条泳道等宽排列；点击块后对应行展开并滚动可见（组件测试）。
-- [ ] 请求头详情的差异标签正确列出新增、删除、变化的分段与工具（单元测试 `diff.ts`）。
-- [ ] 模型调用详情显示 `usage`、计时与上下文占用拆分；「请求」标签按需加载，`matched: false` 时显示提示（组件测试）。
-- [ ] `agent` 工具详情嵌套显示子智能体过程（组件测试）。
-- [ ] 收到 `run.settled` 后自动刷新，展开状态保留（组件测试）。
-- [ ] 无会话、接口失败、旧版 runtime 三种状态按 §7.7、§13 显示（组件测试）。
+- [x] 上下文页导航出现分组「运行」与分区「轨迹」，位于「能力」与「扩展」之间（组件测试）。——`ContextPanel.test.tsx`
+- [x] 记录表按轮次分组，六种记录的徽标与摘要符合 §7.3；轮次、调用开关能一键折叠、展开（组件测试）。——`TrajectorySection.test.tsx`
+- [x] 时间线三条泳道等宽排列；点击块后对应行展开并滚动可见（组件测试）。——jsdom 没有 `scrollIntoView`，滚动只在浏览器走查中确认
+- [x] 请求头详情的差异标签正确列出新增、删除、变化的分段与工具（单元测试 `diff.ts`）。——`trajectory/diff.test.ts`
+- [x] 模型调用详情显示 `usage`、计时与上下文占用拆分；「请求」标签按需加载，`matched: false` 时显示提示（组件测试）。
+- [x] `agent` 工具详情嵌套显示子智能体过程（组件测试）。
+- [x] 收到 `run.settled` 后自动刷新，展开状态保留（组件测试）。——以快照 `phase` 变化触发，见 §7.7 规则 2
+- [x] 无会话、接口失败、旧版 runtime 三种状态按 §7.7、§13 显示（组件测试）。
 
 ### 15.3 走查与工程
 
-- [ ] 浏览器走查：真实模型跑一条含工具调用的命令，轨迹中能看到请求头、模型调用耗时、工具耗时；改 GLAUX.md 后再跑一条，差异标签列出 GLAUX.md 分段变化；截图留证。
-- [ ] `make test`、`make lint` 通过。
-- [ ] SDD 19、SDD 索引、仓库骨架总览（新增 `src/trajectory/`）同步更新。
+- [ ] 浏览器走查：真实模型跑一条含工具调用的命令，轨迹中能看到请求头、模型调用耗时、工具耗时；改 GLAUX.md 后再跑一条，差异标签列出 GLAUX.md 分段变化；截图留证。——开发侧用 faux 模型生成的三轮会话走查通过：工具调用、5 张图的裁剪、预算收尾、中英文切换引起的请求头差异、请求重建一致、窄宽度无横向溢出；真实模型走查待维护者端到端审查
+- [x] `make test`、`make lint` 通过。——agent-runtime 498、前端 451，两端 lint 与 `check-literals` 通过；backend、science-core 未改动，未重跑
+- [x] SDD 19、SDD 索引、仓库骨架总览（新增 `src/trajectory/`）同步更新。——另含三份 CHANGELOG
 
 ## 16. 决策记录
 

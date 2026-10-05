@@ -7,6 +7,7 @@ import type {
   InteractionReply,
   PermissionMode,
   PromptLang,
+  RequestContext,
   ResourceList,
   ResourceSource,
   SkillItem,
@@ -18,6 +19,7 @@ import type {
   SessionStatus,
   SessionView,
   SystemPromptPreview,
+  Trajectory,
   TransportCommand,
 } from "./types";
 
@@ -153,6 +155,10 @@ export const agentRuntimeApi = {
       method: "PUT",
       body: JSON.stringify({ content }),
     }),
+  // SDD 21 §9.3、§9.4：运行轨迹与单次请求上下文
+  getTrajectory: (sessionId: string) => request<Trajectory>(`/sessions/${encodeURIComponent(sessionId)}/trajectory`),
+  getRequestContext: (sessionId: string, itemId: string) =>
+    request<RequestContext>(`/sessions/${encodeURIComponent(sessionId)}/trajectory/requests/${encodeURIComponent(itemId)}`),
   previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext, lang?: PromptLang) =>
     request<SystemPromptPreview>(`/sessions/${encodeURIComponent(sessionId)}/system-prompt`, {
       method: "POST",

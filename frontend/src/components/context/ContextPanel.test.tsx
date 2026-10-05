@@ -80,15 +80,16 @@ afterEach(() => {
 });
 
 describe("navigation", () => {
-  it("groups sections as Instructions / Capabilities / Extensions and disables memory and MCP", async () => {
+  it("groups sections as Instructions / Capabilities / Runtime / Extensions and disables memory and MCP", async () => {
     vi.spyOn(agentRuntimeApi, "previewSystemPrompt").mockResolvedValue(PREVIEW);
     renderAt("system");
     const items = within(nav()).getAllByRole("button").map((b) => b.textContent);
     expect(items.map((text) => text?.replace("Not available yet", "").trim())).toEqual([
-      "System prompt", "Prompt templates", "Tools", "Sub-agents", "Skills", "Memory", "MCP",
+      "System prompt", "Prompt templates", "Tools", "Sub-agents", "Skills", "Trajectory", "Memory", "MCP",
     ]);
     expect(within(nav()).getByText("Instructions")).toBeInTheDocument();
     expect(within(nav()).getByText("Capabilities")).toBeInTheDocument();
+    expect(within(nav()).getByText("Runtime")).toBeInTheDocument();
     expect(within(nav()).getByText("Extensions")).toBeInTheDocument();
     const memory = within(nav()).getByRole("button", { name: /Memory/u });
     expect(memory).toHaveAttribute("aria-disabled", "true");

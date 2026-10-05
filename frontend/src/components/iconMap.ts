@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertTriangle,
   Archive,
   ArrowLeft,
@@ -108,6 +109,7 @@ export const CONTEXT_ICON = {
   tools: Wrench,
   agents: Bot,
   skills: Sparkles,
+  trajectory: Activity,
   memory: Brain,
   mcp: Server,
 } as const;
