@@ -212,4 +212,23 @@ describe("syncCsAnnotations · 建议态", () => {
     expect(changed).toBe(true); // 需触发重绘
     vi.restoreAllMocks();
   });
+  it("智能体修订几何后原地换句柄——同 id 已在层里也要跟上新框（SDD 22）", () => {
+    resetCsAnnoBridge();
+    vi.spyOn(csAnnState.config.style, "setAnnotationStyles").mockImplementation(() => {});
+    let stored: CsAnn | undefined;
+    vi.spyOn(csAnnState.state, "addAnnotation").mockImplementation((ann) => {
+      stored = ann as CsAnn;
+      return "cs-4";
+    });
+    vi.spyOn(csAnnState.state, "getAnnotation").mockImplementation(() => stored as never);
+
+    const original = suggestion({ id: "s4", status: "suggested", source: "agent" });
+    syncCsAnnotations([original], IMG, "FOR", "FOR");
+    expect(syncCsAnnotations([original], IMG, "FOR", "FOR")).toBe(false); // 几何未变不重绘
+
+    const revised = { ...original, seq: 2, primitive: { kind: "bbox" as const, x0: 2, y0: 3, x1: 20, y1: 30 } };
+    expect(syncCsAnnotations([revised], IMG, "FOR", "FOR")).toBe(true);
+    expect(csToPrimitive(stored as CsAnn, IMG)).toEqual(revised.primitive);
+    vi.restoreAllMocks();
+  });
 });

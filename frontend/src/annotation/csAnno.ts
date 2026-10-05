@@ -29,6 +29,8 @@ const silentRemove = new Set<string>();
 const pendingCs = new Set<string>();
 // 已渲染标注的 status：确认建议后几何不变、只有状态变，据此判断是否需要重刷样式
 const renderedStatus = new Map<string, Annotation["status"]>();
+// 已渲染标注的几何：智能体修订建议（SDD 22）在层外改了几何，据此原地换句柄
+const renderedGeometry = new Map<string, string>();
 
 /** 测试/切对象复位：清全部映射（CS3D 侧标注由调用方 removeAllAnnotations）。 */
 export function resetCsAnnoBridge(): void {
@@ -37,6 +39,7 @@ export function resetCsAnnoBridge(): void {
   silentRemove.clear();
   pendingCs.clear();
   renderedStatus.clear();
+  renderedGeometry.clear();
 }
 
 // --- 坐标换算（imageId 相关：world ↔ image px）--------------------------------
@@ -167,6 +170,7 @@ export function syncCsAnnotations(
       srvToCs.delete(srvId);
       csToSrv.delete(csId);
       renderedStatus.delete(srvId);
+      renderedGeometry.delete(srvId);
       changed = true;
     }
   }
@@ -175,7 +179,13 @@ export function syncCsAnnotations(
     if (a.id.startsWith("tmp-")) continue;
     const existing = srvToCs.get(a.id);
     if (existing) {
-      // 已在层里：几何由 MODIFIED 事件维护，这里只跟状态跃迁（确认建议 → 换回实线）
+      // 已在层里：本地拖拽的几何由 MODIFIED 事件维护；层外改动（智能体修订）原地换句柄
+      const geometry = JSON.stringify(a.primitive);
+      if (renderedGeometry.get(a.id) !== geometry) {
+        if (replaceCsGeometry(existing, a, imageId, frameOfReferenceId, map)) changed = true;
+        renderedGeometry.set(a.id, geometry);
+      }
+      // 状态跃迁（确认建议 → 换回实线）
       if (renderedStatus.get(a.id) !== a.status) {
         applySuggestionStyle(existing, a);
         renderedStatus.set(a.id, a.status);
@@ -190,9 +200,21 @@ export function syncCsAnnotations(
     csToSrv.set(csId, a.id);
     applySuggestionStyle(csId, a);
     renderedStatus.set(a.id, a.status);
+    renderedGeometry.set(a.id, JSON.stringify(a.primitive));
     changed = true;
   }
   return changed; // 无人监听 ANNOTATION_ADDED 触发重绘——调用方据此主动 triggerAnnotationRender
+}
+
+/** 用 store 的几何覆盖层里同一标注的句柄；与层内现状一致时不动（本地拖拽回流）。 */
+function replaceCsGeometry(csId: string, a: Annotation, imageId: string, frameOfReferenceId: string, map: PixelMap): boolean {
+  const current = annotation.state.getAnnotation(csId);
+  const next = primitiveToCs(a, imageId, frameOfReferenceId, map);
+  if (!current || !next) return false;
+  if (JSON.stringify(csToPrimitive(current, imageId, map)) === JSON.stringify(a.primitive)) return false;
+  current.data = { ...current.data, ...next.data };
+  current.invalidated = true;
+  return true;
 }
 
 /**
