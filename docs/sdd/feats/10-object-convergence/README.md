@@ -185,7 +185,7 @@ Glaux 每接入一个模态，同一个语义就在三层各多出一份并列�
 | --- | --- | --- | --- |
 | `z` | int | `0 ≤ z < axes[z].size` | 仅 `kind="volume"` 接受；越界 422 |
 | `t` | int | `0 ≤ t < axes[t].size` | 仅 `kind="video"` 接受；越界 422 |
-| `level` | int | `0 ≤ level < axes[level].size` | **`kind="slide"` 强制提供**，缺失 422；其余 kind 提供即 422 |
+| `level` | int | `0 ≤ level < axes[level].size` | 仅 `kind="slide"` 接受，其余 kind 提供即 422；slide 省略时按输出尺寸选层：降采样不超过「`roi` 长边 / `size`」的最粗一层，实际层在 `X-Glaux-Frame.index.level` 回报 |
 | `roi` | `x0,y0,x1,y1` | level-0／帧像素，`x0<x1`、`y0<y1` | 语义与 `Region.box` 一致（D-9）；`(x1-x0)*(y1-y0) > 64 Mpx` → 413，不截断、不降采样后静默返回 |
 | `size` | int | `64 ≤ size ≤ 4096`，缺省 1024 | 输出图最长边像素上限；`size > 4096` → 413 |
 | `window` | `ww,wl` | 两个浮点 | 仅 `kind` 为 `volume`／`image` 且该 `Source` 声明支持窗宽窗位（灰度帧栈）时生效；其余 kind 或源不支持时忽略该参数并按缺省窗位出图；`ww ≤ 0` → 422 |
@@ -895,7 +895,7 @@ W7 后跨层契约只保留 `ObjectMeta.axes` / `calibration`、`TaskSpec.calibr
 | 请求的轴不存在（如对 `image` 传 `z`） | `ValueError` | 422 | 同上 | `ObjectMeta.axis(name)` 返 `None` 即拒绝，不静默忽略该参数 |
 | 标注几何非法（x/y 越界、点数不足、自交多边形面积为零） | `INVALID_GEOMETRY` | 422 | Notice 指明越界的轴与合法范围 | 校验数据源由 `dims` 改为 `ObjectMeta.axes[].size`（`x`/`y` 轴），取代 `routers/annotations.py` 的 `_dims_for` + `_check_within_dims` 阶梯；`dims` 在 W7 删除后该路径不受影响 |
 | `roi` / `size` / `window` 超出上限 | — | 413 | Notice「选区过大，请缩小范围或降低分辨率」 | `/objects/{id}/frame` 拒绝，前端保留 `focus.region` 不清空，允许用户直接改小 |
-| `slide` 取帧未给 `level` | `ValueError` | 422 | Notice 提示需指定层级 | `slide` 强制 `level`，不代选默认层 |
+| `slide` 经不带输出尺寸的取帧入口（如 `/image/{id}`）未给 `level` | `ValueError` | 422 | Notice 提示需指定层级 | 无输出尺寸可据以选层；`/objects/{id}/frame` 按 `size` 选层，不报错 |
 | `kind` 与端点不符（如对 `image` 请求 `/tiles`） | `ValueError` | 422 | Notice「该对象没有此表征」 | 由 `resolve_object` 得到的 `kind` 判定；`resources` 未下发的表征不得被拼出来访问 |
 | 对象几何族与任务不符（`ref.kind` 不在 `plugin.object_kinds` 中） | `ValueError` | 422 | Notice「该任务不适用于当前对象」 | `run_task` 公共前缀①拦截（D-13），任务不执行 |
 | `Detector` 不可用（模型层/可选依赖未装配） | `RuntimeError` | 503 | Notice「该能力未装配」，工具按钮不置灰而是不出现 | `run_task` 公共前缀②拦截；`Detector.available()` 为假即不下发该能力位 |

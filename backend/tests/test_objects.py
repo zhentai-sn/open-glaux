@@ -177,12 +177,19 @@ def test_frame_volume_reference_frame():
     assert client.get(f"/objects/{ct['id']}/frame", params={"z": nz}).status_code == 422
 
 
-def test_frame_slide_requires_level_and_limits_roi():
+def test_frame_slide_level_fit_and_roi_limit():
     slide = _first("pathology")
     if slide is None:
         pytest.skip("需 data/wsi demo slide")
     sid, levels = slide["id"], slide["axes"][2]["size"]
-    assert client.get(f"/objects/{sid}/frame").status_code == 422  # slide 强制 level
+    # 省略 level：按输出尺寸选层——整片缩到 1024 取最粗的足够层，小区域取 level 0
+    r, f = _frame(f"/objects/{sid}/frame", size=1024)
+    downs = slide["meta"]["level_downsamples"]
+    need = max(slide["axes"][0]["size"], slide["axes"][1]["size"]) / 1024
+    assert r.status_code == 200
+    assert f["index"]["level"] == max(i for i, d in enumerate(downs) if d <= max(need, 1))
+    r, f = _frame(f"/objects/{sid}/frame", roi="0,0,512,512", size=1024)
+    assert r.status_code == 200 and f["index"]["level"] == 0
     coarsest = levels - 1
     r, f = _frame(f"/objects/{sid}/frame", level=coarsest, roi="0,0,2048,1024", size=4096)
     assert r.status_code == 200 and f["index"]["level"] == coarsest and f["origin"] == [0.0, 0.0]

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gzip
 import io
+import json
 import shutil
 import struct
 from pathlib import Path
@@ -516,3 +517,26 @@ def test_legacy_needs_calibration_project_source_promoted_on_open(tmp_path):
     assert r.status_code == 200, r.text
     assert reg._SOURCES[spec.id].status == "active"
     assert reg.resolve_object(r.json()["id"]).datasource.id == spec.id
+
+
+def test_wsi_fit_level_picks_coarsest_level_that_fills_output(monkeypatch):
+    """省略 level 时选降采样不超过「区域长边 / 输出长边」的最粗一层（SDD 10 §5.2）。"""
+
+    class _Slide:
+        level_downsamples = (1.0, 4.0, 16.0)
+
+    monkeypatch.setattr(dataset_wsi, "_open", lambda _id: _Slide())
+    assert dataset_wsi.fit_level("s", 44.9) == 2  # 全片概览
+    assert dataset_wsi.fit_level("s", 6.8) == 1
+    assert dataset_wsi.fit_level("s", 1.56) == 0  # 1600 px 区域 → level 0
+    assert dataset_wsi.fit_level("s", 0.5) == 0  # 区域小于输出，不越过 level 0
+
+
+def test_wsi_frame_without_level_fits_output(tmp_path):
+    """slide 省略 level：按输出尺寸自动选层，实际层在 X-Glaux-Frame 回报（SDD 10 §5.2）。"""
+    prj = _project(tmp_path)
+    _tiled_tiff(prj.path / "tissue C.tif")
+    oid = _open(prj, "tissue C.tif").json()["id"]
+    r = client.get(f"/objects/{oid}/frame", params={"roi": "0,0,100,100", "size": 1024})
+    assert r.status_code == 200, r.text
+    assert json.loads(r.headers["X-Glaux-Frame"])["index"]["level"] == 0

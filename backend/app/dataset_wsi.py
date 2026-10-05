@@ -290,6 +290,16 @@ from .sources.base import (  # noqa: E402
 MAX_READ_PX = 64_000_000
 
 
+def fit_level(slide_id: str, need: float) -> int:
+    """按输出尺寸选层：降采样不超过 ``need``（区域长边 / 输出长边）的最粗一层，缺省 level 0。
+
+    读出的像素至少铺满输出尺寸，再由 ``frame`` 缩到 ``size``；
+    不在过粗的层上裁出小图（SDD 22 §7.1）。
+    """
+    downs = _open(slide_id).level_downsamples
+    return max((i for i, d in enumerate(downs) if d <= max(need, 1.0)), default=0)
+
+
 def _openslide_ok() -> bool:
     try:
         import openslide  # noqa: F401
@@ -408,9 +418,13 @@ class WsiSource(SourceBase):
         from .sources.base import _png
 
         obj = self.meta(source, object_id)
-        index = self.default_index(obj, index)
         w, h = obj.axis("x").size, obj.axis("y").size
         x0, y0, x1, y1 = (0, 0, w, h) if roi is None else (roi.x0, roi.y0, roi.x1, roi.y1)
+        if index.level is None and size is not None:
+            # 未指定层：按输出尺寸选层（SDD 10 §5.2）
+            need = max(x1 - x0, y1 - y0) / size
+            index = index.model_copy(update={"level": fit_level(object_id, need)})
+        index = self.default_index(obj, index)
         if roi is not None and (roi.kind != "box" or not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h)):
             raise ValueError(f"roi 越界或非 box：({x0},{y0},{x1},{y1})，slide {w}×{h}")
         down = float(_open(object_id).level_downsamples[index.level])
