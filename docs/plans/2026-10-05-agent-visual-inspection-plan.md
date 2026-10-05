@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 22 智能体看图：缩放与复核 · 实施计划
