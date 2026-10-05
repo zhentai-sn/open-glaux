@@ -280,7 +280,9 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 6. 同一 Pi Session 只能有一个非 `idle` 的 Harness 操作；不同 Session 可由不同 Harness 实例并发生成。
 7. 切换会话不得调用 `abort()`；仍在运行的 Harness 必须保留在 Runtime registry 中。
 8. 停止生成调用 Pi `abort()`；部分回答是否形成 session entry 以锁定版本的 Pi 行为为准，Glaux 不自行拼接持久化。
-9. 仅活动路径上的最近一条 assistant 消息可重新生成，且其前一条活动 entry 必须为 user。
+9. 仅活动路径上的最近一条 assistant 消息可重新生成：活动路径最后一条消息必须为 assistant，且路径上存在
+   user 消息。最近 user 与该 assistant 之间允许夹多轮工具调用（assistant 的 tool call 与 `toolResult`），
+   重新生成替换的是这一整轮回答。
 10. 重新生成使用 Pi 原生消息树：保存原 leaf，导航到最近 user entry 的 parent，再以原 user 文本调用
     `prompt()` 生成新分支；成功后新分支成为活动路径，失败或取消时恢复原 leaf。该 replay 只用于内部
     分支生成，活动路径最终仍只包含一份该 user 消息。
@@ -515,6 +517,7 @@ erDiagram
 - [x] 仅最近一条 assistant 回答显示“重新生成”。
 - [x] 重新生成调用 Pi 原生 tree/navigation API，新回答成功后成为活动 leaf 路径。
 - [x] 重新生成失败或取消时恢复原 leaf，原回答仍是活动路径。
+- [x] 回答含工具调用（末尾为 `toolResult` → assistant）时可重新生成，整轮从最近 user 消息重做；runtime 重启后同样可用。
 - [x] Pi 内部可以保留旧分支，但 SessionView 只返回活动路径。
 - [x] UI 不出现会话分支、替代回答、编辑历史消息或编辑后重发入口。
 

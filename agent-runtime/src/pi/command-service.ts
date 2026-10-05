@@ -285,7 +285,9 @@ async function regenerateLatest(
   const branch = await session.getBranch();
   const messageEntries = branch.filter((entry) => entry.type === "message");
   const assistant = messageEntries.at(-1);
-  const user = messageEntries.at(-2);
+  // 一次回答可能含多轮工具调用（user → assistant → toolResult → … → assistant），
+  // 要重放的是这一轮回答起点的 user，而不是末条 assistant 的前一条消息。
+  const user = messageEntries.findLast((entry) => entry.message.role === "user");
   if (
     !assistant ||
     assistant.message.role !== "assistant" ||

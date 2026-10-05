@@ -41,9 +41,11 @@ export async function createRuntimeFixture(
     interactionTimeoutMs?: number;
     /** 权限依赖；缺省越界判定一律放行、无设置文件，测试不触 backend 与用户目录。 */
     permission?: PermissionDeps;
+    /** 复用已有数据目录，模拟 runtime 重启后从磁盘重载会话。 */
+    dataDir?: string;
   } = {},
 ) {
-  const dataDir = await mkdtemp(join(tmpdir(), "glaux-runtime-fixture-"));
+  const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), "glaux-runtime-fixture-")));
   let registry: HarnessRegistry | undefined;
   const sessions = new SessionService({
     workspaceDir: dataDir,

@@ -1,4 +1,4 @@
-import { contentText, fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { contentText, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -57,6 +57,57 @@ describe("latest answer regeneration", () => {
       } finally {
         await fixture.sessions.closeSession(session);
       }
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it("regenerates an answer that ended after tool calls, also after a runtime restart", async () => {
+    const toolTurn = () => [
+      fauxAssistantMessage(fauxToolCall("view_current_image", {}), { stopReason: "toolUse" }),
+      fauxAssistantMessage(fauxToolCall("consult_atlas", { query: "x" }), { stopReason: "toolUse" }),
+    ];
+    const first = await createRuntimeFixture([
+      [...toolTurn(), fauxAssistantMessage("old answer")],
+    ]);
+    const sessionId = crypto.randomUUID();
+    await first.sessions.createSession({ session_id: sessionId });
+    await first.commands.accept(sessionId, {
+      command_id: crypto.randomUUID(),
+      type: "prompt",
+      content: "look at this",
+      connection: TEST_CONNECTION,
+    });
+    await first.registry.waitForIdle(sessionId);
+    await first.close();
+
+    // 重启：新 SessionService / HarnessRegistry 读同一数据目录。
+    const fixture = await createRuntimeFixture(
+      [[...toolTurn(), fauxAssistantMessage("new answer")]],
+      { dataDir: first.dataDir },
+    );
+    try {
+      const before = await fixture.sessions.getSession(sessionId);
+      expect(before.messages.map((message) => message.role)).toEqual([
+        "user", "assistant", "toolResult", "assistant", "toolResult", "assistant",
+      ]);
+
+      await fixture.commands.accept(sessionId, {
+        command_id: crypto.randomUUID(),
+        type: "regenerate",
+        connection: TEST_CONNECTION,
+      });
+      await fixture.registry.waitForIdle(sessionId);
+
+      const view = await fixture.sessions.getSession(sessionId);
+      expect(view.messages.filter((message) => message.role === "user")).toHaveLength(1);
+      const last = view.messages.at(-1);
+      expect(last?.role === "assistant" ? contentText(last.content) : "").toBe("new answer");
+      expect(
+        view.messages.some(
+          (message) => message.role === "assistant" && contentText(message.content) === "old answer",
+        ),
+      ).toBe(false);
     } finally {
       await fixture.close();
     }
