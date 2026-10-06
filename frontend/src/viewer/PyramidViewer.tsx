@@ -7,6 +7,8 @@ import { axisSize } from "../data/objectInfo";
 import type { ViewerProps } from "./contract";
 import { getT } from "../i18n";
 import type { Annotation, AnnotationPrimitive, ClassSpec, Primitive } from "../api/types";
+import { annotationColor } from "../annotation/labelStyle";
+import { useLabels } from "../store/labels";
 
 // PyramidViewer——OpenSeadragon 深缩放 + 原生 SVG 标注层 + 核质心 overlay。
 //
@@ -26,6 +28,7 @@ type EditDraft = { annotation: Annotation; vertex: number; primitive: Shape };
 type PyramidProps = Pick<ViewerProps, "object" | "focus" | "primitives" | "annotations" | "tool" | "onRegion" | "notify">;
 
 export function PyramidViewer({ object, focus, primitives, annotations, tool, onRegion, notify }: PyramidProps) {
+  const showNames = useLabels((s) => s.showNames);
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -326,7 +329,8 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
             ? [[primitive.x0, primitive.y0], [primitive.x1, primitive.y0], [primitive.x1, primitive.y1], [primitive.x0, primitive.y1]]
             : primitive.points.map(([x, y]) => [x, y]);
           const screen = vertices.map(([x, y]) => toScreen(x, y));
-          const color = annotation.status === "suggested" ? "#ffa500" : "#7be0ad";
+          const color = annotationColor(annotation);
+          const [tx, ty] = screen.reduce(([mx, my], [x, y]) => [Math.min(mx, x), Math.min(my, y)], [Infinity, Infinity]);
           return (
             <g key={annotation.id}>
               {primitive.kind === "bbox" ? (
@@ -341,7 +345,11 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
                   strokeDasharray={annotation.status === "suggested" ? "6 4" : undefined}
                 />
               ) : (
-                <polygon points={screen.map(([x, y]) => `${x},${y}`).join(" ")} fill="none" stroke={color} strokeWidth={2} />
+                <polygon points={screen.map(([x, y]) => `${x},${y}`).join(" ")} fill="none" stroke={color} strokeWidth={2}
+                  strokeDasharray={annotation.status === "suggested" ? "6 4" : undefined} />
+              )}
+              {showNames && annotation.label && (
+                <text x={tx} y={ty - 4} fill={color} fontSize={12} className="annotation-name" pointerEvents="none">{annotation.label}</text>
               )}
               {tool === "cursor" && screen.map(([x, y], vertex) => (
                 <circle

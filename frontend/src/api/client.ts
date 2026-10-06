@@ -3,6 +3,8 @@ import type {
   Annotation,
   AnnotationCreated,
   AnnotationInput,
+  AnnotationSummary,
+  Label,
   Calibration,
   Capability,
   DataSource,
@@ -33,11 +35,33 @@ export class ApiError extends Error {
   status: number;
   /** 可机读错误码：后端错误体为 ``{detail:{code,message}}`` 时取 code（如 SDD 13 的 outside_project）。 */
   code?: string;
-  constructor(status: number, detail: string, code?: string) {
+  /** 结构化错误体的其余字段（如标签被引用时的 `count`，SDD 23 §13）。 */
+  extra?: Record<string, unknown>;
+  constructor(status: number, detail: string, code?: string, extra?: Record<string, unknown>) {
     super(detail);
     this.status = status;
     this.code = code;
+    this.extra = extra;
   }
+}
+
+/** 非 2xx 响应 → ApiError；错误体为 ``{detail:{code,message,...}}`` 时带出 code 与其余字段。 */
+async function errorOf(r: Response): Promise<ApiError> {
+  let detail = `${r.status}`;
+  let code: string | undefined;
+  let extra: Record<string, unknown> | undefined;
+  try {
+    const j = await r.json();
+    if (j?.detail && typeof j.detail === "object") {
+      const { message, code: c, ...rest } = j.detail as Record<string, unknown>;
+      detail = String(message ?? detail);
+      code = typeof c === "string" ? c : undefined;
+      extra = rest;
+    } else if (j?.detail) detail = String(j.detail);
+  } catch {
+    /* 非 JSON 错误体 */
+  }
+  return new ApiError(r.status, detail, code, extra);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -46,20 +70,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    let detail = `${r.status}`;
-    let code: string | undefined;
-    try {
-      const j = await r.json();
-      if (j?.detail && typeof j.detail === "object") {
-        detail = String(j.detail.message ?? detail);
-        code = typeof j.detail.code === "string" ? j.detail.code : undefined;
-      } else if (j?.detail) detail = String(j.detail);
-    } catch {
-      /* 非 JSON 错误体 */
-    }
-    throw new ApiError(r.status, detail, code);
-  }
+  if (!r.ok) throw await errorOf(r);
   return r.json() as Promise<T>;
 }
 
@@ -98,31 +109,13 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    let detail = `${r.status}`;
-    try {
-      const j = await r.json();
-      if (j?.detail) detail = String(j.detail);
-    } catch {
-      /* 非 JSON 错误体 */
-    }
-    throw new ApiError(r.status, detail);
-  }
+  if (!r.ok) throw await errorOf(r);
   return r.json() as Promise<T>;
 }
 
 async function del(path: string): Promise<void> {
   const r = await fetch(BASE + path, { method: "DELETE" });
-  if (!r.ok) {
-    let detail = `${r.status}`;
-    try {
-      const j = await r.json();
-      if (j?.detail) detail = String(j.detail);
-    } catch {
-      /* 非 JSON 错误体 */
-    }
-    throw new ApiError(r.status, detail);
-  }
+  if (!r.ok) throw await errorOf(r);
 }
 
 export const api = {
@@ -246,6 +239,8 @@ export const api = {
         primitive?: unknown;
         mask_png_b64?: string;
         label?: string;
+        /** 标签目录 id；显式 null 清除引用（SDD 23 §7.2）。 */
+        label_id?: string | null;
         class_id?: number | null;
         /** 建议态确认/驳回（SDD 02）：suggested → confirmed / rejected。 */
         status?: Annotation["status"];
@@ -259,5 +254,22 @@ export const api = {
       del(`/annotations/${encodeURIComponent(id)}?base_seq=${baseSeq}`),
     /** mask 标注的 PNG 栅格 URL（reload 后叠色渲染）。 */
     maskUrl: (id: string) => `${BASE}/annotations/${encodeURIComponent(id)}/mask`,
+    /** 按标签汇总（SDD 23 §7.4）；给 `at` 时只汇总该层或帧。 */
+    summary: (imageId: string, at?: number | null) =>
+      get<AnnotationSummary>(
+        `/annotations/summary?image_id=${encodeURIComponent(imageId)}${at != null ? `&index_from=${at}&index_to=${at}` : ""}`,
+      ),
+  },
+
+  // --- 标签目录（SDD 23 §9.2）——作用域由对象解析 ------------------------------
+  labels: {
+    list: (objectId: string) => get<{ scope: string; labels: Label[] }>(`/labels?object_id=${encodeURIComponent(objectId)}`),
+    create: (body: { object_id: string; name: string; color?: string; description?: string }) =>
+      post<{ label: Label }>("/labels", body),
+    update: (id: string, body: { base_seq: number; name?: string; color?: string; description?: string; sort?: number }) =>
+      patch<{ label: Label }>(`/labels/${encodeURIComponent(id)}`, body),
+    remove: (id: string, baseSeq: number) => del(`/labels/${encodeURIComponent(id)}?base_seq=${baseSeq}`),
+    merge: (id: string, baseSeq: number, into: string) =>
+      post<{ label: Label }>(`/labels/${encodeURIComponent(id)}/merge`, { base_seq: baseSeq, into }),
   },
 };

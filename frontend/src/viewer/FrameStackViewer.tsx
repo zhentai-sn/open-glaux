@@ -12,6 +12,8 @@ import { IDENTITY_PIXEL_MAP, pixelMapFor } from "./pixelMap";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
 import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { annotationColor } from "../annotation/labelStyle";
+import { useLabels } from "../store/labels";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { ClassSpec, Primitive, TaskOverlaySpec } from "../api/types";
 import { mmPerPx } from "../data/objectInfo";
@@ -26,6 +28,20 @@ import type { ViewerProps } from "./contract";
 // 提交走 /annotations（kind=mask），reload 经 /annotations/{id}/mask 叠色。
 
 const EMPTY_OVERLAYS: TaskOverlaySpec[] = [];
+
+/** 掩膜着色缓存键：改标签换色后重新着色（SDD 23 §5.1）。 */
+const maskKey = (a: { id: string; label_color?: string | null }) => `${a.id}|${a.label_color ?? ""}`;
+
+/** `#RRGGBB` 或 `rgb(r, g, b)` → [r, g, b]。 */
+function rgbOf(color: string): [number, number, number] {
+  const hex = /^#([0-9a-f]{6})$/iu.exec(color);
+  if (hex) {
+    const n = parseInt(hex[1]!, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const parts = color.match(/\d+/gu)?.map(Number) ?? [150, 150, 150];
+  return [parts[0] ?? 150, parts[1] ?? 150, parts[2] ?? 150];
+}
 const SNAP_MM = [1, 2, 5, 10, 20, 50, 100];
 const MASK_ALPHA = 0.5;
 const VOLUME_ALPHA = 0.4;
@@ -66,6 +82,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
   const { buffer: brushBuf, clear: clearBrush, paint: paintBrush } = useBrushBuffer();
   const brushDims = useRef<{ columns: number; rows: number } | null>(null);
   const brushing = useRef(false);
+  const showNames = useLabels((st) => st.showNames);
   const maskImgs = useRef(new Map<string, HTMLCanvasElement>()); // 已保存 mask 的着色画布缓存
   const labelVolRef = useRef<LabelVol | null>(null);
   const [numFrames, setNumFrames] = useState(0);
@@ -214,7 +231,7 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
       const [brx, bry] = proj(bd.columns, bd.rows);
       for (const a of visibleAnnotations) {
         if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-")) continue;
-        const cv = maskImgs.current.get(a.id);
+        const cv = maskImgs.current.get(maskKey(a));
         if (cv) {
           ctx.globalAlpha = MASK_ALPHA;
           ctx.drawImage(cv, tlx, tly, brx - tlx, bry - tly);
@@ -432,7 +449,8 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
     if (isVolume) return;
     const imageId = imageIdRef.current;
     for (const a of visibleAnnotations) {
-      if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(a.id)) continue;
+      if (a.primitive.kind !== "mask" || a.id.startsWith("tmp-") || maskImgs.current.has(maskKey(a))) continue;
+      const [r, g, b] = rgbOf(annotationColor(a));
       const img = new Image();
       img.onload = () => {
         if (imageIdRef.current !== imageId || (axisRef.current.kind !== "none" && axisRef.current.index !== currentIndex)) return;
@@ -444,21 +462,21 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
         const d = c.getImageData(0, 0, cv.width, cv.height);
         for (let i = 0; i < d.data.length; i += 4) {
           if (d.data[i] > 0 || d.data[i + 1] > 0 || d.data[i + 2] > 0) {
-            d.data[i] = 123;
-            d.data[i + 1] = 224;
-            d.data[i + 2] = 173;
+            d.data[i] = r;
+            d.data[i + 1] = g;
+            d.data[i + 2] = b;
             d.data[i + 3] = 255;
           } else {
             d.data[i + 3] = 0;
           }
         }
         c.putImageData(d, 0, 0);
-        maskImgs.current.set(a.id, cv);
+        maskImgs.current.set(maskKey(a), cv);
         drawOverlayRef.current();
       };
       img.src = api.annotations.maskUrl(a.id);
     }
-  }, [visibleAnnotations, ready, isVolume, currentIndex, VP_ID]);
+  }, [visibleAnnotations, ready, isVolume, currentIndex, VP_ID, showNames]);
 
   // store.primitives 变化 → 同步工作副本 + 重绘（壁线拖拽中间态也走这里）
   useEffect(() => {

@@ -373,12 +373,57 @@ export interface Annotation {
   index?: Index;
   primitive: AnnotationPrimitive;
   label: string;
+  /** 标签目录 id（SDD 23）；有值时 `label` 为目录当前名称。 */
+  label_id?: string | null;
+  label_color?: string | null;
   class_id?: number | null;
   status: "draft" | "confirmed" | "suggested" | "rejected";
   source: "manual" | "model" | "agent";
   seq: number;
+  /** backend 计算的面积与周长（SDD 23 §7.3）；点与缺失掩膜为空。 */
+  measures?: AnnotationMeasures | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/** SDD 23 §7.3：单位为轴单位（`px` / `mm` / `um`），面积单位为其平方（`px2` …）。 */
+export interface AnnotationMeasures {
+  area: number;
+  perimeter?: number;
+  unit: string;
+  area_unit: string;
+}
+
+/** SDD 23 §9.1：标签目录项。 */
+export interface Label {
+  id: string;
+  scope: string;
+  name: string;
+  color: string;
+  description: string;
+  sort: number;
+  seq: number;
+  /** 引用它的非驳回标注条数（整个作用域）。 */
+  count: number;
+}
+
+/** SDD 23 §9.4：按标签汇总。 */
+export interface SummaryGroup {
+  kind: "catalog" | "uncatalogued" | "unlabeled";
+  label_id: string | null;
+  name: string;
+  color: string | null;
+  count: number;
+  area: number;
+  suggested: number;
+}
+
+export interface AnnotationSummary {
+  image_id: string;
+  unit: string;
+  area_unit: string;
+  groups: SummaryGroup[];
+  total: { count: number; area: number; suggested: number };
 }
 
 /** POST /annotations 请求体（mask 的 PNG 走 mask_png_b64）。 */
@@ -388,6 +433,7 @@ export interface AnnotationInput {
   primitive: AnnotationPrimitive | { kind: "mask" };
   mask_png_b64?: string;
   label?: string;
+  label_id?: string;
   class_id?: number | null;
 }
 

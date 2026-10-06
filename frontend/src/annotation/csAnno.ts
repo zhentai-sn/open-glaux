@@ -15,6 +15,8 @@ import {
 
 import { createAnnotation, patchAnnotation, removeAnnotation } from "./bridge";
 import type { Annotation, AnnotationPrimitive, Index } from "../api/types";
+import { useLabels } from "../store/labels";
+import { annotationColor } from "./labelStyle";
 import { IDENTITY_PIXEL_MAP, type PixelMap } from "../viewer/pixelMap";
 
 type CsAnn = ToolTypes.Annotation;
@@ -27,8 +29,8 @@ const srvToCs = new Map<string, string>();
 const silentRemove = new Set<string>();
 // 绘制完成待落库：防 sync 回灌与 COMPLETED 事件重复添加
 const pendingCs = new Set<string>();
-// 已渲染标注的 status：确认建议后几何不变、只有状态变，据此判断是否需要重刷样式
-const renderedStatus = new Map<string, Annotation["status"]>();
+// 已渲染标注的样式键（状态、标签名与颜色、是否显示名称）：几何不变时据此判断是否需要重刷样式
+const renderedStatus = new Map<string, string>();
 // 已渲染标注的几何：智能体修订建议（SDD 22）在层外改了几何，据此原地换句柄
 const renderedGeometry = new Map<string, string>();
 
@@ -120,7 +122,7 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
           activeHandleIndex: null,
           textBox: { hasMoved: false, worldPosition: objectToWorld(p.x1, p.y0) },
         },
-        label: "",
+        label: a.label,
         cachedStats: {},
       },
     } as unknown as CsAnn;
@@ -138,7 +140,7 @@ export function primitiveToCs(a: Annotation, imageId: string, frameOfReferenceId
         },
         contour: { polyline: points, closed: true },
         spline: { type: SplineROITool.SplineTypes.Linear, instance: new splines.LinearSpline(), resolution: 0 },
-        label: "",
+        label: a.label,
         cachedStats: {},
       },
     } as unknown as CsAnn;
@@ -185,10 +187,10 @@ export function syncCsAnnotations(
         if (replaceCsGeometry(existing, a, imageId, frameOfReferenceId, map)) changed = true;
         renderedGeometry.set(a.id, geometry);
       }
-      // 状态跃迁（确认建议 → 换回实线）
-      if (renderedStatus.get(a.id) !== a.status) {
+      // 状态跃迁（确认建议 → 换回实线）、改标签、显示名称开关
+      if (renderedStatus.get(a.id) !== styleKey(a)) {
         applySuggestionStyle(existing, a);
-        renderedStatus.set(a.id, a.status);
+        renderedStatus.set(a.id, styleKey(a));
         changed = true;
       }
       continue;
@@ -199,7 +201,7 @@ export function syncCsAnnotations(
     srvToCs.set(a.id, csId);
     csToSrv.set(csId, a.id);
     applySuggestionStyle(csId, a);
-    renderedStatus.set(a.id, a.status);
+    renderedStatus.set(a.id, styleKey(a));
     renderedGeometry.set(a.id, JSON.stringify(a.primitive));
     changed = true;
   }
@@ -231,19 +233,26 @@ function isRenderable(a: Annotation): boolean {
  * 确认后（`confirmed`）样式清空，回到与人工标注同一外观。
  */
 function applySuggestionStyle(csId: string, a: Annotation): void {
-  if (a.status === "suggested") {
-    annotation.config.style.setAnnotationStyles(csId, {
-      color: SUGGESTION_COLOR,
-      colorHighlighted: SUGGESTION_COLOR,
-      colorSelected: SUGGESTION_COLOR,
-      lineDash: SUGGESTION_DASH,
-    });
-    return;
-  }
-  annotation.config.style.setAnnotationStyles(csId, {});
+  const color = annotationColor(a);
+  const current = annotation.state.getAnnotation(csId);
+  if (current) (current.data as { label?: string }).label = a.label;
+  // CS3D 3.33 的 AnnotationStyle d.ts 漏了 textBoxVisibility（见 csTools HIDE_TEXT_BOX），运行期在读
+  annotation.config.style.setAnnotationStyles(csId, {
+    color,
+    colorHighlighted: color,
+    colorSelected: color,
+    textBoxColor: color,
+    textBoxVisibility: useLabels.getState().showNames && !!a.label,
+    ...(a.status === "suggested" ? { lineDash: SUGGESTION_DASH } : {}),
+  } as unknown as Parameters<typeof annotation.config.style.setAnnotationStyles>[1]);
 }
 
-const SUGGESTION_COLOR = "rgb(255, 165, 0)";
+function styleKey(a: Annotation): string {
+  return `${a.status}|${a.label_color ?? ""}|${a.label}|${useLabels.getState().showNames}`;
+}
+
+export { annotationColor };
+
 const SUGGESTION_DASH = "6,4";
 
 // --- 事件桥：COMPLETED / MODIFIED / REMOVED → annotationBridge ------------------

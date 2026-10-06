@@ -19,6 +19,12 @@ import type { Annotation, Focus, ObjectMeta, Primitive, TaskView } from "../api/
 import { dsFields, objectMeta, taskFields } from "../test/fixtures";
 import { I18nProvider } from "../i18n";
 
+// 标签选择另有用例（store/labels.test.ts）；这里固定返回一个当前标签，绘制即可落库（SDD 23 §7.2）
+vi.mock("../store/labels", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../store/labels")>()),
+  chooseLabelForDrawing: vi.fn(async () => ({ id: "lbl-test", name: "测试", color: "#E4572E" })),
+}));
+
 // --- 替身注册表（vi.mock 工厂提升到文件顶，只能经 vi.hoisted 共享状态）-------------
 
 const h = vi.hoisted(() => {

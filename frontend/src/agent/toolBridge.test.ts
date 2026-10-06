@@ -110,6 +110,8 @@ describe("toolBridge.applyToolExecutionEvent", () => {
         index: {},
         label: "小猫",
         primitive: { kind: "bbox", x0: 221, y0: 220, x1: 1279, y1: 2777 },
+        label_id: null,
+        label_color: null,
         class_id: null,
         status: "suggested",
         source: "agent",

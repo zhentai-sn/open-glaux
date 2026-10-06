@@ -4,6 +4,7 @@
 // 查看器一律经本模块写标注，不得自带回流逻辑（SDD 04 §15「范式仅一份」验收）。
 import { ApiError, api } from "../api/client";
 import type { Annotation, AnnotationCreated, AnnotationInput, Index, TaskOutput } from "../api/types";
+import { chooseLabelForDrawing } from "../store/labels";
 import { useSession } from "../store/session";
 
 // 全局单调递增的编辑请求序号：await 之后仅当 mySeq === editSeq 才提交/回滚。
@@ -35,8 +36,19 @@ function applyHook(resp: AnnotationCreated): void {
   if (resp.hook_error) s.notify("crit", `标注已保存，检测未触发：${resp.hook_error}`);
 }
 
-/** 创建标注——乐观先行渲染，失败/过期回滚。返回服务端标注（含 hook 产物）。 */
+/**
+ * 创建标注——乐观先行渲染，失败/过期回滚。返回服务端标注（含 hook 产物）。
+ *
+ * 人画的标注必须有标签（SDD 23 §7.2 规则 2）：未给 `label_id` 时取当前标签，没有就弹出标签弹层；
+ * 用户取消则返回 null（调用方丢弃形状，不落库）。选标签要等用户，故在占用编辑序号之前完成。
+ */
 export async function createAnnotation(input: AnnotationInput): Promise<Annotation | null> {
+  let label: { id: string; name: string; color: string } | null = null;
+  if (input.label_id === undefined) {
+    label = await chooseLabelForDrawing(input.image_id);
+    if (!label) return null;
+    input = { ...input, label_id: label.id };
+  }
   const s = useSession.getState();
   const mySeq = ++editSeq;
   const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -46,7 +58,9 @@ export async function createAnnotation(input: AnnotationInput): Promise<Annotati
     image_id: input.image_id,
     ...(input.index ? { index: input.index } : {}),
     primitive: input.primitive as Annotation["primitive"],
-    label: input.label ?? "",
+    label: label?.name ?? input.label ?? "",
+    label_id: input.label_id ?? null,
+    label_color: label?.color ?? null,
     class_id: input.class_id ?? null,
     status: "draft",
     source: "manual",
@@ -78,7 +92,7 @@ export async function createAnnotation(input: AnnotationInput): Promise<Annotati
 export async function patchAnnotation(
   id: string,
   baseSeq: number,
-  patch: { primitive?: Annotation["primitive"]; mask_png_b64?: string; label?: string; class_id?: number | null },
+  patch: { primitive?: Annotation["primitive"]; mask_png_b64?: string; label?: string; label_id?: string | null; class_id?: number | null },
 ): Promise<Annotation | null> {
   const s = useSession.getState();
   const mySeq = ++editSeq;

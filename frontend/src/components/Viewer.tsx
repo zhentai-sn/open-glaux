@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import type { ObjectKind } from "../api/types";
 import { useI18n } from "../i18n";
+import { LabelPickerHost } from "./annotations/LabelPicker";
 import { activeObject, useSession } from "../store/session";
 import { FrameStackViewer } from "../viewer/FrameStackViewer";
 import { PyramidViewer } from "../viewer/PyramidViewer";
@@ -72,8 +73,13 @@ export function Viewer() {
     );
   }
   const axis = frameAxisFor(object, focus, setIndex);
-  return <Engine object={object} focus={focus} task={task} capabilities={capabilities} source={source!} axis={axis}
-    voi={object.kind === "volume" ? toolOptions.voi : null} primitives={primitives} annotations={annotations}
-    tool={tool} toolOptions={toolOptions} maskSink={maskSink!} painters={PAINTERS} onCoords={onCoords}
-    onRegion={onRegion} notify={notify} />;
+  return (
+    <>
+      <Engine object={object} focus={focus} task={task} capabilities={capabilities} source={source!} axis={axis}
+        voi={object.kind === "volume" ? toolOptions.voi : null} primitives={primitives} annotations={annotations}
+        tool={tool} toolOptions={toolOptions} maskSink={maskSink!} painters={PAINTERS} onCoords={onCoords}
+        onRegion={onRegion} notify={notify} />
+      <LabelPickerHost />
+    </>
+  );
 }

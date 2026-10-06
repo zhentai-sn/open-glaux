@@ -1,0 +1,95 @@
+/* 标注标签与管理（SDD 23）：标签弹层、工具条当前标签、标注面板。 */
+
+.label-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+}
+.label-picker {
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  background: var(--sidebar);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+  font-size: 12.5px;
+}
+.label-picker-title {
+  color: var(--mid);
+  font-size: 11.5px;
+  margin-bottom: 6px;
+}
+.label-picker-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--input);
+  color: var(--bright);
+  font-size: 12.5px;
+}
+.label-picker-input:focus {
+  outline: 1px solid var(--accent2);
+}
+.label-picker-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.label-picker-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.label-picker-list li.active {
+  background: var(--hover);
+  color: var(--bright);
+}
+.label-picker-list li.label-picker-empty {
+  color: var(--faint);
+  cursor: default;
+}
+.label-create {
+  color: var(--accent2);
+}
+.label-picker-hint {
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: 11px;
+}
+.label-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+.label-swatch.none {
+  background: var(--faint);
+}
+.label-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 工具条：当前标签 */
+.chrome-label-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+}

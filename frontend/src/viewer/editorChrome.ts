@@ -48,6 +48,8 @@ export interface EditorChrome extends ModeTools {
   commitTask: Bilingual | null;
   /** 模式选项：画笔参数段（仅画笔激活且启用时）。 */
   brushOptions: boolean;
+  /** 模式选项：当前标签段（框、多边形、二维画笔——落成标注的工具，SDD 23 §4.1）。 */
+  labelOptions: boolean;
   classes: ClassSpec[];
   /** 视图：窗宽窗位（kind=volume）与帧轴（axes 含 z / t），规则 4。 */
   voi: boolean;
@@ -83,6 +85,8 @@ export function useEditorChrome(): EditorChrome {
       hint: entry?.hint ?? null,
       commitTask: commits ? task.label : null,
       brushOptions: tool === "brush" && capabilities.includes("brush"),
+      // CT 画笔走 /objects/{id}/edits，不是标注（SDD 04 D-13），不挂标签
+      labelOptions: !!object && (tool === "bbox" || tool === "polygon" || (tool === "brush" && object.kind !== "volume")),
       classes: volume?.classes ?? [],
       voi: object?.kind === "volume",
       axis: frameAxisFor(object, focus, setIndex),

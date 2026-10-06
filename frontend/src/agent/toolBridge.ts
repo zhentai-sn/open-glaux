@@ -91,6 +91,9 @@ function asProposedAnnotation(value: unknown): Annotation | null {
     index,
     primitive,
     label: payload.label,
+    // SDD 23 §7.5 规则 1：名称命中目录时带目录 id 与颜色
+    label_id: typeof payload.label_id === "string" ? payload.label_id : null,
+    label_color: typeof payload.label_color === "string" ? payload.label_color : null,
     class_id: null,
     status: "suggested",
     source: "agent",
@@ -119,6 +122,8 @@ function asRevision(value: unknown): { action: "withdraw"; id: string; imageId: 
       index,
       primitive,
       label: a.label,
+      label_id: typeof a.label_id === "string" ? a.label_id : null,
+      label_color: typeof a.label_color === "string" ? a.label_color : null,
       class_id: null,
       status: "suggested",
       source: "agent",

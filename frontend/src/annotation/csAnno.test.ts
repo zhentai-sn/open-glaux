@@ -208,7 +208,8 @@ describe("syncCsAnnotations · 建议态", () => {
     expect(styles["cs-3"]).toMatchObject({ lineDash: "6,4" });
 
     const changed = syncCsAnnotations([{ ...pending, status: "confirmed" as const }], IMG, "FOR", "FOR");
-    expect(styles["cs-3"]).toEqual({}); // 回到与人工标注同一外观
+    expect(styles["cs-3"]).not.toHaveProperty("lineDash"); // 回到与人工标注同一外观（实线）
+    expect(styles["cs-3"]).toMatchObject({ color: "rgb(150, 150, 150)" }); // 无目录标签为灰色
     expect(changed).toBe(true); // 需触发重绘
     vi.restoreAllMocks();
   });
@@ -229,6 +230,26 @@ describe("syncCsAnnotations · 建议态", () => {
     const revised = { ...original, seq: 2, primitive: { kind: "bbox" as const, x0: 2, y0: 3, x1: 20, y1: 30 } };
     expect(syncCsAnnotations([revised], IMG, "FOR", "FOR")).toBe(true);
     expect(csToPrimitive(stored as CsAnn, IMG)).toEqual(revised.primitive);
+    vi.restoreAllMocks();
+  });
+
+  it("按标签着色并显示名称，改标签后重刷（SDD 23 §5.1）", () => {
+    resetCsAnnoBridge();
+    const styles: Record<string, Record<string, unknown>> = {};
+    vi.spyOn(csAnnState.config.style, "setAnnotationStyles").mockImplementation((uid, s) => {
+      styles[uid] = s as Record<string, unknown>;
+    });
+    vi.spyOn(csAnnState.state, "addAnnotation").mockReturnValue("cs-5");
+    vi.spyOn(csAnnState.state, "getAnnotation").mockReturnValue(undefined as never);
+
+    const drawn = { ...srvAnn({ kind: "bbox", x0: 1, y0: 1, x1: 9, y1: 9 }), id: "s5", label: "折叠", label_id: "lbl-1", label_color: "#E4572E" };
+    syncCsAnnotations([drawn], IMG, "FOR", "FOR");
+    expect(styles["cs-5"]).toMatchObject({ color: "#E4572E", textBoxVisibility: true });
+    expect(styles["cs-5"]).not.toHaveProperty("lineDash");
+
+    const changed = syncCsAnnotations([{ ...drawn, label: "出血", label_id: "lbl-2", label_color: "#17BEBB", seq: 2 }], IMG, "FOR", "FOR");
+    expect(changed).toBe(true);
+    expect(styles["cs-5"]).toMatchObject({ color: "#17BEBB" });
     vi.restoreAllMocks();
   });
 });

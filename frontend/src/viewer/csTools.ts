@@ -67,6 +67,10 @@ const HIDE_TEXT_BOX = {
   global: { textBoxVisibility: false },
 } as unknown as ToolTypes.AnnotationStyle.ToolStyleConfig;
 
+function labelTextLines(data: { label?: string }): string[] {
+  return data.label ? [data.label] : [];
+}
+
 /** 新建 ToolGroup 并挂 viewport + 全部工具（id 冲突先拆旧组）。 */
 export function createToolGroup(
   groupId: string,
@@ -86,11 +90,13 @@ export function createToolGroup(
   // 用框架自己的样式开关（textBoxVisibility），作用域限本 ToolGroup，不改全局默认样式。
   annotation.config.style.setToolGroupToolStyles(groupId, HIDE_TEXT_BOX);
   tg.addViewport(viewportId, renderingEngineId);
-  tg.addTool(RectangleROITool.toolName);
-  tg.addTool(PlanarFreehandROITool.toolName);
+  // 文字框只显示标签名（SDD 23 §5.1）；是否显示由每条标注的 textBoxVisibility 决定，缺省仍隐藏
+  tg.addTool(RectangleROITool.toolName, { getTextLines: labelTextLines });
+  tg.addTool(PlanarFreehandROITool.toolName, { getTextLines: labelTextLines });
   tg.addTool(SplineROITool.toolName, {
     calculateStats: false,
     spline: { type: SplineROITool.SplineTypes.Linear },
+    getTextLines: labelTextLines,
   });
   tg.addTool(BrushTool.toolName);
   tg.addTool(PanTool.toolName);

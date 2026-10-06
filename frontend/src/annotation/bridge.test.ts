@@ -12,6 +12,12 @@ import {
 import type { Annotation } from "../api/types";
 import { useSession } from "../store/session";
 
+// 标签选择另有用例（store/labels.test.ts）；这里固定返回一个当前标签，绘制即可落库（SDD 23 §7.2）
+vi.mock("../store/labels", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../store/labels")>()),
+  chooseLabelForDrawing: vi.fn(async () => ({ id: "lbl-test", name: "测试", color: "#E4572E" })),
+}));
+
 type FetchInit = { method?: string; body?: string } | undefined;
 
 /** 可控 fetch：按 (method, url) 路由到预置响应；deferred 用例可手动放行。 */
@@ -55,14 +61,21 @@ afterEach(() => {
 describe("createAnnotation", () => {
   it("成功：乐观草稿先行，落库后换真 id（无 tmp 残留）", async () => {
     const saved = makeAnn("srv-1");
-    mockFetch(async () => ({ ok: true, status: 201, json: { annotation: saved, hook_result: null } }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    mockFetch(async () => {
+      await gate;
+      return { ok: true, status: 201, json: { annotation: saved, hook_result: null } };
+    });
 
     const p = createAnnotation({ image_id: "img_1", primitive: saved.primitive });
-    // 同步可见的乐观草稿
+    // 取到标签后、落库返回前可见的乐观草稿（带上标签，SDD 23 §7.2）
+    await vi.waitFor(() => expect(useSession.getState().annotations).toHaveLength(1));
     const draft = useSession.getState().annotations;
-    expect(draft).toHaveLength(1);
     expect(draft[0].id).toMatch(/^tmp-/);
     expect(draft[0].status).toBe("draft");
+    expect([draft[0].label_id, draft[0].label]).toEqual(["lbl-test", "测试"]);
+    release();
 
     const out = await p;
     expect(out?.id).toBe("srv-1");

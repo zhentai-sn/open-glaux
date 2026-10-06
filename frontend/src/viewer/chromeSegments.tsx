@@ -1,5 +1,8 @@
+import { useEffect } from "react";
+
 import type { ClassSpec } from "../api/types";
 import { useI18n } from "../i18n";
+import { currentLabel, useLabels } from "../store/labels";
 import { useSession } from "../store/session";
 import type { FrameAxis } from "./contract";
 import type { EditorChrome } from "./editorChrome";
@@ -31,6 +34,32 @@ function BrushSeg({ classes }: { classes: ClassSpec[] }) {
         {t("chrome_brush_radius")} {brush.radius}
         <input type="range" min={1} max={10} value={brush.radius} onChange={(e) => setOptions({ brush: { radius: Number(e.target.value) } })} />
       </label>
+    </div>
+  );
+}
+
+// 当前标签（SDD 23 §4.1）：新画的标注自动使用；点击打开标签弹层更换。
+function LabelSeg({ objectId }: { objectId: string }) {
+  const { t } = useI18n();
+  const labels = useLabels();
+  const current = currentLabel(labels);
+  const { load, objectId: loadedFor } = labels;
+  useEffect(() => {
+    if (loadedFor !== objectId) void load(objectId);
+  }, [objectId, loadedFor, load]);
+  return (
+    <div className="chrome-seg" data-testid="label-seg">
+      <button
+        className="chrome-btn chrome-label-btn"
+        title={t("chrome_label_title")}
+        onClick={() => void labels.requestLabel(objectId, { setCurrent: true })}
+      >
+        <span className={current ? "label-swatch" : "label-swatch none"} style={current ? { background: current.color } : undefined} />
+        <span className="label-name">{current ? current.name : t("chrome_label_none")}</span>
+      </button>
+      <button className="chrome-btn" aria-pressed={labels.showNames} onClick={() => labels.setShowNames(!labels.showNames)}>
+        {t("chrome_label_show_names")}
+      </button>
     </div>
   );
 }
@@ -79,16 +108,17 @@ function FrameAxisSeg({ axis }: { axis: Exclude<FrameAxis, { kind: "none" }> }) 
   );
 }
 
-export function hasSegments({ brushOptions, voi, axis }: Pick<EditorChrome, "brushOptions" | "voi" | "axis">): boolean {
-  return brushOptions || voi || axis.kind !== "none";
+export function hasSegments({ brushOptions, labelOptions, voi, axis }: Pick<EditorChrome, "brushOptions" | "labelOptions" | "voi" | "axis">): boolean {
+  return brushOptions || labelOptions || voi || axis.kind !== "none";
 }
 
 /** 模式选项段 + 视图段；两者皆空时返回 null。 */
 export function ChromeSegments({ chrome }: { chrome: EditorChrome }) {
-  const { brushOptions, classes, voi, axis } = chrome;
+  const { brushOptions, labelOptions, classes, voi, axis, object } = chrome;
   if (!hasSegments(chrome)) return null;
   return (
     <>
+      {labelOptions && object && <LabelSeg objectId={object.id} />}
       {brushOptions && <BrushSeg classes={classes} />}
       {voi && <VoiSeg />}
       {axis.kind !== "none" && <FrameAxisSeg axis={axis} />}
