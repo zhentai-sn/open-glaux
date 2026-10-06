@@ -49,6 +49,7 @@ import {
   Sparkles,
   Spline,
   Square,
+  Tags,
   Sun,
   Trash2,
   Waves,
@@ -100,7 +101,7 @@ export const KIND_ICON: Record<string, LucideIcon> = {
 };
 
 // Focus 右侧栏的舞台 / 文件 / 图谱（入口在左侧栏活动栏，SDD 01 D22）
-export const TAB_ICON = { stage: Image, files: Files, atlas: BookOpen, context: Layers } as const;
+export const TAB_ICON = { stage: Image, files: Files, annotations: Tags, atlas: BookOpen, context: Layers } as const;
 
 // 上下文页分区（SDD 19 §5.1）
 export const CONTEXT_ICON = {

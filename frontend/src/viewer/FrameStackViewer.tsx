@@ -11,8 +11,8 @@ import { loadNiftiVolume, invalidateNiftiVolume } from "./nifti";
 import { IDENTITY_PIXEL_MAP, pixelMapFor } from "./pixelMap";
 import { api } from "../api/client";
 import { loadAnnotations } from "../annotation/bridge";
-import { resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
-import { annotationColor } from "../annotation/labelStyle";
+import { csIdOf, resetCsAnnoBridge, syncCsAnnotations } from "../annotation/csAnno";
+import { annotationColor, extentOf } from "../annotation/labelStyle";
 import { useLabels } from "../store/labels";
 import { annotation, ToolGroupManager, utilities as csToolsUtils } from "@cornerstonejs/tools";
 import type { ClassSpec, Primitive, TaskOverlaySpec } from "../api/types";
@@ -477,6 +477,32 @@ export function FrameStackViewer({ object, focus, source, task: taskView, capabi
       img.src = api.annotations.maskUrl(a.id);
     }
   }, [visibleAnnotations, ready, isVolume, currentIndex, VP_ID, showNames]);
+
+  // 标注面板点选（SDD 23 §7.6 规则 2）：标注出现在当前层或帧后，把相机中心移到它并选中
+  const locate = useLabels((st) => st.locate);
+  useEffect(() => {
+    if (!locate || !ready || !imageIdRef.current) return;
+    const target = visibleAnnotations.find((a) => a.id === locate.id);
+    if (!target) return;
+    useLabels.getState().located();
+    const box = extentOf(target.primitive);
+    const vp = vpRef.current as unknown as {
+      getCamera?: () => { focalPoint: number[]; position: number[] };
+      setCamera?: (camera: { focalPoint: number[]; position: number[] }) => void;
+      render?: () => void;
+    } | null;
+    if (!box || !vp?.getCamera || !vp.setCamera) return;
+    try {
+      const [fx, fy] = pixelMapRef.current.toFrame((box[0] + box[2]) / 2, (box[1] + box[3]) / 2);
+      const world = csUtils.imageToWorldCoords(imageIdRef.current, [fx, fy]) as number[];
+      const cam = vp.getCamera();
+      const delta = world.map((v, i) => v - cam.focalPoint[i]!);
+      vp.setCamera({ focalPoint: world, position: cam.position.map((v, i) => v + delta[i]!) });
+      const csId = csIdOf(target.id);
+      if (csId) annotation.selection.setAnnotationSelected(csId, true, false);
+      vp.render?.();
+    } catch { /* 切图途中：保持现状 */ }
+  }, [locate, visibleAnnotations, ready, vpRef]);
 
   // store.primitives 变化 → 同步工作副本 + 重绘（壁线拖拽中间态也走这里）
   useEffect(() => {

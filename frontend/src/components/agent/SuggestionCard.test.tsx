@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Annotation, ObjectMeta } from "../../api/types";
 import * as actions from "../../data/actions";
 import { I18nProvider } from "../../i18n";
+import { useLabels } from "../../store/labels";
 import { useSession } from "../../store/session";
 import { SuggestionCard, parseAnnotationProposed } from "./SuggestionCard";
 
@@ -101,11 +102,21 @@ describe("SuggestionCard", () => {
     expect(screen.getByTestId("suggestion-reject")).toBeTruthy();
   });
 
-  it("确认发一次 PATCH，带 base_seq 与 confirmed", () => {
+  it("确认发一次 PATCH，带 base_seq 与 confirmed（标签已在目录中）", () => {
+    useSession.setState({ annotations: [ann({ label_id: "lbl-1" })] });
     show(PAYLOAD);
     fireEvent.click(screen.getByTestId("suggestion-confirm"));
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(updateMock).toHaveBeenCalledWith("ann_1", { base_seq: 3, status: "confirmed" });
+  });
+
+  it("标签未入目录时先弹出标签选择，预填其文本，选定前不确认（SDD 23 §7.5 规则 4）", async () => {
+    useLabels.setState({ objectId: "img_1", scope: "global", labels: [], request: null });
+    show(PAYLOAD);
+    fireEvent.click(screen.getByTestId("suggestion-confirm"));
+    await vi.waitFor(() => expect(useLabels.getState().request?.prefill).toBe("左肾"));
+    expect(updateMock).not.toHaveBeenCalled();
+    useLabels.getState().settle(null);
   });
 
   it("驳回发 rejected", () => {

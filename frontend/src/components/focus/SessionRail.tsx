@@ -49,6 +49,18 @@ const WORKSPACE_ENTRIES: RailEntry[] = [
         ? { browserView: null }
         : { rightOpen: true, sideView: "stage", browserView: "files" },
   },
+  // SDD 23 §7.6：标注面板与文件共用浏览器列，二者互换
+  {
+    id: "annotations",
+    icon: TAB_ICON.annotations,
+    label: "focus_tab_annotations",
+    onTitle: "focus_browser_close",
+    pressed: (l) => l.rightOpen && l.sideView === "stage" && l.browserView === "annotations",
+    next: (l) =>
+      l.rightOpen && l.sideView === "stage" && l.browserView === "annotations"
+        ? { browserView: null }
+        : { rightOpen: true, sideView: "stage", browserView: "annotations" },
+  },
   {
     id: "atlas",
     icon: TAB_ICON.atlas,

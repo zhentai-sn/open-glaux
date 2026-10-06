@@ -25,6 +25,8 @@ interface LabelsState {
   /** 查看器上显示标签名（工具条开关）。 */
   showNames: boolean;
   request: LabelRequest | null;
+  /** 面板点选的标注：查看器跳到其层或帧并居中（§7.6 规则 2）。`nonce` 让重复点击同一条也生效。 */
+  locate: { id: string; nonce: number } | null;
   load: (objectId: string) => Promise<void>;
   setCurrent: (labelId: string | null) => void;
   setShowNames: (show: boolean) => void;
@@ -37,6 +39,9 @@ interface LabelsState {
   /** 打开标签弹层，等待用户选择、新建或取消。 */
   requestLabel: (objectId: string, opts?: { prefill?: string; setCurrent?: boolean }) => Promise<Label | null>;
   settle: (label: Label | null) => void;
+  locateAnnotation: (id: string) => void;
+  /** 查看器完成定位后清除请求。 */
+  located: () => void;
 }
 
 function notify(message: string) {
@@ -62,6 +67,7 @@ export const useLabels = create<LabelsState>((set, get) => ({
   currentByScope: {},
   showNames: true,
   request: null,
+  locate: null,
 
   load: async (objectId) => {
     try {
@@ -158,6 +164,9 @@ export const useLabels = create<LabelsState>((set, get) => ({
     if (label && request.setCurrent) get().setCurrent(label.id);
     request.resolve(label);
   },
+
+  locateAnnotation: (id) => set((s) => ({ locate: { id, nonce: (s.locate?.nonce ?? 0) + 1 } })),
+  located: () => set({ locate: null }),
 }));
 
 /** 当前作用域的当前标签；目录中已不存在时视为无。 */

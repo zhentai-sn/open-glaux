@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import type { Annotation, Index, Modality, ObjectMeta } from "../../api/types";
-import { resolveSuggestion } from "../../annotation/bridge";
+import { confirmSuggestion, resolveSuggestion } from "../../annotation/bridge";
 import { openObject } from "../../data/actions";
 import { useI18n } from "../../i18n";
 import type { I18nKey } from "../../i18n/en";
@@ -99,7 +99,7 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
             type="button"
             className="interaction-btn primary"
             data-testid="suggestion-confirm"
-            onClick={() => void resolveSuggestion(live.id, live.seq, "confirmed")}
+            onClick={() => void confirmSuggestion(live)}
           >
             {t("suggestion_confirm")}
           </button>

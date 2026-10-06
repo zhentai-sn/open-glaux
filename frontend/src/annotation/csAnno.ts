@@ -34,6 +34,11 @@ const renderedStatus = new Map<string, string>();
 // 已渲染标注的几何：智能体修订建议（SDD 22）在层外改了几何，据此原地换句柄
 const renderedGeometry = new Map<string, string>();
 
+/** 服务端标注 id 对应的 CS3D annotationUID（面板定位时选中它）。 */
+export function csIdOf(srvId: string): string | undefined {
+  return srvToCs.get(srvId);
+}
+
 /** 测试/切对象复位：清全部映射（CS3D 侧标注由调用方 removeAllAnnotations）。 */
 export function resetCsAnnoBridge(): void {
   csToSrv.clear();

@@ -4,7 +4,7 @@
 // 查看器一律经本模块写标注，不得自带回流逻辑（SDD 04 §15「范式仅一份」验收）。
 import { ApiError, api } from "../api/client";
 import type { Annotation, AnnotationCreated, AnnotationInput, Index, TaskOutput } from "../api/types";
-import { chooseLabelForDrawing } from "../store/labels";
+import { chooseLabelForDrawing, useLabels } from "../store/labels";
 import { useSession } from "../store/session";
 
 // 全局单调递增的编辑请求序号：await 之后仅当 mySeq === editSeq 才提交/回滚。
@@ -140,6 +140,36 @@ export async function resolveSuggestion(
     );
     return null;
   }
+}
+
+/** 弹出标签弹层为某对象选标签；目录不是该对象作用域时先加载。 */
+async function pickLabel(objectId: string, prefill = "") {
+  const labels = useLabels.getState();
+  if (labels.objectId !== objectId) await labels.load(objectId);
+  return useLabels.getState().requestLabel(objectId, { prefill });
+}
+
+/**
+ * 确认建议（SDD 23 §7.5 规则 4）：未入目录的建议先选标签（弹层预填其文本），再确认。
+ * 用户取消选择则不确认。
+ */
+export async function confirmSuggestion(a: Annotation): Promise<Annotation | null> {
+  let seq = a.seq;
+  if (!a.label_id) {
+    const label = await pickLabel(a.image_id, a.label);
+    if (!label) return null;
+    const relabeled = await patchAnnotation(a.id, seq, { label_id: label.id });
+    if (!relabeled) return null;
+    seq = relabeled.seq;
+  }
+  return resolveSuggestion(a.id, seq, "confirmed");
+}
+
+/** 改标签（SDD 23 §7.2）：弹层选择后写入 `label_id`；取消不改。 */
+export async function relabelAnnotation(a: Annotation): Promise<Annotation | null> {
+  const label = await pickLabel(a.image_id);
+  if (!label || label.id === a.label_id) return null;
+  return patchAnnotation(a.id, a.seq, { label_id: label.id });
 }
 
 /** 删除标注（base_seq 乐观并发；409 → 提示）。 */

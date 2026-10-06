@@ -7,7 +7,7 @@ import { axisSize } from "../data/objectInfo";
 import type { ViewerProps } from "./contract";
 import { getT } from "../i18n";
 import type { Annotation, AnnotationPrimitive, ClassSpec, Primitive } from "../api/types";
-import { annotationColor } from "../annotation/labelStyle";
+import { annotationColor, extentOf } from "../annotation/labelStyle";
 import { useLabels } from "../store/labels";
 
 // PyramidViewer——OpenSeadragon 深缩放 + 原生 SVG 标注层 + 核质心 overlay。
@@ -29,6 +29,8 @@ type PyramidProps = Pick<ViewerProps, "object" | "focus" | "primitives" | "annot
 
 export function PyramidViewer({ object, focus, primitives, annotations, tool, onRegion, notify }: PyramidProps) {
   const showNames = useLabels((s) => s.showNames);
+  const locate = useLabels((s) => s.locate);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -193,6 +195,21 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
     return [p.x, p.y];
   };
 
+  // 标注面板点选（SDD 23 §7.6 规则 2）：缩放到标注外接框（四周留白一半）并高亮
+  useEffect(() => {
+    if (!locate) return;
+    const target = annotations.find((a) => a.id === locate.id && a.image_id === objectId);
+    const viewport = viewerRef.current?.viewport;
+    if (!target || !viewport) return;
+    useLabels.getState().located();
+    setSelectedId(target.id);
+    const box = extentOf(target.primitive);
+    if (!box) return;
+    const [x0, y0, x1, y1] = box;
+    const pad = Math.max(x1 - x0, y1 - y0) / 2;
+    viewport.fitBounds(viewport.imageToViewportRectangle(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad));
+  }, [locate, annotations, objectId]);
+
   const commitShape = useCallback((primitive: Shape) => {
     if (isRoiTooSmall(primitive)) {
       notify("info", getT()("wsi_roi_too_small"));
@@ -341,11 +358,11 @@ export function PyramidViewer({ object, focus, primitives, annotations, tool, on
                   height={Math.abs(screen[2][1] - screen[0][1])}
                   fill="none"
                   stroke={color}
-                  strokeWidth={2}
+                  strokeWidth={annotation.id === selectedId ? 3.5 : 2}
                   strokeDasharray={annotation.status === "suggested" ? "6 4" : undefined}
                 />
               ) : (
-                <polygon points={screen.map(([x, y]) => `${x},${y}`).join(" ")} fill="none" stroke={color} strokeWidth={2}
+                <polygon points={screen.map(([x, y]) => `${x},${y}`).join(" ")} fill="none" stroke={color} strokeWidth={annotation.id === selectedId ? 3.5 : 2}
                   strokeDasharray={annotation.status === "suggested" ? "6 4" : undefined} />
               )}
               {showNames && annotation.label && (

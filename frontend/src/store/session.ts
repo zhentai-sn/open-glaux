@@ -112,7 +112,8 @@ const LEGACY_CONTEXT_SECTION: Record<string, ContextSection> = { skills: "skills
  * 舞台旁的浏览器列（SDD feats/01 v1.4 §9 / D16、D18；v1.5 起只剩文件）。
  * `null` = 浏览器列关闭，侧栏纯舞台。
  */
-export type FocusBrowserView = "files";
+/** 舞台右侧的浏览器列：文件或标注面板（SDD 23 §7.6），二者互换。 */
+export type FocusBrowserView = "files" | "annotations";
 
 /** Focus 栏宽的允许范围（SDD feats/01 v1.3 §9/D15）——对话列由 CONVERSATION_MIN_W 保底，右侧图像栏允许占据更大空间。 */
 export const RAIL_W = { min: 200, max: 420, def: 236 } as const;
@@ -197,7 +198,7 @@ function loadFocusLayout(): FocusLayout {
           sideView: SIDE_VIEWS.includes(p.sideView as FocusSideView)
             ? p.sideView!
             : legacySection ? "context" : legacyAtlas ? "atlas" : "stage",
-          browserView: p.browserView === "files" ? "files" : legacy,
+          browserView: p.browserView === "files" || p.browserView === "annotations" ? p.browserView : legacy,
           browserW: loadWidth(p.browserW, BROWSER_W),
           railW: loadWidth(p.railW, RAIL_W),
           sideW: loadWidth(p.sideW, SIDE_W),

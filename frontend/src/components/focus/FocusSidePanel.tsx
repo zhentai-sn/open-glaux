@@ -8,6 +8,7 @@ import { PaneResizer } from "./PaneResizer";
 import { ContextPanel } from "../context/ContextPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { StagePanel } from "./StagePanel";
+import { AnnotationPanel } from "../annotations/AnnotationPanel";
 
 // Focus 右侧栏（SDD feats/01 v1.7 §7-2 / §9 / D16–D23）——纯内容区，没有自己的标签条与折叠竖条；
 // 舞台 / 文件 / 图谱 / 上下文 / 设置的入口统一在左侧栏（SessionRail）。
@@ -138,7 +139,7 @@ export function FocusSidePanel() {
         )}
         {hasBrowser && (
           <div className="focus-side-browser">
-            <ExplorerView />
+            {browserView === "annotations" ? <AnnotationPanel /> : <ExplorerView />}
           </div>
         )}
       </div>
