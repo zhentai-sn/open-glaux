@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api } from "../../api/client";
 import type { Annotation, AnnotationSummary, Label, SummaryGroup } from "../../api/types";
-import { confirmSuggestion, relabelAnnotation, removeAnnotation, resolveSuggestion } from "../../annotation/bridge";
+import { confirmSuggestion, loadAnnotations, relabelAnnotation, removeAnnotation, resolveSuggestion } from "../../annotation/bridge";
 import { annotationColor } from "../../annotation/labelStyle";
 import { formatArea } from "../../annotation/units";
 import { useI18n } from "../../i18n";
@@ -81,6 +81,12 @@ function AnnotationsSection({ objectId, thirdAxis }: { objectId: string; thirdAx
   useEffect(() => {
     if (loadedFor !== objectId) void loadLabels(objectId);
   }, [objectId, loadedFor, loadLabels]);
+
+  // 智能体的建议经工具事件直接写入 store，不带 backend 算的面积：发现这类条目时重取一次列表
+  const missingMeasures = stored.some((a) => a.image_id === objectId && !a.id.startsWith("tmp-") && a.measures === undefined);
+  useEffect(() => {
+    if (missingMeasures && focus?.object_id === objectId) void loadAnnotations(objectId, focus.index);
+  }, [missingMeasures, objectId, focus]);
 
   // 标注一变就重取汇总（及「全部」列表）；连续编辑合并为一次
   useEffect(() => {
