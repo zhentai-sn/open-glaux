@@ -135,9 +135,11 @@ API Key 仍沿用前端连接配置，随单次命令临时传给 Runtime，不�
 - `suggest` / `controlled` / `autonomous`：挂领域工具；逐次批准门控（`beforeToolCall`）尚未落地，`propose_annotation` 的产出恒为建议态，须人工确认。
 - 对话预览版（chat）不挂领域工具，与 `observe` 同效。
 
-完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation` 与 `revise_annotation`（需焦点）；绑定项目的会话另挂 `list_files`（列项目内一层，最多 200 条）、`open_file`（打开项目内文件并看首帧，需视觉，不改用户舞台）。每个会话还有一个工作目录（绑定项目时为项目目录，否则为会话工作区，见 §3.2），可挂 `read`、`write`、`edit`（`observe` 只挂 `read`）。绑定项目的会话中，作用于当前对象的工具只接受本项目的对象，未归属会话只接受 `project_id` 为空的数据源对象，越界时模型收到工具错误。工具经插件登记表装配（`agent-runtime/src/plugins/`）；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
+完整版当前可挂的工具：`run_task`、`view_current_image`、`consult_atlas`、`locate_roi`（后三者要求连接声明视觉；其中看图和定位还需当前焦点）、`segment_region`（需焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且已配 `GLAUX_SEG_API_TOKEN`）、`propose_annotation`、`revise_annotation` 与 `list_annotations`（需焦点）；绑定项目的会话另挂 `list_files`（列项目内一层，最多 200 条）、`open_file`（打开项目内文件并看首帧，需视觉，不改用户舞台）。每个会话还有一个工作目录（绑定项目时为项目目录，否则为会话工作区，见 §3.2），可挂 `read`、`write`、`edit`（`observe` 只挂 `read`）。绑定项目的会话中，作用于当前对象的工具只接受本项目的对象，未归属会话只接受 `project_id` 为空的数据源对象，越界时模型收到工具错误。工具经插件登记表装配（`agent-runtime/src/plugins/`）；取图统一走 `/objects/{id}/frame` 并读取 `X-Glaux-Frame`，注册条件见 `agent-runtime/src/pi/harness-registry.ts`。
 
 智能体看图可以像人一样放大复核（SDD 22）：`view_current_image` 传对象像素区域即放大，再次调用可平移或缩回；返回的图默认画出已有标注（建议态虚线，旁注 A1、A2…）。智能体提出框后会放大到框附近对照，偏差时用 `revise_annotation` 修正自己那条建议；人画的、已确认或已驳回的标注它改不了。看图需要连接真正支持图像输入，否则图会被丢弃。
+
+标注带标签（SDD 23）：框、多边形、二维画笔画完必须选标签，工具条上的当前标签会自动套用，没有时弹出标签选择框，可当场新建；取消则不保存。标签目录按项目划分，未归属项目的对象共用全局目录。左侧栏「标注」打开标注面板，按标签列出条数与面积（有空间标定时为物理单位），并在「标签」分区改名、改色、合并；仍被标注使用的标签不能删除，请先合并。智能体提建议时使用目录中的名称，可用 `list_annotations` 回答数量与面积，数字与面板一致。标签目录与标注同存 `GLAUX_ANNOTATIONS_ROOT`（缺省 `~/glaux_annotations`）下的 `annotations.sqlite`，备份时一并复制该目录。
 
 ## 5. 会话管理
 

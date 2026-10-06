@@ -237,6 +237,7 @@ erDiagram
         TEXT kind
         TEXT primitive_json
         TEXT label
+        TEXT label_id
         INTEGER class_id
         TEXT status
         TEXT source
@@ -258,7 +259,8 @@ erDiagram
 | `z` | INTEGER | 是 | NULL | — | 同上 | 对象当前第三轴取值：`volume`=z / `video`=t / `slide`=level；未绑定索引（含全部 2D 对象）为 NULL | `index` |
 | `kind` | TEXT | 否 | — | CHECK(kind IN ('bbox','polyline','mask','point'))，取值由 `store.py` 的 `_KINDS` 生成 | — | 原语判别；`point` 仅为 `point_set` 原语与 agent 产出预留 | payload |
 | `primitive_json` | TEXT | 否 | — | — | — | 几何原语 JSON（§9.2） | payload |
-| `label` | TEXT | 否 | `''` | — | — | 语义标签（双语取 i18n 键或自由文本） | 用户 |
+| `label` | TEXT | 否 | `''` | — | — | 语义标签文本；有 `label_id` 时读取以目录名称为准 | 用户 |
+| `label_id` | TEXT | 是 | NULL | 逻辑关联至 `labels.id` | `idx_annotations_label` | 标签目录引用（[SDD 23](../23-annotation-labels/README.md) §7.2）；人工绘制必填，库结构 v2 起有此列 | 用户 / 目录匹配 |
 | `class_id` | INTEGER | 是 | NULL | — | — | 可选类别（颜色走 ClassSpec） | 用户 |
 | `status` | TEXT | 否 | `'draft'` | CHECK(status IN ('draft','confirmed','suggested','rejected')) | — | 生命周期态（§11） | 服务端 |
 | `source` | TEXT | 否 | `'manual'` | CHECK(source IN ('manual','model','agent')) | — | 产出方（SDD 02 接缝） | 服务端 |

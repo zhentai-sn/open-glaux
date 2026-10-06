@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 ---
 
 # SDD 23 标注标签与管理 · 实施计划
@@ -131,4 +131,10 @@ W2 与 W3 可并行。
 
 ## 实施偏差
 
-（实施中记录与本计划不一致之处及原因。）
+- 标签名显示：未自建叠加层，改用 CS3D 工具自带文字框，`getTextLines` 只返回标签名，统计文字仍不显示；显示与否按每条标注的 `textBoxVisibility`。
+- 排序：未做拖动，改为上移、下移按钮，键盘可达。
+- `list_annotations` 的 effect 为 `read`（SDD 15 的只读等级），计划初稿误写为 `observe`（那是权限模式）。
+- 汇总分组增加 `kind`（`catalog` / `uncatalogued` / `unlabeled`），SDD 23 §9.4 已同步。
+- 当前标签按作用域分别记忆，不在切换作用域时清空；SDD 23 §7.2 规则 3 已同步。
+- 走查发现的两处问题已修：绘制后的形状须在落库结果写入 store 之前绑定服务端 id，否则同步会重复添加或误删；智能体建议经工具事件写入 store 时不带面积，面板发现后重取列表。
+- 走查用的 backend 改用独立的 `GLAUX_ANNOTATIONS_ROOT`，不再写入维护者的标注库。

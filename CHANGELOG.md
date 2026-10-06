@@ -8,6 +8,7 @@
 
 ### Added
 
+- 标注标签与管理：画框、多边形必须选标签（可当场新建），按标签着色并显示名称；左侧栏「标注」面板按标签统计条数与面积（有标定时为物理单位），管理标签目录（改名、改色、合并）。见 [SDD 23](docs/sdd/feats/23-annotation-labels/README.md)。
 - 智能体像人一样看图：可放大、平移、缩回，图上画出已有标注供对照；提出的框放大复核后可修正或撤回自己的建议。见 [SDD 22](docs/sdd/feats/22-agent-visual-inspection/README.md)。
 - 内置技能 `skill-creator`：让智能体把工作流程、测量口径或报告格式做成可复用的技能，并协助测试与改进。见 [SDD 17](docs/sdd/feats/17-agent-skills-prompts/README.md) D-6。
 - 运行轨迹：「上下文」页新增「运行 → 轨迹」，按轮次列出当前会话的请求头（系统提示词分段与工具）、模型调用（输出、用量、首 token 与耗时、上下文占用）、工具调用、压缩与运行提示；顶部输入 / 模型 / 工具三条泳道；请求头可与上一轮比较差异；每次模型调用可查看实际发给模型的消息（含被裁剪的图像与运行时追加的提示）。见 [SDD 21](docs/sdd/feats/21-run-trajectory/README.md)。

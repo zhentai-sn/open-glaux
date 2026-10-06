@@ -175,6 +175,7 @@ open-glaux/
 | `segment_region` | 调外部分割后端取 mask，runtime 侧转对象像素多边形 | 有焦点、`GLAUX_ANNOT_ALLOW_EGRESS` 放行且 `GLAUX_SEG_API_TOKEN` 非空 |
 | `propose_annotation` | 按当前焦点索引写建议态标注（`status=suggested`），等人工确认；`space: "view"` 按 `view_id` 换算 | 有焦点 |
 | `revise_annotation` | 修改或撤回智能体自己尚未被处理的建议（SDD 22 §7.4） | 有焦点 |
+| `list_annotations` | 只读：标签目录、按标签的条数与面积、标注列表，与标注面板同源（SDD 23） | 有焦点 |
 | `observe_video_interval` / `submit_video_answer` | Qwen 原生音画区间观察、结构化证据校验与会话记录（SDD 11） | 当前焦点为视频、连接显式选择 `qwen-omni`；`observe` 权限也可挂载 |
 | `list_files` | 经 backend `GET /projects/{id}/entries` 列项目内一层条目（名称、类型、候选模态、已登记的对象 id），单次最多 200 条，超出返回总数 | 会话绑定了项目（SDD 13 §7.3） |
 | `open_file` | 经 backend `POST /projects/{id}/objects` 按需打开项目内文件，取首帧或代表帧返回模型；不改会话焦点，`details` 供前端渲染对象卡片 | 会话绑定了项目且连接支持视觉 |
@@ -192,7 +193,7 @@ open-glaux/
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | Python ≥ 3.12, FastAPI, Pydantic, uv；**不含任何 LLM SDK** |
-| 路由 | 八组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04）、上传（SDD 08）、图谱（SDD 03）、目录浏览 `/fs`、项目 `/projects`（SDD 13）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
+| 路由 | 九组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04；含度量与 `/annotations/summary`，SDD 23）、标签目录 `/labels`（SDD 23）、上传（SDD 08）、图谱（SDD 03）、目录浏览 `/fs`、项目 `/projects`（SDD 13）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
 | 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404。`DataSource.origin` 取 `builtin` / `imported` / `connector` / `project`，`project_id` 为空即「未归属」；注册表读写与落盘共用一把 `RLock` |
 | 项目（SDD 13） | 项目 = 后端文件系统上的一个目录，`project_id = "prj-" + sha1(规范化路径)[:8]`，重复登记幂等；登记不扫描目录。文件被打开时按「目录 + 模态」登记 `origin=project` 的数据源（id `psrc-<sha1(目录\0模态)[:8]>`），依据 `SOURCES[*].formats` 后缀与魔数和 `Source.object_id_for`；`natural_image`、`video`、`ct_abdomen`、`pathology` 均参与按需识别。项目源登记即 `active`，标定以对象级为准，对象缺标定时依赖标定的任务 422。移除项目连带注销其数据源，不删磁盘文件。浏览器上传可带 `project_id`，文件仍落 `GLAUX_DATASETS_ROOT/uploads/` |
 | 项目端点 | `GET /fs/roots`（主目录、`GLAUX_DATASETS_ROOT`、WSL 下各 `/mnt/<盘符>`）、`GET /fs/dirs?path=`（只列子目录）；`GET/POST /projects`、`DELETE /projects/{id}`、`GET /projects/{id}/entries?path=`（列一层，按后缀给候选模态）、`POST /projects/{id}/objects`（按需打开，返回 `ObjectMeta`）、`GET /projects/{id}/text?path=&start_line=&max_lines=&max_bytes=`（只读文本，按内容判定编码，隐藏路径与二进制拒绝，SDD 14）。entries / objects / text 的错误体为 `{detail: {code, message}}`，`code` 取 `project_not_found`、`not_found`、`outside_project`、`hidden_path`、`not_directory`、`not_file`、`unsupported_format`、`corrupt`、`binary` |

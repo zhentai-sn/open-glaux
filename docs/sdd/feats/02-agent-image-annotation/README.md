@@ -159,8 +159,9 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `locate_roi` | 目标描述, use_atlas, max_results, min_confidence | bbox 列表（对象像素）+ 置信度 + 理由 | 视觉模型 grounding；默认带图谱先验，复用 [03 §6.3](../03-atlas/README.md) 的 `selectExemplars`（D-6：**领域结构走这条**） |
 | `segment_region` | 目标描述, max_results, min_confidence | 多边形列表（对象像素）+ 置信度 + 面积 | 走 §7.2 托管分割后端；通用场景的像素级边界 |
-| `propose_annotation` | label, space, view_id, bbox **或** polygon, note | annotation_id、index | `index` 取自 `focus.index`；落建议态标注（`status=suggested, source=agent`）。`space` 必填：`object` 为对象像素（取自 `locate_roi` / `segment_region`），`view` 为某次 `view_current_image` 那张图的像素，按 `view_id` 对应视图的 `X-Glaux-Frame` 换算，缺省为本命令最近一次视图（[SDD 22](../22-agent-visual-inspection/README.md) §7.2） |
+| `propose_annotation` | label, space, view_id, bbox **或** polygon, note | annotation_id、index | `index` 取自 `focus.index`；落建议态标注（`status=suggested, source=agent`）。`space` 必填：`object` 为对象像素（取自 `locate_roi` / `segment_region`），`view` 为某次 `view_current_image` 那张图的像素，按 `view_id` 对应视图的 `X-Glaux-Frame` 换算，缺省为本命令最近一次视图（[SDD 22](../22-agent-visual-inspection/README.md) §7.2）。`label` 按标签目录名称匹配，未命中时结果列出目录（[SDD 23](../23-annotation-labels/README.md) §7.5） |
 | `revise_annotation` | annotation_id, action, space, view_id, bbox **或** polygon, label, note | 修订后的标注或未生效原因 | 只能修改或撤回智能体自己尚未被处理的建议（SDD 22 §7.4） |
+| `list_annotations` | scope | 标签目录、按标签汇总、标注列表 | 只读；与标注面板同源（[SDD 23](../23-annotation-labels/README.md) §7.5） |
 | `view_current_image` | region, annotations | 视图编号、换算、叠加图例、图像 | 可在当前对象内放大、平移、缩回；缺省叠加已有标注（SDD 22 §7.1～§7.3） |
 
 模型答**归一化坐标**再由 runtime 乘回像素（D-8）：模型不知道图有多少像素，逼它直接输出

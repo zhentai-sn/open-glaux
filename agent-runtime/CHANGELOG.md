@@ -6,6 +6,7 @@
 
 ### Added
 
+- 新工具 `list_annotations`（effect `read`）：读取当前对象的标签目录、按标签汇总与标注列表；`propose_annotation` / `revise_annotation` 标签不在目录时结果列出目录名称（SDD 23）。
 - 看图缩放与复核（SDD 22）：`view_current_image` 新增 `region`、`annotations` 参数与视图编号；`propose_annotation` 新增 `view_id`；新工具 `revise_annotation`（effect `annotate`）修改或撤回智能体自己的建议态标注。
 - 工具按插件登记，每个工具声明副作用等级 `effect`；插件钩子经组合器每种只注册一个 handler（SDD 15）。
 - 交互请求表与回复端点 `POST /agent-api/v1/sessions/{id}/interactions/{request_id}`；新工具 `ask_user`；SSE 新增 `interaction.request`、`interaction.resolved`，快照 `pending_interactions` 给出待决请求（SDD 15 §7.6、§7.7）。
