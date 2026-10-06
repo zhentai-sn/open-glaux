@@ -42,7 +42,11 @@ function applyHook(resp: AnnotationCreated): void {
  * 人画的标注必须有标签（SDD 23 §7.2 规则 2）：未给 `label_id` 时取当前标签，没有就弹出标签弹层；
  * 用户取消则返回 null（调用方丢弃形状，不落库）。选标签要等用户，故在占用编辑序号之前完成。
  */
-export async function createAnnotation(input: AnnotationInput): Promise<Annotation | null> {
+export async function createAnnotation(
+  input: AnnotationInput,
+  /** 落库成功、写入 store 之前回调：查看器借此先绑定自己画的形状，免得同步时再加一份。 */
+  bind?: (saved: Annotation) => void,
+): Promise<Annotation | null> {
   let label: { id: string; name: string; color: string } | null = null;
   if (input.label_id === undefined) {
     label = await chooseLabelForDrawing(input.image_id);
@@ -72,8 +76,11 @@ export async function createAnnotation(input: AnnotationInput): Promise<Annotati
       s.removeAnnotation(tempId); // 已过期：清掉自己的草稿（服务端若已写入，loadAnnotations 会取回）
       return null;
     }
-    s.removeAnnotation(tempId);
+    // 顺序有讲究：先绑定、再写入真标注、最后撤草稿——任何一步之间都可能触发查看器同步，
+    // 先撤草稿会让已绑定的形状被当成「服务端已删除」移除
+    bind?.(resp.annotation);
     s.upsertAnnotation(resp.annotation);
+    s.removeAnnotation(tempId);
     applyHook(resp);
     return resp.annotation;
   } catch (err) {

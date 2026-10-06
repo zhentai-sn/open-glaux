@@ -297,11 +297,16 @@ export function attachCsAnnoBridge(opts: CsAnnoBridgeOpts): () => void {
     }
     pendingCs.add(ann.annotationUID);
     const target = opts.toTarget(imageId);
-    void createAnnotation({ ...target, primitive: prim }).then((saved) => {
+    // 绑定须在写入 store 之前：选标签要等用户，落库结果一进 store 就会触发同步，
+    // 晚一步绑定会让同步把这条当成新标注再加一份（SDD 23 走查）
+    const bind = (saved: { id: string }) => {
+      csToSrv.set(ann.annotationUID, saved.id);
+      srvToCs.set(saved.id, ann.annotationUID);
+    };
+    void createAnnotation({ ...target, primitive: prim }, bind).then((saved) => {
       pendingCs.delete(ann.annotationUID);
       if (saved) {
-        csToSrv.set(ann.annotationUID, saved.id);
-        srvToCs.set(saved.id, ann.annotationUID);
+        bind(saved);
       } else {
         // 落库失败（422/网络）——CS3D 层同步移除，画布与 store 一致
         silentRemove.add(ann.annotationUID);
