@@ -38,11 +38,21 @@ YouTube 下载：
 
 ## 评测驱动
 
-`run_video_qa.py` 从 `manifest.jsonl` 抽题：每类任务各 1 题，再补 MGG 题。逐题执行：
+`run_video_qa.py` 从 `manifest.jsonl` 抽题，逐题执行：
 1. 上传片段到 backend；
 2. 新建 `observe` 会话，经 agent-runtime 提问；
-3. 从 SSE 收集结构化回答、观察次数和 token 用量；
+3. 从 SSE 收集结构化回答与观察次数，以 `run.settled` 作为本轮结束信号；token 用量取自会话的运行轨迹接口；
 4. 评分并估算成本。
+
+| 选题参数 | 作用 |
+| --- | --- |
+| `--n` | 缺省模式：每类任务各 1 题，再补 MGG 题，共 n 题 |
+| `--per-task K` | 开发集：每类各 K 题，MGG 全取；忽略 `--n` |
+| `--holdout` | 留出集：先算出同参数的开发集，排除其全部片段，再用 `seed+1` 抽题 |
+| `--jobs` | 并发题数 |
+| `--label` | 附在运行目录名后，如 `dev-baseline` |
+
+每次运行在目录里另存 `args.json`：参数、runtime 与 backend 地址、题目 id 清单。
 
 前置条件：
 
@@ -67,7 +77,7 @@ backend/.venv/bin/python scripts/eval/run_video_qa.py --n 10
 | 输出 | 内容 |
 | --- | --- |
 | `runs/<时间>/results.jsonl` | 逐题：所选选项、是否正确、MGG 证据 IoU、观察区间、用时、token、费用、错误 |
-| `runs/<时间>/summary.json` | 正确率、未解析选项数、平均观察次数、token 合计、单题成本，以及外推到 431 题和 2,527 题的成本 |
+| `runs/<时间>/summary.json` | 正确率与分任务正确率、未解析选项数、MGG 证据 IoU 均值与 IoU ≥ 0.5 题数、平均观察次数、token 合计、单题成本，以及外推到 431 题和 2,527 题的成本 |
 
 - 运行时上报的 `cost` 恒为 0，费用按 token 数乘以单价计算。
 - 单价默认输入 $0.15、输出 $0.47、缓存命中 $0.016（每百万 token），可用 `--price-*` 覆盖；以 DashScope 当期价格为准。

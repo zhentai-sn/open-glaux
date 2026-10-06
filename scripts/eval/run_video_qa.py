@@ -21,6 +21,7 @@ import threading
 import time
 import uuid
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -62,8 +63,10 @@ TIME_HINT = "本题问的是时间段：第一条 claim 的证据区间应尽量
 
 # ---------- 选题 ----------
 
-def pick_cases(rows: list[dict], n: int, seed: int, tasks: list[str] | None) -> list[dict]:
-    """按任务分层抽样：先每类各取一题，再补 MGG（可评时间证据），不够再随机补。"""
+def pick_cases(rows: list[dict], n: int, seed: int, tasks: list[str] | None,
+               per_task: int | None = None) -> list[dict]:
+    """按任务分层抽样：先每类各取一题，再补 MGG（可评时间证据），不够再随机补。
+    给 per_task 时改为每类各取 per_task 题、MGG 全取（E3），忽略 n。"""
     rng = random.Random(seed)
     by: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
@@ -72,6 +75,8 @@ def pick_cases(rows: list[dict], n: int, seed: int, tasks: list[str] | None) -> 
     for v in by.values():
         rng.shuffle(v)
     order = sorted(by)
+    if per_task:
+        return [r for t in order for r in (by[t] if t == "MGG" else by[t][:per_task])]
     picked = [by[t].pop() for t in order if by[t]][:n]
     while len(picked) < n and by.get("MGG"):
         picked.append(by["MGG"].pop())
@@ -132,16 +137,13 @@ def listen(sid: str, out: queue.Queue, stop: threading.Event) -> None:
         out.put(("listener.error", {"message": str(e)}))
 
 
+# runtime 新建会话时复用"没有消息的会话"（SDD 13）。并发时须串行化"建会话→发命令→消息落盘"，
+# 否则两题会拿到同一个空会话。
+CREATE_LOCK = threading.Lock()
+
+
 def ask(client: httpx.Client, case: dict, conn: dict, timeout_s: float) -> dict:
     obj = upload(client, REPO / case["clip_path"])
-    sid = new_session(client, f"eval {case['id']}")
-    events: queue.Queue = queue.Queue()
-    stop = threading.Event()
-    threading.Thread(target=listen, args=(sid, events, stop), daemon=True).start()
-    first = events.get(timeout=15)  # snapshot，确认 SSE 已连上再发命令
-    if first[0] != "snapshot":
-        raise RuntimeError(f"SSE 未就绪：{first}")
-
     options = "\n".join(f"{k}. {v}" for k, v in case["options"].items())
     content = PROMPT.format(question=case["question"], options=options,
                             time_hint=TIME_HINT if case["task"] == "MGG" else "").replace("\n\n", "\n")
@@ -151,35 +153,45 @@ def ask(client: httpx.Client, case: dict, conn: dict, timeout_s: float) -> dict:
                        "object": {"id": obj["id"], "kind": "video", "axes": obj["axes"],
                                   "calibration": obj.get("calibration")},
                        "focus": {"object_id": obj["id"], "kind": "video", "index": {"t": 0}, "region": None}}}
-    t0 = time.monotonic()
-    r = client.post(f"{RUNTIME}/sessions/{sid}/commands", json=body, timeout=60)
-    if r.status_code >= 400:
-        raise RuntimeError(f"命令被拒 {r.status_code}：{r.text[:300]}")
+    events: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    with CREATE_LOCK:
+        sid = new_session(client, f"eval {case['id']}")
+        threading.Thread(target=listen, args=(sid, events, stop), daemon=True).start()
+        first = events.get(timeout=15)  # snapshot，确认 SSE 已连上再发命令
+        if first[0] != "snapshot":
+            raise RuntimeError(f"SSE 未就绪：{first}")
+        t0 = time.monotonic()
+        r = client.post(f"{RUNTIME}/sessions/{sid}/commands", json=body, timeout=60)
+        if r.status_code >= 400:
+            raise RuntimeError(f"命令被拒 {r.status_code}：{r.text[:300]}")
+        while time.monotonic() - t0 < 15:  # 等用户消息落盘，会话不再算"空会话"
+            if client.get(f"{RUNTIME}/sessions/{sid}", timeout=30).raise_for_status().json().get("messages"):
+                break
+            time.sleep(0.3)
 
-    usage = defaultdict(int)
-    observe_calls, errors, answer, ended = 0, [], None, False
-    while time.monotonic() - t0 < timeout_s:
+    # SSE 契约见 agent-runtime/src/contracts.ts TransportEvent：run.settled 是本轮结束信号
+    observe_calls, errors, answer, outcome = 0, [], None, None
+    while time.monotonic() - t0 < timeout_s and outcome is None:
         try:
             name, data = events.get(timeout=5)
         except queue.Empty:
-            if ended:
-                break
             continue
-        if name == "pi.event":
-            ev = data["event"]
-            if ev["type"] == "message_end" and ev["message"].get("role") == "assistant":
-                for k, v in (ev["message"].get("usage") or {}).items():
-                    if isinstance(v, int):
-                        usage[k] += v
-            elif ev["type"] == "tool_execution_start" and ev.get("toolName") == "observe_video_interval":
-                observe_calls += 1
-            elif ev["type"] == "agent_end":
-                ended = True
-        elif name == "video.answer" and data.get("command_id") == cid:
+        if data.get("command_id") not in (None, cid):
+            continue
+        if name == "tool.start" and data.get("tool_name") == "observe_video_interval":
+            observe_calls += 1
+        elif name == "tool.end" and data.get("is_error"):
+            errors.append(f"tool:{data.get('tool_name')}: {(data.get('error_text') or '')[:200]}")
+        elif name == "video.answer":
             answer = data["answer"]
-        elif name in ("adapter.error", "listener.error"):
-            errors.append(data.get("code") or data.get("message"))
-            ended = True
+        elif name == "run.settled":
+            outcome = data.get("outcome")
+        elif name == "adapter.error":
+            errors.append(f"{data.get('code')}: {(data.get('message') or '')[:300]}")
+        elif name == "listener.error":
+            errors.append(f"listener: {data.get('message')}")
+            break
     elapsed = time.monotonic() - t0
     stop.set()
 
@@ -189,9 +201,19 @@ def ask(client: httpx.Client, case: dict, conn: dict, timeout_s: float) -> dict:
     observations = view.get("video_observations", [])  # 每题一个新会话，全部属于本题
     final_text = last_assistant_text(view)
     return {"session_id": sid, "object_id": obj["id"], "elapsed_s": round(elapsed, 1),
-            "timed_out": not ended, "errors": errors, "observe_calls": observe_calls,
+            "timed_out": outcome is None, "outcome": outcome, "errors": errors, "observe_calls": observe_calls,
             "observations": [{**o["actual_interval"], "fps": o["fps"]} for o in observations],
-            "usage": dict(usage), "answer": answer, "final_text": final_text}
+            "usage": trajectory_usage(client, sid), "answer": answer, "final_text": final_text}
+
+
+def trajectory_usage(client: httpx.Client, sid: str) -> dict:
+    """SDD 21 运行轨迹的 token 合计；键名沿用 pi-ai Usage（cost_usd 按 input/output/cacheRead 计价）。"""
+    totals = client.get(f"{RUNTIME}/sessions/{sid}/trajectory", timeout=30).raise_for_status().json()["totals"]
+    u = totals["usage"]
+    usage = {"input": u["input"], "output": u["output"], "cacheRead": u["cache_read"], "cacheWrite": u["cache_write"],
+             "model_calls": totals["model_calls"]}
+    usage["totalTokens"] = u["input"] + u["output"] + u["cache_read"] + u["cache_write"]
+    return usage
 
 
 def wait_idle(client: httpx.Client, sid: str, limit_s: float = 30) -> dict:
@@ -255,6 +277,11 @@ def main() -> None:
     p.add_argument("--n", type=int, default=10)
     p.add_argument("--seed", type=int, default=20260925)
     p.add_argument("--tasks", nargs="*", help="只评这些任务，如 MGG RC")
+    p.add_argument("--per-task", type=int, help="每类各抽这么多题、MGG 全取（E3），忽略 --n")
+    p.add_argument("--holdout", action="store_true",
+                   help="留出集：先按同样参数算出开发集，排除其片段，再用 seed+1 从剩余题中抽题")
+    p.add_argument("--jobs", type=int, default=1, help="并发题数")
+    p.add_argument("--label", default="", help="附在运行目录名后的标签，如 dev-baseline")
     p.add_argument("--timeout", type=float, default=300, help="单题超时秒数")
     p.add_argument("--price-in", type=float, default=0.15, help="输入单价，美元/百万 token")
     p.add_argument("--price-out", type=float, default=0.47, help="输出单价，美元/百万 token")
@@ -263,30 +290,48 @@ def main() -> None:
     price = {"input": args.price_in, "output": args.price_out, "cache": args.price_cache}
 
     rows = [json.loads(l) for l in MANIFEST.read_text().splitlines() if l.strip()]
-    cases = pick_cases(rows, args.n, args.seed, args.tasks)
+    cases = pick_cases(rows, args.n, args.seed, args.tasks, args.per_task)
+    if args.holdout:  # 按片段排除，开发集看过的片段不进留出集
+        dev_clips = {c["clip"] for c in cases}
+        cases = pick_cases([r for r in rows if r["clip"] not in dev_clips], args.n, args.seed + 1, args.tasks,
+                           args.per_task)
     conn = connection()
-    run_dir = RUNS / datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = RUNS / (f"{stamp}-{args.label}" if args.label else stamp)
     run_dir.mkdir(parents=True)
-    results = []
-    with httpx.Client() as client, (run_dir / "results.jsonl").open("w") as f:
-        for i, case in enumerate(cases, 1):
-            try:
-                res = ask(client, case, conn, args.timeout)
-                sc = score(case, res)
-            except Exception as e:  # noqa: BLE001 — 单题失败不中断整批
-                res, sc = {"errors": [f"{type(e).__name__}: {e}"], "usage": {}, "elapsed_s": None,
-                           "observe_calls": 0}, {"choice": None, "correct": False, "answered": False}
-            row = {"id": case["id"], "task": case["task"], "clip": case["clip"], "gold": case["answer"],
-                   **sc, **res, "cost_usd": round(cost_usd(res["usage"], price), 6)}
+    (run_dir / "args.json").write_text(json.dumps({**vars(args), "runtime": RUNTIME, "backend": BACKEND,
+                                                   "case_ids": [c["id"] for c in cases]}, ensure_ascii=False, indent=1))
+    results: list[dict] = []
+    lock = threading.Lock()
+
+    def run_one(case: dict, client: httpx.Client, f) -> None:
+        try:
+            res = ask(client, case, conn, args.timeout)
+            sc = score(case, res)
+        except Exception as e:  # noqa: BLE001 — 单题失败不中断整批
+            res, sc = {"errors": [f"{type(e).__name__}: {e}"], "usage": {}, "elapsed_s": None,
+                       "observe_calls": 0}, {"choice": None, "correct": False, "answered": False}
+        row = {"id": case["id"], "task": case["task"], "clip": case["clip"], "gold": case["answer"],
+               **sc, **res, "cost_usd": round(cost_usd(res["usage"], price), 6)}
+        iou = f" IoU={row['evidence_iou']}" if "evidence_iou" in row else ""
+        with lock:
             results.append(row)
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             f.flush()
-            iou = f" IoU={row['evidence_iou']}" if "evidence_iou" in row else ""
-            print(f"[{i}/{len(cases)}] {case['id']:9} 标准={case['answer']} 选={row['choice']} "
+            print(f"[{len(results)}/{len(cases)}] {case['id']:9} 标准={case['answer']} 选={row['choice']} "
                   f"{'✓' if row['correct'] else '✗'}{iou} 观察={row['observe_calls']} "
                   f"用时={row['elapsed_s']}s tokens={row['usage'].get('totalTokens', 0)} "
-                  f"${row['cost_usd']:.4f} {'错误=' + str(row['errors']) if row['errors'] else ''}")
+                  f"${row['cost_usd']:.4f} {'错误=' + str(row['errors']) if row['errors'] else ''}", flush=True)
+
+    with httpx.Client() as client, (run_dir / "results.jsonl").open("w") as f:
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            for future in [pool.submit(run_one, case, client, f) for case in cases]:
+                future.result()
     summarize(results, rows, price, run_dir)
+
+
+def mean_or_none(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 3) if values else None
 
 
 def summarize(results: list[dict], rows: list[dict], price: dict, run_dir: Path) -> None:
@@ -298,12 +343,21 @@ def summarize(results: list[dict], rows: list[dict], price: dict, run_dir: Path)
         for k, v in r["usage"].items():
             tokens[k] += v
     per_case = cost / n if n else 0
+    by_task: dict[str, list[dict]] = defaultdict(list)
+    for r in results:
+        by_task[r["task"]].append(r)
     summary = {
         "cases": n, "correct": ok, "accuracy": round(ok / n, 3) if n else None,
+        "by_task": {t: {"cases": len(v), "correct": sum(r["correct"] for r in v),
+                        "accuracy": round(sum(r["correct"] for r in v) / len(v), 3),
+                        "answered": sum(r["answered"] for r in v)}
+                    for t, v in sorted(by_task.items())},
         "answered": sum(r["answered"] for r in results),
         "unparsed_choice": sum(r["choice"] is None for r in results),
         "errors": sum(bool(r["errors"]) for r in results),
         "mgg_iou": [r["evidence_iou"] for r in results if "evidence_iou" in r],
+        "mgg_iou_mean": mean_or_none([r["evidence_iou"] for r in results if "evidence_iou" in r]),
+        "mgg_iou_ge_0_5": sum(r.get("evidence_iou", 0) >= 0.5 for r in results),
         "mean_observe_calls": round(sum(r["observe_calls"] for r in results) / n, 2) if n else None,
         "mean_elapsed_s": round(sum(r["elapsed_s"] or 0 for r in results) / n, 1) if n else None,
         "tokens": dict(tokens), "price_usd_per_mtok": price,
