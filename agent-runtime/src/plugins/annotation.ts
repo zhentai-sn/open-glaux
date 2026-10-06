@@ -1,6 +1,7 @@
 /** 区域定位、通用分割与建议态标注（SDD 02）。 */
 import { langOf, localizeTool, type Bilingual } from "../i18n/prompt-lang.js";
 import type { HarnessTool } from "../pi/harness-registry.js";
+import { createListAnnotationsTool, LIST_ANNOTATIONS_TOOL_NAME, LIST_ANNOTATIONS_ZH } from "../pi/tools/list-annotations.js";
 import { createLocateRoiTool, LOCATE_ROI_TOOL_NAME, LOCATE_ROI_ZH } from "../pi/tools/locate-roi.js";
 import { createProposeAnnotationTool, PROPOSE_ANNOTATION_TOOL_NAME, PROPOSE_ANNOTATION_ZH } from "../pi/tools/propose-annotation.js";
 import { createReviseAnnotationTool, REVISE_ANNOTATION_TOOL_NAME, REVISE_ANNOTATION_ZH } from "../pi/tools/revise-annotation.js";
@@ -43,6 +44,15 @@ const REVISE_PROMPT: Bilingual = {
     "修正后再放大确认，贴合后即可停止。",
 };
 
+/** SDD 23 §7.5 规则 6：标签取自用户的目录。 */
+const LIST_PROMPT: Bilingual = {
+  en: " Labels come from the user's label catalog. If you do not know the catalog yet, call list_annotations before " +
+    "proposing and use its label names exactly; list_annotations also answers how many annotations there are and how " +
+    "large they are, with the same numbers the user sees in the annotation panel.",
+  zh: "标签取自用户的标签目录。不清楚目录时，先调用 list_annotations，再按其中的名称原样提建议；" +
+    "回答有几处标注、面积多大时也用 list_annotations，数字与用户在标注面板看到的一致。",
+};
+
 export const annotationPlugin: GlauxPlugin = {
   name: "annotation",
   applies: () => true,
@@ -61,6 +71,11 @@ export const annotationPlugin: GlauxPlugin = {
       name: PROPOSE_ANNOTATION_TOOL_NAME, effect: "annotate", projectScoped: true, requires: {}, supports: (focus) => !!focus,
       create: (ctx) => localizeTool(createProposeAnnotationTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}), views: viewRegistryFor(ctx.run) }), langOf(ctx), PROPOSE_ANNOTATION_ZH) as HarnessTool,
       promptFragment: (ctx) => PROPOSE_PROMPT[langOf(ctx)],
+    },
+    {
+      name: LIST_ANNOTATIONS_TOOL_NAME, effect: "read", projectScoped: true, requires: {}, supports: (focus) => !!focus,
+      create: (ctx) => localizeTool(createListAnnotationsTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }), langOf(ctx), LIST_ANNOTATIONS_ZH) as HarnessTool,
+      promptFragment: (ctx) => LIST_PROMPT[langOf(ctx)],
     },
     {
       name: REVISE_ANNOTATION_TOOL_NAME, effect: "annotate", projectScoped: true, requires: {}, supports: (focus) => !!focus,

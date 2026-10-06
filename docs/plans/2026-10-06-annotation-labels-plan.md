@@ -79,7 +79,7 @@ W2 与 W3 可并行。
 
 - `src/pi/tools/list-annotations.ts`（新）：参数 `scope`（`current` | `all`）；调 `GET /labels?object_id=`、`GET /annotations/summary`、`GET /annotations`；文字输出目录、按标签汇总（注明面积不做并集）、标注列表（最多 200 条，超出给总数）；`details.kind = "glaux.annotations_listed"` 只用于轨迹，不渲染卡片。
 - `propose-annotation.ts`、`revise-annotation.ts`：写入后若返回行无 `label_id` 且带了 `label`，结果文字追加「不在目录中」与目录名称（最多 50 个）；目录为空时说明目录为空，由用户确认时决定。
-- `src/plugins/annotation.ts`：登记 `list_annotations`（effect `observe`，需焦点，`projectScoped` 同 `propose_annotation`）；提示词按 §7.5 规则 6（中英文）。
+- `src/plugins/annotation.ts`：登记 `list_annotations`（effect `read`，需焦点，`projectScoped` 同 `propose_annotation`）；提示词按 §7.5 规则 6（中英文）。
 - 测试：`tests/integration/list-annotations.test.ts`（输出格式、`current` 与 `all`、截断、无焦点不挂载）；建议命中与未命中目录的结果文字；插件登记表与提示词语言快照更新。
 
 ## W3 · 前端数据与绘制

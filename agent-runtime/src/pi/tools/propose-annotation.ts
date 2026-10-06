@@ -22,6 +22,7 @@ import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
 import { backendBaseUrl } from "../../atlas/client.js";
 import { fetchObservation } from "../../observation/index.js";
+import { catalogHint } from "./label-catalog.js";
 import { objectSize, viewPointToObject, viewRegistryFor, type ViewRegistry } from "./view-registry.js";
 import type { Index, ReferenceFrame, ViewerContext } from "../../contracts.js";
 import { RuntimeError } from "../../errors.js";
@@ -82,6 +83,9 @@ export interface AnnotationProposedDetails {
     /** 所属对象的模态（取自 ViewerContext.collection）；前端据此打开不在舞台上的对象。 */
     modality?: string;
     label: string;
+    /** 名称命中标签目录时的目录 id 与颜色（SDD 23 §7.5 规则 1）。 */
+    label_id?: string;
+    label_color?: string | null;
     note?: string;
     reason?: string;
     /** 与落库一致的几何，供前端立刻渲染建议态而不必回查。 */
@@ -123,6 +127,9 @@ interface CreatedAnnotation {
   seq: number;
   status: string;
   source: string;
+  label?: string;
+  label_id?: string | null;
+  label_color?: string | null;
 }
 
 export function createProposeAnnotationTool(
@@ -231,7 +238,8 @@ export function createProposeAnnotationTool(
           annotation_id: created.id,
           image_id: created.image_id,
           ...(viewer.collection ? { modality: viewer.collection } : {}),
-          label: params.label,
+          label: created.label ?? params.label,
+          ...(created.label_id ? { label_id: created.label_id, label_color: created.label_color ?? null } : {}),
           ...(params.note?.trim() ? { note: params.note.trim() } : {}),
           primitive: created.primitive,
           index: created.index ?? focus.index,
@@ -239,14 +247,16 @@ export function createProposeAnnotationTool(
         },
       };
 
+      // SDD 23 §7.5 规则 2：名称没对上目录时把目录告诉模型
+      const hint = created.label_id ? "" : await catalogHint(base, imageId, params.label, doFetch, combined);
       return {
         content: [
           {
             type: "text",
             text:
-              `Proposed "${params.label}" on ${imageId} (id ${created.id}). ` +
+              `Proposed "${created.label ?? params.label}" on ${imageId} (id ${created.id}). ` +
               "It is now shown to the user as a suggestion awaiting their confirmation — " +
-              "do not treat it as an accepted annotation, and do not re-propose the same region.",
+              "do not treat it as an accepted annotation, and do not re-propose the same region." + hint,
           } satisfies TextContent,
         ],
         details,

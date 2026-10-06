@@ -13,6 +13,7 @@ import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 import { backendBaseUrl } from "../../atlas/client.js";
 import type { ViewerContext } from "../../contracts.js";
 import { fetchObservation } from "../../observation/index.js";
+import { catalogHint } from "./label-catalog.js";
 import { bboxPrimitive, viewFrame } from "./propose-annotation.js";
 import { objectSize, viewPointToObject, viewRegistryFor, type ViewRegistry } from "./view-registry.js";
 
@@ -167,8 +168,9 @@ export function createReviseAnnotationTool(
         return answer(`The revision was rejected (HTTP ${res.status}): ${text}. Nothing was changed.`, { reason: "rejected" });
       }
       const updated = ((await res.json()) as { annotation: Record<string, unknown> }).annotation;
+      const hint = params.label && !updated.label_id ? await catalogHint(base, imageId, params.label, doFetch, combined) : "";
       return answer(
-        `Revised suggestion ${current.id}. It is still a suggestion awaiting the user; zoom in again if you want to confirm the fit.`,
+        `Revised suggestion ${current.id}. It is still a suggestion awaiting the user; zoom in again if you want to confirm the fit.${hint}`,
         { annotation: updated, ...(params.note?.trim() ? { note: params.note.trim() } : {}) },
       );
     },

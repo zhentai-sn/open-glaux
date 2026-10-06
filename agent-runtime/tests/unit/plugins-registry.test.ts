@@ -33,6 +33,7 @@ describe("plugin registry", () => {
       segment_region: "egress",
       propose_annotation: "annotate",
       revise_annotation: "annotate",
+      list_annotations: "read",
       list_files: "read",
       open_file: "read",
       read: "read",

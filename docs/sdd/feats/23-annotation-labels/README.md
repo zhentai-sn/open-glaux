@@ -150,7 +150,7 @@ flowchart TD
 2. 未命中时照常写入建议，只带文本 `label`；工具结果告诉模型该名称不在目录中，并列出目录名称（最多 50 个）。
 3. 智能体不能新建、修改或删除目录项：目录是用户的标注规范。
 4. 用户确认一条未入目录的建议时弹出标签弹层，预填该文本；选已有标签或新建后完成确认。
-5. `list_annotations` 返回：目录（名称、颜色、条数）、按标签汇总、标注列表（id、标签、状态、来源、形状、外接框、面积）；列表最多 200 条，超出时给总数。effect 为 `observe`。
+5. `list_annotations` 返回：目录（名称、颜色、条数）、按标签汇总、标注列表（id、标签、状态、来源、形状、外接框、面积）；列表最多 200 条，超出时给总数。effect 为 `read`。
 6. 提示词：提建议前若不确定目录，先调 `list_annotations`；优先使用目录中的名称。
 
 ### 7.6 标注面板
@@ -178,7 +178,7 @@ flowchart TD
 | --- | --- |
 | `src/pi/tools/list-annotations.ts`（新） | `list_annotations`，含中文定义（SDD 20） |
 | `src/pi/tools/propose-annotation.ts`、`revise-annotation.ts` | 结果文字按 §7.5 规则 2 提示目录 |
-| `src/plugins/annotation.ts` | 登记 `list_annotations`（effect `observe`，需焦点）；提示词 §7.5 规则 6 |
+| `src/plugins/annotation.ts` | 登记 `list_annotations`（effect `read`，需焦点）；提示词 §7.5 规则 6 |
 
 ### 8.3 前端
 
@@ -283,7 +283,7 @@ flowchart TD
 | 04 | 工具条增加当前标签；标注数据模型增加 `label_id` |
 | 10 | 度量使用 `ObjectMeta.axes` 的 `spacing` 与 `unit` |
 | 13 | 作用域取自数据源的 `project_id` |
-| 15 | `list_annotations` effect 为 `observe` |
+| 15 | `list_annotations` effect 为 `read` |
 | 20 | 新工具提供中文定义 |
 | 22 | 叠加图例中的标签名取目录名称 |
 

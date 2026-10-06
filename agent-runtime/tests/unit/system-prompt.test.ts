@@ -55,6 +55,6 @@ describe("system prompt assembly", () => {
       runtime,
       videoTurn,
       viewer: viewerOn(FIXTURE_OBJECT_IDS.video),
-    }).tools).toEqual(["observe_video_interval", "submit_video_answer", "view_current_image", "consult_atlas"]);
+    }).tools).toEqual(["observe_video_interval", "submit_video_answer", "view_current_image", "consult_atlas", "list_annotations"]);
   });
 });
