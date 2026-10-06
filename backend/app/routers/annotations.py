@@ -6,6 +6,8 @@
   钩子失败**不回滚标注**（已 201），响应附 ``hook_error``（SDD 04 §7.3）；
   钩子成功时响应附 ``hook_result``（TaskOutput dict），前端经既有回流通道呈现。
 - 第三轴索引（SDD 10 §9.3/§9.5）：请求与响应都用 ``index``，落存储列 ``z``。
+- 标签（SDD 23）：``label_id`` 须属于对象的作用域；只给文本 ``label`` 时按目录名称自动关联；
+  读取结果带 ``measures``；``/annotations/summary`` 按标签汇总。
 """
 
 from __future__ import annotations
@@ -18,7 +20,15 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import config
-from ..annotations.store import AnnotationError, AnnotationStore, validate_primitive
+from ..annotations.measure import measure
+from ..annotations.store import (
+    KEEP,
+    AnnotationError,
+    AnnotationStore,
+    LabelExists,
+    LabelInUse,
+    validate_primitive,
+)
 from ..schemas import Index, ObjectMeta, Region
 
 log = logging.getLogger(__name__)
@@ -49,6 +59,7 @@ class AnnotationIn(BaseModel):
     primitive: dict = Field(description="kind 判别几何：bbox / polyline(closed) / mask")
     mask_png_b64: str | None = Field(default=None, description="kind=mask 必填（可带 data: 前缀）")
     label: str = ""
+    label_id: str | None = Field(default=None, description="标签目录 id（SDD 23）")
     class_id: int | None = None
     # 建议态标注入口（SDD 02）：agent 产出一律 status=suggested + source=agent，
     # 人工确认后经 PATCH 转 confirmed。store 早已支持这两列，此前只是 REST 层未暴露。
@@ -61,6 +72,7 @@ class AnnotationPatch(BaseModel):
     primitive: dict | None = None
     mask_png_b64: str | None = None
     label: str | None = None
+    label_id: str | None = Field(default=None, description="显式给 null 清除标签引用")
     class_id: int | None = None
     status: str | None = Field(
         default=None, description="确认/驳回建议态标注：confirmed / rejected"
@@ -106,6 +118,49 @@ def _check_within_dims(image_id: str, prim: dict) -> None:
         raise AnnotationError(
             "INVALID_GEOMETRY", f"几何越出图像 dims（{w}x{h}）：{prim['kind']}"
         )
+
+
+# --- 标签作用域（SDD 23 §7.1–§7.2）-------------------------------------------
+
+
+def scope_of(image_id: str) -> str:
+    """对象的标签作用域：所属项目 id，未归属为 ``global``；对象不存在 → ``NOT_FOUND``。"""
+    from .. import datasource_registry as reg
+
+    try:
+        ref = reg.resolve_object(image_id)
+    except LookupError as exc:
+        raise AnnotationError("NOT_FOUND", f"对象不存在：{image_id}") from exc
+    return ref.datasource.project_id or "global"
+
+
+def _resolve_label(image_id: str, label_id: str | None, label: str | None) -> str | None | object:
+    """写入时的 ``label_id``：显式给出则校验作用域；否则按文本匹配目录，未命中返回 KEEP。"""
+    store = get_store()
+    if label_id is not None:
+        if store.label_scope(label_id) != scope_of(image_id):
+            raise AnnotationError("INVALID_LABEL", f"标签 {label_id} 不属于该对象的标签目录")
+        return label_id
+    if label and label.strip():
+        found = store.find_label(scope_of(image_id), label)
+        if found is not None:
+            return found["id"]
+    return KEEP
+
+
+def _measure_meta(image_id: str) -> ObjectMeta | None:
+    try:
+        return _object_meta(image_id)
+    except AnnotationError:
+        return None
+
+
+def public(ann: dict, axis: str | None, meta: ObjectMeta | None) -> dict:
+    """响应行：补 ``index`` 与 ``measures``，去掉存储内部字段。"""
+    ann["measures"] = measure(ann, meta, config.ANNOTATIONS_ROOT)
+    ann.pop("label_stored", None)
+    ann.pop("mask_ref", None)
+    return _with_index(ann, axis)
 
 
 # --- 第三轴索引（SDD 10 §9.3）------------------------------------------------
@@ -210,9 +265,19 @@ def _dispatch_on_commit(ann: dict) -> tuple[dict | None, str | None]:
 # --- 端点 --------------------------------------------------------------------
 
 
-def _http_error(e: AnnotationError) -> HTTPException:
-    status = {"NOT_FOUND": 404, "CONFLICT": 409, "INVALID_GEOMETRY": 422}.get(e.code, 400)
+def http_error(e: AnnotationError) -> HTTPException:
+    status = {
+        "NOT_FOUND": 404, "CONFLICT": 409, "INVALID_GEOMETRY": 422, "INVALID_LABEL": 422,
+        "LABEL_EXISTS": 409, "LABEL_IN_USE": 409,
+    }.get(e.code, 400)
+    if isinstance(e, LabelExists):
+        return HTTPException(status, detail={"code": e.code, "message": str(e), "label": e.label})
+    if isinstance(e, LabelInUse):
+        return HTTPException(status, detail={"code": e.code, "message": str(e), "count": e.count})
     return HTTPException(status, detail=f"{e.code}: {e}")
+
+
+_http_error = http_error
 
 
 @router.get("/annotations", tags=["annotations"])
@@ -231,8 +296,68 @@ def list_annotations(
     if index_from is not None and index_to is not None and index_from > index_to:
         raise HTTPException(422, detail=f"index_from({index_from}) > index_to({index_to})")
     rows = get_store().list(image_id, z_from=index_from, z_to=index_to)
-    axis = _axis_name_for(image_id) if rows else None
-    return {"annotations": [_with_index(r, axis) for r in rows]}
+    meta = _measure_meta(image_id) if rows else None
+    axis = _third_axis(meta) if meta else None
+    return {"annotations": [public(r, axis, meta) for r in rows]}
+
+
+@router.get("/annotations/summary", tags=["annotations"])
+def annotation_summary(
+    image_id: str = Query(min_length=1),
+    index_from: int | None = Query(default=None, ge=0),
+    index_to: int | None = Query(default=None, ge=0),
+) -> dict:
+    """按标签汇总（SDD 23 §7.4）：草稿与已确认计入条数与面积，建议单列，驳回不计。
+
+    分组 ``kind``：``catalog``（目录标签，按目录顺序）、``uncatalogued``（只有文本标签）、
+    ``unlabeled``（无标签）。面积为各条之和，不做并集。
+    """
+    if index_from is not None and index_to is not None and index_from > index_to:
+        raise HTTPException(422, detail=f"index_from({index_from}) > index_to({index_to})")
+    store = get_store()
+    rows = store.list(image_id, z_from=index_from, z_to=index_to)
+    meta = _measure_meta(image_id)
+    from ..annotations.measure import spacing_of
+
+    _, _, unit = spacing_of(meta)
+    try:
+        order = {lb["id"]: i for i, lb in enumerate(store.list_labels(scope_of(image_id)))}
+    except AnnotationError:
+        order = {}
+    groups: dict[tuple, dict] = {}
+    total = {"count": 0, "area": 0.0, "suggested": 0}
+    for row in rows:
+        if row["status"] == "rejected":
+            continue
+        if row["label_id"]:
+            key = ("catalog", row["label_id"])
+            init = {"kind": "catalog", "label_id": row["label_id"], "name": row["label"],
+                    "color": row["label_color"]}
+        elif row["label"].strip():
+            key = ("uncatalogued", row["label"].strip())
+            init = {"kind": "uncatalogued", "label_id": None, "name": row["label"].strip(),
+                    "color": None}
+        else:
+            key = ("unlabeled", "")
+            init = {"kind": "unlabeled", "label_id": None, "name": "", "color": None}
+        g = groups.setdefault(key, {**init, "count": 0, "area": 0.0, "suggested": 0})
+        if row["status"] == "suggested":
+            g["suggested"] += 1
+            total["suggested"] += 1
+            continue
+        m = measure(row, meta, config.ANNOTATIONS_ROOT)
+        g["count"] += 1
+        total["count"] += 1
+        if m is not None:
+            g["area"] += m["area"]
+            total["area"] += m["area"]
+    rank = {"catalog": 0, "uncatalogued": 1, "unlabeled": 2}
+    ordered = sorted(
+        groups.values(),
+        key=lambda g: (rank[g["kind"]], order.get(g["label_id"], 1 << 30), g["name"]),
+    )
+    return {"image_id": image_id, "unit": unit, "area_unit": f"{unit}2",
+            "groups": ordered, "total": total}
 
 
 @router.post("/annotations", status_code=201, tags=["annotations"])
@@ -243,6 +368,7 @@ def create_annotation(body: AnnotationIn) -> dict:
         prim = validate_primitive(kind, body.primitive)
         _check_within_dims(body.image_id, prim)
         z = _index_to_column(body.image_id, body.index)
+        label_id = _resolve_label(body.image_id, body.label_id, body.label)
         ann = get_store().create(
             image_id=body.image_id,
             z=z,
@@ -253,10 +379,12 @@ def create_annotation(body: AnnotationIn) -> dict:
             status=body.status,
             source=body.source,
             mask_png_b64=body.mask_png_b64,
+            label_id=None if label_id is KEEP else label_id,  # type: ignore[arg-type]
         )
     except AnnotationError as e:
         raise _http_error(e) from e
-    out: dict = {"annotation": _with_index(ann, _axis_name_for(ann["image_id"]))}
+    meta = _measure_meta(ann["image_id"])
+    out: dict = {"annotation": public(dict(ann), _third_axis(meta) if meta else None, meta)}
     hook_result, hook_error = _dispatch_on_commit(ann)
     if hook_result is not None:
         out["hook_result"] = hook_result
@@ -281,6 +409,17 @@ def update_annotation(annotation_id: str, body: AnnotationPatch) -> dict:
                 before["image_id"],
                 validate_primitive(before["primitive"]["kind"], body.primitive),
             )
+        label_id: object = KEEP
+        if before is not None:
+            if "label_id" in body.model_fields_set:
+                label_id = (
+                    None if body.label_id is None
+                    else _resolve_label(before["image_id"], body.label_id, None)
+                )
+            elif body.label is not None:
+                label_id = _resolve_label(before["image_id"], None, body.label)
+                if label_id is KEEP and before["label_id"]:
+                    label_id = None  # 改成目录外的文本：解除旧引用，以免名称被目录覆盖
         ann = get_store().update(
             annotation_id,
             body.base_seq,
@@ -288,10 +427,12 @@ def update_annotation(annotation_id: str, body: AnnotationPatch) -> dict:
             label=body.label,
             class_id=body.class_id,
             status=body.status,
+            label_id=label_id,
         )
     except AnnotationError as e:
         raise _http_error(e) from e
-    out: dict = {"annotation": _with_index(ann, _axis_name_for(ann["image_id"]))}
+    meta = _measure_meta(ann["image_id"])
+    out: dict = {"annotation": public(dict(ann), _third_axis(meta) if meta else None, meta)}
     if before is not None and before["status"] == "suggested" and ann["status"] == "confirmed":
         hook_result, hook_error = _dispatch_on_commit(ann)
         if hook_result is not None:

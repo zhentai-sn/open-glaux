@@ -16,6 +16,7 @@ from .routers.annotations import router as annotations_router
 from .routers.api import router
 from .routers.atlas import router as atlas_router
 from .routers.fs import router as fs_router
+from .routers.labels import router as labels_router
 from .routers.objects import router as objects_router
 from .routers.projects import router as projects_router
 from .routers.uploads import router as uploads_router
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(atlas_router)  # Atlas · 图谱（SDD 03）
 app.include_router(annotations_router)  # 统一标注（SDD 04）
+app.include_router(labels_router)  # 标签目录（SDD 23）
 app.include_router(uploads_router)  # 浏览器图像上传（SDD 08）
 app.include_router(objects_router)  # 视觉对象表征面（SDD 10 §5.2）
 app.include_router(fs_router)  # 目录选择器，仅回环来源（SDD 13）

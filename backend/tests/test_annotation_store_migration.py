@@ -1,4 +1,4 @@
-"""标注库 SQLite 迁移（SDD 10 §9.5 / §15.1 K）——user_version 0 → 1。"""
+"""标注库 SQLite 迁移（SDD 10 §9.5 / §15.1 K；SDD 23）——user_version 0 → 1 → 2。"""
 
 from __future__ import annotations
 
@@ -89,9 +89,9 @@ def _table_sql(root: Path) -> str:
 
 def test_new_database_created_at_current_version(tmp_path):
     AnnotationStore(tmp_path)
-    assert _version(tmp_path) == store_mod.SCHEMA_VERSION == 1
+    assert _version(tmp_path) == store_mod.SCHEMA_VERSION == 2
     assert "'point'" in _table_sql(tmp_path)
-    assert list(_indexes(tmp_path)) == ["idx_annotations_image"]
+    assert sorted(_indexes(tmp_path)) == ["idx_annotations_image", "idx_annotations_label"]
 
 
 def test_check_constraint_generated_from_kinds(tmp_path):
@@ -105,9 +105,12 @@ def test_v0_database_migrates(tmp_path):
     before = _raw(tmp_path, "SELECT * FROM annotations ORDER BY id")
     s = AnnotationStore(tmp_path)
 
-    assert _version(tmp_path) == 1
-    # 老数据逐列不变（含 mask 行的 mask_ref、seq、时间戳）
-    assert _raw(tmp_path, "SELECT * FROM annotations ORDER BY id") == before
+    assert _version(tmp_path) == 2
+    # 老数据逐列不变（含 mask 行的 mask_ref、seq、时间戳）；新增的 label_id 为空
+    cols = f"{store_mod._COLUMNS}, label_id"
+    assert _raw(tmp_path, f"SELECT {cols} FROM annotations ORDER BY id") == [
+        (*row, None) for row in before
+    ]
     a1 = s.get("a1")
     assert (a1["z"], a1["seq"], a1["label"], a1["status"]) == (3, 4, "斑块", "confirmed")
     assert s.get("a3")["primitive"]["ref"] == "masks/a3.png"
@@ -117,7 +120,7 @@ def test_v0_database_migrates(tmp_path):
     assert p["primitive"]["kind"] == "point"
     # 索引重建、临时表不残留
     idx = _indexes(tmp_path)
-    assert list(idx) == ["idx_annotations_image"]
+    assert sorted(idx) == ["idx_annotations_image", "idx_annotations_label"]
     assert "(image_id, z)" in idx["idx_annotations_image"]
     names = {n for (n,) in _raw(tmp_path, "SELECT name FROM sqlite_master")}
     assert "annotations_v1" not in names
@@ -133,8 +136,9 @@ def test_reopen_does_not_rerun_migration(tmp_path, monkeypatch):
 
     monkeypatch.setattr(store_mod, "_MIGRATE_V0_V1", ("SELECT boom()",))
     monkeypatch.setattr(store_mod, "_table_ddl", _boom)
+    monkeypatch.setattr(store_mod, "_MIGRATE_V1_V2", ("SELECT boom()",))
     s = AnnotationStore(tmp_path)
-    assert _version(tmp_path) == 1
+    assert _version(tmp_path) == 2
     assert _raw(tmp_path, "SELECT rowid, id FROM annotations ORDER BY rowid") == rowids
     assert s.get("a1") is not None
 
@@ -163,7 +167,32 @@ def test_failed_migration_rolls_back(tmp_path, monkeypatch):
     # 修复后（撤掉故障注入）可正常升级
     monkeypatch.setattr(store_mod, "_MIGRATE_V0_V1", steps)
     AnnotationStore(tmp_path)
-    assert _version(tmp_path) == 1
+    assert _version(tmp_path) == 2
+
+
+def test_v1_database_migrates_to_v2(tmp_path):
+    """v1 库只加 ``label_id`` 列与 ``labels`` 表，旧行原样保留（SDD 23 §8.1）。"""
+    root = tmp_path
+    root.mkdir(exist_ok=True)
+    conn = sqlite3.connect(_db(root))
+    conn.execute(store_mod._table_ddl("annotations"))
+    for stmt in store_mod._INDEXES:
+        conn.execute(stmt)
+    conn.execute(
+        f"INSERT INTO annotations ({store_mod._COLUMNS}) VALUES "
+        "('b1', 'img', NULL, 'bbox', '{\"kind\": \"bbox\", \"x0\": 0, \"y0\": 0, "
+        "\"x1\": 2, \"y1\": 3}', '肝', NULL, 'draft', 'manual', 1, NULL, 't', 't')"
+    )
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+
+    s = AnnotationStore(root)
+    assert _version(root) == 2
+    row = s.get("b1")
+    assert (row["label"], row["label_id"], row["seq"]) == ("肝", None, 1)
+    names = {n for (n,) in _raw(root, "SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "labels" in names
 
 
 def test_newer_database_refused(tmp_path):

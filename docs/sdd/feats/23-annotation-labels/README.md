@@ -237,12 +237,15 @@ flowchart TD
   "image_id": "wsi-65d5f76b-2d7070fb",
   "unit": "um", "area_unit": "um2",
   "groups": [
-    { "label_id": "lbl-3fa2c1d0", "name": "组织折叠", "color": "#E4572E", "count": 2, "area": 1.2e7, "suggested": 1 },
-    { "label_id": null, "name": "（未入目录）主动脉", "color": null, "count": 1, "area": 4.0e5, "suggested": 0 }
+    { "kind": "catalog", "label_id": "lbl-3fa2c1d0", "name": "组织折叠", "color": "#E4572E", "count": 2, "area": 1.2e7, "suggested": 1 },
+    { "kind": "uncatalogued", "label_id": null, "name": "主动脉", "color": null, "count": 1, "area": 4.0e5, "suggested": 0 },
+    { "kind": "unlabeled", "label_id": null, "name": "", "color": null, "count": 0, "area": 0.0, "suggested": 1 }
   ],
-  "total": { "count": 3, "area": 1.24e7, "suggested": 1 }
+  "total": { "count": 3, "area": 1.24e7, "suggested": 2 }
 }
 ```
+
+`kind`：`catalog` 为目录标签（按目录顺序），`uncatalogued` 为只有文本标签（按文本分组），`unlabeled` 为无标签。只列有标注的分组。
 
 ## 10. 幂等规则
 
