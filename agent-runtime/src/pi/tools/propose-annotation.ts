@@ -79,6 +79,8 @@ export interface AnnotationProposedDetails {
   payload: {
     annotation_id: string | null;
     image_id: string;
+    /** 所属对象的模态（取自 ViewerContext.collection）；前端据此打开不在舞台上的对象。 */
+    modality?: string;
     label: string;
     note?: string;
     reason?: string;
@@ -228,6 +230,7 @@ export function createProposeAnnotationTool(
         payload: {
           annotation_id: created.id,
           image_id: created.image_id,
+          ...(viewer.collection ? { modality: viewer.collection } : {}),
           label: params.label,
           ...(params.note?.trim() ? { note: params.note.trim() } : {}),
           primitive: created.primitive,

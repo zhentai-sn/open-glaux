@@ -116,6 +116,25 @@ describe("propose_annotation", () => {
     expect(captured[0]!.body.primitive).toEqual({ kind: "polyline", closed: true, points: polygon });
     const details = result.details as AnnotationProposedDetails;
     expect(details.payload.annotation_id).toBe("ann_001");
+    expect(details.payload).not.toHaveProperty("modality");
+  });
+
+  it("结果带上所属对象的模态，供前端打开不在舞台上的对象", async () => {
+    const tool = createProposeAnnotationTool({
+      viewer: viewerOn("img_1", { collection: "natural_image" }),
+      fetch: fakeBackend([]),
+    });
+    const result = await tool.execute(
+      "c3m",
+      { space: "object", label: "cat", bbox: [1, 1, 9, 9] },
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect((result.details as AnnotationProposedDetails).payload).toMatchObject({
+      image_id: "img_1",
+      modality: "natural_image",
+    });
   });
 
   // 照着 view_current_image 的低倍概览描出的坐标：按 X-Glaux-Frame 换算成对象像素（WSI level 2 约 1/16）

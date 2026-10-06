@@ -115,7 +115,7 @@ status: implemented
 - 建议卡片必须随会话快照持久化；页面刷新后仍可恢复确认/驳回入口。
 - 建议卡片按所属 `image_id` 判定状态：所属对象是焦点对象时取 Viewer store 的实时 status，
   store 中查不到才显示"标注已不存在"；所属对象不是焦点对象时显示"在其他对象上"，
-  对象已在对象清单中则给出"在舞台打开"入口，不显示确认/驳回。
+  对象已在对象清单中或 payload 带 `modality` 时给出"在舞台打开"入口，不显示确认/驳回。
 
 ## 6. 核心流程
 
@@ -336,7 +336,7 @@ Agent Runtime 的会话视图必须保留 `glaux.annotation_proposed` 与 `glaux
 | --- | --- | --- |
 | `glaux.roi_located` | `locate_roi` | image_id、target、boxes[{box, confidence, why}]、filtered_out、可选 atlas |
 | `glaux.segment_region` | `segment_region` | image_id、target、regions[{label, confidence, bbox, points, area}]、filtered_out |
-| `glaux.annotation_proposed` | `propose_annotation` | annotation_id（**可为 null** 表示本次未提出）、image_id、label、note、reason、primitive、index、seq |
+| `glaux.annotation_proposed` | `propose_annotation` | annotation_id（**可为 null** 表示本次未提出）、image_id、modality（取自 `ViewerContext.collection`，成功时携带）、label、note、reason、primitive、index、seq |
 | `glaux.atlas_referenced` | `locate_roi` 的图谱先验步 | 同 SDD 03 §12（复用同一契约与卡片组件） |
 
 失败不另发事件：错误经 `RuntimeError` 走既有工具错误通道，模型收到可读原因后自行纠正
@@ -416,10 +416,10 @@ trace_id；不记录图像内容与 API key。
 | mask → 多边形 | `mask-to-polygon.test.ts`（9 例）；fixture 为 `sam3` 真实响应，以解码 bbox 与后端自报 bbox 吻合做交叉验证 |
 | 分割客户端 | `segmentation-client.test.ts`（8 例）+ 真实端到端（eye.png 2543ms / 2 段 / 14 与 18 点） |
 | `segment_region` | `segment-region-tool.test.ts`（11 例，含门控四态） |
-| `propose_annotation` | `propose-annotation-tool.test.ts`（12 例，含"恒 suggested+agent"） |
+| `propose_annotation` | `propose-annotation-tool.test.ts`（16 例，含"恒 suggested+agent"、结果携带 modality） |
 | `locate_roi` | `locate-roi-tool.test.ts`（15 例，含坐标换算/裁剪/退化/先验退化） |
 | 建议态落库与确认 | `backend/tests/test_annotations.py`（8 例，含钩子派发时机） |
-| 前端渲染与确认流 | `SuggestionCard.test.tsx`（16 例，含非焦点对象不判已删除）+ `csAnno.test.ts` 建议态 3 例 |
+| 前端渲染与确认流 | `SuggestionCard.test.tsx`（18 例，含非焦点对象不判已删除、按 modality 打开）+ `csAnno.test.ts` 建议态 3 例 |
 | 建议态实时写回 | `toolBridge.test.ts`：bbox/polygon 即时 upsert、重复事件幂等、已确认状态不回退、切图/错误/畸形 details 拒绝；Frontend 全量 `150 passed` |
 | 建议卡片快照 | `session-lifecycle.test.ts`：成功 details 保留且正文剥离、失败结果过滤；Agent Runtime 全量 `161 passed`；真实会话 `ad44e71f-…` 快照已恢复 `glaux.annotation_proposed` |
 

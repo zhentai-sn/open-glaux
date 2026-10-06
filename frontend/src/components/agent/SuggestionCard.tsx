@@ -16,13 +16,16 @@ import { ICONS } from "../iconMap";
 // 卡片状态取自 store 里那条标注的实时 status（不是 payload 里的快照）：同一条建议
 // 可能已在画布上被确认过，会话回看时必须显示它现在的样子，而不是刚提出时的样子。
 // store 只装焦点对象的标注：卡片所属对象不在舞台上时查不到不代表已删除，显示"在其他对象上"
-// 并给出打开入口；焦点就是该对象而 store 里查不到时，才以"已不存在"降级展示。
+// 并给出打开入口（模态取对象清单，退而取 payload.modality）；焦点就是该对象而 store 里
+// 查不到时，才以"已不存在"降级展示。
 
 export const ANNOTATION_PROPOSED_KIND = "glaux.annotation_proposed";
 
 export interface AnnotationProposedPayload {
   annotation_id: string | null;
   image_id: string;
+  /** 所属对象的模态；旧快照没有此字段。 */
+  modality?: Modality;
   label: string;
   note?: string;
   reason?: string;
@@ -43,6 +46,7 @@ export function parseAnnotationProposed(value: unknown): AnnotationProposedPaylo
   return {
     annotation_id: id,
     image_id: typeof p.image_id === "string" ? p.image_id : "",
+    ...(typeof p.modality === "string" && p.modality ? { modality: p.modality } : {}),
     label: p.label,
     ...(typeof p.note === "string" ? { note: p.note } : {}),
     ...(typeof p.reason === "string" ? { reason: p.reason } : {}),
@@ -55,7 +59,8 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
   const { t } = useI18n();
   const annotations = useSession((s) => s.annotations);
   const focusedId = useSession((s) => s.focus?.object_id ?? null);
-  const objectModality = useSession((s) => modalityOf(s.objects, payload.image_id));
+  // 优先用已加载的对象清单；旧快照不带 modality 时只能靠它
+  const objectModality = useSession((s) => modalityOf(s.objects, payload.image_id)) ?? payload.modality ?? null;
   const uiMode = useSession((s) => s.uiMode);
   const setFocusLayout = useSession((s) => s.setFocusLayout);
   const live = useMemo(
@@ -126,7 +131,7 @@ export function SuggestionCard({ payload }: { payload: AnnotationProposedPayload
 
 type CardStatus = Annotation["status"] | "missing" | "elsewhere";
 
-/** 卡片所属对象已在对象清单里时返回其模态（打开入口需要），否则 null。 */
+/** 卡片所属对象已在对象清单里时返回其模态，否则 null。 */
 function modalityOf(objects: Record<string, ObjectMeta[]>, id: string): Modality | null {
   if (!id) return null;
   for (const list of Object.values(objects)) {

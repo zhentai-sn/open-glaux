@@ -64,6 +64,15 @@ describe("parseAnnotationProposed", () => {
       payload: { annotation_id: "a1", image_id: "i1", label: "x", note: "因为形态符合", index: { z: 42 } },
     });
     expect(p).toMatchObject({ annotation_id: "a1", label: "x", note: "因为形态符合", index: { z: 42 } });
+    expect(p).not.toHaveProperty("modality");
+  });
+
+  it("解析所属对象的 modality", () => {
+    const p = parseAnnotationProposed({
+      kind: "glaux.annotation_proposed",
+      payload: { annotation_id: "a1", image_id: "i1", modality: "natural_image", label: "x" },
+    });
+    expect(p?.modality).toBe("natural_image");
   });
 
   it("annotation_id 为 null（本次未提出）仍可解析，带 reason", () => {
@@ -161,7 +170,18 @@ describe("SuggestionCard", () => {
     expect(useSession.getState().focusLayout.sideView).toBe("stage");
   });
 
-  it("所属对象不在对象清单里时只显示状态，不给打开入口", () => {
+  it("对象清单未加载时用 payload.modality 给出打开入口", () => {
+    const open = vi.spyOn(actions, "openObject").mockResolvedValue(undefined);
+    useSession.setState({
+      annotations: [],
+      focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null },
+    });
+    show({ ...PAYLOAD, modality: "natural_image" });
+    fireEvent.click(screen.getByTestId("suggestion-open-object"));
+    expect(open).toHaveBeenCalledWith("img_1", "natural_image");
+  });
+
+  it("所属对象不在对象清单里且无 modality（旧快照）时只显示状态，不给打开入口", () => {
     useSession.setState({
       annotations: [],
       focus: { object_id: "wsi_1", kind: "slide", index: {}, region: null },
