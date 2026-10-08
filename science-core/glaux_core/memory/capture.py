@@ -69,9 +69,9 @@ class MemoryRecord:
 
 def save_record(record: MemoryRecord, path: Path) -> Path:
     path = Path(path)
-    path.write_text(json.dumps(record.to_dict(), ensure_ascii=False, indent=2))
+    path.write_text(json.dumps(record.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
 
 def load_record(path: Path) -> MemoryRecord:
-    return MemoryRecord.from_dict(json.loads(Path(path).read_text()))
+    return MemoryRecord.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))

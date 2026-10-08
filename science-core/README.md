@@ -23,6 +23,8 @@ pip install -e ".[dev,interp]"   # 追加 scipy（pchip 曲线插值，可选）
 核心测量只依赖 numpy / Pillow / pandas；`scipy`（曲线插值）与
 `tensorflow`（caroSegDeep 适配器）是可选 extra，刻意隔离，避免整包强依赖重后端。
 
+`glaux_core.memory.capture` 的记忆记录 JSON 固定用 UTF-8 保存与读取，支持 Windows 的中文纠错内容。
+
 ## 测试
 
 ```bash

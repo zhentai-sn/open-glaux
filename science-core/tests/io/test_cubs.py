@@ -38,7 +38,7 @@ def _build_tree(root, *, with_cf=True, methods=("Manual-A1", "Manual-A2")):
     csv.write_text(
         "﻿;Patient ID;age\n"
         "Nicolaides - Cyprus;clin_0001;65\n"
-        "Ghiadoni - Pisa;tech_383;70\n"
+        "Ghiadoni - Pisa;tech_383;70\n", encoding="utf-8",
     )
     return dict(images_dir=images, cf_dir=cf, segmentations_dir=seg, clinical_csv=csv)
 

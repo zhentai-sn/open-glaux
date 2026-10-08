@@ -32,7 +32,8 @@ def _build_cubs(root):
         _p(seg / "Manual-A1" / f"{image_id}-LI.txt", x, np.full_like(x, 50.0))
         _p(seg / "Manual-A1" / f"{image_id}-MA.txt", x, np.full_like(x, 58.0))  # 8px 金标准
     (root / "clin.csv").write_text(
-        "﻿;Patient ID;age\nNicolaides - Cyprus;clin_0001;65\nGhiadoni - Pisa;clin_0002;70\n"
+        "﻿;Patient ID;age\nNicolaides - Cyprus;clin_0001;65\nGhiadoni - Pisa;clin_0002;70\n",
+        encoding="utf-8",
     )
     return dict(
         images_dir=images, cf_dir=cf, segmentations_dir=seg, clinical_csv=root / "clin.csv"
