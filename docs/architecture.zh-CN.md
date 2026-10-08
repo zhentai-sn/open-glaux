@@ -60,23 +60,12 @@ Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_POR
 - 数据目录：启动器把 `GLAUX_AGENT_DATA_DIR`、`GLAUX_DATASETS_ROOT`、`GLAUX_ATLAS_ROOT`、`GLAUX_MODELS_ROOT` 设到 `GLAUX_HOME`（缺省 `~/.glaux`）下的 `agent/`、`datasets/`、`atlas/`、`models/`；`run/` 存状态与会话令牌，`logs/` 存日志。
 - 命令：`glaux start | stop | status | open | logs | doctor | update | uninstall | version`。
 
-### Docker 发行包（对话预览版）
-
-`compose.yaml` 两个服务，规范见 [SDD 09](sdd/feats/09-chat-distribution/README.md)，使用见 [安装、运行与分发手册](runbooks/chat-distribution.md)：
-
-| 服务 | 镜像 stage | 说明 |
-| --- | --- | --- |
-| `agent` | `docker/Dockerfile` 的 `agent` | Node 运行时，`GLAUX_EDITION=chat`、`GLAUX_AGENT_HOST=0.0.0.0`，会话存具名卷 `conversations:/data`，不对宿主暴露端口 |
-| `web` | 同文件的 `web` | nginx 提供静态前端，`/agent-api/` 反代到 agent，`/api/` 一律 404；宿主只映射 `127.0.0.1:${GLAUX_PORT:-5173}` |
-
-发行包不含 Python 后端、science-core 与专用模型。
-
 ### 发行模式开关
 
 `VITE_GLAUX_EDITION`（前端）和 `GLAUX_EDITION`（agent-runtime）取 `full` 或 `chat`，**缺省 full**，无效值直接抛错。
 
 - `full`：Focus、舞台、图谱、领域工具全开；Workbench 入口另由下方开关控制。
-- `chat`：只保留对话界面；不注册任何领域工具，改用对话提示词，不请求 Python 后端。Docker 镜像与 `compose.yaml` 显式设置。
+- `chat`：只保留对话界面；不注册任何领域工具，改用对话提示词，不请求 Python 后端。该模式仍可用于专项验证，不属于当前分发包。
 
 `VITE_GLAUX_WORKBENCH`（前端）取 `0` 或 `1`，**缺省 0**，无效值直接抛错。`1` 时 full 发行版在顶栏显示 Focus ⇄ Workbench 切换并启用 `Ctrl/Cmd+Shift+M`；`0` 时界面恒为 Focus。chat 发行版忽略此开关。
 
@@ -99,8 +88,6 @@ open-glaux/
 ├── Makefile                     # 开发编排：install · dev · start/stop（生产模式）· test · lint · version
 ├── VERSION / CHANGELOG.md       # 产品版本与发布记录（SDD 01 版本治理）
 ├── LICENSE                      # Apache-2.0
-├── compose.yaml                 # 对话预览版部署（agent + web 两个服务）
-├── .dockerignore                # 镜像构建上下文白名单
 ├── .gitignore / .gitattributes  # 忽略权重与医学影像；跨 WSL/Windows 强制 LF
 │
 ├── frontend/                    # React + Vite 前端：Focus（对话）/ Workbench（工作台）双模式，按 edition 裁剪
@@ -109,13 +96,14 @@ open-glaux/
 ├── science-core/                # 无头科学内核：读取、标定、分割、检测、测量、验证、产物、记忆 + 任务注册表
 ├── launcher/                    # glaux 启动器（Node，无依赖）：生产模式启停、自检、更新、卸载（SDD 24）
 │
-├── docker/                      # 发行镜像构建：Dockerfile（四个 stage）、compose.build.yaml、nginx.conf
 ├── scripts/
 │   ├── dev/                     #   本地联调脚本（run-backend、restart-backend、run-agent-runtime、health）+ 归档的一次性脚本
 │   ├── eval/                    #   视频评测数据准备（TennisTV 下载与切片）
-│   ├── release/                 #   发行打包 package.py 与 launcher/（start·stop 的 sh/cmd/command）
+│   ├── release/                 #   平台无关程序包、一键安装器与安装冒烟脚本
 │   ├── version_matrix.py        #   版本矩阵检查（SDD 01）
 │   └── test_version_matrix.py   #   上述检查的用例（make test-version）
+│
+├── .github/workflows/           # 跨平台 CI、Release 打包与 Pages 发布
 │
 ├── models/                      # 隔离模型运行时资产（独立 venv，不被主进程 import）
 │   └── hc_seg/                  #   胎儿头围分割 CSM（HuggingFace, Apache-2.0）
@@ -136,7 +124,7 @@ open-glaux/
     └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
 ```
 
-`.glaux/`（本地会话 SQLite）、`dist/`（`scripts/release/package.py` 输出的发行包 zip）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
+`.glaux/`（本地会话 SQLite）、`dist/`（发行包产物）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
 
 ---
 
@@ -272,9 +260,9 @@ graph LR
 | --- | --- |
 | `dev/` | 本地联调脚本（起后端、重启后端、起运行时、健康检查），以及归档的一次性脚本；写死 WSL 路径 |
 | `eval/` | 视频评测数据准备；`tennistv.py` 负责拉题、下载、按帧切片，用法见 `scripts/eval/README.md` |
-| `release/` | `package.py` 生成无源码启动包；`launcher/` 下 start/stop 的 sh、cmd、command 各一份，随包分发 |
+| `release/` | `build-package.mjs` 生成跨平台程序包；提供原生安装器和安装冒烟脚本 |
 | `version_matrix.py` | 校验根 `VERSION` 与四个组件版本一致（`make version-check`） |
 
 ### 版本治理
 
-根 `VERSION` 与 frontend、agent-runtime、backend、science-core 四个组件版本各自声明，当前均为 0.2.0；五份 CHANGELOG 记录变化。规则见 [SDD 01](sdd/01-version-release-governance.md)，机器校验是 `scripts/version_matrix.py`。
+根 `VERSION` 为整体产品版本；frontend、agent-runtime、backend、science-core 四个组件独立维护版本号。当前产品版本为 `0.3.0`，组件版本仍为 `0.2.0`。规则见 [SDD 01](sdd/01-version-release-governance.md)，机器校验是 `scripts/version_matrix.py`。

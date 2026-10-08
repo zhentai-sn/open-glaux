@@ -6,16 +6,28 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
 ### Added
 
+- 完整版本机分发：跨平台 `glaux` 启动器、一键安装与更新、单端口生产模式、GitHub Release 程序包和双语下载页。见 [SDD 24](docs/sdd/feats/24-distribution-install/README.md)。
+- 工作区、视频音画问答、智能体标注复核、运行轨迹、Atlas 图谱与本地安装指引。
 - 标注标签与管理：画框、多边形必须选标签（可当场新建），按标签着色并显示名称；左侧栏「标注」面板按标签统计条数与面积（有标定时为物理单位），管理标签目录（改名、改色、合并）。见 [SDD 23](docs/sdd/feats/23-annotation-labels/README.md)。
 - 智能体像人一样看图：可放大、平移、缩回，图上画出已有标注供对照；提出的框放大复核后可修正或撤回自己的建议。见 [SDD 22](docs/sdd/feats/22-agent-visual-inspection/README.md)。
 - 内置技能 `skill-creator`：让智能体把工作流程、测量口径或报告格式做成可复用的技能，并协助测试与改进。见 [SDD 17](docs/sdd/feats/17-agent-skills-prompts/README.md) D-6。
 - 运行轨迹：「上下文」页新增「运行 → 轨迹」，按轮次列出当前会话的请求头（系统提示词分段与工具）、模型调用（输出、用量、首 token 与耗时、上下文占用）、工具调用、压缩与运行提示；顶部输入 / 模型 / 工具三条泳道；请求头可与上一轮比较差异；每次模型调用可查看实际发给模型的消息（含被裁剪的图像与运行时追加的提示）。见 [SDD 21](docs/sdd/feats/21-run-trajectory/README.md)。
 - 子智能体：智能体可用 `agent` 工具把自包含的子任务交给子智能体，只取回最终回复；运行中工具行实时显示子智能体的回合数与当前工具，完成后显示子智能体卡片（结局、回合数、最终回复、可展开过程），子智能体触发的审批标出来源；「上下文」页列出子智能体定义。见 [SDD 18](docs/sdd/feats/18-agent-subagents/README.md)。
 
+### Changed
+
+- 0.3.0 首发集成版本矩阵：Frontend `0.2.0`、Backend `0.2.0`、Agent Runtime `0.2.0`、science-core `0.2.0`。
+- Docker 对话发行物退役；完整版通过本机安装器运行。
+
 ### Fixed
 
+- Windows 更新使用系统 `tar.exe` 解压，避免 Git Bash 的 GNU tar 将 Windows 盘符解释为远程路径。
+- 程序包移除 `@fastify/send` 的测试夹具，避免 Windows tar 对 Unicode 测试目录的解压错误。
+- 启动器更新与卸载时只移除本安装目录的链接和快捷方式。
 - 中止后不再留下空的回复气泡，改为显示「未生成回复」并保留「重新生成」。
 - 首条消息被中止的会话也以这条消息命名。
 - 已处理的审批与提问记录显示在对应的工具调用之后，不再堆在对话末尾。

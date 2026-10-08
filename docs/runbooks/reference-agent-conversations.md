@@ -5,7 +5,7 @@ status: living
 
 # 参考 Agent 会话运行手册
 
-> 适用范围：Glaux 内置参考 Agent（Pi AgentHarness + 本地会话管理），完整版与对话预览版通用；发行包的安装与分发见 [chat-distribution.md](chat-distribution.md)。
+> 适用范围：Glaux 内置参考 Agent（Pi AgentHarness + 本地会话管理），完整版与 chat 验证模式通用；发行版的安装与分发见 [distribution-install.md](distribution-install.md)。
 > Runtime 只监听 `127.0.0.1`，浏览器通过 Vite 的同源 `/agent-api/v1` 代理访问。
 
 ## 1. 环境与安装

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Glaux 是本机运行的图像与视频分析智能体环境。接入自己的模型，查看证据并复核结果。">
+  <link rel="alternate" hreflang="en" href="https://zhentai-sn.github.io/open-glaux/">
+  <link rel="alternate" hreflang="zh-CN" href="https://zhentai-sn.github.io/open-glaux/zh/">
+  <link rel="alternate" hreflang="x-default" href="https://zhentai-sn.github.io/open-glaux/">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>Glaux — 图像与视频分析工作区</title>
+  <link rel="stylesheet" href="../assets/landing.css">
+</head>
+<body>
+  <header class="nav"><div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="Glaux 首页"><span>Glaux</span></a>
+    <nav class="navlinks" aria-label="主导航"><a href="#features">了解功能</a><a href="#install">安装</a><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a><a class="lang" href="../" lang="en">English</a></nav>
+  </div></header>
+  <main id="top">
+    <section class="hero"><div class="wrap">
+      <h1>图像与视频分析工作区</h1>
+      <p class="lead">Glaux 为你的 AI 模型提供工作区，帮助它查看图像和视频、调用分析工具，并展示每个结果背后的证据。</p>
+      <div class="actions"><a class="btn primary" href="#install">安装 Glaux <span aria-hidden="true">↓</span></a><a class="btn secondary" href="https://github.com/zhentai-sn/open-glaux">在 GitHub 查看源码 <span aria-hidden="true">↗</span></a></div>
+      <p class="fine">运行在你的电脑上 · 模型由你接入 · Apache-2.0</p>
+      <figure class="product-shot"><img src="../assets/screenshots/zh/glaux-overview.webp" width="1440" height="900" alt="Glaux 亮色工作区，示例图像、标注和文件栏位于智能体对话旁"><figcaption class="caption">Glaux 工作区。示例图片采用 CC0 1.0 许可。</figcaption></figure>
+    </div></section>
+
+    <section id="features" class="section"><div class="wrap">
+      <header class="section-head"><h2>从媒体内容到可复核的结果</h2><p>在同一个本机环境中查看图像或视频、调用分析工具，并复核结果的生成过程。</p></header>
+      <div class="features">
+        <article class="feature"><img src="../assets/screenshots/zh/glaux-overview.webp" width="1440" height="900" loading="lazy" alt="图像已在 Glaux 分析工作区中打开"><div class="feature-copy"><h3>查看图像与视频</h3><p>打开本机文件、浏览视频帧，并为模型提供视觉上下文。视频问题可以附带与时间点对齐的画面和音频证据。</p></div></article>
+        <article class="feature"><img src="../assets/screenshots/zh/glaux-annotations.webp" width="1440" height="900" loading="lazy" alt="Glaux 标注工具和标注面板"><div class="feature-copy"><h3>标注与复核</h3><p>绘制和编辑图像标注。智能体提出的建议可以逐项复核，并查看对应的图像区域。</p></div></article>
+        <article class="feature"><img src="../assets/screenshots/zh/glaux-atlas.webp" width="1440" height="900" loading="lazy" alt="Glaux Atlas 展示导入的示例图像"><div class="feature-copy"><h3>在 Atlas 保存有用案例</h3><p>整理图像、参考资料、描述和区域，让智能体在后续工作中查询经过策展的案例。</p></div></article>
+        <article class="feature"><img src="../assets/screenshots/zh/glaux-context.webp" width="1440" height="900" loading="lazy" alt="Glaux 上下文面板展示可用工具与分析能力"><div class="feature-copy"><h3>查看工具与运行记录</h3><p>查看智能体可用的工具、技能与子智能体，逐轮复核请求上下文、模型调用和工具执行。</p></div></article>
+      </div>
+    </div></section>
+
+    <section id="install" class="section wash"><div class="wrap install-grid">
+      <div class="install-copy"><h2>安装一次，<br>本机运行。</h2><p>选择操作系统并复制一条命令。安装程序会校验下载包、准备独立运行环境，并在浏览器中打开 Glaux。</p><p>需要指定版本或离线安装？安装手册列出了系统要求和可选项。</p><div class="requirements"><b>系统要求</b><br>Windows 10/11 x64 · macOS 13+ Intel 或 Apple 芯片 · Ubuntu 22.04+ x64<br>至少 3 GB 可用磁盘空间。Windows 执行 shell 命令需要 Git for Windows。</div></div>
+      <div>
+        <div class="platforms" role="tablist" aria-label="选择操作系统">
+          <button class="platform" id="tab-windows" role="tab" aria-selected="false" data-platform="windows">Windows</button>
+          <button class="platform" id="tab-macos" role="tab" aria-selected="false" data-platform="macos">macOS</button>
+          <button class="platform" id="tab-linux" role="tab" aria-selected="false" data-platform="linux">Linux</button>
+        </div>
+        <div class="command"><code id="install-command">curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh</code><button class="copy" id="copy-command" type="button">复制命令</button></div>
+        <div class="install-links"><a href="../install.sh">查看 install.sh</a><a href="../install.ps1">查看 install.ps1</a><a href="../latest.json">最新版本与校验值</a><a href="https://github.com/zhentai-sn/open-glaux/releases/latest">全部下载</a><a href="https://github.com/zhentai-sn/open-glaux/blob/main/docs/runbooks/distribution-install.md">安装手册</a></div>
+        <p class="fine" id="copy-status" aria-live="polite" style="text-align:left;margin-top:10px"></p>
+      </div>
+    </div></section>
+
+    <section class="section"><div class="wrap privacy">
+      <div><h2>工作区保留在你的电脑上</h2><p class="body-copy">Glaux 在本机运行界面和分析服务。你可以选择模型服务，以及要发送给它的提示词或媒体。</p></div>
+      <div class="privacy-list">
+        <div class="privacy-item"><div><b>本机文件与结果</b><span>会话、导入文件、Atlas 和设置保存在你的用户数据目录。</span></div></div>
+        <div class="privacy-item"><div><b>由你配置模型连接</b><span>API 凭据保存在本机；模型请求发往你配置的服务商。</span></div></div>
+        <div class="privacy-item"><div><b>不收集使用统计</b><span>Glaux 不采集遥测数据。</span></div></div>
+        <div class="privacy-item"><div><b>生物医学方向仅用于研究</b><span>Glaux 不用于临床诊断。</span></div></div>
+      </div>
+    </div></section>
+
+    <section class="section wash"><div class="wrap">
+      <header class="section-head"><h2>为智能体提供分析环境</h2><p>模型负责推理，Glaux 提供推理所需的环境。</p></header>
+      <div class="pillars">
+        <article class="pillar"><b>观测</b><p>读取媒体及其模态、尺度、通道、帧和时间信息。</p></article>
+        <article class="pillar"><b>动作</b><p>使用标注、分割、测量等分析工具。</p></article>
+        <article class="pillar"><b>验证</b><p>将结果追溯到源区域，并与其他方法对照复核。</p></article>
+        <article class="pillar"><b>轨迹</b><p>保留可供后续工作复用的步骤、修正和案例。</p></article>
+      </div>
+    </div></section>
+
+    <section class="section"><div class="wrap"><header class="section-head"><h2>安装前先了解</h2></header>
+      <div class="faq">
+        <details><summary>需要预装 Node.js 或 Python 吗？</summary><p>不需要。安装程序会把 Glaux 需要的 Node.js、uv 和 Python 放在应用目录内，不需要管理员权限。</p></details>
+        <details><summary>Glaux 自带模型或模型费用吗？</summary><p>不自带模型。你需要连接自选的模型服务商，价格和服务条款由服务商决定。专用模型权重在需要时另行安装。</p></details>
+        <details><summary>Glaux 把数据保存在什么位置？</summary><p>默认位于 macOS 和 Linux 的 <code>~/.glaux</code>，或 Windows 的 <code>%USERPROFILE%\.glaux</code>。更新或卸载程序时会保留该目录，除非你明确选择清除。</p></details>
+        <details><summary>怎样卸载 Glaux？</summary><p>运行 <code>glaux uninstall</code> 卸载程序并保留数据。运行 <code>glaux uninstall --purge</code> 可同时清除数据。</p></details>
+        <details><summary>可以用于临床诊断吗？</summary><p>不可以。生物医学功能仅供研究使用，不用于临床诊断。</p></details>
+      </div>
+    </div></section>
+
+  </main>
+  <footer class="foot"><div class="wrap foot-in"><span>© 2026 Glaux · Apache-2.0</span><span><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a> · <a href="../">English</a> · <a href="https://github.com/zhentai-sn/open-glaux/blob/main/LICENSE">许可</a></span></div></footer>
+  <script>
+    (()=>{const commands={windows:'irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex',macos:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh',linux:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh'};const tabs=[...document.querySelectorAll('[data-platform]')],output=document.querySelector('#install-command'),copy=document.querySelector('#copy-command'),status=document.querySelector('#copy-status');const choose=(name,focus=false)=>{for(const tab of tabs){const active=tab.dataset.platform===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus()}output.textContent=commands[name]};for(const tab of tabs){tab.addEventListener('click',()=>choose(tab.dataset.platform));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;choose(tabs[next].dataset.platform,true)})}const ua=navigator.userAgent.toLowerCase();choose(ua.includes('windows')?'windows':ua.includes('mac')?'macos':'linux');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.textContent);status.textContent='已复制命令。'}catch{status.textContent='请手动选择并复制上方命令。'}})})();
+  </script>
+</body>
+</html>

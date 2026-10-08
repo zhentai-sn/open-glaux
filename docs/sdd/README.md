@@ -40,7 +40,7 @@ stateDiagram-v2
 | 06 | [统一图标系统](feats/06-icon-system/README.md) | `implemented` | Glaux 项目维护者 | 2026-08-19 |
 | 07 | [自然图像 SAM 演示集合](feats/07-natural-image-sam-demo/README.md) | `implemented`（真实 SAM 两图验证通过，建议态 UI 待验收；§2/§7.5 由 08 接管） | Glaux 项目维护者 | 2026-09-23 |
 | 08 | [数据导入优先的文件栏](feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | Glaux 项目维护者 | 2026-09-25 |
-| 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `implemented` | Glaux 项目维护者 | 2026-09-06 |
+| 09 | [基本对话 Docker 发行包](feats/09-chat-distribution/README.md) | `superseded`（由 SDD 24 取代） | Glaux 项目维护者 | 2026-10-08 |
 | 10 | [视觉对象与数据源收敛](feats/10-object-convergence/README.md) | `ready`（W0～W3 已准出；W4～W7 代码与自动门禁完成，人工验收递延） | Glaux 项目维护者 | 2026-09-27 |
 | 11 | [视频理解 harness](feats/11-video-understanding-harness/README.md) | `ready`（一期仅 Qwen；P1～P5 已实现，待真实视频基本流程验收；标注集评测后置） | Glaux 项目维护者 | 2026-09-25 |
 | 12 | [主题切换（深色 / 浅色）与强调色](feats/12-theme-switch/README.md) | `implemented`（v1.1 自定义强调色；Workbench 浏览器走查与业务验收待补） | Glaux 项目维护者 | 2026-09-25 |
@@ -55,7 +55,7 @@ stateDiagram-v2
 | 21 | [运行轨迹](feats/21-run-trajectory/README.md) | `implemented`（维护者初步验收通过，正式业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
 | 22 | [智能体看图：缩放与复核](feats/22-agent-visual-inspection/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-05 |
 | 23 | [标注标签与管理](feats/23-annotation-labels/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-06 |
-| 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `ready`（实施中；取代 09） | Glaux 项目维护者 | 2026-10-08 |
+| 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `implemented`（发布验收中；取代 09） | Glaux 项目维护者 | 2026-10-08 |
 
 ## 维护约定
 

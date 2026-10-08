@@ -64,6 +64,8 @@ for (const file of readdirSync(join(ROOT, "data", "natural"))) copy(`data/natura
 // 运行期依赖不含原生扩展（SQLite 用 node:sqlite），一份 node_modules 通用于三平台；
 // --no-bin-links 避免符号链接，Windows 解压不需要创建链接的权限。
 run("npm", ["ci", "--omit=dev", "--ignore-scripts", "--no-bin-links", "--no-audit", "--no-fund"], join(STAGE, "agent-runtime"));
+// @fastify/send 的测试夹具不是运行依赖；其中 Unicode 目录会让部分 Windows tar 报空路径。
+rmSync(join(STAGE, "agent-runtime", "node_modules", "@fastify", "send", "test"), { recursive: true, force: true });
 const natives = [];
 (function scan(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -1,6 +1,7 @@
 ---
-kind: living
-status: implemented
+kind: record
+status: superseded
+superseded_by: docs/sdd/feats/24-distribution-install/README.md
 ---
 
 # 09 · 基本对话 Docker 发行包

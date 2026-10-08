@@ -20,7 +20,7 @@ status: living
 | --- | --- | --- |
 | backend :8000 | LanceDB 存储、图像目录、PDF/网页抽图、REST | `/atlas/*` |
 | agent-runtime :8010 | VLM 描述生成、检索先验（挑选步） | `POST /agent-api/v1/atlas/describe` |
-| frontend :5173 | Atlas 页面（Focus 左侧栏「图谱」入口 / Workbench 活动栏「图谱」）、上传入口与案例编辑；只在完整版，对话预览版不含图谱 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
+| frontend :5173 | Atlas 页面（Focus 左侧栏「图谱」入口 / Workbench 活动栏「图谱」）、上传入口与案例编辑；只在完整版，chat 验证模式不含图谱 | 反代 `/api/atlas/*` → backend，`/agent-api/*` → runtime |
 
 凭据边界：VLM 凭据只从前端 / CLI 发往 agent-runtime，**不经 backend**；backend 只保存描述结果。
 

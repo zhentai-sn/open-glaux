@@ -21,7 +21,10 @@ dependencies = [
     "openslide-bin>=4.0",
     # Atlas · 图谱（SDD 03）：案例表（嵌入式向量/全文库，进程内无服务）+ 教科书 PDF 抽图 +
     # 网页抽图。全部为数据 IO 库（非重模型，主进程允许）；VLM 描述仍由 agent-runtime 生成。
-    "lancedb>=0.37",
+    # LanceDB stopped publishing macOS x86_64 wheels after 0.25.3. Keep full
+    # Atlas support on Intel Macs with its last x86_64 wheel; use current LanceDB elsewhere.
+    "lancedb==0.25.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "lancedb>=0.37; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "pymupdf>=1.26",
     "httpx>=0.27",
     "beautifulsoup4>=4.12",

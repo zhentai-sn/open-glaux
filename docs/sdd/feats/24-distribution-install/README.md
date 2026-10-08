@@ -1,6 +1,6 @@
 ---
 kind: living
-status: ready
+status: implemented
 ---
 
 # 24 · 完整版分发与一键安装
@@ -10,7 +10,7 @@ status: ready
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `ready` |
-| 当前阶段 | 实施中：首个公开版本 `0.3.0` |
+| 当前阶段 | 首个公开版本 `0.3.0` 实现完成；跨平台 CI、Release 与 Pages 发布验收中 |
 | 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -25,7 +25,7 @@ status: ready
 1. **生产运行模式**：单端口入口，agent-runtime 提供前端静态文件并反代 backend，替代开发态的 Vite 代理。
 2. **本机安全**：`Host` / `Origin` 校验、启动令牌、backend 内部令牌。
 3. **启动器**：跨平台 `glaux` 命令，负责启停、状态、更新、卸载、自检。
-4. **打包与发布**：GitHub Actions 三平台测试，打标签后构建通用程序包并发布到 GitHub Releases。
+4. **打包与发布**：GitHub Actions 测试 Windows、macOS Intel、macOS Apple silicon、Linux，打标签后构建通用程序包并发布到 GitHub Releases。
 5. **安装脚本**：`install.sh`（macOS、Linux）与 `install.ps1`（Windows 原生）。
 6. **落地页**：中英双语重做，含下载与安装区，经 GitHub Pages 发布。
 
@@ -149,15 +149,15 @@ graph LR
 
 1. 程序包与平台无关：前端构建产物、agent-runtime 的 `dist/`、生产依赖 `node_modules`（agent-runtime 运行期无原生扩展，SQLite 用 `node:sqlite`）、内置技能与子智能体定义、backend 与 science-core 源码及 `uv.lock`、`data/natural` 示例、启动器、`VERSION`、`LICENSE`、`NOTICE`。
 2. 目录布局与仓库子集一致，backend 与 agent-runtime 按现有相对路径定位 science-core 与示例数据。
-3. Python 依赖在用户机器上由 `uv sync --frozen` 安装（含 `video` 可选依赖），wheel 按平台解析；不在用户机器上编译。
+3. Python 依赖在用户机器上由 `uv sync --frozen` 安装（含 `video` 可选依赖），wheel 按平台解析；不在用户机器上编译。Intel macOS 使用 LanceDB 0.25.3（最后提供 macOS x64 wheel 的版本），其他平台使用当前兼容版本。
 4. 前端以 `full` 版构建，`VITE_GLAUX_WORKBENCH` 取发布时的约定值。
 5. 不打包：开发依赖、测试、`docs/`、`.glaux/`、模型权重、`data/` 下除示例外的数据。
 
 ### 7.6 CI 与发布
 
 1. `ci.yml`：每次推送与 PR 在 ubuntu、macos、windows 上运行 `make test` 的等价步骤与 `make lint`。
-2. `release.yml`：`v*` 标签触发 → 校验标签与 `VERSION` 一致 → 构建程序包 → 在三平台虚拟机上执行安装脚本（指向本次构建的包）并做冒烟测试 → 创建 Release、上传产物与 `SHA256SUMS` → 更新 Pages 的 `latest.json`。
-3. 冒烟测试：`glaux start` → 带令牌请求 `/agent-api/health` 与 `/api/health` → 上传示例图片 → `glaux stop`。不调用真实模型。
+2. `release.yml`：`v*` 标签触发 → 校验标签与 `VERSION` 一致 → 构建程序包 → 在 Windows、Linux、macOS Intel 与 Apple silicon 虚拟机上执行安装脚本（指向本次构建的包）并做冒烟测试 → 创建 Release、上传产物与 `SHA256SUMS` → 显式派发 `pages.yml` 更新 `latest.json`。使用 `GITHUB_TOKEN` 创建的 Release 不会触发另一个工作流的 `release` 事件，故采用 `workflow_dispatch`。
+3. 冒烟测试：重复安装 → `glaux start` → 健康检查与令牌拒绝检查 → 上传示例图片 → 经本机 manifest 执行 `glaux update` → 验证版本切换、服务重启、上传源与数据保留 → `status / doctor / stop / uninstall --purge`。更新测试使用当前包的隔离副本作为旧版本快照，不等同于旧数据库格式迁移验收；不调用真实模型。
 4. 推送与打标签由维护者执行；CI 不保存任何模型密钥。
 
 ### 7.7 安装脚本
@@ -180,9 +180,10 @@ graph LR
 1. 静态 HTML，中文 `docs/landing/zh/index.html`、英文 `docs/landing/index.html`，互相切换并声明 `hreflang`；内容一一对应。
 2. 结构：首屏（定位一句话、产品截图、下载按钮）→ 亮点功能（视频音画问答与证据回放、智能体标注与复核、技能与子智能体、运行轨迹与图谱，各配真实截图）→ 安装（按访客系统默认选中对应页签，命令一键复制，附脚本源码与 SHA256）→ 本地运行说明（数据不离开本机、模型自带、密钥只存本机）→ 环境四要素（压缩为一节）→ 常见问题（系统要求、费用、隐私、卸载）→ 页脚。
 3. 删除「对话预览版」「Docker」相关表述；内部进程划分移到文档，不放首页。
-4. 图片使用 WebP，单张 ≤ 300 KB；医学示例图须为可公开展示的许可，否则替换。
-5. 不加载第三方统计脚本；字体与样式内联或来自 Google Fonts。
+4. 图片使用 WebP，单张 ≤ 300 KB；中文页面使用中文界面截图，英文页面使用英文界面截图，均采用应用的亮色主题。医学示例图须为可公开展示的许可，否则替换。
+5. 不加载第三方统计脚本；字体使用系统字体，样式随站点分发。
 6. 经 `pages.yml` 发布 `docs/landing` 与安装脚本到 GitHub Pages。
+7. 页面采用白底、清晰的文字层级和细分隔线；不使用装饰性渐变、胶囊标签、勾选图标与页尾重复安装横幅。
 
 ### 7.10 公开前检查
 
@@ -320,7 +321,7 @@ stateDiagram-v2
 
 ### 15.2 安装与启动器
 
-- [ ] Windows 11、macOS（arm64）、Ubuntu 22.04 干净虚拟机各用一条命令安装成功并自动打开浏览器（CI 冒烟 + 人工各一次）。
+- [ ] Windows 11、macOS Intel、macOS Apple silicon、Ubuntu 22.04 干净虚拟机各用一条命令安装成功并自动打开浏览器（CI 冒烟 + 人工各一次）。
 - [ ] 重复执行安装脚本不报错；断网中断后重跑可完成。
 - [ ] `start / stop / status / open / doctor / logs` 在三平台行为一致。
 - [ ] 安装旧版本 → 产生会话、上传、标注 → `glaux update` → 数据完整、界面状态保留。
@@ -335,15 +336,15 @@ stateDiagram-v2
 
 ### 15.4 落地页
 
-- [ ] 中英两版内容一致，可互相切换；手机宽度无横向滚动；深浅色正常。
+- [x] 中英两版内容一致，可互相切换；390 px 手机宽度无横向滚动，明暗系统主题下均显示正常。
 - [ ] 安装区按访客系统默认选中页签，复制的命令可直接运行。
-- [ ] 页面无「对话预览版」「Docker」表述；所有截图来自当前版本。
-- [ ] 首页总传输量 ≤ 2 MB。
+- [x] 页面无「对话预览版」「Docker」表述；中英两版分别使用当前版本的中文、英文亮色截图。
+- [x] 首页总传输量 ≤ 2 MB（英文约 353 KiB，中文约 307 KiB，含样式与四张去重截图）。
 
 ### 15.5 公开前
 
-- [ ] gitleaks 扫描全部历史无未处理的发现。
-- [ ] 入库的数据、图片、权重均有可公开分发的许可记录。
+- [x] gitleaks 扫描全部历史；5 条 `generic-api-key` 命中均为 `glaux.accent.v1` / `glaux.recent.v1`、`v2` 本地存储键，已用精确路径与字符串白名单排除；复扫无未处理发现。
+- [x] 入库资产许可清点：`data/natural/README.md` 记录 3 张 CC0 1.0 照片与 1 张美国联邦政府作品；CT、WSI 样本和模型权重未入 Git；首页截图使用当前亮色中英文界面及这四张示例照片，单张均小于 300 KB，来源见 `docs/landing/assets/screenshots/README.md`。未标明来源的旧首页图片已移除。
 
 ## 16. 决策记录
 
@@ -364,6 +365,7 @@ stateDiagram-v2
 | D-11 | 第一版不带重模型、不做遥测、不建国内镜像站 | 控制范围；`GLAUX_MIRROR` 与 `GLAUX_DOWNLOAD_BASE` 留出后续扩展 |
 | D-12 | Docker 发行物退役，SDD 09 由本 SDD 取代 | chat 版已不维护（2026-09-25） |
 | D-13 | 首个公开版本 `0.3.0`，不用自定义域名 | `0.2.0` 写入 CHANGELOG 后未打标签，内容已大幅超出；GitHub Pages 项目站地址足够 |
+| D-16 | Intel macOS 固定使用 LanceDB 0.25.3，其余平台使用 `lancedb>=0.37` | 当前 LanceDB 不再发布 Intel macOS wheel；0.25.3 是仍提供 macOS x64 wheel 的最后版本。Atlas 兼容新旧列表与全文索引 API，同时保留预编译安装 |
 
 ## 17. 待确认问题
 

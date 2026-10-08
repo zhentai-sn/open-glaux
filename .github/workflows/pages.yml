@@ -1,0 +1,83 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/landing/**"
+      - "scripts/release/install.sh"
+      - "scripts/release/install.ps1"
+      - ".github/workflows/pages.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Prepare site and latest manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R docs/landing/. _site/
+          cp scripts/release/install.sh scripts/release/install.ps1 _site/
+          if [ -n "$RELEASE_TAG" ]; then
+            tag="$RELEASE_TAG"
+          else
+            tag=$(gh api "repos/$REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          fi
+          if [ -n "$tag" ]; then
+            gh release download "$tag" --repo "$REPOSITORY" --pattern SHA256SUMS --dir "$RUNNER_TEMP"
+            python - "$tag" "$RUNNER_TEMP/SHA256SUMS" "_site/latest.json" "https://github.com/$REPOSITORY/releases/download/$tag" <<'PY'
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import json, re, sys
+          tag, sums_path, output, base = sys.argv[1:]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", tag):
+              raise SystemExit(f"invalid release tag: {tag}")
+          version = tag[1:]
+          sums = {}
+          for line in Path(sums_path).read_text(encoding="utf-8").splitlines():
+              match = re.fullmatch(r"([0-9a-f]{64})\s+glaux-" + re.escape(version) + r"\.(tar\.gz|zip)", line)
+              if match:
+                  sums[match.group(2)] = match.group(1)
+          if set(sums) != {"tar.gz", "zip"}:
+              raise SystemExit("SHA256SUMS must include tar.gz and zip packages")
+          doc = {
+              "version": version,
+              "tag": tag,
+              "published_at": datetime.now(timezone.utc).date().isoformat(),
+              "assets": {
+                  ext: {"url": f"{base}/glaux-{version}.{ext}", "sha256": digest}
+                  for ext, digest in sums.items()
+              },
+          }
+          Path(output).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+          PY
+          else
+            printf '{"version":null,"tag":null,"published_at":null,"assets":{}}\n' > _site/latest.json
+          fi
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

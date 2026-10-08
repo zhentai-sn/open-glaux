@@ -74,8 +74,8 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 
 ## 当前发行工作
 
-- [SDD 09 基本对话 Docker 发行包](sdd/feats/09-chat-distribution/README.md)
-- [安装、运行与分发手册](runbooks/chat-distribution.md)
+- [SDD 24 完整版分发与一键安装](sdd/feats/24-distribution-install/README.md)
+- [安装、运行与更新手册](runbooks/distribution-install.md)
 - [视频问答与证据复核手册](runbooks/video-understanding.md)
 
 ## 核心文档
@@ -177,7 +177,8 @@ Feature SDD 固定放在 `sdd/feats/<NN>-<name>/README.md`，统一记录状态�
 | [06-icon-system](sdd/feats/06-icon-system/README.md) | `implemented` | 统一图标系统 |
 | [07-natural-image-sam-demo](sdd/feats/07-natural-image-sam-demo/README.md) | `implemented`（建议态 UI 待验收） | 自然图像 SAM 演示集合 |
 | [08-data-import-first-explorer](sdd/feats/08-data-import-first-explorer/README.md) | `implemented`（业务验收待确认） | 数据导入优先的文件栏 |
-| [09-chat-distribution](sdd/feats/09-chat-distribution/README.md) | `implemented` | 基本对话 Docker 发行包 |
+| [09-chat-distribution](sdd/feats/09-chat-distribution/README.md) | `superseded` | 基本对话 Docker 发行包 |
+| [24-distribution-install](sdd/feats/24-distribution-install/README.md) | `implemented`（发布验收中） | 完整版分发与一键安装 |
 | [10-object-convergence](sdd/feats/10-object-convergence/README.md) | `ready` | 视觉对象与数据源收敛 |
 
 状态以 [SDD 索引](sdd/README.md) 为准，本表只作导航。

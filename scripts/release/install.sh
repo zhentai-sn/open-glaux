@@ -14,7 +14,7 @@
 # Data lives in ~/.glaux and is kept on upgrade and uninstall.
 #
 # Environment variables: GLAUX_VERSION, GLAUX_INSTALL_DIR, GLAUX_HOME, GLAUX_DOWNLOAD_BASE,
-# GLAUX_MIRROR (auto | cn | none), GLAUX_NO_BROWSER=1, GLAUX_NO_START=1,
+# GLAUX_MIRROR (auto | cn | none), GLAUX_NO_BROWSER=1, GLAUX_NO_START=1, GLAUX_NO_SHORTCUTS=1,
 # GLAUX_PACKAGE (a local glaux-<version>.tar.gz, for testing).
 set -eu
 
@@ -68,9 +68,6 @@ case "$arch" in
   arm64 | aarch64) node_arch=arm64 ;;
   *) die "unsupported CPU architecture: $arch" ;;
 esac
-if [ "$node_os" = darwin ] && [ "$node_arch" = x64 ]; then
-  die "Intel Macs are not supported yet: a required package (lancedb) has no Intel macOS build"
-fi
 command -v tar >/dev/null 2>&1 || die "tar is required"
 
 INSTALL_DIR="${GLAUX_INSTALL_DIR:-$default_dir}"

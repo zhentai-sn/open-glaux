@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Verify release source
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          test "$TAG" = "v$VERSION"
+          test "$(cat VERSION)" = "$VERSION"
+          python scripts/test_version_matrix.py
+          python - "$VERSION" <<'PY'
+          from pathlib import Path
+          import re, sys
+          version = re.escape(sys.argv[1])
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          if not re.search(rf"^## \[{version}\] - \d{{4}}-\d{{2}}-\d{{2}}$", text, re.M):
+              raise SystemExit(f"CHANGELOG.md has no dated section for {sys.argv[1]}")
+          PY
+      - name: Install build dependencies
+        run: |
+          npm ci --prefix frontend
+          npm ci --prefix agent-runtime
+          uv sync --project backend --frozen --extra video
+      - name: Build release packages
+        run: node scripts/release/build-package.mjs --out dist/release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: glaux-release-packages
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: macos-14
+            platform: macos
+          - os: macos-15-intel
+            platform: macos
+          - os: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GLAUX_HOME: ${{ runner.temp }}/glaux-smoke-home
+      GLAUX_INSTALL_DIR: ${{ runner.temp }}/glaux-smoke-install
+      GLAUX_MIRROR: none
+      GLAUX_NO_BROWSER: "1"
+      GLAUX_NO_START: "1"
+      GLAUX_NO_SHORTCUTS: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: glaux-release-packages
+          path: dist/release
+      - name: Install package (Linux / macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          export GLAUX_PACKAGE="$PWD/dist/release/glaux-$(cat VERSION).tar.gz"
+          sh scripts/release/install.sh
+          sh scripts/release/install.sh
+      - name: Install package (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $env:GLAUX_PACKAGE = Join-Path $env:GITHUB_WORKSPACE "dist\release\glaux-$(Get-Content VERSION).zip"
+          & "$env:GITHUB_WORKSPACE\scripts\release\install.ps1"
+          & "$env:GITHUB_WORKSPACE\scripts\release\install.ps1"
+      - name: Run installed smoke test
+        if: matrix.platform != 'windows'
+        run: node scripts/release/smoke.mjs "$GLAUX_INSTALL_DIR/bin/glaux" "$PWD/dist/release/glaux-$(cat VERSION).tar.gz"
+      - name: Run installed smoke test (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: node scripts/release/smoke.mjs (Join-Path $env:GLAUX_INSTALL_DIR 'bin\glaux.cmd') (Join-Path $env:GITHUB_WORKSPACE "dist\release\glaux-$(Get-Content VERSION).tar.gz")
+      - name: Remove smoke installation after failure
+        if: failure() && matrix.platform != 'windows'
+        run: |
+          rm -rf "$GLAUX_INSTALL_DIR" "$GLAUX_HOME"
+      - name: Remove smoke installation after failure (Windows)
+        if: failure() && matrix.platform == 'windows'
+        shell: pwsh
+        run: Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $env:GLAUX_INSTALL_DIR, $env:GLAUX_HOME
+
+  publish:
+    needs: [package, smoke]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: glaux-release-packages
+          path: dist/release
+      - name: Prepare release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - "${TAG#v}" <<'PY'
+          from pathlib import Path
+          import re, sys
+          version = re.escape(sys.argv[1])
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(rf"^## \[{version}\] - .*?(?=^## \[|\Z)", text, re.M | re.S)
+          if not match:
+              raise SystemExit("release changelog section not found")
+          Path("release-notes.md").write_text(match.group(0).rstrip() + "\n", encoding="utf-8")
+          PY
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/release/glaux-* dist/release/SHA256SUMS --verify-tag --title "Glaux $TAG" --notes-file release-notes.md
+      - name: Update Pages release manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main

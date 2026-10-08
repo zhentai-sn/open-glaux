@@ -245,7 +245,14 @@ class AtlasStore:
 
         self.db_dir.mkdir(parents=True, exist_ok=True)
         self._db = lancedb.connect(str(self.db_dir))
-        names = set(self._db.list_tables().tables)
+        # 0.25.3 remains the newest LanceDB release with an Intel macOS wheel;
+        # its connection exposes table_names() rather than list_tables().
+        list_tables = getattr(self._db, "list_tables", None)
+        if callable(list_tables):
+            listed = list_tables()
+            names = set(getattr(listed, "tables", listed))
+        else:
+            names = set(self._db.table_names())
         self._exemplars = (
             self._db.open_table("exemplars")
             if "exemplars" in names
@@ -295,19 +302,30 @@ class AtlasStore:
         try:
             if self.exemplars.count_rows() == 0:
                 return
-            from lancedb.index import FTS
-
             existing = {idx.columns[0] for idx in self.exemplars.list_indices()}
             if "search_text" not in existing:
-                self.exemplars.create_index(
-                    "search_text",
-                    config=FTS(
+                create_fts_index = getattr(self.exemplars, "create_fts_index", None)
+                if callable(create_fts_index):
+                    create_fts_index(
+                        "search_text",
+                        replace=True,
                         base_tokenizer="ngram",
                         ngram_min_length=2,
                         ngram_max_length=3,
                         prefix_only=False,
-                    ),
-                )
+                    )
+                else:
+                    from lancedb.index import FTS
+
+                    self.exemplars.create_index(
+                        "search_text",
+                        config=FTS(
+                            base_tokenizer="ngram",
+                            ngram_min_length=2,
+                            ngram_max_length=3,
+                            prefix_only=False,
+                        ),
+                    )
             self._fts_ready = True
         except Exception as exc:  # pragma: no cover - 索引失败不应阻塞写入
             log.warning("Atlas FTS 索引创建失败（检索退化为无索引扫描）：%s", exc)

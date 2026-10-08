@@ -1,0 +1,16 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Frontend localStorage namespace keys are not credentials"
+condition = "AND"
+paths = [
+  '''frontend/src/store/theme\.ts''',
+  '''frontend/src/store/theme\.test\.ts''',
+  '''frontend/src/data/recent\.ts''',
+]
+regexTarget = "match"
+regexes = [
+  '''glaux\.(accent|recent)\.v[12]''',
+]
+rules = ["generic-api-key"]
