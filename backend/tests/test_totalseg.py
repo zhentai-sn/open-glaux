@@ -170,7 +170,7 @@ def test_run_live_argv_and_minimal_env(tmp_path, monkeypatch):
 
     cmd = captured["cmd"]
     assert cmd[0] == str(Path("/fake/python"))
-    assert cmd[1] == "/fake/run.py"
+    assert cmd[1] == str(Path("/fake/run.py"))
     assert "--input" in cmd and str(in_path) in cmd
     assert "--output" in cmd
     assert "--method" in cmd and "totalsegmentator_v2" in cmd
