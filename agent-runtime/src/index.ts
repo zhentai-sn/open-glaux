@@ -1,4 +1,5 @@
 import { chatEdition } from "./edition.js";
+import { backendBaseUrl } from "./atlas/client.js";
 import { loadRuntimeConfig } from "./config.js";
 import { CommandService } from "./pi/command-service.js";
 import { createConnectionProbe } from "./pi/connection-probe.js";
@@ -7,10 +8,13 @@ import { createModelRuntime } from "./pi/model-runtime.js";
 import { SessionService } from "./pi/session-service.js";
 import { buildServer } from "./transport/server.js";
 import { SseBroker } from "./transport/sse-broker.js";
+import { installBackendAuth } from "./security/backend-auth.js";
 import { RUNTIME_VERSION } from "./version.js";
 import { defaultWorkspacesRoot } from "./workspace/cwd.js";
 
 const config = loadRuntimeConfig();
+const backendToken = process.env.GLAUX_BACKEND_TOKEN?.trim() || undefined;
+if (backendToken) installBackendAuth(backendBaseUrl(), backendToken);
 const workspacesRoot = defaultWorkspacesRoot();
 let registry: HarnessRegistry | undefined;
 const sessions = new SessionService({
@@ -33,6 +37,13 @@ const server = buildServer({
   routes: { sessions, commands, registry, broker },
   probe: createConnectionProbe(),
   ...(!chatEdition() ? { atlas: { runtimeFactory: createModelRuntime } } : {}),
+  // 0.0.0.0 只用于退役中的 Docker 发行包，由 nginx 承担入口。
+  ...(config.host === "127.0.0.1"
+    ? { localAccess: { port: config.port, sessionToken: config.sessionToken } }
+    : {}),
+  ...(config.staticDir
+    ? { frontend: { staticDir: config.staticDir, backendUrl: backendBaseUrl(), backendToken } }
+    : {}),
 });
 
 const shutdown = async () => {

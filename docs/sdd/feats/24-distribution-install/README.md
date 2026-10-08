@@ -1,6 +1,6 @@
 ---
 kind: living
-status: draft
+status: ready
 ---
 
 # 24 · 完整版分发与一键安装
@@ -9,9 +9,9 @@ status: draft
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `draft` |
-| 当前阶段 | 规范评审中；§17 有 2 个待确认问题 |
-| 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub；三平台原生；落地页中英双语 |
+| 状态 | `ready` |
+| 当前阶段 | 实施中：首个公开版本 `0.3.0` |
+| 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
 | 最后更新 | 2026-10-08 |
@@ -113,19 +113,19 @@ graph LR
 ### 7.1 生产运行模式
 
 1. `GLAUX_SERVE_STATIC=<目录>` 时，agent-runtime 在同一端口提供前端构建产物：非 `/agent-api`、`/api` 的 GET 请求返回静态文件，未命中时返回 `index.html`。
-2. `/api/*` 去掉 `/api` 前缀后反代到 `GLAUX_BACKEND_URL`，行为与 Vite 开发代理一致（含 `X-Forwarded-For`）；SSE 与大文件上传按流转发，不缓冲到内存。
-3. 静态响应带与开发态一致的 CSP（含 `media-src 'self' blob:`），以响应头下发。
+2. `/api/*` 去掉 `/api` 前缀后反代到 `GLAUX_BACKEND_URL`，行为与 Vite 开发代理一致；请求体按流转发，不受 runtime 的 JSON 请求体上限约束；上游超时放宽到 30 分钟，容纳重模型任务。
+3. CSP 沿用前端构建产物中的 meta（含 `media-src 'self' blob:`）；`frame-ancestors` 在 meta 中无效，与 `X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff` 一起由静态响应头下发。带哈希的 `/assets/*` 长期缓存，其余 `no-cache`。
 4. 开发态（`make dev`）行为不变。
-5. 源码目录可用 `make start` 以生产模式运行，便于维护者自测。
+5. 源码目录可用 `make start` / `make stop` 以生产模式运行，数据写入 `GLAUX_HOME`，与开发态数据分开。
 
 ### 7.2 本机安全
 
-1. 两个进程只监听 `127.0.0.1`；生产模式拒绝 `GLAUX_AGENT_HOST=0.0.0.0`。
-2. **Host 校验**：agent-runtime 只接受 `Host` 为 `127.0.0.1:<端口>`、`localhost:<端口>`、`[::1]:<端口>` 的请求，其余返回 421。开发态同样生效（端口取监听端口与 Vite 端口）。
-3. **Origin 校验**：非 GET/HEAD 请求，`Origin` 必须与上面三者之一同源；缺 `Origin` 的非 GET 请求拒绝。
-4. **启动令牌**（仅生产模式）：启动器生成 32 字节随机令牌，打开 `/?launch=<令牌>`；agent-runtime 校验后下发 `HttpOnly; SameSite=Strict; Path=/` 会话 Cookie，并重定向去掉查询参数。无有效 Cookie 的 `/agent-api`、`/api` 请求返回 401，页面提示运行 `glaux open`。`glaux open` 每次签发新的一次性令牌。
-5. **内部令牌**：启动器为 backend 生成内部令牌，backend 除 `/health` 外要求请求头 `X-Glaux-Internal` 匹配；agent-runtime 的反代与内部调用都带上。浏览器不能直接访问 backend 端口。
-6. 令牌只在内存与 `0600` 权限的状态文件中保存，不写日志。
+1. 两个进程只监听 `127.0.0.1`；设置 `GLAUX_SERVE_STATIC` 或 `GLAUX_SESSION_TOKEN` 时拒绝 `GLAUX_AGENT_HOST=0.0.0.0`。
+2. **Host 校验**：agent-runtime 只接受 `Host` 为 `127.0.0.1`、`localhost`、`[::1]` 加监听端口的请求，其余返回 421；开发态同样生效（Vite 代理改写 Host 为监听端口）。backend 只校验主机名为回环名（另放行 `TestClient` 的 `testserver`）。
+3. **Origin 校验**：请求带 `Origin` 时，主机必须是回环名，否则返回 403；不带 `Origin` 的请求来自非浏览器客户端（评测脚本、`curl`），放行。
+4. **会话令牌**（仅生产模式）：启动器生成 32 字节随机令牌，保存在 `run/session.token`，跨重启沿用；打开 `/?token=<令牌>` 时 agent-runtime 下发 `HttpOnly; SameSite=Strict; Path=/` 的 Cookie `glaux_session`，并 303 重定向到 `/`。`/agent-api`、`/api` 要求该 Cookie 或请求头 `X-Glaux-Token`，否则返回 401（`/agent-api/v1/health` 除外）；无令牌的页面导航返回提示页，告诉用户运行 `glaux open`。
+5. **内部令牌**：启动器每次启动为 backend 生成内部令牌（`GLAUX_BACKEND_TOKEN`），backend 除 `/health` 外要求请求头 `X-Glaux-Internal` 匹配。agent-runtime 的反代与工具调用都带上：工具调用经启动时包装的全局 `fetch`，只对 backend 同源的请求补令牌。反代转发前去掉会话 Cookie 与 `X-Glaux-Token`。浏览器不能直接访问 backend 端口。
+6. 令牌只在进程环境与 `0600` 权限的文件中保存，不写日志。
 
 ### 7.3 启动器
 
@@ -194,20 +194,20 @@ graph LR
 
 ### 8.1 agent-runtime
 
-- `config.ts`：`GLAUX_SERVE_STATIC`、`GLAUX_PORT`、`GLAUX_LAUNCH_TOKEN_FILE`、`GLAUX_BACKEND_TOKEN`。
-- `transport/server.ts`：静态文件、`/api` 反代、Host / Origin / Cookie 校验中间件。
+- `config.ts`：`GLAUX_SERVE_STATIC`、`GLAUX_SESSION_TOKEN`；`index.ts` 读 `GLAUX_BACKEND_TOKEN` 并包装全局 `fetch`。
+- `security/local-access.ts`：Host / Origin / 会话令牌校验；`transport/frontend.ts`：静态文件与 `/api` 反代；`security/backend-auth.ts`：backend 内部令牌。
 - `bash` 工具：Windows 下解析 Git Bash 路径。
 
 ### 8.2 backend
 
-- 内部令牌依赖（除 `/health`）。
-- `config.py`：隔离模型解释器路径按平台。
+- `local_access.py`：Host 校验与内部令牌（ASGI 中间件，除 `/health`）。
+- `config.py`：隔离模型解释器路径按平台；`GLAUX_MODELS_ROOT` 统一重模型目录。
 - 缺模型时的错误码与提示。
 
 ### 8.3 前端
 
-- 401 时的「请运行 `glaux open`」页面。
-- 无连接时的配置引导（已有则复用）。
+- 无连接时的配置引导：复用现有「尚未配置模型连接」提示。
+- 「请运行 `glaux open`」提示页由 agent-runtime 直接返回，前端不改。
 
 ### 8.4 新增
 
@@ -248,7 +248,7 @@ graph LR
 | `agent/` | `GLAUX_AGENT_DATA_DIR` |
 | `datasets/` | `GLAUX_DATASETS_ROOT`（含 `sources.json`、上传） |
 | `atlas/` | `GLAUX_ATLAS_ROOT` |
-| `models/` | 各重模型 `*_ROOT` 与缓存的父目录 |
+| `models/` | `GLAUX_MODELS_ROOT`：各重模型 `*_ROOT` 与缓存的父目录 |
 | `skills/`、`prompts/`、`settings.json` 等 | 个人资源，沿用现有位置 |
 | `logs/`、`run/` | 启动器日志与状态文件 |
 
@@ -263,7 +263,7 @@ graph LR
 
 ### 9.3 状态文件 `GLAUX_HOME/run/state.json`
 
-`{ version, port, backend_port, agent_pid, backend_pid, started_at }`；令牌另存 `run/launch.token`、`run/backend.token`，权限 `0600`。
+`{ version, port, backend_port, agent_pid, backend_pid, started_at }`；会话令牌另存 `run/session.token`，权限 `0600`；backend 内部令牌只在进程环境中。
 
 ## 10. 幂等规则
 
@@ -316,7 +316,7 @@ stateDiagram-v2
 
 - [ ] `make start` 单端口运行完整版，对话、看图、视频上传、图谱、标注均可用（浏览器走查）。
 - [ ] `Host: evil.example` 请求返回 421；跨源 POST 被拒；无 Cookie 的 API 请求返回 401；直接访问 backend 端口无内部令牌返回 401（集成测试）。
-- [ ] 一次性启动令牌重复使用无效（集成测试）。
+- [ ] 错误的 `?token=` 返回提示页；反代不把会话 Cookie 与令牌头转发给 backend（集成测试）。
 
 ### 15.2 安装与启动器
 
@@ -353,7 +353,9 @@ stateDiagram-v2
 | D-2 | 一键脚本安装，不用 Docker、桌面外壳或系统安装器 | 不需要预装运行环境；脚本经终端下载不触发 Gatekeeper 隔离与 SmartScreen，第一版免签名 |
 | D-3 | 程序包与平台无关，Python 依赖在用户机器由 `uv sync --frozen` 安装 | 一个包覆盖三平台；锁文件保证依赖一致；全部为预编译 wheel |
 | D-4 | agent-runtime 兼任单端口入口 | 已是对外进程；少一个进程，浏览器只面对一个源 |
-| D-5 | Host、Origin、启动令牌、内部令牌四层校验 | Host 防 DNS 重绑定，Origin 防跨站请求，令牌防本机其他用户与进程；`bash` 工具使本机服务的风险等同远程执行 |
+| D-5 | Host、Origin、会话令牌、内部令牌四层校验 | Host 防 DNS 重绑定，Origin 防跨站请求，令牌防本机其他用户与进程；`bash` 工具使本机服务的风险等同远程执行 |
+| D-14 | 会话令牌跨重启沿用，不做一次性令牌；缺 `Origin` 的请求放行 | 一次性令牌需要启动器与 runtime 之间另设通道，收益只是不在浏览器历史中留下令牌（Jupyter 同做法）；浏览器发出的写请求必带 `Origin`，评测脚本等本机客户端不带 |
+| D-15 | backend 内部令牌经包装全局 `fetch` 注入 | runtime 访问 backend 的调用点分散在十余个工具，集中注入避免逐个改动与遗漏 |
 | D-6 | 启动器用 Node 编写 | Node 已随包分发，三平台一套代码；安装脚本只负责引导 |
 | D-7 | 固定端口，占用时报错 | 前端本地存储按源区分，换端口会丢失界面状态 |
 | D-8 | 程序与数据分目录，版本目录 + `current` 切换 | 升级可回退，卸载默认不删数据 |
@@ -361,8 +363,8 @@ stateDiagram-v2
 | D-10 | 托管在 GitHub：Releases 放程序包，Pages 放落地页与脚本 | 仓库公开；项目站不占用户站名额；Releases 公开仓库不限流量 |
 | D-11 | 第一版不带重模型、不做遥测、不建国内镜像站 | 控制范围；`GLAUX_MIRROR` 与 `GLAUX_DOWNLOAD_BASE` 留出后续扩展 |
 | D-12 | Docker 发行物退役，SDD 09 由本 SDD 取代 | chat 版已不维护（2026-09-25） |
+| D-13 | 首个公开版本 `0.3.0`，不用自定义域名 | `0.2.0` 写入 CHANGELOG 后未打标签，内容已大幅超出；GitHub Pages 项目站地址足够 |
 
 ## 17. 待确认问题
 
-1. 首个公开版本号：建议 `0.3.0`（`0.2.0` 已写入 CHANGELOG 但未打标签，内容已大幅超出）。
-2. 是否使用自定义域名；不使用则落地页地址为 `https://zhentai-sn.github.io/open-glaux/`。
+无。

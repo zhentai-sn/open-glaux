@@ -6,8 +6,10 @@ import { RuntimeError, safeError } from "../errors.js";
 import type { ConnectionProbe } from "../pi/connection-probe.js";
 import { registerAtlasRoutes, type AtlasRouteDependencies } from "./atlas-routes.js";
 import { registerConnectionRoutes } from "./connection-routes.js";
+import { SECURITY_HEADERS, isFrontendFallback, registerFrontend, type FrontendOptions } from "./frontend.js";
 import type { RouteDependencies } from "./routes.js";
 import { registerRoutes } from "./routes.js";
+import { registerLocalAccess, type LocalAccessOptions } from "../security/local-access.js";
 import { redact } from "../security/redact.js";
 
 export interface BuildServerOptions {
@@ -15,6 +17,10 @@ export interface BuildServerOptions {
   routes?: RouteDependencies;
   probe?: ConnectionProbe;
   atlas?: AtlasRouteDependencies;
+  /** Host / Origin / 会话令牌校验（SDD 24 §7.2）；测试缺省不挂。 */
+  localAccess?: LocalAccessOptions;
+  /** 生产运行模式：提供前端并反代 backend（SDD 24 §7.1）。 */
+  frontend?: FrontendOptions;
 }
 
 /**
@@ -45,6 +51,9 @@ export function buildServer(options: BuildServerOptions = {}) {
     logController: new LogController({ disableRequestLogging: true }),
   });
 
+  if (options.localAccess) registerLocalAccess(server, options.localAccess);
+  const indexHtml = options.frontend ? registerFrontend(server, options.frontend) : undefined;
+
   server.get("/agent-api/v1/health", async () => ({
     status: "ok",
     adapter: "ok",
@@ -57,6 +66,12 @@ export function buildServer(options: BuildServerOptions = {}) {
   if (options.atlas) registerAtlasRoutes(server, options.atlas);
 
   server.setNotFoundHandler((request, reply) => {
+    if (indexHtml && isFrontendFallback(request.method, request.url)) {
+      return reply
+        .type("text/html; charset=utf-8")
+        .headers({ ...SECURITY_HEADERS, "cache-control": "no-cache" })
+        .send(indexHtml);
+    }
     const traceId = request.id || randomUUID();
     return reply
       .status(404)

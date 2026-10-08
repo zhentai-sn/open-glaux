@@ -24,7 +24,7 @@ function cspMeta(): Plugin {
             "media-src 'self' blob:; " +
             "connect-src 'self' ws: wss: http://localhost:5173 ws://localhost:5173; " +
             "font-src 'self' data:; " +
-            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            "object-src 'none'; base-uri 'self'"
           : // prod：脚本是外联 bundle，无任何内联脚本
             "default-src 'self'; " +
             "script-src 'self'; " +
@@ -33,7 +33,8 @@ function cspMeta(): Plugin {
             "media-src 'self' blob:; " +
             "connect-src 'self'; " +
             "font-src 'self' data:; " +
-            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+            "object-src 'none'; base-uri 'self'";
+        // frame-ancestors 在 meta 中无效，生产模式由 agent-runtime 以响应头下发（SDD 24 §7.1）。
         const tag = `<meta http-equiv="Content-Security-Policy" content="${csp}">`;
         return html.replace(/<title>/, `${tag}\n    <title>`);
       },

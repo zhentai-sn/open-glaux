@@ -11,6 +11,10 @@ export interface RuntimeConfig {
   workspaceDir: string;
   piDatabasePath: string;
   metaDatabasePath: string;
+  /** 生产运行模式：前端构建产物目录（`GLAUX_SERVE_STATIC`，SDD 24 §7.1）。 */
+  staticDir?: string;
+  /** 生产运行模式的会话令牌（`GLAUX_SESSION_TOKEN`，SDD 24 §7.2）。 */
+  sessionToken?: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -30,9 +34,17 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
   const dataDir = resolve(env.GLAUX_AGENT_DATA_DIR ?? resolve(workspaceDir, ".glaux/agent"));
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
+  const staticDir = env.GLAUX_SERVE_STATIC?.trim() ? resolve(env.GLAUX_SERVE_STATIC.trim()) : undefined;
+  const sessionToken = env.GLAUX_SESSION_TOKEN?.trim() || undefined;
+  if ((staticDir || sessionToken) && host !== "127.0.0.1") {
+    throw new Error("GLAUX_SERVE_STATIC and GLAUX_SESSION_TOKEN require GLAUX_AGENT_HOST=127.0.0.1");
+  }
+
   return {
     host,
     port: parsePort(env.GLAUX_AGENT_PORT),
+    ...(staticDir ? { staticDir } : {}),
+    ...(sessionToken ? { sessionToken } : {}),
     dataDir,
     workspaceDir,
     piDatabasePath: resolve(dataDir, "pi-sessions.sqlite"),

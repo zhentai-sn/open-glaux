@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__, datasource_registry
+from .local_access import LocalAccessMiddleware
 from .routers.annotations import router as annotations_router
 from .routers.api import router
 from .routers.atlas import router as atlas_router
@@ -40,6 +41,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 最外层：Host 校验与生产模式的内部令牌（SDD 24 §7.2）。
+app.add_middleware(LocalAccessMiddleware)
 
 app.include_router(router)
 app.include_router(atlas_router)  # Atlas · 图谱（SDD 03）

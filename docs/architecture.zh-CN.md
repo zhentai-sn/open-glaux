@@ -47,6 +47,19 @@ graph LR
 
 Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime（默认 :8010，`GLAUX_AGENT_PORT` 可改，与 runtime 共用同一变量），不改路径。
 
+### 生产运行模式（安装版与 `make start`）
+
+规范见 [SDD 24](sdd/feats/24-distribution-install/README.md)。`launcher/glaux.mjs` 启动两个进程，浏览器只访问一个端口（缺省 `127.0.0.1:7410`，`GLAUX_PORT` 可改）：
+
+| 进程 | 监听 | 说明 |
+| --- | --- | --- |
+| agent-runtime | `127.0.0.1:7410` | `GLAUX_SERVE_STATIC` 指向前端构建产物，同端口提供页面；`/api/*` 去前缀反代到 backend 并带内部令牌 |
+| backend | `127.0.0.1:<随机端口>` | `GLAUX_BACKEND_TOKEN` 非空时，除 `/health` 外要求 `X-Glaux-Internal` |
+
+- 本机安全：agent-runtime 校验 `Host`（回环名加监听端口，否则 421）与 `Origin`（存在时须为回环名，否则 403），开发态同样生效；生产模式另要求会话 Cookie `glaux_session` 或 `X-Glaux-Token`，`/?token=<令牌>` 换取 Cookie。backend 始终校验主机名为回环名。
+- 数据目录：启动器把 `GLAUX_AGENT_DATA_DIR`、`GLAUX_DATASETS_ROOT`、`GLAUX_ATLAS_ROOT`、`GLAUX_MODELS_ROOT` 设到 `GLAUX_HOME`（缺省 `~/.glaux`）下的 `agent/`、`datasets/`、`atlas/`、`models/`；`run/` 存状态与会话令牌，`logs/` 存日志。
+- 命令：`glaux start | stop | status | open | logs | doctor | update | uninstall | version`。
+
 ### Docker 发行包（对话预览版）
 
 `compose.yaml` 两个服务，规范见 [SDD 09](sdd/feats/09-chat-distribution/README.md)，使用见 [安装、运行与分发手册](runbooks/chat-distribution.md)：
@@ -83,7 +96,7 @@ Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_POR
 open-glaux/
 ├── README.md / README.zh-CN.md  # 项目介绍（英/中）：定位、领域、当前版本、快速开始
 ├── AGENTS.md / CLAUDE.md        # 编码智能体入口：先读顺序与文档规则（CLAUDE.md 只引入 AGENTS.md）
-├── Makefile                     # 开发编排：install · dev · test · lint · version
+├── Makefile                     # 开发编排：install · dev · start/stop（生产模式）· test · lint · version
 ├── VERSION / CHANGELOG.md       # 产品版本与发布记录（SDD 01 版本治理）
 ├── LICENSE                      # Apache-2.0
 ├── compose.yaml                 # 对话预览版部署（agent + web 两个服务）
@@ -94,6 +107,7 @@ open-glaux/
 ├── agent-runtime/               # 参考智能体运行时（Pi Agent Core · Fastify · SSE · 工具 · 连接探测）
 ├── backend/                     # FastAPI 薄壳：数据源、任务、标注、上传、图谱；无 LLM SDK
 ├── science-core/                # 无头科学内核：读取、标定、分割、检测、测量、验证、产物、记忆 + 任务注册表
+├── launcher/                    # glaux 启动器（Node，无依赖）：生产模式启停、自检、更新、卸载（SDD 24）
 │
 ├── docker/                      # 发行镜像构建：Dockerfile（四个 stage）、compose.build.yaml、nginx.conf
 ├── scripts/

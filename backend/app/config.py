@@ -24,6 +24,14 @@ def _env_path(key: str, default: Path) -> Path:
 
 
 HOME = Path.home()
+# 重模型与其缓存的父目录；安装版设为 GLAUX_HOME/models（SDD 24 §9.1）。
+MODELS_ROOT = _env_path("GLAUX_MODELS_ROOT", HOME / "glaux_models")
+
+
+def _venv_python(venv: Path) -> Path:
+    """隔离 venv 的解释器路径：Windows 为 ``Scripts/python.exe``，其余为 ``bin/python``。"""
+    return venv / "Scripts" / "python.exe" if sys.platform == "win32" else venv / "bin" / "python"
+
 REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/app/config.py → repo/
 
 # --- 源码装配：把 science-core 挂上 sys.path（不改其打包） ---------------------
@@ -44,42 +52,42 @@ DEMO_ID_LO = int(os.environ.get("GLAUX_DEMO_LO", "401"))
 DEMO_ID_HI = int(os.environ.get("GLAUX_DEMO_HI", "500"))
 
 # --- caroSegDeep 隔离环境 ----------------------------------------------------
-CSD_ROOT = _env_path("GLAUX_CSD_ROOT", HOME / "glaux_models/caroSegDeep")
-CSD_PYTHON = _env_path("GLAUX_CSD_PYTHON", CSD_ROOT / ".venv-csd/bin/python")
+CSD_ROOT = _env_path("GLAUX_CSD_ROOT", MODELS_ROOT / "caroSegDeep")
+CSD_PYTHON = _env_path("GLAUX_CSD_PYTHON", _venv_python(CSD_ROOT / ".venv-csd"))
 CSD_DRIVER = _env_path("GLAUX_CSD_DRIVER", CSD_ROOT / "SEGMENTATION/run_headless.py")
 CSD_WEIGHTS = _env_path("GLAUX_CSD_WEIGHTS", CSD_ROOT / "EXAMPLE/TRAINED_MODEL")
 # caroSegDeep 真实产出缓存（eval 100 图）+ 本会话新算结果落盘目录。
-CSD_CACHE = _env_path("GLAUX_CSD_CACHE", HOME / "glaux_models/csd_out")
+CSD_CACHE = _env_path("GLAUX_CSD_CACHE", MODELS_ROOT / "csd_out")
 
 # --- HC 第二模态：HC18 真实数据集（Zenodo 1327317，CC-BY-4.0） ----------------
 HC18_ROOT = _env_path("GLAUX_HC18_ROOT", HOME / "glaux_datasets/hc18_data")
 
 # --- HC 分割隔离环境（CSM，HuggingFace gauravxthakur/Fetal-Head-Biometry，Apache-2.0）
-HC_SEG_ROOT = _env_path("GLAUX_HC_SEG_ROOT", HOME / "glaux_models/hc_seg")
-HC_SEG_PYTHON = _env_path("GLAUX_HC_SEG_PYTHON", HC_SEG_ROOT / ".venv-hc/bin/python")
+HC_SEG_ROOT = _env_path("GLAUX_HC_SEG_ROOT", MODELS_ROOT / "hc_seg")
+HC_SEG_PYTHON = _env_path("GLAUX_HC_SEG_PYTHON", _venv_python(HC_SEG_ROOT / ".venv-hc"))
 HC_SEG_DRIVER = _env_path("GLAUX_HC_SEG_DRIVER", HC_SEG_ROOT / "run_headless.py")
 HC_SEG_WEIGHTS = _env_path("GLAUX_HC_SEG_WEIGHTS", HC_SEG_ROOT / "hf/test_model.pth")
-HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", HOME / "glaux_models/hc_seg_out")
+HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", MODELS_ROOT / "hc_seg_out")
 
 # --- P6 第三模态：CT 体积数据 + TotalSegmentator 隔离环境（v2.4.0，Apache-2.0）---
 CT_ROOT = _env_path("GLAUX_CT_ROOT", REPO_ROOT / "data/ct")
 # 隔离环境（主进程绝不 import torch；与 .venv-csd / .venv-hc 同构）
-TS_ROOT = _env_path("GLAUX_TS_ROOT", HOME / "glaux_models/totalseg")
-TS_PYTHON = _env_path("GLAUX_TS_PYTHON", TS_ROOT / ".venv-ts/bin/python")
+TS_ROOT = _env_path("GLAUX_TS_ROOT", MODELS_ROOT / "totalseg")
+TS_PYTHON = _env_path("GLAUX_TS_PYTHON", _venv_python(TS_ROOT / ".venv-ts"))
 TS_DRIVER = _env_path("GLAUX_TS_DRIVER", TS_ROOT / "run_headless.py")
 TS_WEIGHTS = _env_path("GLAUX_TS_WEIGHTS", TS_ROOT / "weights")
-TS_CACHE = _env_path("GLAUX_TS_CACHE", HOME / "glaux_models/ts_out")
+TS_CACHE = _env_path("GLAUX_TS_CACHE", MODELS_ROOT / "ts_out")
 
 # --- P7 第四模态：病理 WSI 数据 + 核分割隔离环境（StarDist-HE / HoVerNet-PanNuke）------
 # OpenSlide 读 .svs/.ndpi 在主进程（数据 IO C 库，同 nibabel）；瓦片落盘缓存。
 WSI_ROOT = _env_path("GLAUX_WSI_ROOT", REPO_ROOT / "data/wsi")
-WSI_CACHE = _env_path("GLAUX_WSI_CACHE", HOME / "glaux_models/wsi_tiles")
+WSI_CACHE = _env_path("GLAUX_WSI_CACHE", MODELS_ROOT / "wsi_tiles")
 # 核分割隔离环境（主进程绝不 import torch/TF；与 .venv-ts 同构）
-WSI_SEG_ROOT = _env_path("GLAUX_WSI_SEG_ROOT", HOME / "glaux_models/wsi_seg")
-WSI_SEG_PYTHON = _env_path("GLAUX_WSI_SEG_PYTHON", WSI_SEG_ROOT / ".venv-wsi/bin/python")
+WSI_SEG_ROOT = _env_path("GLAUX_WSI_SEG_ROOT", MODELS_ROOT / "wsi_seg")
+WSI_SEG_PYTHON = _env_path("GLAUX_WSI_SEG_PYTHON", _venv_python(WSI_SEG_ROOT / ".venv-wsi"))
 WSI_SEG_DRIVER = _env_path("GLAUX_WSI_SEG_DRIVER", WSI_SEG_ROOT / "run_headless.py")
 WSI_SEG_WEIGHTS = _env_path("GLAUX_WSI_SEG_WEIGHTS", WSI_SEG_ROOT / "weights")
-WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", HOME / "glaux_models/wsi_seg_out")
+WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", MODELS_ROOT / "wsi_seg_out")
 
 # --- 通用自然图像：SAM API 演示资产（非 science-core 任务、无标定）-------------
 NATURAL_ROOT = _env_path("GLAUX_NATURAL_ROOT", REPO_ROOT / "data/natural")

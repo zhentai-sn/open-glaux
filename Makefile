@@ -1,7 +1,7 @@
 # Glaux — 开发编排。前端 Vite(5173) + 后端 FastAPI(8000) + Agent Runtime(8010)。
 # 前端经同源代理访问 /api 与 /agent-api（见 frontend/vite.config.ts）。
 
-.PHONY: dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend test-science-core test-version lint check-literals version version-check
+.PHONY: start stop dev backend frontend agent-runtime install install-backend install-frontend install-agent-runtime test test-agent-runtime test-frontend test-backend test-science-core test-version lint check-literals version version-check
 
 ## 同时起三个进程（需要 GNU make -j 或三个终端）：
 ##   make -j3 dev
@@ -16,6 +16,16 @@ frontend:
 
 agent-runtime:
 	cd agent-runtime && npm run dev
+
+## 生产运行模式（SDD 24）：构建前端与 runtime 后由启动器单端口运行，缺省 http://127.0.0.1:7410/
+## 数据写入 GLAUX_HOME（缺省 ~/.glaux），与开发态数据分开。
+start:
+	cd frontend && npm run build
+	cd agent-runtime && npm run build
+	node launcher/glaux.mjs start
+
+stop:
+	node launcher/glaux.mjs stop
 
 ## 依赖安装
 install: install-backend install-frontend install-agent-runtime
