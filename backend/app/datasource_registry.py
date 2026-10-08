@@ -255,7 +255,7 @@ def _load_persisted() -> None:
     if not fp.is_file():
         return
     try:
-        raw = json.loads(fp.read_text())
+        raw = json.loads(fp.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         return
     for d in raw.get("sources", []):
@@ -291,7 +291,7 @@ def _save_persisted() -> None:
             "projects": [p.to_dict() for p in _PROJECTS.values()],
         }
         tmp = fp.with_suffix(fp.suffix + ".tmp")
-        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(fp)
 
 
