@@ -48,7 +48,7 @@ def to_posix(raw: str) -> str:
     - ``\\\\wsl.localhost\\<发行版>\\…`` / ``\\\\wsl$\\<发行版>\\…`` → ``/…``，仅 WSL 下可用，
       且发行版须与后端所在发行版一致（不区分大小写）。
 
-    无法转换（非 WSL 下的 Windows 写法、发行版不一致、其他 UNC 共享、相对路径、空串）
+    无法转换（Linux/macOS 非 WSL 下的 Windows 写法、发行版不一致、其他 UNC 共享、相对路径、空串）
     → :class:`ValueError`，上层映射 422。
     """
     s = (raw or "").strip()

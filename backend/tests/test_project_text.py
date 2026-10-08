@@ -102,7 +102,7 @@ def test_encodings(project, raw, encoding):
 @pytest.mark.parametrize(
     ("name", "raw"),
     [
-        ("nul.txt", b"abc\x00def\n"),
+        ("nul-bytes.txt", b"abc\x00def\n"),
         ("x.png", _png()),
         ("x.zip", _zip()),
         ("x.bin", b"\xff" * 16),  # 无 NUL，但 UTF-8 与 GB18030 都解不了

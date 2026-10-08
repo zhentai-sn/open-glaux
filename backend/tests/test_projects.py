@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path, PureWindowsPath
 
 import pytest
@@ -66,6 +67,7 @@ def test_create_then_idempotent(tmp_path):
     assert len(_persisted(tmp_path)["projects"]) == 1
 
 
+@pytest.mark.skipif(os.name == "nt", reason="WSL 挂载路径需要 POSIX 宿主文件系统")
 def test_three_spellings_same_project(tmp_path, monkeypatch):
     """POSIX、尾斜杠、``\\\\wsl.localhost`` 三种写法经 HTTP 得到同一项目，清单不重复。"""
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
@@ -78,6 +80,7 @@ def test_three_spellings_same_project(tmp_path, monkeypatch):
     assert len(_persisted(tmp_path)["projects"]) == 1
 
 
+@pytest.mark.skipif(os.name == "nt", reason="WSL 挂载路径需要 POSIX 宿主文件系统")
 def test_drive_spelling_normalizes_like_mnt(monkeypatch):
     """``C:\\…``、``/mnt/c/…``、``/mnt/c/…/`` 规范化后同一路径、同一 id（不要求目录存在）。"""
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
@@ -115,7 +118,7 @@ def test_create_not_dir_422(tmp_path):
 
 def test_create_unconvertible_422(tmp_path, monkeypatch):
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    assert client.post("/projects", json={"path": r"C:\cases"}).status_code == 422
+    assert client.post("/projects", json={"path": r"C:relative"}).status_code == 422
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
     assert client.post("/projects", json={"path": _unc(tmp_path, "Debian")}).status_code == 422
     assert client.post("/projects", json={"path": "relative/dir"}).status_code == 422
@@ -143,6 +146,7 @@ def test_list_reports_missing_after_rmdir(tmp_path):
     assert [(p["id"], p["status"]) for p in r.json()] == [(prj.id, "missing")]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="WSL 挂载路径需要 POSIX 宿主文件系统")
 def test_display_path_under_wsl(monkeypatch):
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
     prj = reg.Project(id="prj-x", path=Path("/mnt/c/cases/liver"), created_at="")
@@ -272,9 +276,10 @@ def test_fs_dirs_errors(tmp_path, monkeypatch):
     f.write_text("x")
     assert client.get("/fs/dirs", params={"path": str(f)}).status_code == 422
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    assert client.get("/fs/dirs", params={"path": r"C:\x"}).status_code == 422
+    assert client.get("/fs/dirs", params={"path": r"C:relative"}).status_code == 422
 
 
+@pytest.mark.skipif(os.name == "nt", reason="WSL 挂载路径需要 POSIX 宿主文件系统")
 def test_fs_dirs_accepts_unc(tmp_path, monkeypatch):
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
     (tmp_path / "sub").mkdir()

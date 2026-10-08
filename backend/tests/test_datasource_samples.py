@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -102,8 +104,10 @@ def test_old_sources_json_without_samples_key_still_loads(tmp_path, monkeypatch,
     folder = tmp_path / "some-imported"
     folder.mkdir()
     (tmp_path / "sources.json").write_text(
-        '{"sources": [{"id": "imported-1", "name": "n", "modality": "pathology",'
-        f' "root": "{folder}", "origin": "imported", "calibration": {{}}, "status": "active"}}]}}'
+        json.dumps({"sources": [{
+            "id": "imported-1", "name": "n", "modality": "pathology",
+            "root": str(folder), "origin": "imported", "calibration": {}, "status": "active",
+        }]}), encoding="utf-8",
     )
     reg.init()
     ids = [s.id for s in reg.list_all()]
