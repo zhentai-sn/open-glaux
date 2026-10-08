@@ -45,6 +45,7 @@ import { buildPreview, type SystemPromptPreview } from "./prompt-preview.js";
 import { langOf, type Bilingual, type PromptLang } from "../i18n/prompt-lang.js";
 import { defaultWorkspacesRoot, resolveCwd } from "../workspace/cwd.js";
 import { buildShellEnv } from "../workspace/shell-env.js";
+import { shellPathOption } from "../workspace/shell-path.js";
 import type { AgentDefinition } from "../resources/agents.js";
 import { createSlots, runSubagent, type SubagentRequest, type SubagentResult } from "../subagents/run.js";
 import type { RequestHeaderEntry } from "../contracts.js";
@@ -564,7 +565,11 @@ export class HarnessRegistry {
         run: { sessionId, commandId },
         ...(permission?.cwd ? {
           cwd: permission.cwd,
-          execEnv: new NodeExecutionEnv({ cwd: permission.cwd, shellEnv: buildShellEnv(permission.cwd) }),
+          execEnv: new NodeExecutionEnv({
+            cwd: permission.cwd,
+            shellEnv: buildShellEnv(permission.cwd),
+            ...shellPathOption(),
+          }),
         } : {}),
       };
       if (permission && resources?.harnessAgents.length) {

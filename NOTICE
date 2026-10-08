@@ -1,0 +1,16 @@
+Glaux
+Copyright 2026 The Glaux Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The distribution package bundles third-party software that keeps its own license:
+
+- JavaScript dependencies of agent-runtime under agent-runtime/node_modules; each package
+  includes its license file.
+- The frontend bundle under frontend/dist, built from the dependencies listed in
+  frontend/package.json.
+- Sample photographs under data/natural, released under CC0 1.0 or in the public domain;
+  sources are listed in data/natural/README.md.
+
+Python dependencies are not bundled. The installer downloads them from PyPI as pinned in
+backend/uv.lock; each keeps its own license.

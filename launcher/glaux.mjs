@@ -12,7 +12,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readFileSync, readdirSync,
-  renameSync, rmSync, statfsSync, statSync, symlinkSync, unlinkSync, writeFileSync,
+  realpathSync, renameSync, rmSync, statfsSync, statSync, symlinkSync, unlinkSync, writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
 import { homedir, platform, tmpdir } from "node:os";
@@ -166,7 +166,33 @@ function openLog(name) {
   return openSync(file, "a");
 }
 
+/**
+ * Windows：libuv 以继承句柄的方式创建子进程，后台服务会一直持有启动器的标准输出；
+ * 调用方捕获输出时（CI、管道）就等不到结束。改由 Start-Process（ShellExecute，不继承句柄）
+ * 启动 cmd，日志由 cmd 自己重定向。返回 cmd 的 PID，停止时按进程树结束。
+ */
+function launchWindows(name, command, args, options) {
+  closeSync(openLog(name)); // 滚动并确保日志文件存在
+  const log = join(LOG_DIR, `${name}.log`);
+  const commandLine = [command, ...args].map((part) => `"${part}"`).join(" ");
+  const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$a = @{ FilePath = 'cmd.exe'; WindowStyle = 'Hidden'; PassThru = $true; WorkingDirectory = ${psQuote(options.cwd)};` +
+      ` ArgumentList = ${psQuote(`/d /s /c "${commandLine} >> "${log}" 2>&1"`)} }`,
+    "(Start-Process @a).Id",
+  ].join("\n");
+  const result = spawnSync("powershell", [
+    "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64"),
+  ], { env: options.env, encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  const pid = Number.parseInt(result.stdout.trim(), 10);
+  if (result.status !== 0 || !Number.isInteger(pid)) {
+    fail(t(`无法启动 ${name}：${result.stderr}`, `cannot start ${name}: ${result.stderr}`));
+  }
+  return pid;
+}
+
 function launch(name, command, args, options) {
+  if (IS_WIN) return launchWindows(name, command, args, options);
   const log = openLog(name);
   const child = spawn(command, args, {
     ...options,
@@ -292,6 +318,7 @@ async function start() {
     started_at: new Date().toISOString(),
   };
   writeFileSync(STATE_FILE, `${JSON.stringify(state, null, 2)}\n`);
+  logLauncher(`start ${VERSION} port=${agentPort}`);
 
   info(t("正在启动 Glaux…", "Starting Glaux…"));
   const deadline = Date.now() + HEALTH_TIMEOUT_MS;
@@ -326,6 +353,7 @@ async function stop() {
   }
   await stopPids([state.agent_pid, state.backend_pid].filter(Boolean));
   rmSync(STATE_FILE, { force: true });
+  logLauncher("stop");
   info(t("Glaux 已停止。", "Glaux stopped."));
 }
 
@@ -358,12 +386,19 @@ async function status() {
 
 function findBash() {
   if (!IS_WIN) return spawnSync("bash", ["-c", "exit 0"]).status === 0 ? "bash" : undefined;
-  const candidates = [
-    process.env.GLAUX_BASH,
-    join(process.env.ProgramFiles ?? "C:\\Program Files", "Git", "bin", "bash.exe"),
-    join(process.env.LOCALAPPDATA ?? "", "Programs", "Git", "bin", "bash.exe"),
+  // 与 agent-runtime 的 workspace/shell-path.ts 同一顺序：显式变量 → 常见安装位置 → PATH 上 git.exe 所在的 Git 根目录。
+  if (process.env.GLAUX_BASH?.trim()) return process.env.GLAUX_BASH.trim();
+  const roots = [
+    process.env.ProgramFiles && join(process.env.ProgramFiles, "Git"),
+    process.env["ProgramFiles(x86)"] && join(process.env["ProgramFiles(x86)"], "Git"),
+    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Programs", "Git"),
   ].filter(Boolean);
-  return candidates.find((path) => existsSync(path));
+  const where = spawnSync("where", ["git.exe"], { encoding: "utf8", windowsHide: true });
+  for (const git of (where.stdout ?? "").split(/\r?\n/u).map((line) => line.trim()).filter(Boolean)) {
+    const dir = dirname(git);
+    roots.push(/\\mingw64\\bin$/iu.test(dir) ? dirname(dirname(dir)) : dirname(dir));
+  }
+  return roots.map((root) => join(root, "bin", "bash.exe")).find((path) => existsSync(path));
 }
 
 async function doctor() {
@@ -442,54 +477,205 @@ function logLauncher(message) {
   }
 }
 
+/** `GLAUX_MIRROR=cn` 时 PyPI 与 Python 下载走国内镜像（SDD 24 §7.7 规则 5）。 */
+function mirrorEnv() {
+  if (process.env.GLAUX_MIRROR !== "cn") return {};
+  return {
+    UV_DEFAULT_INDEX: process.env.UV_DEFAULT_INDEX || "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple",
+    UV_PYTHON_INSTALL_MIRROR:
+      process.env.UV_PYTHON_INSTALL_MIRROR || "https://registry.npmmirror.com/-/binary/python-build-standalone",
+  };
+}
+
+function step(message) {
+  info(`→ ${message}`);
+  logLauncher(message);
+}
+
+function runOrFail(command, commandArgs, options, message) {
+  const result = spawnSync(command, commandArgs, { stdio: "inherit", ...options });
+  if (result.status !== 0) throw new Error(message);
+}
+
+/**
+ * 安装版的共用步骤（安装脚本与 update 都调用新版本自己的 install）：
+ * Python 环境 → 导入自检 → 命令入口与快捷方式 → 切换 current → 清理旧版本。
+ */
+async function install(args) {
+  if (!INSTALL_DIR) fail(t("源码目录不需要 install。", "install is only for installed copies."));
+  const restart = args.includes("--restart");
+  const runtime = join(INSTALL_DIR, "runtime");
+  const env = {
+    ...process.env,
+    ...mirrorEnv(),
+    UV_PYTHON_INSTALL_DIR: join(runtime, "python"),
+    UV_PYTHON_PREFERENCE: "only-managed",
+  };
+  const backend = join(ROOT, "backend");
+  try {
+    if (!existsSync(pythonPath())) {
+      step(t("创建 Python 环境", "creating the Python environment"));
+      runOrFail(uvPath(), ["venv", "--python", "3.12", join(backend, ".venv")], { env }, t("创建 Python 环境失败", "creating the Python environment failed"));
+    }
+    step(t("安装 Python 依赖", "installing Python dependencies"));
+    runOrFail(uvPath(), [
+      "pip", "install", "--python", pythonPath(), "--require-hashes", "--no-deps",
+      "-r", join(backend, "requirements.lock.txt"),
+    ], { env }, t("安装 Python 依赖失败；检查网络，或设置 GLAUX_MIRROR=cn 后重试", "installing Python dependencies failed; check the network or retry with GLAUX_MIRROR=cn"));
+    runOrFail(pythonPath(), ["-c", "import app.main"], { cwd: backend, env: { ...process.env, GLAUX_HOME } },
+      t("backend 自检失败", "backend self-check failed"));
+  } catch (error) {
+    const current = currentTarget();
+    if (current && resolve(current) !== ROOT) rmSync(ROOT, { recursive: true, force: true });
+    throw error;
+  }
+
+  if (process.env.GLAUX_NO_SHORTCUTS === "1") {
+    writeCommand();
+  } else {
+    step(t("写入 glaux 命令与快捷方式", "writing the glaux command and shortcuts"));
+    writeShims();
+  }
+  const wasRunning = Boolean(await running());
+  if (wasRunning) await stop();
+  switchCurrent(ROOT);
+  pruneVersions(VERSION);
+  logLauncher(`installed ${VERSION}`);
+  info(t(`Glaux ${VERSION} 已安装到 ${INSTALL_DIR}`, `Glaux ${VERSION} is installed in ${INSTALL_DIR}`));
+  if (restart && wasRunning) await start();
+}
+
+function currentTarget() {
+  try {
+    return realpathSync(join(INSTALL_DIR, "current"));
+  } catch {
+    return undefined;
+  }
+}
+
+function nodeBinary() {
+  return IS_WIN ? join(INSTALL_DIR, "runtime", "node", "node.exe") : join(INSTALL_DIR, "runtime", "node", "bin", "node");
+}
+
+function powershell(script) {
+  return spawnSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+}
+
+const psQuote = (value) => `'${value.replace(/'/gu, "''")}'`;
+
+/** <安装目录>/bin 下的 glaux 命令；`GLAUX_NO_SHORTCUTS=1`（CI 与测试）时只写这一项，不动 PATH、快捷方式与 ~/.local/bin。 */
+function writeCommand() {
+  const bin = join(INSTALL_DIR, "bin");
+  mkdirSync(bin, { recursive: true });
+  const entry = join(INSTALL_DIR, "current", "launcher", "glaux.mjs");
+  if (IS_WIN) {
+    writeFileSync(join(bin, "glaux.cmd"), `@echo off\r\n"%~dp0..\\runtime\\node\\node.exe" "%~dp0..\\current\\launcher\\glaux.mjs" %*\r\n`);
+    return;
+  }
+  const shim = join(bin, "glaux");
+  writeFileSync(shim, `#!/bin/sh\nexec "${nodeBinary()}" "${entry}" "$@"\n`, { mode: 0o755 });
+  chmodSync(shim, 0o755);
+}
+
+function writeShims() {
+  writeCommand();
+  const bin = join(INSTALL_DIR, "bin");
+  const entry = join(INSTALL_DIR, "current", "launcher", "glaux.mjs");
+  if (IS_WIN) {
+    const result = powershell([
+      `$shell = New-Object -ComObject WScript.Shell`,
+      `foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {`,
+      `  $link = $shell.CreateShortcut((Join-Path $dir 'Glaux.lnk'))`,
+      `  $link.TargetPath = ${psQuote(nodeBinary())}`,
+      `  $link.Arguments = ${psQuote(`"${entry}" open`)}`,
+      `  $link.WorkingDirectory = ${psQuote(INSTALL_DIR)}`,
+      `  $link.WindowStyle = 7`,
+      `  $link.Description = 'Glaux'`,
+      `  $link.Save()`,
+      `}`,
+      `$p = [Environment]::GetEnvironmentVariable('Path', 'User')`,
+      `$parts = @($p -split ';' | Where-Object { $_ })`,
+      `if ($parts -notcontains ${psQuote(bin)}) { [Environment]::SetEnvironmentVariable('Path', (($parts + ${psQuote(bin)}) -join ';'), 'User') }`,
+    ].join("\n"));
+    if (result.status !== 0) info(t(`快捷方式创建失败：${result.stderr}`, `creating shortcuts failed: ${result.stderr}`));
+    return;
+  }
+
+  const shim = join(bin, "glaux");
+  const localBin = join(homedir(), ".local", "bin");
+  mkdirSync(localBin, { recursive: true });
+  const link = join(localBin, "glaux");
+  rmSync(link, { force: true });
+  symlinkSync(shim, link);
+
+  if (platform() === "darwin") {
+    const app = join(homedir(), "Applications", "Glaux.app", "Contents");
+    rmSync(dirname(app), { recursive: true, force: true });
+    mkdirSync(join(app, "MacOS"), { recursive: true });
+    writeFileSync(join(app, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Glaux</string>
+<key>CFBundleIdentifier</key><string>io.github.zhentai-sn.glaux</string>
+<key>CFBundleExecutable</key><string>Glaux</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>${VERSION}</string>
+<key>LSUIElement</key><true/>
+</dict></plist>
+`);
+    writeFileSync(join(app, "MacOS", "Glaux"), `#!/bin/sh\nexec "${shim}" open\n`, { mode: 0o755 });
+    chmodSync(join(app, "MacOS", "Glaux"), 0o755);
+  } else {
+    const applications = join(homedir(), ".local", "share", "applications");
+    mkdirSync(applications, { recursive: true });
+    writeFileSync(join(applications, "glaux.desktop"), [
+      "[Desktop Entry]",
+      "Type=Application",
+      "Name=Glaux",
+      "Comment=Image and video analysis harness",
+      `Exec="${shim}" open`,
+      "Terminal=false",
+      "Categories=Science;Graphics;",
+      "",
+    ].join("\n"));
+  }
+}
+
 async function update() {
   if (!INSTALL_DIR) fail(t("源码目录请用 git pull 更新。", "Use git pull in a source checkout."));
-  const base = process.env.GLAUX_UPDATE_URL?.trim() || `${PAGES_BASE}/latest.json`;
-  const latest = await (await fetch(base, { signal: AbortSignal.timeout(30_000) })).json();
+  const latestUrl = process.env.GLAUX_UPDATE_URL?.trim() || `${PAGES_BASE}/latest.json`;
+  const latest = await (await fetch(latestUrl, { signal: AbortSignal.timeout(30_000) })).json();
   if (compareVersions(latest.version, VERSION) <= 0) {
     info(t(`已是最新版本 ${VERSION}。`, `Already up to date (${VERSION}).`));
     return;
   }
   const asset = latest.assets?.["tar.gz"];
   if (!asset?.url || !asset?.sha256) fail(t("latest.json 缺少程序包信息。", "latest.json has no package entry."));
-  info(t(`正在更新 ${VERSION} → ${latest.version}…`, `Updating ${VERSION} → ${latest.version}…`));
-  logLauncher(`update ${VERSION} -> ${latest.version}`);
+  step(t(`下载 ${latest.version}`, `downloading ${latest.version}`));
 
   const work = join(tmpdir(), `glaux-update-${process.pid}`);
   mkdirSync(work, { recursive: true });
-  const archive = join(work, "glaux.tar.gz");
-  const response = await fetch(process.env.GLAUX_DOWNLOAD_BASE ? `${process.env.GLAUX_DOWNLOAD_BASE.replace(/\/+$/u, "")}/${basename(new URL(asset.url).pathname)}` : asset.url);
-  if (!response.ok) fail(t(`下载失败：HTTP ${response.status}`, `download failed: HTTP ${response.status}`));
-  writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
-  if ((await sha256(archive)) !== asset.sha256) {
-    rmSync(work, { recursive: true, force: true });
-    fail(t("SHA256 校验失败，已删除下载文件。", "SHA256 mismatch; the download was removed."));
-  }
+  try {
+    const archive = join(work, "glaux.tar.gz");
+    const base = process.env.GLAUX_DOWNLOAD_BASE?.trim();
+    const url = base ? `${base.replace(/\/+$/u, "")}/${basename(new URL(asset.url).pathname)}` : asset.url;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(t(`下载失败：HTTP ${response.status}`, `download failed: HTTP ${response.status}`));
+    writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
+    if ((await sha256(archive)) !== asset.sha256) throw new Error(t("SHA256 校验失败。", "SHA256 mismatch."));
 
-  const target = join(INSTALL_DIR, "versions", latest.version);
-  rmSync(target, { recursive: true, force: true });
-  mkdirSync(target, { recursive: true });
-  const untar = spawnSync("tar", ["-xzf", archive, "-C", target, "--strip-components=1"], { stdio: "inherit" });
-  if (untar.status !== 0) fail(t("解压失败。", "extraction failed."));
-  const sync = spawnSync(uvPath(), ["sync", "--frozen", "--no-dev", "--no-install-project", "--extra", "video", "--project", join(target, "backend")], {
-    stdio: "inherit",
-    env: { ...process.env, UV_PROJECT_ENVIRONMENT: join(target, "backend", ".venv") },
-  });
-  if (sync.status !== 0) {
+    const target = join(INSTALL_DIR, "versions", latest.version);
     rmSync(target, { recursive: true, force: true });
-    fail(t("Python 依赖安装失败，旧版本保持不变。", "installing Python dependencies failed; the current version is unchanged."));
-  }
-
-  const wasRunning = Boolean(await running());
-  if (wasRunning) await stop();
-  switchCurrent(target);
-  rmSync(work, { recursive: true, force: true });
-  pruneVersions(latest.version);
-  logLauncher(`updated to ${latest.version}`);
-  info(t(`已更新到 ${latest.version}。`, `Updated to ${latest.version}.`));
-  if (wasRunning) {
-    const next = spawnSync(process.execPath, [join(target, "launcher", "glaux.mjs"), "start"], { stdio: "inherit" });
-    process.exitCode = next.status ?? 0;
+    mkdirSync(target, { recursive: true });
+    runOrFail("tar", ["-xzf", archive, "-C", target, "--strip-components=1"], {}, t("解压失败。", "extraction failed."));
+    // 由新版本自己的启动器完成其余步骤，新版本的安装逻辑随包更新。
+    const next = spawnSync(process.execPath, [join(target, "launcher", "glaux.mjs"), "install", "--restart"], { stdio: "inherit" });
+    process.exitCode = next.status ?? 1;
+  } finally {
+    rmSync(work, { recursive: true, force: true });
   }
 }
 
@@ -510,16 +696,22 @@ function pruneVersions(keep) {
   }
 }
 
-function shimPaths() {
+function removeShims() {
   if (IS_WIN) {
-    return [join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", "Glaux.lnk"),
-      join(homedir(), "Desktop", "Glaux.lnk")];
+    powershell([
+      `foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {`,
+      `  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir 'Glaux.lnk')`,
+      `}`,
+      `$p = [Environment]::GetEnvironmentVariable('Path', 'User')`,
+      `if ($p) { [Environment]::SetEnvironmentVariable('Path', (($p -split ';' | Where-Object { $_ -and $_ -ne ${psQuote(join(INSTALL_DIR, "bin"))} }) -join ';'), 'User') }`,
+    ].join("\n"));
+    return;
   }
-  return [
+  for (const path of [
     join(homedir(), ".local", "bin", "glaux"),
     join(homedir(), ".local", "share", "applications", "glaux.desktop"),
     join(homedir(), "Applications", "Glaux.app"),
-  ];
+  ]) rmSync(path, { recursive: true, force: true });
 }
 
 async function uninstall(args) {
@@ -530,8 +722,7 @@ async function uninstall(args) {
     if (answer.trim().toLowerCase() !== "yes") fail(t("已取消。", "Cancelled."), 0);
   }
   await stop();
-  for (const path of shimPaths()) rmSync(path, { recursive: true, force: true });
-  if (IS_WIN) removeFromUserPath(join(INSTALL_DIR, "bin"));
+  removeShims();
   if (purge) rmSync(GLAUX_HOME, { recursive: true, force: true });
   info(purge
     ? t("Glaux 及全部数据已删除。", "Glaux and all data were removed.")
@@ -544,15 +735,15 @@ function removeInstallDir() {
     rmSync(INSTALL_DIR, { recursive: true, force: true });
     return;
   }
-  // Windows 无法删除正在运行的 node.exe 所在目录：交给退出后执行的 cmd。
-  const script = join(tmpdir(), `glaux-uninstall-${process.pid}.cmd`);
-  writeFileSync(script, `@echo off\r\nping -n 3 127.0.0.1 >nul\r\nrmdir /s /q "${INSTALL_DIR}"\r\ndel "%~f0"\r\n`);
-  spawn("cmd", ["/c", script], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-}
-
-function removeFromUserPath(dir) {
-  const ps = `$p=[Environment]::GetEnvironmentVariable('Path','User'); if($p){ $n=($p -split ';' | Where-Object { $_ -and $_ -ne '${dir.replace(/'/gu, "''")}' }) -join ';'; [Environment]::SetEnvironmentVariable('Path',$n,'User') }`;
-  spawnSync("powershell", ["-NoProfile", "-Command", ps], { stdio: "ignore" });
+  // Windows 无法删除正在运行的 node.exe 所在目录：交给启动器退出后执行的 PowerShell。
+  // 路径经 -EncodedCommand（UTF-16）传递，.cmd 文件按系统代码页读取会把非 ASCII 路径读坏；
+  // rmdir 删除 current 联接本身而不进入目标。
+  // 经 Start-Process 另起进程，不随启动器所在的进程组一起结束。
+  const encode = (script) => Buffer.from(script, "utf16le").toString("base64");
+  const inner = encode(`Start-Sleep -Seconds 3; cmd /c rmdir /s /q "${INSTALL_DIR}"`);
+  spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encode(
+    `Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${inner}'`,
+  )], { stdio: "ignore", windowsHide: true });
 }
 
 function prompt(question) {
@@ -576,6 +767,7 @@ const HELP = t(`用法：glaux <命令>
   logs [行数] 查看日志
   doctor      检查运行环境
   update      更新到最新版本
+  install     完成安装版的环境配置（安装脚本调用）
   uninstall   卸载程序，保留数据（--purge 同时删除数据）
   version     显示版本`, `Usage: glaux <command>
 
@@ -586,6 +778,7 @@ const HELP = t(`用法：glaux <命令>
   logs [n]    show logs
   doctor      check the environment
   update      update to the latest version
+  install     finish setting up an installed copy (used by the installer)
   uninstall   remove the program, keep data (--purge also removes data)
   version     show the version`);
 
@@ -593,6 +786,7 @@ const [command = "start", ...rest] = process.argv.slice(2);
 const commands = {
   start, stop, status, open, doctor, update,
   logs: () => logs(rest),
+  install: () => install(rest),
   uninstall: () => uninstall(rest),
   version: () => info(VERSION),
   help: () => info(HELP),
