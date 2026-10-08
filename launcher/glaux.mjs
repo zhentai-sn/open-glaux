@@ -12,7 +12,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readFileSync, readdirSync,
-  realpathSync, renameSync, rmSync, statfsSync, statSync, symlinkSync, unlinkSync, writeFileSync,
+  readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, statfsSync, statSync, symlinkSync, unlinkSync, writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
 import { homedir, platform, tmpdir } from "node:os";
@@ -670,7 +670,9 @@ async function update() {
     const target = join(INSTALL_DIR, "versions", latest.version);
     rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
-    runOrFail("tar", ["-xzf", archive, "-C", target, "--strip-components=1"], {}, t("解压失败。", "extraction failed."));
+    // Windows 用系统自带的 bsdtar：PATH 上若是 Git 的 GNU tar，会把 C: 当成远程主机。
+    const tar = IS_WIN ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
+    runOrFail(tar, ["-xzf", archive, "-C", target, "--strip-components=1"], {}, t("解压失败。", "extraction failed."));
     // 由新版本自己的启动器完成其余步骤，新版本的安装逻辑随包更新。
     const next = spawnSync(process.execPath, [join(target, "launcher", "glaux.mjs"), "install", "--restart"], { stdio: "inherit" });
     process.exitCode = next.status ?? 1;
@@ -679,12 +681,22 @@ async function update() {
   }
 }
 
+/** 删除符号链接或目录联接本身（含悬空链接），不进入目标目录。 */
+function removeLink(path) {
+  try {
+    (IS_WIN ? rmdirSync : unlinkSync)(path);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
 function switchCurrent(target) {
   const link = join(INSTALL_DIR, "current");
   const temp = `${link}.new`;
-  rmSync(temp, { recursive: true, force: true });
+  removeLink(temp);
   symlinkSync(target, temp, IS_WIN ? "junction" : "dir");
-  if (IS_WIN) rmSync(link, { recursive: true, force: true });
+  // Windows 的目录联接不能原子替换：只删联接本身（rmdir 不进入目标目录），再改名。
+  if (IS_WIN) removeLink(link);
   renameSync(temp, link);
 }
 
@@ -696,22 +708,37 @@ function pruneVersions(keep) {
   }
 }
 
+/** 只删除指向本安装目录的入口，避免卸载测试安装时误删正式安装的入口。 */
 function removeShims() {
   if (IS_WIN) {
     powershell([
+      `$shell = New-Object -ComObject WScript.Shell`,
       `foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {`,
-      `  Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir 'Glaux.lnk')`,
+      `  $path = Join-Path $dir 'Glaux.lnk'`,
+      `  if ((Test-Path $path) -and $shell.CreateShortcut($path).WorkingDirectory -eq ${psQuote(INSTALL_DIR)}) { Remove-Item -Force $path }`,
       `}`,
       `$p = [Environment]::GetEnvironmentVariable('Path', 'User')`,
       `if ($p) { [Environment]::SetEnvironmentVariable('Path', (($p -split ';' | Where-Object { $_ -and $_ -ne ${psQuote(join(INSTALL_DIR, "bin"))} }) -join ';'), 'User') }`,
     ].join("\n"));
     return;
   }
-  for (const path of [
-    join(homedir(), ".local", "bin", "glaux"),
-    join(homedir(), ".local", "share", "applications", "glaux.desktop"),
-    join(homedir(), "Applications", "Glaux.app"),
-  ]) rmSync(path, { recursive: true, force: true });
+  const ours = (path) => {
+    try {
+      return readFileSync(path, "utf8").includes(INSTALL_DIR);
+    } catch {
+      return false;
+    }
+  };
+  const link = join(homedir(), ".local", "bin", "glaux");
+  try {
+    if (readlinkSync(link).startsWith(INSTALL_DIR)) unlinkSync(link);
+  } catch {
+    // 不存在或不是链接。
+  }
+  const desktop = join(homedir(), ".local", "share", "applications", "glaux.desktop");
+  if (ours(desktop)) rmSync(desktop, { force: true });
+  const app = join(homedir(), "Applications", "Glaux.app");
+  if (ours(join(app, "Contents", "MacOS", "Glaux"))) rmSync(app, { recursive: true, force: true });
 }
 
 async function uninstall(args) {
