@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 
 // Pi 的资源扫描器按 '/' 计算相对路径；Node 文件 IO 在 Windows 同时接受两种分隔符。
@@ -7,11 +9,11 @@ const resourcePath = (path: string) => process.platform === "win32" ? path.repla
 export class ResourceExecutionEnv extends NodeExecutionEnv {
   override async fileInfo(path: string) {
     const result = await super.fileInfo(path);
-    return result.ok ? { ...result, value: { ...result.value, path: resourcePath(result.value.path) } } : result;
+    return result.ok ? { ...result, value: { ...result.value, name: basename(result.value.path), path: resourcePath(result.value.path) } } : result;
   }
 
   override async listDir(path: string, abortSignal?: AbortSignal) {
     const result = await super.listDir(path, abortSignal);
-    return result.ok ? { ...result, value: result.value.map(file => ({ ...file, path: resourcePath(file.path) })) } : result;
+    return result.ok ? { ...result, value: result.value.map(file => ({ ...file, name: basename(file.path), path: resourcePath(file.path) })) } : result;
   }
 }

@@ -61,6 +61,10 @@ expect((await fetch(`http://127.0.0.1:${state.backend_port}/datasources`)).statu
 const form = new FormData();
 form.append("files", new Blob([readFileSync(sample)], { type: "image/jpeg" }), "cat.jpg");
 const upload = await fetch(`${base}/api/uploads/images`, { method: "POST", headers: auth, body: form });
+if (!upload.ok) {
+  console.error(`upload response: ${await upload.text()}`);
+  await run("logs", "100");
+}
 expect(upload.ok, `upload a sample image (HTTP ${upload.status})`);
 const uploaded = await upload.json();
 const page = await fetch(`${base}/?token=${token}`, { redirect: "manual" });
