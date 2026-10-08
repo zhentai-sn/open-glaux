@@ -9,8 +9,8 @@ status: implemented
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 首个公开版本 `0.3.0` 实现完成；跨平台 CI、Release 与 Pages 发布验收中 |
+| 状态 | `implemented` |
+| 当前阶段 | `v0.3.0` 已公开发布；四平台 CI、安装更新冒烟与 Pages 清单核对通过，人工实机及旧数据迁移验收待补 |
 | 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -159,7 +159,7 @@ graph LR
 ### 7.6 CI 与发布
 
 1. `ci.yml`：每次推送与 PR 在 ubuntu、macos、windows 上运行 `make test` 的等价步骤与 `make lint`。
-2. `release.yml`：`v*` 标签触发 → 校验标签与 `VERSION` 一致 → 构建程序包 → 在 Windows、Linux、macOS Intel 与 Apple silicon 虚拟机上执行安装脚本（指向本次构建的包）并做冒烟测试 → 创建 Release、上传产物与 `SHA256SUMS` → 显式派发 `pages.yml` 更新 `latest.json`。使用 `GITHUB_TOKEN` 创建的 Release 不会触发另一个工作流的 `release` 事件，故采用 `workflow_dispatch`。
+2. `release.yml`：支持手动预检（不创建 Release）；`v*` 标签触发 → 校验标签与 `VERSION` 一致 → 构建程序包 → 在 Windows、Linux、macOS Intel 与 Apple silicon 虚拟机上执行安装脚本（指向本次构建的包）并做冒烟测试 → 创建 Release、上传产物与 `SHA256SUMS` → 显式派发 `pages.yml` 更新 `latest.json`。使用 `GITHUB_TOKEN` 创建的 Release 不会触发另一个工作流的 `release` 事件，故采用 `workflow_dispatch`。
 3. 冒烟测试：重复安装 → `glaux start` → 健康检查与令牌拒绝检查 → 上传示例图片 → 经本机 manifest 执行 `glaux update` → 验证版本切换、服务重启、上传源与数据保留 → `status / doctor / stop / uninstall --purge`。更新测试使用当前包的隔离副本作为旧版本快照，不等同于旧数据库格式迁移验收；不调用真实模型。
 4. 推送与打标签由维护者执行；CI 不保存任何模型密钥。
 5. `release.yml` 支持 `workflow_dispatch` 预检：执行同一套构建与安装更新冒烟，成功后不创建 Release；正式发布仅由版本标签推送触发。
@@ -320,7 +320,7 @@ stateDiagram-v2
 ### 15.1 生产模式与安全
 
 - [ ] `make start` 单端口运行完整版，对话、看图、视频上传、图谱、标注均可用（浏览器走查）。
-- [ ] `Host: evil.example` 请求返回 421；跨源 POST 被拒；无 Cookie 的 API 请求返回 401；直接访问 backend 端口无内部令牌返回 401（集成测试）。
+- [x] `Host: evil.example` 请求返回 421；跨源 POST 被拒；无 Cookie 的 API 请求返回 401；直接访问 backend 端口无内部令牌返回 401（集成测试与四平台安装冒烟）。
 - [ ] 错误的 `?token=` 返回提示页；反代不把会话 Cookie 与令牌头转发给 backend（集成测试）。
 
 ### 15.2 安装与启动器
@@ -335,8 +335,10 @@ stateDiagram-v2
 
 ### 15.3 发布
 
-- [ ] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。
+- [x] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。`v0.3.0` 的 GitHub 资产摘要、`SHA256SUMS` 与公开清单一致；公开安装脚本与仓库源码一致。
 - [ ] 标签与 `VERSION` 不一致时发布失败。
+
+当前发布证据：[四平台 CI](https://github.com/zhentai-sn/open-glaux/actions/runs/37741241071)、[正式 Release 流程](https://github.com/zhentai-sn/open-glaux/actions/runs/37742022747)、[Pages 部署](https://github.com/zhentai-sn/open-glaux/actions/runs/37742424445)、[v0.3.0 Release](https://github.com/zhentai-sn/open-glaux/releases/tag/v0.3.0)。自动冒烟覆盖 Ubuntu 22.04、Windows Server 2022、macOS 14 arm64 与 macOS 15 Intel；不替代 Windows 11、最低支持 macOS 版本及带真实旧数据的人工验收。
 
 ### 15.4 落地页
 
