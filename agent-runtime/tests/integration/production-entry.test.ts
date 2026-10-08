@@ -126,11 +126,11 @@ describe("production entry without session token", () => {
       url: "/api/uploads",
       headers: { host: HOST, "content-type": "application/octet-stream" },
       payload,
-    }, 20_000);
+    });
     expect(response.statusCode).toBe(200);
     expect(seen.at(-1)!.bytes).toBe(payload.length);
     await server.close();
-  });
+  }, 20_000);
 });
 
 describe("production entry with session token", () => {
