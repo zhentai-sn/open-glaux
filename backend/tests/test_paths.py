@@ -7,6 +7,11 @@ import pytest
 from app import paths
 
 
+@pytest.fixture(autouse=True)
+def posix_backend(monkeypatch):
+    monkeypatch.setattr(paths, "native_windows", lambda: False)
+
+
 @pytest.fixture
 def wsl(monkeypatch):
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
@@ -89,3 +94,9 @@ def test_display_outside_wsl_is_posix(not_wsl):
 
 def test_display_round_trip(wsl):
     assert paths.to_posix(paths.display("/mnt/e/x/y")) == "/mnt/e/x/y"
+
+
+@pytest.mark.parametrize("raw", [r"C:\cases\中文 目录", "c:/cases/中文 目录/"])
+def test_native_windows_drive_path(not_wsl, monkeypatch, raw):
+    monkeypatch.setattr(paths, "native_windows", lambda: True)
+    assert paths.to_posix(raw) == "C:\\cases\\中文 目录"

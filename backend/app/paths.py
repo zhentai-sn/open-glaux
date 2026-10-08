@@ -1,8 +1,9 @@
 """路径写法转换与显示写法（SDD 13 §7.1 规则 8–9、D-15）。
 
-后端只能按自身文件系统的 POSIX 路径打开文件；用户在 Windows 侧复制的路径是盘符写法
+后端按自身平台的文件系统路径打开文件；用户在 Windows 侧复制的路径是盘符写法
 （``C:\\a\\b``）或 WSL 网络共享写法（``\\\\wsl.localhost\\<发行版>\\a\\b``、``\\\\wsl$\\…``）。
-:func:`to_posix` 把三种写法统一成 POSIX 路径，:func:`display` 做反向的显示转换。
+:func:`to_posix` 在 WSL 下把三种写法统一成 POSIX 路径，原生 Windows 保留盘符路径。
+:func:`display` 做反向的显示转换。
 
 两者都只做字符串层面的转换，不碰文件系统；``expanduser`` / ``resolve`` 与存在性校验由调用方做。
 WSL 判定只看环境变量 ``WSL_DISTRO_NAME``（WSL 为每个发行版的进程注入它），便于测试打桩。
@@ -12,7 +13,7 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 #: ``C:\…``、``C:/…``、``C:``（盘符根）。
 _DRIVE_RE = re.compile(r"^([A-Za-z]):(?:[\\/](.*))?$", re.DOTALL)
@@ -21,6 +22,11 @@ _WSL_UNC_RE = re.compile(r"^[\\/]{2}(?:wsl\.localhost|wsl\$)[\\/]([^\\/]+)(?:[\\
                          re.IGNORECASE | re.DOTALL)
 #: WSL 下 Windows 盘符的挂载点 ``/mnt/<盘符>``。
 _MNT_RE = re.compile(r"^/mnt/([a-z])(?:/(.*))?$", re.DOTALL)
+
+
+def native_windows() -> bool:
+    """后端是否原生运行在 Windows。"""
+    return os.name == "nt"
 
 
 def wsl_distro() -> str | None:
@@ -35,10 +41,10 @@ def _join(prefix: str, rest: str | None) -> str:
 
 
 def to_posix(raw: str) -> str:
-    """把用户输入的路径转成后端文件系统上的 POSIX 路径（不做 ``resolve``）。
+    """把用户输入的路径转成后端文件系统路径（不做 ``resolve``）。
 
     - POSIX 绝对路径与 ``~`` 开头的路径原样返回（去首尾空白）。
-    - ``X:\\…`` / ``X:/…`` → ``/mnt/x/…``，仅 WSL 下可用。
+    - ``X:\\…`` / ``X:/…`` → ``/mnt/x/…``，WSL 下转换，原生 Windows 下保留盘符路径。
     - ``\\\\wsl.localhost\\<发行版>\\…`` / ``\\\\wsl$\\<发行版>\\…`` → ``/…``，仅 WSL 下可用，
       且发行版须与后端所在发行版一致（不区分大小写）。
 
@@ -60,6 +66,8 @@ def to_posix(raw: str) -> str:
 
     m = _DRIVE_RE.match(s)
     if m:
+        if native_windows():
+            return str(PureWindowsPath(f"{m.group(1).upper()}:\\", m.group(2) or ""))
         if distro is None:
             raise ValueError(f"后端不在 WSL 中运行，无法转换 Windows 路径：{raw}")
         return _join(f"/mnt/{m.group(1).lower()}", m.group(2))
