@@ -1,5 +1,8 @@
 /** SDD 24 §7.4：Windows 上的 bash 解析与系统环境变量。 */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// 缺失场景须隔离宿主的 Git 安装；Windows CI 的 PATH 默认含 Git for Windows。
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn(() => { throw new Error("git not found"); }) }));
 
 import { buildShellEnv } from "../../src/workspace/shell-env.js";
 import { MISSING_GIT_BASH, resolveShellPath } from "../../src/workspace/shell-path.js";

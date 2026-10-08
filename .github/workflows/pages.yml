@@ -43,7 +43,7 @@ jobs:
           if [ -n "$RELEASE_TAG" ]; then
             tag="$RELEASE_TAG"
           else
-            tag=$(gh api "repos/$REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+            tag=$(gh api "repos/$REPOSITORY/releases" --jq '[.[] | select(.draft == false and .prerelease == false) | select(any(.assets[]; .name == "SHA256SUMS"))][0].tag_name // empty')
           fi
           if [ -n "$tag" ]; then
             gh release download "$tag" --repo "$REPOSITORY" --pattern SHA256SUMS --dir "$RUNNER_TEMP"

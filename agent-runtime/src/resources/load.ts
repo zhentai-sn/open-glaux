@@ -3,7 +3,7 @@
  * 同名按 项目 > 用户 > 内置 取一份；停用的 Skill 不交给 harness；说明单份超过 32 KiB 截断。
  */
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 
 import {
   formatSkillsForSystemPrompt,
@@ -12,10 +12,10 @@ import {
   type PromptTemplate,
   type Skill,
 } from "@earendil-works/pi-agent-core";
-import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 
 import type { PromptLang } from "../i18n/prompt-lang.js";
 import { loadAgents, type AgentDefinition, type AgentItem } from "./agents.js";
+import { ResourceExecutionEnv } from "./execution-env.js";
 import { resourceDirs, type ResourceSource } from "./paths.js";
 
 export interface SkillItem {
@@ -152,11 +152,11 @@ export function formatSkillsCatalog(skills: readonly Skill[], lang: PromptLang):
 
 export async function loadResources(options: LoadResourcesOptions = {}): Promise<LoadedResources> {
   const dirs = resourceDirs(options);
-  const env = new NodeExecutionEnv({ cwd: "/" });
+  const env = new ResourceExecutionEnv({ cwd: "/" });
   const disabled = new Set(options.disabledSkills ?? []);
   const lang = options.lang ?? "en";
 
-  const loadedSkills = await loadSourcedSkills(env, dirs.skills);
+  const loadedSkills = await loadSourcedSkills(env, dirs.skills, skill => ({ ...skill, filePath: normalize(skill.filePath) }));
   const winner = new Map<string, { skill: Skill; source: ResourceSource }>();
   for (const entry of loadedSkills.skills) {
     const current = winner.get(entry.skill.name);
@@ -211,8 +211,8 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
     harnessAgents: agents.definitions,
     diagnostics: [
       ...agents.diagnostics,
-      ...loadedSkills.diagnostics.map((d) => ({ source: d.source, code: d.code, message: d.message, path: d.path })),
-      ...loadedTemplates.diagnostics.map((d) => ({ source: d.source as ResourceSource, code: d.code, message: d.message, path: d.path })),
+      ...loadedSkills.diagnostics.map((d) => ({ source: d.source, code: d.code, message: d.message, path: normalize(d.path) })),
+      ...loadedTemplates.diagnostics.map((d) => ({ source: d.source as ResourceSource, code: d.code, message: d.message, path: normalize(d.path) })),
     ],
     harnessSkills,
     harnessTemplates: [...templateWinner.values()].map(({ promptTemplate }) => promptTemplate),

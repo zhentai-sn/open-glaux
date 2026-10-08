@@ -1,7 +1,7 @@
 /** SDD 16 §7.5、§15.4：bash 的挂载与 controlled 只读限制、环境变量白名单、超时与前缀规则。 */
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { fauxAssistantMessage, fauxToolCall, type FauxResponseStep } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,7 +85,7 @@ describe("bash", () => {
       await fixture.registry.waitForIdle(sessionId);
       const output = seen[0] ?? "";
       expect(output).toContain(`GLAUX_CWD=${project}`);
-      expect(output.split("\n")[0]).toMatch(new RegExp(`${project.split("/").at(-1)}$`, "u"));
+      expect(basename(output.split("\n")[0]?.trim() ?? "")).toBe(basename(project));
       expect(output).not.toContain("seg-secret-123");
       expect(output).not.toContain("key-secret-456");
       expect(output).not.toMatch(/^GLAUX_(?!CWD)/mu);

@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,10 +26,12 @@ jobs:
       - name: Verify release source
         env:
           TAG: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
         run: |
-          VERSION="${TAG#v}"
-          test "$TAG" = "v$VERSION"
-          test "$(cat VERSION)" = "$VERSION"
+          VERSION="$(cat VERSION)"
+          if [ "$EVENT" = push ]; then
+            test "$TAG" = "v$VERSION"
+          fi
           python scripts/test_version_matrix.py
           python - "$VERSION" <<'PY'
           from pathlib import Path
@@ -71,8 +74,6 @@ jobs:
       run:
         shell: bash
     env:
-      GLAUX_HOME: ${{ runner.temp }}/glaux-smoke-home
-      GLAUX_INSTALL_DIR: ${{ runner.temp }}/glaux-smoke-install
       GLAUX_MIRROR: none
       GLAUX_NO_BROWSER: "1"
       GLAUX_NO_START: "1"
@@ -83,6 +84,11 @@ jobs:
         with:
           name: glaux-release-packages
           path: dist/release
+      - name: Configure isolated smoke directories
+        env:
+          SMOKE_ROOT: ${{ runner.temp }}
+        run: |
+          printf '%s\n' "GLAUX_HOME=$SMOKE_ROOT/glaux-smoke-home" "GLAUX_INSTALL_DIR=$SMOKE_ROOT/glaux-smoke-install" >> "$GITHUB_ENV"
       - name: Install package (Linux / macOS)
         if: matrix.platform != 'windows'
         run: |
@@ -113,6 +119,7 @@ jobs:
         run: Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $env:GLAUX_INSTALL_DIR, $env:GLAUX_HOME
 
   publish:
+    if: github.event_name == 'push'
     needs: [package, smoke]
     runs-on: ubuntu-22.04
     permissions:

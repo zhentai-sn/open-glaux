@@ -13,6 +13,7 @@ from app import config, upload_store
 from app import datasource_registry as reg
 from app.main import app
 from app.routers import annotations as ann_router
+from app.schemas import ObjectMeta
 
 client = TestClient(app)
 
@@ -34,6 +35,27 @@ def _annotations_root(tmp_path, monkeypatch):
     reg.init()
     src = reg.register_folder(folder, "natural_image")
     TARGET = upload_store.image_id(src.id, "target.png")
+    # CT/WSI 用例只测试标注与轴索引契约，不应依赖开发机上未入库的医学示例文件。
+    metadata = {
+        "ct_001": ObjectMeta(
+            id="ct_001", kind="volume", modality="ct_abdomen", source_id="test-ct",
+            axes=[{"name": "x", "size": 800}, {"name": "y", "size": 600},
+                  {"name": "z", "size": 112}],
+            resources={"frame": "/objects/ct_001/frame"},
+        ),
+        "slide_001": ObjectMeta(
+            id="slide_001", kind="slide", modality="pathology", source_id="test-wsi",
+            axes=[{"name": "x", "size": 800}, {"name": "y", "size": 600},
+                  {"name": "level", "size": 1}],
+            resources={"frame": "/objects/slide_001/frame"},
+        ),
+    }
+    real_meta = ann_router._object_meta
+
+    def object_meta(image_id):
+        return metadata[image_id] if image_id in metadata else real_meta(image_id)
+
+    monkeypatch.setattr(ann_router, "_object_meta", object_meta)
     ann_router._stores.clear()
     yield
     ann_router._stores.clear()

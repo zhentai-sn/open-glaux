@@ -126,22 +126,21 @@ search() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-declare -A COUNT
-declare -A MENTION
 for sec in "${SECTIONS[@]}"; do
   list_files "$sec" > "$TMP/$sec.files"
   : > "$TMP/$sec.hits"
   for lit in "${LITERALS[@]}"; do
-    mapfile -t pats < <(patterns_for "$lit")
+    pats=()
+    while IFS= read -r pattern; do pats+=("$pattern"); done < <(patterns_for "$lit")
     search "$TMP/$sec.files" "${pats[@]}" | sort -u > "$TMP/$sec.$lit.hits"
-    COUNT["$sec,$lit"]=$(wc -l < "$TMP/$sec.$lit.hits" | tr -d ' ')
+    wc -l < "$TMP/$sec.$lit.hits" | tr -d ' ' > "$TMP/$sec.$lit.count"
     cat "$TMP/$sec.$lit.hits" >> "$TMP/$sec.hits"
   done
   # 其他提及：含任一带引号字面量、但不在命中行里的非注释行。
   alt="$(IFS='|'; echo "${LITERALS[*]}")"
   search "$TMP/$sec.files" "${Q}(${alt})${Q}" | sort -u > "$TMP/$sec.mentions"
-  sort -u "$TMP/$sec.hits" -o "$TMP/$sec.hits"
-  MENTION["$sec"]=$(comm -23 "$TMP/$sec.mentions" "$TMP/$sec.hits" | wc -l | tr -d ' ')
+  sort -u -o "$TMP/$sec.hits" "$TMP/$sec.hits"
+  comm -23 "$TMP/$sec.mentions" "$TMP/$sec.hits" | wc -l | tr -d ' ' > "$TMP/$sec.mention-count"
 done
 
 echo "模态字面量比较计数（SDD 10 规则 9 / D-14；搜索工具：$TOOL）"
@@ -149,18 +148,20 @@ echo "范围：frontend=frontend/src 除 plugins/；backend=backend/app 除 sour
 echo "      agent-runtime=agent-runtime/src（仅报告，不计入门禁总数）"
 echo
 printf '%-15s %10s %10s %15s %8s\n' literal frontend backend agent-runtime gate
-declare -A SECSUM=([frontend]=0 [backend]=0 [agent-runtime]=0)
+FRONTEND_TOTAL=0
+BACKEND_TOTAL=0
+AGENT_TOTAL=0
 GATE_TOTAL=0
 for lit in "${LITERALS[@]}"; do
-  f=${COUNT["frontend,$lit"]}; b=${COUNT["backend,$lit"]}; a=${COUNT["agent-runtime,$lit"]}
-  SECSUM[frontend]=$((SECSUM[frontend] + f))
-  SECSUM[backend]=$((SECSUM[backend] + b))
-  SECSUM[agent-runtime]=$((SECSUM[agent-runtime] + a))
+  f=$(cat "$TMP/frontend.$lit.count"); b=$(cat "$TMP/backend.$lit.count"); a=$(cat "$TMP/agent-runtime.$lit.count")
+  FRONTEND_TOTAL=$((FRONTEND_TOTAL + f))
+  BACKEND_TOTAL=$((BACKEND_TOTAL + b))
+  AGENT_TOTAL=$((AGENT_TOTAL + a))
   GATE_TOTAL=$((GATE_TOTAL + f + b))
   printf '%-15s %10s %10s %15s %8s\n' "$lit" "$f" "$b" "$a" "$((f + b))"
 done
-printf '%-15s %10s %10s %15s %8s\n' total "${SECSUM[frontend]}" "${SECSUM[backend]}" "${SECSUM[agent-runtime]}" "$GATE_TOTAL"
-printf '%-15s %10s %10s %15s\n' "其他提及" "${MENTION[frontend]}" "${MENTION[backend]}" "${MENTION[agent-runtime]}"
+printf '%-15s %10s %10s %15s %8s\n' total "$FRONTEND_TOTAL" "$BACKEND_TOTAL" "$AGENT_TOTAL" "$GATE_TOTAL"
+printf '%-15s %10s %10s %15s\n' "其他提及" "$(cat "$TMP/frontend.mention-count")" "$(cat "$TMP/backend.mention-count")" "$(cat "$TMP/agent-runtime.mention-count")"
 echo
 echo "门禁总数（frontend + backend）：$GATE_TOTAL"
 

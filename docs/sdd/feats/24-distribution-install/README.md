@@ -144,6 +144,7 @@ graph LR
 2. 隔离模型的解释器路径按平台取 `.venv/bin/python` 或 `.venv\Scripts\python.exe`（backend `config.py`）。
 3. 路径处理统一使用平台 API，不拼接 `/`；数据库、日志路径支持含空格与非 ASCII 字符的用户目录。
 4. 子进程启停、信号与端口检测按 §7.3 在 Windows 上单独实现并测试。
+5. Skills 与提示词模板加载时，执行环境向 Pi 的目录扫描器提供 `/` 分隔的路径，避免其 POSIX 路径计算误读 Windows 盘符；返回应用的技能与诊断路径仍使用平台原生格式。
 
 ### 7.5 打包
 
@@ -159,6 +160,7 @@ graph LR
 2. `release.yml`：`v*` 标签触发 → 校验标签与 `VERSION` 一致 → 构建程序包 → 在 Windows、Linux、macOS Intel 与 Apple silicon 虚拟机上执行安装脚本（指向本次构建的包）并做冒烟测试 → 创建 Release、上传产物与 `SHA256SUMS` → 显式派发 `pages.yml` 更新 `latest.json`。使用 `GITHUB_TOKEN` 创建的 Release 不会触发另一个工作流的 `release` 事件，故采用 `workflow_dispatch`。
 3. 冒烟测试：重复安装 → `glaux start` → 健康检查与令牌拒绝检查 → 上传示例图片 → 经本机 manifest 执行 `glaux update` → 验证版本切换、服务重启、上传源与数据保留 → `status / doctor / stop / uninstall --purge`。更新测试使用当前包的隔离副本作为旧版本快照，不等同于旧数据库格式迁移验收；不调用真实模型。
 4. 推送与打标签由维护者执行；CI 不保存任何模型密钥。
+5. `release.yml` 支持 `workflow_dispatch` 预检：执行同一套构建与安装更新冒烟，成功后不创建 Release；正式发布仅由版本标签推送触发。
 
 ### 7.7 安装脚本
 
