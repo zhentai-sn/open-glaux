@@ -4,13 +4,13 @@
  */
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 
 import { loadSkills } from "@earendil-works/pi-agent-core";
-import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 
 import { RuntimeError } from "../errors.js";
 import { parseSettings, readSettingsFile, userSettingsPath } from "../permission/settings.js";
+import { ResourceExecutionEnv } from "./execution-env.js";
 import {
   assertResourceName,
   BUILTIN_SKILLS_DIR,
@@ -84,9 +84,9 @@ export async function putSkill(source: string, name: string, content: string, ct
   if (!content.trim()) throw new RuntimeError("invalid_skill", "Skill content is empty.", 422);
   const previous = await readOptional(path);
   await writeAtomic(path, content);
-  const result = await loadSkills(new NodeExecutionEnv({ cwd: "/" }), dirname(path));
-  const loaded = result.skills.find((skill) => skill.filePath === path);
-  const diagnostics: ResourceDiagnostic[] = result.diagnostics.map((d) => ({ source: source as ResourceSource, code: d.code, message: d.message, path: d.path }));
+  const result = await loadSkills(new ResourceExecutionEnv({ cwd: "/" }), dirname(path));
+  const loaded = result.skills.find((skill) => normalize(skill.filePath) === path);
+  const diagnostics: ResourceDiagnostic[] = result.diagnostics.map((d) => ({ source: source as ResourceSource, code: d.code, message: d.message, path: normalize(d.path) }));
   if (!loaded) {
     if (previous === undefined) await rm(dirname(path), { recursive: true, force: true });
     else await writeAtomic(path, previous);

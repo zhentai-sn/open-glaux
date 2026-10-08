@@ -156,7 +156,7 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
   const disabled = new Set(options.disabledSkills ?? []);
   const lang = options.lang ?? "en";
 
-  const loadedSkills = await loadSourcedSkills(env, dirs.skills, skill => ({ ...skill, filePath: normalize(skill.filePath) }));
+  const loadedSkills = await loadSourcedSkills(env, dirs.skills);
   const winner = new Map<string, { skill: Skill; source: ResourceSource }>();
   for (const entry of loadedSkills.skills) {
     const current = winner.get(entry.skill.name);
@@ -168,7 +168,7 @@ export async function loadResources(options: LoadResourcesOptions = {}): Promise
       name: skill.name,
       description: skill.description,
       source,
-      path: skill.filePath,
+      path: normalize(skill.filePath),
       enabled: !disabled.has(skill.name),
       model_invocable: !skill.disableModelInvocation,
       ...(top.source !== source ? { overridden_by: top.source } : {}),

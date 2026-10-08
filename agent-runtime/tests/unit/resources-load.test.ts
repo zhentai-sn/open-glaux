@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { formatSkillInvocation } from "@earendil-works/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { loadResources, MAX_INSTRUCTIONS_BYTES } from "../../src/resources/load.js";
@@ -38,6 +39,10 @@ describe("loadResources", () => {
     await skill(join(project, ".glaux", "skills"), "imt", "project imt");
     const loaded = await load({ project: true });
     expect(loaded.harnessSkills.map((s) => s.description)).toEqual(["project imt"]);
+    const skillDir = join(project, ".glaux", "skills", "imt");
+    const modelDir = process.platform === "win32" ? skillDir.replace(/\\/gu, "/") : skillDir;
+    expect(formatSkillInvocation(loaded.harnessSkills[0]!)).toContain(`References are relative to ${modelDir}.`);
+    expect(loaded.skills.find(s => s.source === "project")?.path).toBe(join(skillDir, "SKILL.md"));
     expect(loaded.skills.map((s) => [s.source, s.overridden_by ?? null])).toEqual([
       ["builtin", "project"], ["user", "project"], ["project", null],
     ]);
