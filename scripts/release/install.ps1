@@ -210,6 +210,9 @@ try {
   }
 
   if ($env:GLAUX_NO_START -ne '1') {
+    $runtimeTemp = Join-Path $InstallDir 'runtime\temp'
+    New-Item -ItemType Directory -Force -Path $runtimeTemp | Out-Null
+    $env:TEMP = $runtimeTemp; $env:TMP = $runtimeTemp
     & $nodeExe (Join-Path $InstallDir 'current\launcher\glaux.mjs') start
     if ($LASTEXITCODE -ne 0) { Die 'Glaux did not start; run glaux doctor' }
   }

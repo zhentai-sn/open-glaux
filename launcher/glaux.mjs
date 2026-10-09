@@ -24,6 +24,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."); // 程序�
 const VERSION = readFileSync(join(ROOT, "VERSION"), "utf8").trim();
 const INSTALLED = basename(dirname(ROOT)) === "versions";
 const INSTALL_DIR = INSTALLED ? resolve(ROOT, "../..") : undefined;
+if (IS_WIN && INSTALL_DIR) {
+  const runtimeTemp = join(INSTALL_DIR, "runtime", "temp");
+  mkdirSync(runtimeTemp, { recursive: true });
+  process.env.TEMP = runtimeTemp;
+  process.env.TMP = runtimeTemp;
+}
 let savedHome;
 if (INSTALL_DIR && existsSync(join(INSTALL_DIR, "install.json"))) {
   savedHome = JSON.parse(readFileSync(join(INSTALL_DIR, "install.json"), "utf8")).home;

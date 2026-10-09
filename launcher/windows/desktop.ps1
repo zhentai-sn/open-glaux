@@ -7,6 +7,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+trap { [void][Windows.Forms.MessageBox]::Show($_.Exception.Message,'Glaux','OK','Error'); break }
 [Windows.Forms.Application]::EnableVisualStyles()
 $zh = [Globalization.CultureInfo]::CurrentUICulture.Name -like 'zh*'
 function T([string]$cn,[string]$en) { if ($zh) { $cn } else { $en } }
@@ -24,7 +25,7 @@ if (-not $HomeDir) {
 $script:Job = $null
 $script:CurrentMode = $Mode
 $script:Running = $false
-$script:Home = $HomeDir
+$script:DataHome = $HomeDir
 $script:Dir = $InstallDir
 $script:ExistingInstallation = Test-Path -LiteralPath (Join-Path $InstallDir 'current\VERSION')
 
@@ -108,7 +109,7 @@ function RefreshState {
   if ($script:CurrentMode -ne 'Manage' -or $script:Job) { return }
   $script:Running=$false
   try {
-    $s=Get-Content -LiteralPath (Join-Path $script:Home 'run\state.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $s=Get-Content -LiteralPath (Join-Path $script:DataHome 'run\state.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if (Get-Process -Id $s.agent_pid -ErrorAction SilentlyContinue) {
       $request=[Net.WebRequest]::Create('http://127.0.0.1:'+ $s.port + '/agent-api/v1/health')
       $request.Timeout=300; $response=$request.GetResponse(); $response.Close()
@@ -136,7 +137,7 @@ function BeginJob([string]$kind,[string]$command) {
   $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
   $psi.StandardOutputEncoding=[Text.Encoding]::UTF8; $psi.StandardErrorEncoding=[Text.Encoding]::UTF8
   $psi.EnvironmentVariables['GLAUX_INSTALL_DIR']=$script:Dir
-  $psi.EnvironmentVariables['GLAUX_HOME']=$script:Home
+  $psi.EnvironmentVariables['GLAUX_HOME']=$script:DataHome
   $psi.EnvironmentVariables['GLAUX_NO_BROWSER']='1'
   $psi.EnvironmentVariables['GLAUX_NO_START']='0'
   $psi.EnvironmentVariables['GLAUX_WINDOWS_DESKTOP_SOURCE']=$PSScriptRoot
@@ -175,7 +176,7 @@ $installBox.Add_TextChanged({ if ($script:CurrentMode -eq 'Install') { [void](Sh
 $installButton.Add_Click({
   if (-not (ShowSpace)) { [void][Windows.Forms.MessageBox]::Show($space.Text,'Glaux'); return }
   if (-not [IO.Path]::IsPathRooted($homeBox.Text)) { [void][Windows.Forms.MessageBox]::Show((T '请选择绝对数据目录。' 'Choose an absolute data folder.'),'Glaux'); return }
-  $script:Dir=[IO.Path]::GetFullPath($installBox.Text); $script:Home=[IO.Path]::GetFullPath($homeBox.Text)
+  $script:Dir=[IO.Path]::GetFullPath($installBox.Text); $script:DataHome=[IO.Path]::GetFullPath($homeBox.Text)
   if ($script:Dir.TrimEnd('\') -eq [IO.Path]::GetPathRoot($script:Dir).TrimEnd('\')) {
     [void][Windows.Forms.MessageBox]::Show((T '请选择盘符下的 Glaux 子目录。' 'Choose a Glaux subfolder, not a drive root.'),'Glaux'); return
   }
@@ -184,7 +185,7 @@ $installButton.Add_Click({
     if ($foreign.Count -gt 0) { [void][Windows.Forms.MessageBox]::Show((T '此目录已有其他文件，请选择新的 Glaux 子目录。' 'This folder contains other files. Choose a new Glaux subfolder.'),'Glaux'); return }
   }
   $prefix=$script:Dir.TrimEnd('\')+'\'
-  if ($script:Home.Equals($script:Dir,[StringComparison]::OrdinalIgnoreCase) -or $script:Home.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) {
+  if ($script:DataHome.Equals($script:Dir,[StringComparison]::OrdinalIgnoreCase) -or $script:DataHome.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) {
     [void][Windows.Forms.MessageBox]::Show((T '数据目录必须在程序目录之外，才能在卸载时保留。' 'The data folder must be outside the application folder so uninstall can keep it.'),'Glaux'); return
   }
   if (-not (Test-Path -LiteralPath $InstallerScript)) { [void][Windows.Forms.MessageBox]::Show('Installer script missing. Download Glaux-Setup.exe again.','Glaux'); return }
@@ -194,7 +195,7 @@ $startButton.Add_Click({ RunGlaux 'start' })
 $openButton.Add_Click({ RunGlaux 'open' })
 $stopButton.Add_Click({ RunGlaux 'stop' })
 $logsButton.Add_Click({
-  $folder=Join-Path $script:Home 'logs'
+  $folder=Join-Path $script:DataHome 'logs'
   if (Test-Path -LiteralPath $folder) { Start-Process explorer.exe -ArgumentList ('"'+$folder+'"') }
 })
 $removeButton.Add_Click({
@@ -223,7 +224,7 @@ $timer.Add_Tick({
         $stateLabel.Text=T '操作未完成，请查看下方日志后重试。' 'Could not finish. Check the log below and retry.'
         [void][Windows.Forms.MessageBox]::Show($stateLabel.Text,'Glaux','OK','Error')
       } elseif ($kind -eq 'uninstall') {
-        [void][Windows.Forms.MessageBox]::Show((T 'Glaux 已卸载，数据保留在：' 'Glaux was uninstalled. Data remains in: ')+$script:Home,'Glaux'); $form.Close()
+        [void][Windows.Forms.MessageBox]::Show((T 'Glaux 已卸载，数据保留在：' 'Glaux was uninstalled. Data remains in: ')+$script:DataHome,'Glaux'); $form.Close()
       } else {
         if ($kind -eq 'install') { $script:CurrentMode='Manage'; $form.Text='Glaux'; ShowMode }
         RefreshState
