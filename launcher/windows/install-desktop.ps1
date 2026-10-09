@@ -11,7 +11,9 @@ if ($HomeDir.Equals($InstallDir,[StringComparison]::OrdinalIgnoreCase) -or $Home
 }
 $bin = Join-Path $InstallDir 'bin'
 New-Item -ItemType Directory -Force -Path $bin | Out-Null
-Copy-Item -LiteralPath (Join-Path $SourceDir 'desktop.ps1') -Destination (Join-Path $bin 'desktop.ps1') -Force
+foreach ($asset in @('desktop.ps1','glaux.ico','glaux.png')) {
+  Copy-Item -LiteralPath (Join-Path $SourceDir $asset) -Destination (Join-Path $bin $asset) -Force
+}
 [IO.File]::WriteAllText((Join-Path $InstallDir 'install.json'), (@{home=$HomeDir} | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 
 # The explicit fallback also repairs custom-home commands in existing 0.3.0 installations.
@@ -31,7 +33,7 @@ foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::Ge
   $link.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $control + '" -Mode Manage -InstallDir "' + $InstallDir + '" -HomeDir "' + $HomeDir + '"'
   $link.WorkingDirectory = $InstallDir
   $link.WindowStyle = 7
-  $link.IconLocation = "$env:SystemRoot\System32\imageres.dll,14"
+  $link.IconLocation = (Join-Path $bin 'glaux.ico') + ',0'
   $link.Description = 'Glaux - start, open, stop and uninstall'
   $link.Save()
 }

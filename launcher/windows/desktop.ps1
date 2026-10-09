@@ -42,7 +42,8 @@ $form.StartPosition='CenterScreen'; $form.MaximizeBox=$false; $form.FormBorderSt
 $form.BackColor=[Drawing.Color]::White
 $form.ForeColor=[Drawing.Color]::FromArgb(30,41,59)
 $form.Font=New-Object Drawing.Font('Segoe UI',10)
-$form.Icon=[Drawing.SystemIcons]::Application
+$iconPath=Join-Path $PSScriptRoot 'glaux.ico'
+$form.Icon=New-Object Drawing.Icon($iconPath)
 function Label([string]$text,[int]$x,[int]$y,[int]$width) {
   $c=New-Object Windows.Forms.Label
   $c.Text=$text; $c.Location=New-Object Drawing.Point($x,$y); $c.Size=New-Object Drawing.Size($width,26)
@@ -67,9 +68,12 @@ function TextBox([string]$text,[int]$y) {
   $c.BorderStyle='FixedSingle'; $c.BackColor=[Drawing.Color]::White
   $c.ForeColor=[Drawing.Color]::FromArgb(71,85,105); $form.Controls.Add($c); return $c
 }
-$brand=Label 'G' 28 26 52
-$brand.Height=52; $brand.TextAlign='MiddleCenter'; $brand.BackColor=[Drawing.Color]::FromArgb(37,99,235)
-$brand.ForeColor=[Drawing.Color]::White; $brand.Font=New-Object Drawing.Font('Segoe UI Semibold',24)
+$brand=New-Object Windows.Forms.PictureBox
+$brand.Location=New-Object Drawing.Point(24,22); $brand.Size=New-Object Drawing.Size(60,60)
+$brand.SizeMode='Zoom'
+$brandSource=[Drawing.Image]::FromFile((Join-Path $PSScriptRoot 'glaux.png'))
+try { $brand.Image=New-Object Drawing.Bitmap($brandSource) } finally { $brandSource.Dispose() }
+$form.Controls.Add($brand)
 $title=Label 'Glaux' 96 22 470
 $title.Font=New-Object Drawing.Font('Segoe UI Semibold',24); $title.Height=45
 $subtitle=Label (T '图像与视频分析' 'Image and video analysis') 98 69 470

@@ -16,7 +16,7 @@ internal static class GlauxSetup
         {
             try { Directory.CreateDirectory(work); }
             catch { work = Path.Combine(Path.GetTempPath(), "glaux-setup-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(work); }
-            foreach (string name in new[] { "desktop.ps1", "install.ps1", "install-desktop.ps1" })
+            foreach (string name in new[] { "desktop.ps1", "install.ps1", "install-desktop.ps1", "glaux.ico", "glaux.png" })
             {
                 using (Stream source = Assembly.GetExecutingAssembly().GetManifestResourceStream("Glaux." + name))
                 using (FileStream target = File.Create(Path.Combine(work, name)))

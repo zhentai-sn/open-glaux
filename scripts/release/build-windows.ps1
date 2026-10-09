@@ -15,6 +15,9 @@ $arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+',('/out:'+
   ('/resource:'+(Join-Path $root 'launcher\windows\desktop.ps1')+',Glaux.desktop.ps1'),
   ('/resource:'+(Join-Path $root 'launcher\windows\install-desktop.ps1')+',Glaux.install-desktop.ps1'),
   ('/resource:'+(Join-Path $root 'scripts\release\install.ps1')+',Glaux.install.ps1'),
+  ('/win32icon:'+(Join-Path $root 'launcher\windows\glaux.ico')),
+  ('/resource:'+(Join-Path $root 'launcher\windows\glaux.ico')+',Glaux.glaux.ico'),
+  ('/resource:'+(Join-Path $root 'launcher\windows\glaux.png')+',Glaux.glaux.png'),
   (Join-Path $root 'launcher\windows\Setup.cs'))
 $info = New-Object Diagnostics.ProcessStartInfo
 $info.FileName = $compiler
