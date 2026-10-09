@@ -35,8 +35,31 @@ function Die($Message) {
 }
 function Fetch($Url, $OutFile) {
   for ($i = 1; $i -le 3; $i++) {
-    try { Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $OutFile -TimeoutSec 600; return }
+    $response = $null; $inputStream = $null; $outputStream = $null
+    try {
+      $request = [Net.HttpWebRequest]::Create($Url)
+      $request.Timeout = 600000; $request.ReadWriteTimeout = 600000
+      $request.UserAgent = 'Glaux installer'
+      $response = $request.GetResponse()
+      $inputStream = $response.GetResponseStream()
+      $outputStream = [IO.File]::Create($OutFile)
+      $buffer = New-Object byte[] 65536
+      $downloaded = 0L; $lastReport = [DateTime]::MinValue
+      while (($count = $inputStream.Read($buffer,0,$buffer.Length)) -gt 0) {
+        $outputStream.Write($buffer,0,$count); $downloaded += $count
+        if (([DateTime]::UtcNow - $lastReport).TotalSeconds -ge 1) {
+          if ($env:GLAUX_WINDOWS_DESKTOP_SOURCE) { Write-Host "GLAUX_PROGRESS|$downloaded|$([Math]::Max(0,$response.ContentLength))|$([IO.Path]::GetFileName($OutFile))" }
+          $lastReport = [DateTime]::UtcNow
+        }
+      }
+      return
+    }
     catch { if ($i -eq 3) { Die "download failed: $Url ($($_.Exception.Message))" } }
+    finally {
+      if ($outputStream) { $outputStream.Dispose() }
+      if ($inputStream) { $inputStream.Dispose() }
+      if ($response) { $response.Close() }
+    }
   }
 }
 function Sha256($Path) { (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLowerInvariant() }
@@ -52,11 +75,23 @@ if ($env:PROCESSOR_ARCHITEW6432) { $arch = $env:PROCESSOR_ARCHITEW6432 }
 if ($arch -ne 'AMD64') { Die "only 64-bit x86 Windows is supported (found $arch)" }
 
 $InstallDir = EnvOr 'GLAUX_INSTALL_DIR' (Join-Path $env:LOCALAPPDATA 'Programs\Glaux')
-$env:GLAUX_HOME = EnvOr 'GLAUX_HOME' (Join-Path $env:USERPROFILE '.glaux')
+$savedHome = Join-Path $env:USERPROFILE '.glaux'
+$installRecord = Join-Path $InstallDir 'install.json'
+if (Test-Path -LiteralPath $installRecord) {
+  $savedHome = (Get-Content -LiteralPath $installRecord -Raw -Encoding UTF8 | ConvertFrom-Json).home
+}
+$env:GLAUX_HOME = EnvOr 'GLAUX_HOME' $savedHome
+$InstallDir = [IO.Path]::GetFullPath($InstallDir)
+if ($InstallDir.TrimEnd('\') -eq [IO.Path]::GetPathRoot($InstallDir).TrimEnd('\')) { Die 'choose an application subfolder, not a drive root' }
+$homePath = [IO.Path]::GetFullPath($env:GLAUX_HOME)
+if ($homePath.Equals($InstallDir,[StringComparison]::OrdinalIgnoreCase) -or $homePath.StartsWith($InstallDir.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) {
+  Die 'GLAUX_HOME must be outside GLAUX_INSTALL_DIR so uninstall can keep data'
+}
 New-Item -ItemType Directory -Force -Path $InstallDir, $env:GLAUX_HOME | Out-Null
 
 $drive = (Get-Item $InstallDir).PSDrive
-if ($drive.Free -and $drive.Free -lt $MinFreeBytes) { Die "at least 3 GB of free disk space is needed on $($drive.Name):" }
+$free = ([IO.DriveInfo]::new($drive.Root)).AvailableFreeSpace
+if ($free -lt $MinFreeBytes) { Die "at least 3 GiB is needed on $($drive.Name):; available: $([Math]::Round($free/1GB,2)) GiB. Choose another drive with GLAUX_INSTALL_DIR." }
 
 $bash = $null
 foreach ($root in @("$env:ProgramFiles\Git", "${env:ProgramFiles(x86)}\Git", "$env:LOCALAPPDATA\Programs\Git")) {
@@ -82,8 +117,11 @@ if ($mirror -eq 'auto') {
 }
 $env:GLAUX_MIRROR = $mirror
 
-$work = Join-Path ([IO.Path]::GetTempPath()) "glaux-install-$PID"
+$originalTemp = $env:TEMP; $originalTmp = $env:TMP; $originalUvCache = $env:UV_CACHE_DIR
+$work = Join-Path $InstallDir ".setup-cache\glaux-install-$PID"
 New-Item -ItemType Directory -Force -Path $work | Out-Null
+$env:TEMP = $work; $env:TMP = $work
+$env:UV_CACHE_DIR = EnvOr 'UV_CACHE_DIR' (Join-Path $InstallDir 'runtime\cache')
 try {
   # -------------------------------------------------------------- 2. package
   if ($env:GLAUX_PACKAGE) {
@@ -159,6 +197,18 @@ try {
   & $nodeExe (Join-Path $target 'launcher\glaux.mjs') install
   if ($LASTEXITCODE -ne 0) { Die 'setup failed (see the messages above)' }
 
+  if ($env:GLAUX_NO_SHORTCUTS -ne '1') {
+    $desktopSource = $env:GLAUX_WINDOWS_DESKTOP_SOURCE
+    if (-not $desktopSource -or -not (Test-Path (Join-Path $desktopSource 'install-desktop.ps1'))) {
+      $desktopSource = Join-Path $target 'launcher\windows'
+    }
+    if (Test-Path (Join-Path $desktopSource 'install-desktop.ps1')) {
+      & (Join-Path $desktopSource 'install-desktop.ps1') -InstallDir $InstallDir -HomeDir $env:GLAUX_HOME -SourceDir $desktopSource
+    }
+    $commandDir = Join-Path $InstallDir 'bin'
+    if (@($env:Path -split ';') -notcontains $commandDir) { $env:Path += ';' + $commandDir }
+  }
+
   if ($env:GLAUX_NO_START -ne '1') {
     & $nodeExe (Join-Path $InstallDir 'current\launcher\glaux.mjs') start
     if ($LASTEXITCODE -ne 0) { Die 'Glaux did not start; run glaux doctor' }
@@ -166,5 +216,6 @@ try {
   Say ''
   Say 'Done. Open a new terminal to use: glaux start | stop | status | open | update | uninstall | doctor'
 } finally {
+  $env:TEMP = $originalTemp; $env:TMP = $originalTmp; $env:UV_CACHE_DIR = $originalUvCache
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $work
 }

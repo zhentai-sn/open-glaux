@@ -24,7 +24,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."); // 程序�
 const VERSION = readFileSync(join(ROOT, "VERSION"), "utf8").trim();
 const INSTALLED = basename(dirname(ROOT)) === "versions";
 const INSTALL_DIR = INSTALLED ? resolve(ROOT, "../..") : undefined;
-const GLAUX_HOME = resolve(process.env.GLAUX_HOME?.trim() || join(homedir(), ".glaux"));
+let savedHome;
+if (INSTALL_DIR && existsSync(join(INSTALL_DIR, "install.json"))) {
+  savedHome = JSON.parse(readFileSync(join(INSTALL_DIR, "install.json"), "utf8")).home;
+}
+const GLAUX_HOME = resolve(process.env.GLAUX_HOME?.trim() || savedHome || join(homedir(), ".glaux"));
 const RUN_DIR = join(GLAUX_HOME, "run");
 const LOG_DIR = join(GLAUX_HOME, "logs");
 const STATE_FILE = join(RUN_DIR, "state.json");
@@ -510,7 +514,10 @@ async function install(args) {
     ...mirrorEnv(),
     UV_PYTHON_INSTALL_DIR: join(runtime, "python"),
     UV_PYTHON_PREFERENCE: "only-managed",
+    UV_CACHE_DIR: process.env.UV_CACHE_DIR?.trim() || join(runtime, "cache"),
+    ...(IS_WIN ? { TEMP: join(runtime, "temp"), TMP: join(runtime, "temp") } : {}),
   };
+  if (IS_WIN) mkdirSync(env.TEMP, { recursive: true });
   const backend = join(ROOT, "backend");
   try {
     if (!existsSync(pythonPath())) {
@@ -530,6 +537,7 @@ async function install(args) {
     throw error;
   }
 
+  writeFileSync(join(INSTALL_DIR, "install.json"), `${JSON.stringify({ home: GLAUX_HOME }, null, 2)}\n`);
   if (process.env.GLAUX_NO_SHORTCUTS === "1") {
     writeCommand();
   } else {
@@ -585,6 +593,12 @@ function writeShims() {
   const bin = join(INSTALL_DIR, "bin");
   const entry = join(INSTALL_DIR, "current", "launcher", "glaux.mjs");
   if (IS_WIN) {
+    const helper = join(ROOT, "launcher", "windows", "install-desktop.ps1");
+    if (existsSync(helper)) {
+      const result = powershell(`& ${psQuote(helper)} -InstallDir ${psQuote(INSTALL_DIR)} -HomeDir ${psQuote(GLAUX_HOME)}`);
+      if (result.status !== 0) fail(t(`桌面入口创建失败：${result.stderr}`, `creating the desktop entry failed: ${result.stderr}`));
+      return;
+    }
     const result = powershell([
       `$shell = New-Object -ComObject WScript.Shell`,
       `foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {`,

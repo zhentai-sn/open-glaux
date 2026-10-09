@@ -36,13 +36,14 @@
     </div></section>
 
     <section id="install" class="section wash"><div class="wrap install-grid">
-      <div class="install-copy"><h2>安装一次，<br>本机运行。</h2><p>选择操作系统并复制一条命令。安装程序会校验下载包、准备独立运行环境，并在浏览器中打开 Glaux。</p><p>需要指定版本或离线安装？安装手册列出了系统要求和可选项。</p><div class="requirements"><b>系统要求</b><br>Windows 10/11 x64 · macOS 13+ Intel 或 Apple 芯片 · Ubuntu 22.04+ x64<br>至少 3 GB 可用磁盘空间。Windows 执行 shell 命令需要 Git for Windows。</div></div>
+      <div class="install-copy"><h2>安装一次，<br>本机运行。</h2><p>Windows 下载图形安装程序；macOS 和 Linux 复制一条命令。安装程序会校验下载包、准备独立运行环境，并在浏览器中打开 Glaux。</p><p>需要指定版本或离线安装？安装手册列出了系统要求和可选项。</p><div class="requirements"><b>系统要求</b><br>Windows 10/11 x64 · macOS 13+ Intel 或 Apple 芯片 · Ubuntu 22.04+ x64<br>至少 3 GB 可用磁盘空间。Windows 执行 shell 命令需要 Git for Windows。</div></div>
       <div>
         <div class="platforms" role="tablist" aria-label="选择操作系统">
           <button class="platform" id="tab-windows" role="tab" aria-selected="false" data-platform="windows">Windows</button>
           <button class="platform" id="tab-macos" role="tab" aria-selected="false" data-platform="macos">macOS</button>
           <button class="platform" id="tab-linux" role="tab" aria-selected="false" data-platform="linux">Linux</button>
         </div>
+        <div id="windows-download" class="windows-download" hidden><a id="windows-setup-link" class="btn primary" href="https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe">下载 Windows 安装程序</a><p class="fine">双击下载的 EXE，按向导选择安装目录。安装后使用桌面 Glaux 图标启动、打开或停止应用。</p></div>
         <div class="command"><code id="install-command">curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh</code><button class="copy" id="copy-command" type="button">复制命令</button></div>
         <div class="install-links"><a href="../install.sh">查看 install.sh</a><a href="../install.ps1">查看 install.ps1</a><a href="../latest.json">最新版本与校验值</a><a href="https://github.com/zhentai-sn/open-glaux/releases/latest">全部下载</a><a href="https://github.com/zhentai-sn/open-glaux/blob/main/docs/runbooks/distribution-install.md">安装手册</a></div>
         <p class="fine" id="copy-status" aria-live="polite" style="text-align:left;margin-top:10px"></p>
@@ -74,7 +75,7 @@
         <details><summary>需要预装 Node.js 或 Python 吗？</summary><p>不需要。安装程序会把 Glaux 需要的 Node.js、uv 和 Python 放在应用目录内，不需要管理员权限。</p></details>
         <details><summary>Glaux 自带模型或模型费用吗？</summary><p>不自带模型。你需要连接自选的模型服务商，价格和服务条款由服务商决定。专用模型权重在需要时另行安装。</p></details>
         <details><summary>Glaux 把数据保存在什么位置？</summary><p>默认位于 macOS 和 Linux 的 <code>~/.glaux</code>，或 Windows 的 <code>%USERPROFILE%\.glaux</code>。更新或卸载程序时会保留该目录，除非你明确选择清除。</p></details>
-        <details><summary>怎样卸载 Glaux？</summary><p>运行 <code>glaux uninstall</code> 卸载程序并保留数据。运行 <code>glaux uninstall --purge</code> 可同时清除数据。</p></details>
+        <details><summary>怎样卸载 Glaux？</summary><p>Windows 可在桌面 Glaux 控制窗口点击「卸载」；也可运行 <code>glaux uninstall</code> 卸载程序并保留数据。运行 <code>glaux uninstall --purge</code> 可同时清除数据。</p></details>
         <details><summary>可以用于临床诊断吗？</summary><p>不可以。生物医学功能仅供研究使用，不用于临床诊断。</p></details>
       </div>
     </div></section>
@@ -82,7 +83,9 @@
   </main>
   <footer class="foot"><div class="wrap foot-in"><span>© 2026 Glaux · Apache-2.0</span><span><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a> · <a href="../">English</a> · <a href="https://github.com/zhentai-sn/open-glaux/blob/main/LICENSE">许可</a></span></div></footer>
   <script>
-    (()=>{const commands={windows:'irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex',macos:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh',linux:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh'};const tabs=[...document.querySelectorAll('[data-platform]')],output=document.querySelector('#install-command'),copy=document.querySelector('#copy-command'),status=document.querySelector('#copy-status');const choose=(name,focus=false)=>{for(const tab of tabs){const active=tab.dataset.platform===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus()}output.textContent=commands[name]};for(const tab of tabs){tab.addEventListener('click',()=>choose(tab.dataset.platform));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;choose(tabs[next].dataset.platform,true)})}const ua=navigator.userAgent.toLowerCase();choose(ua.includes('windows')?'windows':ua.includes('mac')?'macos':'linux');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.textContent);status.textContent='已复制命令。'}catch{status.textContent='请手动选择并复制上方命令。'}})})();
+    (()=>{const commands={windows:'irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex',macos:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh',linux:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh'};const tabs=[...document.querySelectorAll('[data-platform]')],output=document.querySelector('#install-command'),copy=document.querySelector('#copy-command'),status=document.querySelector('#copy-status');const choose=(name,focus=false)=>{document.querySelector("#windows-download").hidden=name!=="windows"||!window.glauxWindowsSetup;for(const tab of tabs){const active=tab.dataset.platform===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus()}output.textContent=commands[name]};for(const tab of tabs){tab.addEventListener('click',()=>choose(tab.dataset.platform));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;choose(tabs[next].dataset.platform,true)})}const ua=navigator.userAgent.toLowerCase();choose(ua.includes('windows')?'windows':ua.includes('mac')?'macos':'linux');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.textContent);status.textContent='已复制命令。'}catch{status.textContent='请手动选择并复制上方命令。'}})})();
+
+    fetch("../latest.json").then(r=>{if(!r.ok)throw new Error('manifest');return r.json()}).then(m=>{const a=m.assets&&m.assets['windows-setup'];if(a&&a.url&&a.sha256){window.glauxWindowsSetup=true;document.querySelector('#windows-setup-link').href=a.url;const active=document.querySelector('[data-platform="windows"]').getAttribute('aria-selected')==='true';document.querySelector('#windows-download').hidden=!active}}).catch(()=>{});
   </script>
 </body>
 </html>

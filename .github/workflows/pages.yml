@@ -47,6 +47,10 @@ jobs:
           fi
           if [ -n "$tag" ]; then
             gh release download "$tag" --repo "$REPOSITORY" --pattern SHA256SUMS --dir "$RUNNER_TEMP"
+            setup=$(gh api "repos/$REPOSITORY/releases/tags/$tag" --jq 'any(.assets[]; .name == "WINDOWS-SHA256SUMS")')
+            if [ "$setup" = true ]; then
+              gh release download "$tag" --repo "$REPOSITORY" --pattern WINDOWS-SHA256SUMS --dir "$RUNNER_TEMP"
+            fi
             python - "$tag" "$RUNNER_TEMP/SHA256SUMS" "_site/latest.json" "https://github.com/$REPOSITORY/releases/download/$tag" <<'PY'
           from datetime import datetime, timezone
           from pathlib import Path
@@ -71,6 +75,12 @@ jobs:
                   for ext, digest in sums.items()
               },
           }
+          windows_sums = Path(sums_path).with_name("WINDOWS-SHA256SUMS")
+          if windows_sums.exists():
+              match = re.fullmatch(r"([0-9a-f]{64})\s+Glaux-Setup\.exe\s*", windows_sums.read_text(encoding="utf-8"))
+              if not match:
+                  raise SystemExit("invalid Windows setup checksum")
+              doc["assets"]["windows-setup"] = {"url": f"{base}/Glaux-Setup.exe", "sha256": match.group(1)}
           Path(output).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
           PY
           else

@@ -58,6 +58,7 @@ Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_POR
 
 - 本机安全：agent-runtime 校验 `Host`（回环名加监听端口，否则 421）与 `Origin`（存在时须为回环名，否则 403），开发态同样生效；生产模式另要求会话 Cookie `glaux_session` 或 `X-Glaux-Token`，`/?token=<令牌>` 换取 Cookie。backend 始终校验主机名为回环名。
 - 数据目录：启动器把 `GLAUX_AGENT_DATA_DIR`、`GLAUX_DATASETS_ROOT`、`GLAUX_ATLAS_ROOT`、`GLAUX_MODELS_ROOT` 设到 `GLAUX_HOME`（缺省 `~/.glaux`）下的 `agent/`、`datasets/`、`atlas/`、`models/`；`run/` 存状态与会话令牌，`logs/` 存日志。
+- Windows 桌面：`launcher/windows/desktop.ps1` 提供安装向导与启停控制；桌面图标直接打开控制窗口。`install.json` 持久保存自定义数据目录，`scripts/release/build-windows.ps1` 编译可双击的安装 EXE。
 - 命令：`glaux start | stop | status | open | logs | doctor | update | uninstall | version`。
 
 ### 发行模式开关

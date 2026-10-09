@@ -14,6 +14,8 @@ curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh
 
 **Windows 10/11 x64** (PowerShell; Git for Windows is needed for shell commands):
 
+Recommended: [download the Windows installer](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe) and double-click it. The Glaux desktop icon opens controls for starting, opening and stopping the app. PowerShell installation is also available:
+
 ```powershell
 irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex
 ```

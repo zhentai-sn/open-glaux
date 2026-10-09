@@ -14,6 +14,8 @@ curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh
 
 **Windows 10/11 x64**（PowerShell；执行智能体 shell 命令需要 Git for Windows）：
 
+推荐：[下载 Windows 图形安装程序](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe)，双击安装；桌面 Glaux 图标提供启动、打开和停止按钮。也可使用 PowerShell：
+
 ```powershell
 irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex
 ```

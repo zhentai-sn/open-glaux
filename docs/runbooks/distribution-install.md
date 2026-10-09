@@ -11,7 +11,7 @@ Glaux 是本机应用。安装器把程序放在用户目录，不需要管理�
 
 | 系统 | 支持范围 | 安装方式 |
 | --- | --- | --- |
-| Windows | Windows 10/11 x64 | PowerShell；智能体执行 shell 命令需要 Git for Windows |
+| Windows | Windows 10/11 x64 | 图形安装 EXE 或 PowerShell；智能体执行 shell 命令需要 Git for Windows |
 | macOS | macOS 13+ Intel 或 Apple silicon | Terminal |
 | Linux | Ubuntu 22.04+ x64 | POSIX shell |
 
@@ -25,11 +25,17 @@ macOS、Linux：
 curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh
 ```
 
-Windows PowerShell：
+Windows 推荐：[下载 Glaux-Setup.exe](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe)，双击打开安装向导。可选择程序与数据目录，窗口显示目标盘实际可用空间、下载进度和安装日志。数据目录须放在程序目录之外，普通卸载才能保留。
+
+安装后桌面和开始菜单的 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
+
+Windows PowerShell（可选）：
 
 ```powershell
 irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex
 ```
+
+PowerShell 安装会刷新当前窗口 PATH，可立即运行 `glaux stop`；自定义数据目录保存到程序目录 `install.json`，新终端与桌面入口沿用它。Windows 安装的临时下载、Python 和依赖缓存位于程序目录所在盘。
 
 安装完成后，Glaux 启动并在浏览器打开 `http://127.0.0.1:7410/`。首次使用时，在连接设置中填写自己的模型服务地址、API Key 和模型名。
 
@@ -54,7 +60,11 @@ curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh -o /tmp/glaux-inst
 GLAUX_VERSION=0.3.0 sh /tmp/glaux-install.sh
 ```
 
-Windows PowerShell：
+Windows 推荐：[下载 Glaux-Setup.exe](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe)，双击打开安装向导。可选择程序与数据目录，窗口显示目标盘实际可用空间、下载进度和安装日志。数据目录须放在程序目录之外，普通卸载才能保留。
+
+安装后桌面和开始菜单的 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
+
+Windows PowerShell（可选）：
 
 ```powershell
 $env:GLAUX_VERSION = '0.3.0'

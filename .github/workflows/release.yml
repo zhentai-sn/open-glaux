@@ -9,6 +9,19 @@ permissions:
   contents: write
 
 jobs:
+  windows-setup:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build graphical installer
+        shell: pwsh
+        run: ./scripts/release/build-windows.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: glaux-windows-setup
+          path: dist/windows/*
+          if-no-files-found: error
+
   package:
     runs-on: ubuntu-22.04
     steps:
@@ -120,7 +133,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push'
-    needs: [package, smoke]
+    needs: [package, smoke, windows-setup]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -130,6 +143,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: glaux-release-packages
+          path: dist/release
+      - uses: actions/download-artifact@v8
+        with:
+          name: glaux-windows-setup
           path: dist/release
       - name: Prepare release notes
         env:
@@ -149,7 +166,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/release/glaux-* dist/release/SHA256SUMS --verify-tag --title "Glaux $TAG" --notes-file release-notes.md
+        run: gh release create "$TAG" dist/release/glaux-* dist/release/SHA256SUMS dist/release/Glaux-Setup.exe dist/release/WINDOWS-SHA256SUMS --verify-tag --title "Glaux $TAG" --notes-file release-notes.md
       - name: Update Pages release manifest
         env:
           GH_TOKEN: ${{ github.token }}

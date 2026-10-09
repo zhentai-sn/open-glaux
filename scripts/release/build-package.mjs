@@ -48,7 +48,7 @@ function copy(from, to = from) {
 }
 
 for (const file of ["VERSION", "LICENSE", "NOTICE", "README.md", "README.zh-CN.md"]) copy(file);
-copy("launcher/glaux.mjs");
+copy("launcher");
 copy("frontend/dist");
 for (const path of ["dist", "package.json", "package-lock.json", "skills", "agents"]) copy(`agent-runtime/${path}`);
 for (const path of ["app", "pyproject.toml", "uv.lock"]) copy(`backend/${path}`);

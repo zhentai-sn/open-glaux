@@ -97,3 +97,7 @@ button { font: inherit; }
   .copy { padding: 0 10px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.windows-download { margin: 18px 0; }
+.windows-download[hidden] { display: none; }
+.windows-download .fine { text-align: left; margin: 10px 0 0; }
