@@ -10,7 +10,7 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | `v0.3.1` 已发布，含 Windows 图形安装与精简桌面控制面板；四平台自动流水线与安装冒烟通过；维护者现有 D 盘安装已补装桌面入口，人工界面交互验收待补 |
+| 当前阶段 | `v0.3.2` 发布准备中，统一 Windows 紫色小鸮图标；当前公开版本为 `v0.3.1`；维护者现有 D 盘安装已更新图标，人工卸载重装验收待补 |
 | 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
