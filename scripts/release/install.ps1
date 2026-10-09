@@ -77,7 +77,7 @@ if ($arch -ne 'AMD64') { Die "only 64-bit x86 Windows is supported (found $arch)
 $InstallDir = EnvOr 'GLAUX_INSTALL_DIR' (Join-Path $env:LOCALAPPDATA 'Programs\Glaux')
 $savedHome = Join-Path $env:USERPROFILE '.glaux'
 $installRecord = Join-Path $InstallDir 'install.json'
-if (Test-Path -LiteralPath $installRecord) {
+if (-not $env:GLAUX_HOME -and (Test-Path -LiteralPath $installRecord)) {
   $savedHome = (Get-Content -LiteralPath $installRecord -Raw -Encoding UTF8 | ConvertFrom-Json).home
 }
 $env:GLAUX_HOME = EnvOr 'GLAUX_HOME' $savedHome

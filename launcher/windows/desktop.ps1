@@ -28,6 +28,10 @@ $script:Running = $false
 $script:DataHome = $HomeDir
 $script:Dir = $InstallDir
 $script:ExistingInstallation = Test-Path -LiteralPath (Join-Path $InstallDir 'current\VERSION')
+$script:PreserveDataHome = $script:ExistingInstallation -or (Test-Path -LiteralPath (Join-Path $InstallDir 'install.json'))
+if (-not $script:PreserveDataHome -and (Test-Path -LiteralPath $HomeDir)) {
+  $script:PreserveDataHome = @(Get-ChildItem -LiteralPath $HomeDir -Force -ErrorAction SilentlyContinue).Count -gt 0
+}
 
 $form = New-Object Windows.Forms.Form
 $form.Text = if ($Mode -eq 'Install') { T '安装 Glaux' 'Install Glaux' } else { 'Glaux' }
@@ -153,7 +157,7 @@ function BeginJob([string]$kind,[string]$command) {
   $psi.StandardOutputEncoding=[Text.Encoding]::UTF8; $psi.StandardErrorEncoding=[Text.Encoding]::UTF8
   $psi.EnvironmentVariables['GLAUX_INSTALL_DIR']=$script:Dir
   $psi.EnvironmentVariables['GLAUX_HOME']=$script:DataHome
-  $psi.EnvironmentVariables['GLAUX_NO_BROWSER']='1'
+  $psi.EnvironmentVariables['GLAUX_NO_BROWSER']=if ($kind -eq 'open') { '0' } else { '1' }
   $psi.EnvironmentVariables['GLAUX_NO_START']='0'
   $psi.EnvironmentVariables['GLAUX_WINDOWS_DESKTOP_SOURCE']=$PSScriptRoot
   $psi.EnvironmentVariables['LANG']=if ($zh) { 'zh_CN.UTF-8' } else { 'en_US.UTF-8' }
@@ -179,8 +183,10 @@ function BrowseFolder($box) {
     $box.Text=$dialog.SelectedPath
     if ($box -eq $installBox) {
       if ((Split-Path $box.Text -Leaf) -ne 'Glaux') { $box.Text=Join-Path $box.Text 'Glaux' }
-      if (-not $script:ExistingInstallation -and -not $homeBox.Modified) { $homeBox.Text=Join-Path (Split-Path $box.Text) 'GlauxData' }
+      if (-not $script:PreserveDataHome -and -not $homeBox.Modified) { $homeBox.Text=Join-Path (Split-Path $box.Text) 'GlauxData' }
       [void](ShowSpace)
+    } else {
+      $homeBox.Modified=$true
     }
   }
   $dialog.Dispose()

@@ -31,7 +31,7 @@ if (IS_WIN && INSTALL_DIR) {
   process.env.TMP = runtimeTemp;
 }
 let savedHome;
-if (INSTALL_DIR && existsSync(join(INSTALL_DIR, "install.json"))) {
+if (INSTALL_DIR && !process.env.GLAUX_HOME?.trim() && existsSync(join(INSTALL_DIR, "install.json"))) {
   savedHome = JSON.parse(readFileSync(join(INSTALL_DIR, "install.json"), "utf8")).home;
 }
 const GLAUX_HOME = resolve(process.env.GLAUX_HOME?.trim() || savedHome || join(homedir(), ".glaux"));
