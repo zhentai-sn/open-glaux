@@ -34,6 +34,7 @@ $form.Text = if ($Mode -eq 'Install') { T '安装 Glaux' 'Install Glaux' } else 
 $form.ClientSize = New-Object Drawing.Size(720,600)
 $form.MinimumSize = $form.Size
 $form.StartPosition = 'CenterScreen'
+$form.MaximizeBox = $false
 $form.BackColor = [Drawing.Color]::White
 $form.Font = New-Object Drawing.Font('Segoe UI',10)
 $form.Icon = [Drawing.SystemIcons]::Application
@@ -82,10 +83,24 @@ function LogLine([string]$line) {
   if ($line -match '^GLAUX_PROGRESS\|(\d+)\|(\d+)\|(.+)$') {
     $done=[double]$Matches[1]; $total=[double]$Matches[2]
     if ($total -gt 0) { $progress.Style='Continuous'; $progress.Value=[Math]::Min(100,[int](100*$done/$total)) }
-    $stateLabel.Text=(T '正在下载 ' 'Downloading ') + $Matches[3] + ' · ' + [Math]::Round($done/1MB,1) + ' MB'
+    $stateLabel.Text=(T '正在下载 · ' 'Downloading · ') + [Math]::Round($done/1MB,1) + ' MB'
+    if ($total -gt 0) { $stateLabel.Text += ' / '+[Math]::Round($total/1MB,1)+' MB' }
     return
   }
-  if ($line.StartsWith('-> ') -or $line.StartsWith('→ ')) { $stateLabel.Text=$line.Substring(3); $progress.Style='Marquee' }
+  if ($line -match '^(->|→)\s+') {
+    $stage=$line -replace '^(->|→)\s+',''
+    if ($zh) {
+      switch -Regex ($stage) {
+        '^Looking up' { $stage='查询最新版本'; break }
+        '^Downloading Glaux' { $stage='下载 Glaux 程序包'; break }
+        '^Unpacking' { $stage='解压程序文件'; break }
+        '^Downloading Node|^Installing uv|^创建 Python' { $stage='准备运行环境'; break }
+        '^Setting up Glaux|^安装 Python' { $stage='安装分析组件'; break }
+        '^写入 glaux' { $stage='创建桌面图标与命令入口'; break }
+      }
+    }
+    $stateLabel.Text=$stage; $progress.Style='Marquee'
+  }
   if ($line) { $log.AppendText($line+[Environment]::NewLine) }
 }
 function ShowSpace {
