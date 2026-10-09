@@ -22,6 +22,11 @@ $cmd = "@echo off`r`nif not defined GLAUX_HOME set `"GLAUX_HOME=$homeForCmd`"`r`
 # cmd.exe reads batch files in the active Windows code page; the launcher additionally reads UTF-8 install.json.
 [IO.File]::WriteAllText((Join-Path $bin 'glaux.cmd'), $cmd, [Text.Encoding]::Default)
 
+# A content-specific filename lets Explorer refresh a changed icon without clearing its cache.
+$iconDigest = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $bin 'glaux.ico')).Hash.Substring(0,12).ToLowerInvariant()
+$shortcutIcon = Join-Path $bin ('glaux-' + $iconDigest + '.ico')
+Copy-Item -LiteralPath (Join-Path $bin 'glaux.ico') -Destination $shortcutIcon -Force
+
 $shell = New-Object -ComObject WScript.Shell
 $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $control = Join-Path $bin 'desktop.ps1'
@@ -33,7 +38,7 @@ foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::Ge
   $link.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $control + '" -Mode Manage -InstallDir "' + $InstallDir + '" -HomeDir "' + $HomeDir + '"'
   $link.WorkingDirectory = $InstallDir
   $link.WindowStyle = 7
-  $link.IconLocation = (Join-Path $bin 'glaux.ico') + ',0'
+  $link.IconLocation = $shortcutIcon + ',0'
   $link.Description = 'Glaux - start, open, stop and uninstall'
   $link.Save()
 }

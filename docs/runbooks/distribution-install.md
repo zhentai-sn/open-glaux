@@ -27,7 +27,7 @@ curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh
 
 Windows 推荐：[下载 Glaux-Setup.exe](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe)，双击打开安装向导。可选择程序与数据目录，窗口显示目标盘实际可用空间、下载进度和安装日志。数据目录须放在程序目录之外，普通卸载才能保留。
 
-安装后桌面和开始菜单的蓝底小鸮 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
+安装后桌面和开始菜单的紫底小鸮 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
 
 Windows PowerShell（可选）：
 
@@ -62,7 +62,7 @@ GLAUX_VERSION=0.3.0 sh /tmp/glaux-install.sh
 
 Windows 推荐：[下载 Glaux-Setup.exe](https://github.com/zhentai-sn/open-glaux/releases/latest/download/Glaux-Setup.exe)，双击打开安装向导。可选择程序与数据目录，窗口显示目标盘实际可用空间、下载进度和安装日志。数据目录须放在程序目录之外，普通卸载才能保留。
 
-安装后桌面和开始菜单的蓝底小鸮 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
+安装后桌面和开始菜单的紫底小鸮 **Glaux** 图标打开控制窗口，可启动、打开浏览器、停止或卸载；关闭控制窗口和浏览器都不会停止后台服务。
 
 Windows PowerShell（可选）：
 
