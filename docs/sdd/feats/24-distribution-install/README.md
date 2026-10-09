@@ -10,11 +10,11 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | `v0.3.0` 已发布；`0.3.1` Windows 图形安装与桌面控制扩展已实现，发布中；现有 D 盘安装已补装桌面入口 |
+| 当前阶段 | `v0.3.1` 已发布，含 Windows 图形安装与精简桌面控制面板；四平台自动流水线与安装冒烟通过；维护者现有 D 盘安装已补装桌面入口，人工界面交互验收待补 |
 | 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-10-08 |
+| 最后更新 | 2026-10-09 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -350,16 +350,16 @@ stateDiagram-v2
 - [ ] 双击安装 EXE 可选择程序和数据目录，并显示目标盘实际剩余空间。
 - [ ] 空间不足后可改选 D 盘，安装临时文件与依赖缓存不再固定落到 C 盘。
 - [ ] 安装窗口保持响应，显示阶段、下载进度与错误，可重试。
-- [ ] 桌面与开始菜单存在 Glaux 图标，双击打开控制窗口。
+- [x] 桌面与开始菜单存在 Glaux 图标，双击打开控制窗口；维护者现有 `D:\App\Glaux` 已补装，数据目录为 `D:\App\GlauxData`。
 - [ ] 控制窗口能启动、打开、停止和卸载 Glaux；关闭窗口不停止后台服务。
 - [ ] 新终端使用安装时指定的数据目录；PowerShell 安装后的当前窗口能直接调用 glaux。
 
 ### 15.3 发布
 
-- [x] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。`v0.3.0` 的 GitHub 资产摘要、`SHA256SUMS` 与公开清单一致；公开安装脚本与仓库源码一致。
+- [x] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。`v0.3.1` 的 GitHub 资产摘要、`SHA256SUMS` 与公开清单一致；公开安装脚本与仓库源码一致。
 - [ ] 标签与 `VERSION` 不一致时发布失败。
 
-当前发布证据：[四平台 CI](https://github.com/zhentai-sn/open-glaux/actions/runs/37741241071)、[正式 Release 流程](https://github.com/zhentai-sn/open-glaux/actions/runs/37742022747)、[Pages 部署](https://github.com/zhentai-sn/open-glaux/actions/runs/37742424445)、[v0.3.0 Release](https://github.com/zhentai-sn/open-glaux/releases/tag/v0.3.0)。自动冒烟覆盖 Ubuntu 22.04、Windows Server 2022、macOS 14 arm64 与 macOS 15 Intel；不替代 Windows 11、最低支持 macOS 版本及带真实旧数据的人工验收。
+当前发布证据：[四平台 CI](https://github.com/zhentai-sn/open-glaux/actions/runs/37878237873)、[正式 Release 流程](https://github.com/zhentai-sn/open-glaux/actions/runs/37878856653)、[Pages 部署](https://github.com/zhentai-sn/open-glaux/actions/runs/37879045404)、[v0.3.1 Release](https://github.com/zhentai-sn/open-glaux/releases/tag/v0.3.1)。`Glaux-Setup.exe` 的 GitHub 资产摘要、`WINDOWS-SHA256SUMS` 与公开清单一致，公开下载返回 200。自动冒烟覆盖 Ubuntu 22.04、Windows Server 2022、macOS 14 arm64 与 macOS 15 Intel；不替代 Windows 11、最低支持 macOS 版本、图形按钮交互及带真实旧数据的人工验收。
 
 ### 15.4 落地页
 

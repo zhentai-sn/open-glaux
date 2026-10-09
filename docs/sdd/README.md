@@ -55,7 +55,7 @@ stateDiagram-v2
 | 21 | [运行轨迹](feats/21-run-trajectory/README.md) | `implemented`（维护者初步验收通过，正式业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
 | 22 | [智能体看图：缩放与复核](feats/22-agent-visual-inspection/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-05 |
 | 23 | [标注标签与管理](feats/23-annotation-labels/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-06 |
-| 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `implemented`（0.3.0 已发布；人工验收待补；取代 09） | Glaux 项目维护者 | 2026-10-08 |
+| 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `implemented`（0.3.1 已发布，含 Windows 图形安装；人工验收待补；取代 09） | Glaux 项目维护者 | 2026-10-08 |
 
 ## 维护约定
 
