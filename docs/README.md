@@ -125,6 +125,8 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20260925-01-research-basketball-video-benchmark.zh-CN.md](researches/20260925-01-research-basketball-video-benchmark.zh-CN.md) | 2026-09-25 | research | 篮球视频理解基准 BasketballBench / BasketballSkills；视频首个落地场景的评测参照 |
 | [20260925-02-research-sports-video-eval-datasets.zh-CN.md](researches/20260925-02-research-sports-video-eval-datasets.zh-CN.md) | 2026-09-25 | research | 体育视频评测集可得性与选型；选定 TennisTV + BARD |
 | [20261005-01-tech-pi-1-upgrade-impact.zh-CN.md](researches/20261005-01-tech-pi-1-upgrade-impact.zh-CN.md) | 2026-10-05 | tech | Pi 1.0 删除 AgentHarness、改由实验性 pi-durable 承接；近期维持 0.82.1 |
+| [20261013-01-research-vista-visual-memory-impact.zh-CN.md](researches/20261013-01-research-vista-visual-memory-impact.zh-CN.md) | 2026-10-13 | research | VISTA 视觉记忆与 Glaux 设计影响：总体中等；Atlas 核心低，历史观测访问与视频策略中高 |
+| [20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md](researches/20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md) | 2026-10-14 | research | 视觉 Agent、GraphRAG 与体育垂类：版本核对、主动观察、证据分层及设计影响 |
 
 ## 二、路线图 roadmaps/
 
