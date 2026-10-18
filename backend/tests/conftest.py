@@ -64,3 +64,24 @@ def probe_only(monkeypatch):
             monkeypatch.setattr(src, "probe", lambda root, m=modality: bool(pred(m)))
 
     return _set
+
+
+@pytest.fixture
+def symlink():
+    """创建符号链接；当前环境没有这个权限时整条用例跳过。
+
+    Windows 只在开启「开发者模式」或以管理员身份运行时允许创建符号链接，否则报
+    ``WinError 1314``。用到软链接的用例验的是路径越界判定，与能不能创建链接无关；
+    CI 的 Windows runner 有权限，照常执行。异常是 pytest.skip 的 Skip 而不是失败。
+    """
+    from pathlib import Path
+
+    def _make(target, link, *, target_is_directory: bool = False) -> None:
+        try:
+            Path(link).symlink_to(target, target_is_directory=target_is_directory)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314 or isinstance(exc, PermissionError):
+                pytest.skip("创建符号链接需要权限（Windows 需开发者模式或管理员）")
+            raise
+
+    return _make

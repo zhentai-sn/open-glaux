@@ -92,10 +92,10 @@ def test_drive_spelling_normalizes_like_mnt(monkeypatch):
     assert len({reg.project_id_for(p) for p in got}) == 1
 
 
-def test_symlink_same_project(tmp_path):
+def test_symlink_same_project(tmp_path, symlink):
     real = _dir(tmp_path, "real")
     link = tmp_path / "link"
-    link.symlink_to(real, target_is_directory=True)
+    symlink(real, link, target_is_directory=True)
     a = client.post("/projects", json={"path": str(real)})
     b = client.post("/projects", json={"path": str(link)})
     assert (a.status_code, b.status_code) == (201, 200)

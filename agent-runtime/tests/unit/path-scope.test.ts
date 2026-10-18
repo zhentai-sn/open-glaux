@@ -5,7 +5,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { canCreateSymlinks } from "../helpers/symlink.js";
 import { resolvePathScope } from "../../src/workspace/path-scope.js";
+
+// 没有符号链接权限（Windows 非管理员、未开开发者模式）时跳过需要软链接的用例。
+const symlinks = await canCreateSymlinks();
 
 let root: string;
 let cwd: string;
@@ -32,7 +36,7 @@ describe("resolvePathScope", () => {
     expect(await resolvePathScope(cwd, "/etc/hosts")).toMatchObject({ outside: true, sensitive: true });
   });
 
-  it("follows symlinks that point outside", async () => {
+  it.skipIf(!symlinks)("follows symlinks that point outside", async () => {
     await symlink(join(root, "outside"), join(cwd, "link"));
     expect(await resolvePathScope(cwd, "link/secret.txt")).toMatchObject({ outside: true, sensitive: true });
   });

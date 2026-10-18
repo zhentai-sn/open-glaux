@@ -167,11 +167,11 @@ def test_jpeg_and_mp4_same_dir_two_sources(project):
     assert reg.resolve_object(vid.json()["id"]).modality == "video"
 
 
-def test_outside_project_rejected(project, tmp_path):
+def test_outside_project_rejected(project, tmp_path, symlink):
     outside = tmp_path / "outside.jpg"
     outside.write_bytes(_jpeg())
-    (project.path / "link.jpg").symlink_to(outside)
-    (project.path / "linkdir").symlink_to(tmp_path, target_is_directory=True)
+    symlink(outside, project.path / "link.jpg")
+    symlink(tmp_path, project.path / "linkdir", target_is_directory=True)
     for p in ("../outside.jpg", "sub/../../outside.jpg", str(outside), "link.jpg",
               "linkdir/outside.jpg"):
         r = _open(project, p)
@@ -267,11 +267,11 @@ def test_remove_project_drops_on_demand_sources(project):
 # --- 列目录 -------------------------------------------------------------------
 
 
-def test_entries_root_listing(project, tmp_path):
+def test_entries_root_listing(project, tmp_path, symlink):
     (tmp_path / "outside_dir").mkdir()
-    (project.path / "escape").symlink_to(tmp_path / "outside_dir", target_is_directory=True)
-    (project.path / "inner").symlink_to(project.path / "sub", target_is_directory=True)
-    (project.path / "broken.jpg").symlink_to(project.path / "missing.jpg")
+    symlink(tmp_path / "outside_dir", project.path / "escape", target_is_directory=True)
+    symlink(project.path / "sub", project.path / "inner", target_is_directory=True)
+    symlink(project.path / "missing.jpg", project.path / "broken.jpg")
     (project.path / "A_dir").mkdir()
     r = client.get(f"/projects/{project.id}/entries")
     assert r.status_code == 200

@@ -5,19 +5,19 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { canCreateSymlinks } from "../helpers/symlink.js";
 import { readOnlyViolation } from "../../src/permission/readonly-command.js";
 
+// 没有符号链接权限（Windows 非管理员、未开开发者模式）时跳过需要软链接的用例。
+const symlinks = await canCreateSymlinks();
+
 let cwd: string;
-let outside: string;
 beforeAll(async () => {
   cwd = await mkdtemp(join(tmpdir(), "glaux-ro-"));
-  outside = await mkdtemp(join(tmpdir(), "glaux-ro-out-"));
   await mkdir(join(cwd, "data"));
-  await symlink(outside, join(cwd, "escape"));
 });
 afterAll(async () => {
   await rm(cwd, { recursive: true, force: true });
-  await rm(outside, { recursive: true, force: true });
 });
 
 const check = (command: string) => readOnlyViolation(command, cwd);
@@ -95,13 +95,23 @@ describe("readOnlyViolation", () => {
     ["cat /etc/passwd", "outside the working directory"],
     ["ls ..", "outside the working directory"],
     ["cat data/../../x", "outside the working directory"],
-    ["ls escape", "outside the working directory"],
     ["cat .env", "hidden path"],
     ["ls .git", "hidden path"],
     ["cat */.env", "hidden path"],
     ["cat .*", "hidden path"],
   ])("rejects paths outside or hidden in %j", async (command, reason) => {
     await expect(check(command)).resolves.toContain(reason);
+  });
+
+  it.skipIf(!symlinks)("rejects a path through a symlink that leaves the working directory", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "glaux-ro-out-"));
+    try {
+      await symlink(outside, join(cwd, "escape"));
+      await expect(check("ls escape")).resolves.toContain("outside the working directory");
+    } finally {
+      await rm(join(cwd, "escape"), { force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it("rejects an empty command or an empty pipeline segment", async () => {

@@ -146,16 +146,16 @@ def test_invalid_bytes_beyond_sample_replaced(project):
 # --- 路径校验 -------------------------------------------------------------------
 
 
-def test_outside_and_hidden(project, tmp_path):
+def test_outside_and_hidden(project, tmp_path, symlink):
     outside = tmp_path / "outside.txt"
     outside.write_text("x")
-    (project.path / "link.txt").symlink_to(outside)
-    (project.path / "linkdir").symlink_to(tmp_path, target_is_directory=True)
+    symlink(outside, project.path / "link.txt")
+    symlink(tmp_path, project.path / "linkdir", target_is_directory=True)
     for p in ("../outside.txt", "sub/../../outside.txt", str(outside), "link.txt",
               "linkdir/outside.txt"):
         r = _text(project, p)
         assert (r.status_code, _code(r)) == (422, "outside_project"), p
-    (project.path / "env").symlink_to(project.path / ".env")  # 指向隐藏文件的链接同样拒绝
+    symlink(project.path / ".env", project.path / "env")  # 指向隐藏文件的链接同样拒绝
     for p in (".env", ".git/config", "sub/.secret", ".git", "env"):
         r = _text(project, p)
         assert (r.status_code, _code(r)) == (422, "hidden_path"), p
