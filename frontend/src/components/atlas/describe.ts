@@ -9,15 +9,20 @@ import { useSession, type Connection } from "../../store/session";
 
 const CONCURRENCY = 2;
 const DEFAULT_HOST: Record<Connection["provider"], string> = {
-  anthropic: "api.anthropic.com",
+  deepseek: "api.deepseek.com",
   openai_compatible: "",
+  anthropic: "api.anthropic.com",
 };
 
 /** 已选模型且未被探测为不支持图像（探测未知时按可用处理，失败由描述错误兜底）。 */
 export function connectionUsable(connection: Connection): boolean {
   const model = connection.model.trim();
   if (!model) return false;
-  return connection.models?.find((m) => m.id === model)?.vision !== "no";
+  const vision = connection.models?.find((m) => m.id === model)?.vision;
+  if (vision === "no") return false;
+  // DeepSeek 的内置目录只有文本模型；还没拉取模型清单时按不可用处理，别让描述必然失败。
+  if (vision === undefined && connection.provider === "deepseek") return false;
+  return true;
 }
 
 /** 确认文案里的发送目标「模型 · host」（D-28：写明图发往哪里）。 */

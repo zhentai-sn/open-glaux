@@ -238,7 +238,7 @@ export interface UploadResult {
 
 // --- VLM 连接（前端 store 用；探测结果类型见 agent/runtime/types.ts）-----------------------
 
-export type VlmProvider = "anthropic" | "openai_compatible";
+export type VlmProvider = "deepseek" | "openai_compatible" | "anthropic";
 
 export interface VlmModelInfo {
   id: string;

@@ -33,13 +33,17 @@ export function toViewerContext(): ViewerContext {
   return out;
 }
 
+/** 前端枚举（下划线）→ runtime 枚举（连字符）；deepseek 与 anthropic 两侧同名。 */
+function runtimeProvider(
+  provider: Connection["provider"],
+): "anthropic" | "openai-compatible" | "deepseek" {
+  return provider === "openai_compatible" ? "openai-compatible" : provider;
+}
+
 /** 连接探测入参（测试连接 / 拉模型）——只带 provider / 端点 / 密钥，不带 model。 */
 export function toProbeInput(connection: Connection): ConnectionProbeInput {
   return {
-    provider:
-      connection.provider === "openai_compatible"
-        ? "openai-compatible"
-        : "anthropic",
+    provider: runtimeProvider(connection.provider),
     ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
     ...(connection.apiKey ? { credential: connection.apiKey } : {}),
   };
@@ -67,10 +71,7 @@ export function toConnectionInput(
 ): ConnectionInput {
   return {
     vision: visionFor(connection, hasImages),
-    provider:
-      connection.provider === "openai_compatible"
-        ? "openai-compatible"
-        : "anthropic",
+    provider: runtimeProvider(connection.provider),
     model: connection.model,
     ...(connection.mediaAdapter === "qwen-omni" ? { media_adapter: "qwen-omni" as const } : {}),
     ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),

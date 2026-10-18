@@ -203,7 +203,7 @@ export type SessionListItem = Omit<
 >;
 
 export interface ConnectionInput {
-  provider: "anthropic" | "openai-compatible";
+  provider: "anthropic" | "openai-compatible" | "deepseek";
   model: string;
   base_url?: string;
   context_window?: number;

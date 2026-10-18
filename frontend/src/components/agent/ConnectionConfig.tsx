@@ -23,6 +23,18 @@ const MODEL_LIST_ID = "glaux-model-options";
 type MediaAdapter = NonNullable<Connection["mediaAdapter"]>;
 type T = (key: I18nKey, vars?: Record<string, string | number>) => string;
 
+/** 提供方的展示名：三家顺序固定（DeepSeek → OpenAI 兼容 → Anthropic 兼容），选项与状态卡共用。 */
+const PROVIDERS: { value: VlmProvider; key: I18nKey }[] = [
+  { value: "deepseek", key: "cfg_deepseek" },
+  { value: "openai_compatible", key: "cfg_openai_compat" },
+  { value: "anthropic", key: "cfg_anthropic_compat" },
+];
+
+function providerName(provider: VlmProvider, t: T): string {
+  const hit = PROVIDERS.find((item) => item.value === provider);
+  return hit ? t(hit.key) : provider;
+}
+
 function optionalInteger(value: string): number | null {
   if (!value.trim()) return null;
   const parsed = Number(value);
@@ -78,25 +90,22 @@ function Field({
 }
 
 /**
- * 连接状态卡：常驻显示是否已配置、上次测试结果与当前模型；测试按钮在卡内。
+ * 连接状态卡：常驻显示是否已配置、上次测试结果与当前模型。
+ * 测试按钮已移到表单最下方，这里只报状态。
  * 改了 provider / 地址 / 密钥 / 模型会清掉 lastTest，状态回到「未测试」，不显示过期的通过结论。
  */
 function StatusCard({
   connection,
-  testing,
-  onTest,
   t,
 }: {
   connection: Connection;
-  testing: boolean;
-  onTest: () => void;
   t: T;
 }) {
   const oai = connection.provider === "openai_compatible";
   const configured = oai ? connection.baseUrl.trim() !== "" : connection.apiKey.trim() !== "";
   const test = connection.lastTest;
   const state = !configured ? "unset" : !test ? "untested" : test.ok ? "ok" : "fail";
-  const providerLabel = oai ? t("cfg_openai_compat") : "Anthropic";
+  const providerLabel = providerName(connection.provider, t);
   const model = connection.model || t("cfg_default_model");
   const count = connection.models?.length;
   const time = test ? new Date(test.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
@@ -122,9 +131,6 @@ function StatusCard({
         <div className="cfg-status-title">{title}</div>
         {meta && <div className="cfg-status-meta">{meta}</div>}
       </div>
-      <button className="cfgbtn cfg-status-btn" type="button" disabled={testing} onClick={onTest}>
-        {testing ? "…" : t(state === "ok" || state === "fail" ? "cfg_retest" : "cfg_test")}
-      </button>
     </div>
   );
 }
@@ -215,7 +221,7 @@ export function ConnectionConfig({
     >
       {variant === "popover" && <div className="cfghead">{t("cfg_title")}</div>}
 
-      <StatusCard connection={connection} testing={testing} onTest={() => void testConnection()} t={t} />
+      <StatusCard connection={connection} t={t} />
 
       <section className="cfg-group">
         <h3 className="cfg-group-title">{t("cfg_group_service")}</h3>
@@ -224,10 +230,7 @@ export function ConnectionConfig({
             label={t("cfg_provider")}
             value={connection.provider}
             onChange={(provider) => setEndpoint({ provider, models: undefined, mediaAdapter: "none" })}
-            options={[
-              { value: "anthropic", label: "Anthropic" },
-              { value: "openai_compatible", label: t("cfg_openai_compat") },
-            ]}
+            options={PROVIDERS.map((item) => ({ value: item.value, label: t(item.key) }))}
           />
         </Field>
         {oai && (
@@ -307,7 +310,7 @@ export function ConnectionConfig({
               <span>
                 {oai
                   ? `${t("cfg_model_meta", { ctx: compact(connection.contextWindow), out: compact(connection.maxTokens) })}（${metaSource}）`
-                  : t("cfg_meta_anthropic")}
+                  : t("cfg_meta_builtin", { provider: providerName(connection.provider, t) })}
               </span>
               {fetchStatus && <span className={`cfg-tone ${fetchStatus.tone}`}>{fetchStatus.text}</span>}
             </>
@@ -319,7 +322,13 @@ export function ConnectionConfig({
               className="cfgin"
               type="text"
               list={models.length ? MODEL_LIST_ID : undefined}
-              placeholder={oai ? t("cfg_model_ph") : "claude-haiku-4-5-20251001"}
+              placeholder={
+                oai
+                  ? t("cfg_model_ph")
+                  : connection.provider === "deepseek"
+                    ? "deepseek-v4-flash"
+                    : "claude-haiku-4-5-20251001"
+              }
               value={connection.model}
               onChange={(event) => {
                 const model = event.target.value;
@@ -402,6 +411,13 @@ export function ConnectionConfig({
           </Field>
         </details>
       )}
+
+      {/* 测试放在表单最下方：先填完 provider / 密钥 / 模型，再一次性验证。 */}
+      <div className="cfg-footer">
+        <button className="cfgbtn cfg-test" type="button" disabled={testing} onClick={() => void testConnection()}>
+          {testing ? "…" : t(connection.lastTest ? "cfg_retest" : "cfg_test")}
+        </button>
+      </div>
 
       {variant === "popover" && (
         <button className="cfgclose" type="button" aria-label="Close" onClick={onClose}>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { agentRuntimeApi } from "../../agent/runtime/client";
@@ -176,7 +176,7 @@ describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
     expect(status()).toHaveTextContent("ECONNREFUSED");
   });
 
-  it("密钥可切换明文；切到 Anthropic 隐藏服务地址、能力与高级", () => {
+  it("密钥可切换明文；切到 Anthropic 兼容隐藏服务地址、能力与高级", () => {
     setup();
     const key = screen.getByLabelText("API 密钥") as HTMLInputElement;
     expect(key.type).toBe("password");
@@ -184,11 +184,30 @@ describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
     expect(key.type).toBe("text");
 
     expect(screen.getByLabelText("服务地址")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "Anthropic" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Anthropic 兼容" }));
     expect(useSession.getState().connection.provider).toBe("anthropic");
     expect(screen.queryByLabelText("服务地址")).toBeNull();
     expect(screen.queryByRole("radiogroup", { name: "音视频理解" })).toBeNull();
     expect(screen.queryByLabelText("上下文窗口")).toBeNull();
+  });
+
+  it("提供方顺序为 DeepSeek → OpenAI 兼容 → Anthropic 兼容；测试连接在表单最下方", () => {
+    setup();
+    const group = screen.getByRole("radiogroup", { name: "Provider" });
+    const providers = within(group).getAllByRole("radio").map((node) => (node.textContent ?? "").trim());
+    expect(providers).toEqual(["DeepSeek", "OpenAI 兼容", "Anthropic 兼容"]);
+
+    fireEvent.click(screen.getByRole("radio", { name: "DeepSeek" }));
+    expect(useSession.getState().connection.provider).toBe("deepseek");
+    // DeepSeek 地址固定，不显示服务地址；模型上限由运行时目录给出，不用填。
+    expect(screen.queryByLabelText("服务地址")).toBeNull();
+    expect(screen.queryByLabelText("上下文窗口")).toBeNull();
+
+    // 测试按钮是表单里最后一个按钮（关闭钮是图标按钮，不在其列）
+    const buttons = screen.getAllByRole("button");
+    const test = screen.getByRole("button", { name: "测试连接" });
+    const lastText = [...buttons].reverse().find((node) => (node.textContent ?? "").trim() !== "");
+    expect(lastText).toBe(test);
   });
 
   it("最大输出不小于上下文窗口 → 高级组自动展开并标红", () => {

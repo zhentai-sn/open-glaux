@@ -15,6 +15,7 @@
  */
 
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 
 import { RuntimeError } from "../errors.js";
 import { assertUrlAllowed, type ResolveHost } from "../security/net-guard.js";
@@ -65,6 +66,8 @@ export interface ConnectionProbeDeps {
 
 const ANTHROPIC_DEFAULT_BASE = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
+/** DeepSeek 是 OpenAI 兼容的 `/models`，但地址固定、不接受自填 base_url。 */
+const DEEPSEEK_BASE = "https://api.deepseek.com";
 const DEFAULT_TIMEOUT_MS = 8000;
 
 // 名称启发式命中即判有视觉能力（用于无能力元数据的兼容网关 / 作为 Ollama 探测的兜底）。
@@ -309,6 +312,10 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
           const { ids } = await anthropicListIds(input);
           return { ok: true, http_status: 200, reason: "ready", model_count: ids.length };
         }
+        if (input.provider === "deepseek") {
+          const { ids } = await openaiListIds({ ...input, base_url: DEEPSEEK_BASE });
+          return { ok: true, http_status: 200, reason: "ready", model_count: ids.length };
+        }
         const { ids } = await openaiListIds(input);
         return { ok: true, http_status: 200, reason: "ready", model_count: ids.length };
       } catch (error) {
@@ -327,6 +334,25 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
         if (input.provider === "anthropic") {
           const { ids } = await anthropicListIds(input);
           return { models: ids.map((id) => ({ id, vision: anthropicVision(id) })) };
+        }
+        if (input.provider === "deepseek") {
+          // 目录里有的模型直接给出窗口/输出上限；目录外的按名称启发式，窗口留给前端默认值。
+          const { ids } = await openaiListIds({ ...input, base_url: DEEPSEEK_BASE });
+          const catalog = new Map(deepseekProvider().getModels().map((model) => [model.id, model]));
+          return {
+            models: ids.map((id) => {
+              const known = catalog.get(id);
+              return known
+                ? {
+                    id,
+                    // DeepSeek 的对话模型只收文本；有视觉能力时目录里会写明。
+                    vision: (known.input.includes("image") ? "yes" : "no") as Vision,
+                    context_window: known.contextWindow,
+                    max_tokens: known.maxTokens,
+                  }
+                : { id, vision: nameVision(id) };
+            }),
+          };
         }
         const { ids, base, entries } = await openaiListIds(input);
         const root = ollamaRoot(base);

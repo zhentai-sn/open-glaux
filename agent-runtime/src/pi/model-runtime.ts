@@ -13,6 +13,7 @@ import {
   streamSimple as openAICompletionsStreamSimple,
 } from "@earendil-works/pi-ai/api/openai-completions";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 
 import type { ConnectionInput } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
@@ -77,6 +78,19 @@ const ZERO_COST = {
   cacheWrite: 0,
 } as const;
 
+/** pi-ai 内置目录：命中即用目录里的窗口、输出上限、视觉能力与地址，缺省值不必用户手填。 */
+function catalogModel(providerId: string, modelId: string) {
+  const provider =
+    providerId === "anthropic"
+      ? anthropicProvider
+      : providerId === "deepseek"
+        ? deepseekProvider
+        : undefined;
+  return provider?.()
+    .getModels()
+    .find((model) => model.id === modelId);
+}
+
 function validateMetadata(connection: ConnectionInput): {
   contextWindow: number;
   maxTokens: number;
@@ -111,11 +125,9 @@ export function validateConnectionInput(connection: ConnectionInput): void {
   if (connection.media_adapter && connection.provider !== "openai-compatible") {
     throw new RuntimeError("video_connection_unsupported", "该连接不支持音画联合问答", 400);
   }
-  if (connection.provider === "anthropic") {
-    const known = anthropicProvider()
-      .getModels()
-      .find((model) => model.id === connection.model);
-    if (!known) validateMetadata(connection);
+  // 内置目录（Anthropic / DeepSeek）里的模型自带窗口与输出上限，不必用户填；目录外的按自定义模型校验。
+  if (connection.provider === "anthropic" || connection.provider === "deepseek") {
+    if (!catalogModel(connection.provider, connection.model)) validateMetadata(connection);
     return;
   }
   if (connection.provider === "openai-compatible") {
@@ -155,37 +167,32 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
   const providerId = connection.provider;
   const models: MutableModels = createModels();
   const videoMedia = connection.media_adapter === "qwen-omni" ? createVideoMediaBridge() : undefined;
-  const knownAnthropic =
-    providerId === "anthropic"
-      ? anthropicProvider()
-          .getModels()
-          .find((candidate) => candidate.id === connection.model)
-      : undefined;
-  const metadata = knownAnthropic
+  const known = catalogModel(providerId, connection.model);
+  const metadata = known
     ? {
-        contextWindow: knownAnthropic.contextWindow,
-        maxTokens: knownAnthropic.maxTokens,
+        contextWindow: known.contextWindow,
+        maxTokens: known.maxTokens,
       }
     : validateMetadata(connection);
   const baseUrl =
     connection.base_url?.trim() ||
-    knownAnthropic?.baseUrl ||
-    "https://api.anthropic.com";
+    known?.baseUrl ||
+    (providerId === "deepseek" ? "https://api.deepseek.com" : "https://api.anthropic.com");
   const api =
     providerId === "anthropic"
       ? ("anthropic-messages" as const)
       : ("openai-completions" as const);
   const model: Model<typeof api> = {
-    ...(knownAnthropic ?? {}),
+    ...(known ?? {}),
     id: connection.model,
-    name: knownAnthropic?.name ?? connection.model,
+    name: known?.name ?? connection.model,
     api,
     provider: providerId,
     baseUrl,
-    reasoning: knownAnthropic?.reasoning ?? false,
+    reasoning: known?.reasoning ?? false,
     // 非内置目录模型：按连接声明的视觉能力补 "image"（否则工具结果里的图会被 pi-ai 静默丢弃）。
-    input: knownAnthropic?.input ?? (connection.vision ? ["text", "image"] : ["text"]),
-    cost: knownAnthropic?.cost ?? ZERO_COST,
+    input: known?.input ?? (connection.vision ? ["text", "image"] : ["text"]),
+    cost: known?.cost ?? ZERO_COST,
     contextWindow: metadata.contextWindow,
     maxTokens: metadata.maxTokens,
   };
@@ -208,18 +215,26 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
         };
   const provider = createProvider({
     id: providerId,
-    name: providerId === "anthropic" ? "Anthropic" : "OpenAI Compatible",
+    name:
+      providerId === "anthropic"
+        ? "Anthropic"
+        : providerId === "deepseek"
+          ? "DeepSeek"
+          : "OpenAI Compatible",
     baseUrl,
     auth: {
       apiKey: {
         name: `${providerId} API key`,
         resolve: async ({ ctx }) => {
-          const apiKey =
-            credential ??
-            (providerId === "anthropic"
-              ? await ctx.env("ANTHROPIC_API_KEY")
-              : undefined);
-          if (providerId === "anthropic" && !apiKey) return undefined;
+          // 内置目录的两家：密钥可来自连接，也可来自环境变量；兼容端点只认连接里填的。
+          const envName =
+            providerId === "anthropic"
+              ? "ANTHROPIC_API_KEY"
+              : providerId === "deepseek"
+                ? "DEEPSEEK_API_KEY"
+                : undefined;
+          const apiKey = credential ?? (envName ? await ctx.env(envName) : undefined);
+          if (envName && !apiKey) return undefined;
           return { auth: { ...(apiKey ? { apiKey } : {}), baseUrl } };
         },
       },

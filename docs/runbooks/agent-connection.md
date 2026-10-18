@@ -11,14 +11,15 @@ status: living
 
 ## 一句话
 
-参考智能体的模型连接是一个 **连接（Connection）**：选 provider（`anthropic` / `openai_compatible`）、
-填 `base_url`、**测试连接**、**拉取模型**（全列 + 👁 视觉标注）。`openai_compatible` **覆盖本地 Ollama /
-LM Studio**。密钥存本机 localStorage，随每次命令临时传给 agent-runtime，不落库。
+参考智能体的模型连接是一个 **连接（Connection）**：选 provider（`deepseek` / `openai_compatible` /
+`anthropic`，界面按此顺序排列，后两者标「兼容」）、填 `base_url`（仅兼容端点需要）、**测试连接**、
+**拉取模型**（全列 + 👁 视觉标注）。`openai_compatible` **覆盖本地 Ollama / LM Studio**。密钥存本机
+localStorage，随每次命令临时传给 agent-runtime，不落库。
 
 ## 入口
 
-Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent 面板的 ⋯ 浮层）→ provider / base_url / 密钥 / 模型（拉取后下拉选）/ 测试 /
-拉取。OpenAI 兼容自定义模型的**上下文窗口 / 最大输出无需手填**：拉取模型时若上游 `/models`（或 Ollama
+Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent 面板的 ⋯ 浮层）→ provider / base_url / 密钥 / 模型（拉取后下拉选）/ 拉取，
+**测试连接在表单最下方**：先把 provider、密钥和模型填完，再一次性验证。OpenAI 兼容自定义模型的**上下文窗口 / 最大输出无需手填**：拉取模型时若上游 `/models`（或 Ollama
 `/api/show`）自报了元数据就自动带入，没有则落默认 `200000 / 32768`（界面显示 200K / 32K；本机仍存着旧默认 `128000 / 8192` 的，载入时换成新默认）；两个框仍可见可改，改过的值不会被覆盖
 （除非上游对该模型有明确值）。窗口比默认输出还小时，最大输出自动收窄到窗口的 1/4，避免撞
 `max_tokens < context_window` 的校验。
@@ -32,20 +33,29 @@ Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent �
 - 两个端点都在 **agent-runtime**（[`connection-probe.ts`](../../agent-runtime/src/pi/connection-probe.ts)）；
   backend 不再有 `/intent/vlm/*`。这是架构不变量"只有 agent-runtime 与模型说话"的一部分。
 
-## 三个通道
+## 四个通道
 
-### A. Anthropic 官方（缺省）
+### A. DeepSeek 官方
 
-1. provider = **Anthropic**；`base_url` 留空（走官方端点）。
+1. provider = **DeepSeek**；`base_url` 不显示（地址固定 `https://api.deepseek.com`）。
+2. 密钥：面板填，或给 **agent-runtime 进程**设 `DEEPSEEK_API_KEY`（面板留空时回退）。
+3. **拉取模型** → 目录里的 `deepseek-v4-flash` / `deepseek-v4-pro`；窗口与输出上限取自 pi-ai 内置目录，不用手填。
+4. **这两款只收文本**，没有视觉能力：Glaux 里依视觉能力挂载的工具（`view_current_image`、`locate_roi`、
+   `consult_atlas`、`segment_region`）不会注册，Atlas 描述生成也会拒绝。拿它做纯文本推理没问题，
+   看图分析请选下面三家的视觉模型。
+
+### B. Anthropic 兼容
+
+1. provider = **Anthropic 兼容**；`base_url` 留空（走官方端点）。
 2. 密钥：面板填（存本机），或给 **agent-runtime 进程**设 `ANTHROPIC_API_KEY`（面板留空时回退）。
 3. **测试连接** → `已连接 · N 模型`；**拉取模型** → 下拉全是 Claude（👁，3+ 全系视觉；pi-ai 内置目录判定）。
 
-### B. OpenAI 兼容网关
+### C. OpenAI 兼容网关
 
 1. provider = **OpenAI 兼容**；`base_url` 填网关地址（须含 `/v1`，如 `https://gw.example.com/v1`）。
 2. 密钥填网关 key。**测试** → `已连接`；**拉取模型** → 全列；视觉能力走名称启发式（`llava`/`vl`/`gpt-4o`…→👁，其余 `·` 待定）。
 
-### C. 本地 Ollama（vision 模型）
+### D. 本地 Ollama（vision 模型）
 
 ```bash
 # 装并起 Ollama，拉一个视觉模型

@@ -13,16 +13,18 @@ export const REQUIRED_AGENT_EVENT_TYPES = [
 ] as const satisfies readonly AgentHarnessEvent["type"][];
 
 /** 前端历史枚举（下划线）与 runtime 枚举（连字符）——单一映射点，routes / probe 都用它。 */
-export type FrontendProviderId = "anthropic" | "openai_compatible";
-export type RuntimeProviderId = "anthropic" | "openai-compatible";
+export type FrontendProviderId = "anthropic" | "openai_compatible" | "deepseek";
+export type RuntimeProviderId = "anthropic" | "openai-compatible" | "deepseek";
 
 export function toRuntimeProviderId(provider: FrontendProviderId): RuntimeProviderId {
-  return provider === "openai_compatible" ? "openai-compatible" : "anthropic";
+  if (provider === "openai_compatible") return "openai-compatible";
+  if (provider === "deepseek") return "deepseek";
+  return "anthropic";
 }
 
 /** 任意输入 → runtime provider id；两种拼法都接受，其它返回 null（由调用方报 400）。 */
 export function parseProviderId(value: unknown): RuntimeProviderId | null {
-  if (value === "anthropic" || value === "openai-compatible") return value;
+  if (value === "anthropic" || value === "openai-compatible" || value === "deepseek") return value;
   if (value === "openai_compatible") return toRuntimeProviderId(value);
   return null;
 }
