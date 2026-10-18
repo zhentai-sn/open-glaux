@@ -303,7 +303,7 @@ export const zh: Record<I18nKey, string> = {
   mode_to_focus: "专注",
   focus_tagline: "将所见转化为洞见",
   focus_hero_title: "描述你的分析目标",
-  focus_hero_sub: "把多种模态、多种格式的图像与视频，转化为可验证、可复现的洞见。",
+  focus_hero_sub: "将所见转化为洞见",
   focus_stage: "图像舞台",
   focus_stage_empty: "还没有选中对象。在「文件」标签选一个，舞台就会显示在这里。",
   focus_side_panel: "右侧栏",

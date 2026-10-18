@@ -1572,12 +1572,37 @@ canvas {
   margin: 0;
   line-height: 1.5;
 }
+/* 输入卡片内的提示条（未选模型 / 归档 / 只读项目）：卡片内部渲染，与输入框同一内缩，
+   不再自己算宽度（早先是对话列的直接子元素，比输入卡片宽 20px，右侧按钮顶出边界）。 */
 .agent-readonly {
-  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
   color: var(--warn);
-  border-top: 1px solid rgba(233, 180, 76, 0.2);
-  background: rgba(233, 180, 76, 0.08);
-  font-size: 10.5px;
+  border: 1px solid color-mix(in srgb, var(--warn) 26%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.agent-readonly > span { flex: 1; min-width: 0; }
+.agent-readonly > svg { flex: none; opacity: 0.9; }
+.agent-readonly-action {
+  flex: none;
+  padding: 4px 10px;
+  color: var(--agent);
+  background: color-mix(in srgb, var(--agent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent) 28%, transparent);
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.agent-readonly-action:hover {
+  background: color-mix(in srgb, var(--agent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--agent) 45%, transparent);
 }
 .conversation-composer {
   display: flex;

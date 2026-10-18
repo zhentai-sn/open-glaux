@@ -357,6 +357,27 @@ export function AgentConversation() {
     projectsLoaded && !!view && !projectWritable(view.project_id ?? null, projects);
   const inputDisabled =
     !connected || !view || archived || projectReadonly || !connection.model.trim();
+  // 输入区顶部的提示条（SDD 01 §6.2）：归档 / 只读项目 / 未选模型三选一，交给输入卡片内部渲染，
+  // 与输入框同一内缩，不再自己算宽度。
+  const readonlyNotice = archived ? (
+    <div className="agent-readonly" role="status">
+      <Icon icon={ICONS.archive} size="sm" />
+      <span>{t("agent_archived_readonly")}</span>
+    </div>
+  ) : projectReadonly ? (
+    <div className="agent-readonly" role="status">
+      <Icon icon={ICONS.warning} size="sm" />
+      <span>{t("project_readonly")}</span>
+    </div>
+  ) : !connection.model ? (
+    <div className="agent-readonly" role="status">
+      <Icon icon={ICONS.settingsConnection} size="sm" />
+      <span>{t("agent_model_required")}</span>
+      <button type="button" className="agent-readonly-action" onClick={openConfig}>
+        {t("settings_connection")}
+      </button>
+    </div>
+  ) : null;
   const reversedAssistantIndex = [...messages]
     .reverse()
     .findIndex((message: unknown) => messageRole(message) === "assistant");
@@ -731,20 +752,12 @@ export function AgentConversation() {
         ))}
       </div>
 
-      {archived && (
-        <div className="agent-readonly">{t("agent_archived_readonly")}</div>
-      )}
-      {!archived && projectReadonly && (
-        <div className="agent-readonly">{t("project_readonly")}</div>
-      )}
-      {!connection.model && (
-        <div className="agent-readonly">{t("agent_model_required")} <button type="button" onClick={openConfig}>{t("cfg_title")}</button></div>
-      )}
       <ConversationComposer
         running={Boolean(running)}
         disabled={inputDisabled}
         onSend={send}
         onAbort={abort}
+        notice={readonlyNotice}
         controls={
           <>
             <ContextRing

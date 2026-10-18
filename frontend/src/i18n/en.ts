@@ -310,7 +310,7 @@ export const en = {
   mode_to_focus: "Focus",
   focus_tagline: "Turning sight into insight",
   focus_hero_title: "Describe your analysis goal",
-  focus_hero_sub: "Turn images and video across modalities and formats into verifiable, reproducible insight.",
+  focus_hero_sub: "Turning sight into insight",
   focus_stage: "Image stage",
   focus_stage_empty: "No object selected. Pick one in the Files tab; the stage shows it here.",
   focus_side_panel: "Side panel",

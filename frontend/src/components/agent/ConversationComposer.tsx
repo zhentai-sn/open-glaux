@@ -29,6 +29,8 @@ interface ConversationComposerProps {
   onAbort: () => Promise<void>;
   /** 底栏右侧、发送键之前的会话控件（上下文用量、模型、权限），由对话列提供。 */
   controls?: ReactNode;
+  /** 输入区顶部的提示条（未选模型、归档、只读项目）：放进卡片内，与输入框同宽同内缩。 */
+  notice?: ReactNode;
 }
 
 export function ConversationComposer({
@@ -37,6 +39,7 @@ export function ConversationComposer({
   onSend,
   onAbort,
   controls,
+  notice,
 }: ConversationComposerProps) {
   const { t } = useI18n();
   // 草稿在 store（非组件 state）：模式切换会重挂载对话列，未发送内容不得丢（SDD feats/01 §8/§15）。
@@ -174,6 +177,7 @@ export function ConversationComposer({
         void intake(Array.from(event.dataTransfer.files));
       }}
     >
+      {notice}
       {attachments.length > 0 && (
         <ul className="composer-attachments" aria-label={t("agent_attachments")}>
           {attachments.map((item: Attachment) => (
