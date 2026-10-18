@@ -301,7 +301,7 @@ export const zh: Record<I18nKey, string> = {
   // 双模式外壳（SDD feats/01）
   mode_to_workbench: "工作台",
   mode_to_focus: "专注",
-  focus_tagline: "将视觉转化为洞见",
+  focus_tagline: "将所见转化为洞见",
   focus_hero_title: "描述你的分析目标",
   focus_hero_sub: "把多种模态、多种格式的图像与视频，转化为可验证、可复现的洞见。",
   focus_stage: "图像舞台",

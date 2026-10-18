@@ -1,5 +1,5 @@
 <h1 align="center">🦉 Glaux</h1>
-<p align="center"><strong>将视觉转化为洞见</strong></p>
+<p align="center"><strong>将所见转化为洞见</strong></p>
 <p align="center"><strong>简体中文</strong> · <a href="README.md">English</a></p>
 
 Glaux 是本机运行的图像与视频分析智能体环境。你接入兼容的模型，Glaux 提供文件工作区、分析工具和证据复核能力。
