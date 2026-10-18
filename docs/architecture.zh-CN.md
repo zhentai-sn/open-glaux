@@ -125,7 +125,7 @@ open-glaux/
     └── requirements.zh-CN.md    #   v0 需求清单（已被纲领取代，仅供追溯）
 ```
 
-`.glaux/`（本地会话 SQLite）、`dist/`（发行包产物）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.claude/` 只忽略 `launch.json`。
+`.glaux/`（本地会话 SQLite）、`dist/`（发行包产物）、`.qoder/`（工具生成的知识库，非事实来源）不入库；`.cache/`（依赖下载与临时目录）、`.tools/`（本地工具链，如 uv）、`.dev-logs/`（本地开发日志）同样只留在本机；`.claude/` 只忽略 `launch.json`。
 
 ---
 
