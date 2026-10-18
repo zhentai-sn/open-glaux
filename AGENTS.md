@@ -18,3 +18,8 @@
 - 在 `docs/` 下新建 Markdown 文档时写 frontmatter（`kind`、`status`，例外见 [docs/README.md](docs/README.md)），命名遵循同一文件的规约。
 - `.qoder/` 等本地自动生成的知识库不是事实来源。
 - 写作言简意赅，不用比喻和类比，用业界通行术语。
+
+## 脚本规则
+
+- `.ps1` 含非 ASCII 字符时存成 UTF-8 with BOM。Windows PowerShell 5.1 按系统 ANSI 解码无 BOM 文件，中文注释的尾字节可能被解成反引号，把下一行代码并进注释，症状是变量莫名取到空值。
+- 经 `irm … | iex` 直接执行的脚本（`scripts/release/install.ps1`）保持纯 ASCII：字符串开头的 BOM 会被当成命令名的一部分，`iex` 报「无法将 … 项识别为 cmdlet」。

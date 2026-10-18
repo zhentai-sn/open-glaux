@@ -1,4 +1,6 @@
-# Glaux installer for Windows (SDD 24 §7.7).
+# Glaux installer for Windows (SDD 24 section 7.7).
+# Keep this file ASCII-only: it is executed straight from a string by `irm ... | iex`, and a
+# UTF-8 BOM or a mis-decoded non-ASCII byte breaks that path on Windows PowerShell 5.1.
 #
 #   powershell -ExecutionPolicy Bypass -c "irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex"
 #
@@ -192,7 +194,7 @@ try {
     if (-not (Test-Path (Join-Path $uvDir 'uv.exe'))) { Die 'cannot install uv' }
   }
 
-  # -------------------------------------------------------------- 5–6. Python, command, start
+  # -------------------------------------------------------------- 5-6. Python, command, start
   Step "Setting up Glaux $version"
   & $nodeExe (Join-Path $target 'launcher\glaux.mjs') install
   if ($LASTEXITCODE -ne 0) { Die 'setup failed (see the messages above)' }
