@@ -2642,6 +2642,10 @@ body.resizing .focus-rail { transition: none; }
 /* 空状态：hero → 输入框卡片 → 示例卡，整组垂直居中（顺序按设计稿视图 ①）。
    用 margin-auto 而非 justify-content:center：内容超高时降级为顶对齐可滚动，不裁切顶部。 */
 .focus-conversation.empty { overflow-y: auto; }
+/* 空态里对话列根节点按内容收缩（height: auto），而上滑的浮层——权限菜单、`/` 菜单——从输入卡片
+   向上弹出时会越过 .agent-conversation 的 overflow: hidden，被裁在卡片顶边。空态没有需要裁切的
+   滚动内容，放开这一层；滚动仍由上面的对话列承担。 */
+.focus-conversation.empty .agent-conversation { overflow: visible; }
 .focus-conversation.empty .focus-hero { margin-top: auto; }
 .focus-conversation.empty > .focus-cards { flex: none; margin-bottom: auto; padding-bottom: 12px; }
 .focus-conversation.empty .conversation-stream { display: none; }
