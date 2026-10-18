@@ -90,15 +90,19 @@ function Field({
 }
 
 /**
- * 连接状态卡：常驻显示是否已配置、上次测试结果与当前模型。
- * 测试按钮已移到表单最下方，这里只报状态。
+ * 连接状态卡：显示是否已配置、上次测试结果与当前模型，测试按钮就在卡内——状态和动作是一件事，
+ * 放在表单最下方，先填完 provider / 密钥 / 模型再一次验证。
  * 改了 provider / 地址 / 密钥 / 模型会清掉 lastTest，状态回到「未测试」，不显示过期的通过结论。
  */
 function StatusCard({
   connection,
+  testing,
+  onTest,
   t,
 }: {
   connection: Connection;
+  testing: boolean;
+  onTest: () => void;
   t: T;
 }) {
   const oai = connection.provider === "openai_compatible";
@@ -131,6 +135,9 @@ function StatusCard({
         <div className="cfg-status-title">{title}</div>
         {meta && <div className="cfg-status-meta">{meta}</div>}
       </div>
+      <button className="cfgbtn cfg-status-btn" type="button" disabled={testing} onClick={onTest}>
+        {testing ? "…" : t(state === "ok" || state === "fail" ? "cfg_retest" : "cfg_test")}
+      </button>
     </div>
   );
 }
@@ -220,8 +227,6 @@ export function ConnectionConfig({
       aria-label={t("cfg_title")}
     >
       {variant === "popover" && <div className="cfghead">{t("cfg_title")}</div>}
-
-      <StatusCard connection={connection} t={t} />
 
       <section className="cfg-group">
         <h3 className="cfg-group-title">{t("cfg_group_service")}</h3>
@@ -412,12 +417,8 @@ export function ConnectionConfig({
         </details>
       )}
 
-      {/* 测试放在表单最下方：先填完 provider / 密钥 / 模型，再一次性验证。 */}
-      <div className="cfg-footer">
-        <button className="cfgbtn cfg-test" type="button" disabled={testing} onClick={() => void testConnection()}>
-          {testing ? "…" : t(connection.lastTest ? "cfg_retest" : "cfg_test")}
-        </button>
-      </div>
+      {/* 状态与测试放在表单最下方：先填完 provider / 密钥 / 模型，再一次性验证。 */}
+      <StatusCard connection={connection} testing={testing} onTest={() => void testConnection()} t={t} />
 
       {variant === "popover" && (
         <button className="cfgclose" type="button" aria-label="Close" onClick={onClose}>

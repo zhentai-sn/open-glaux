@@ -3591,21 +3591,7 @@ button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space:
 .cfg-status-text { flex: 1; min-width: 0; }
 .cfg-status-title { font-size: var(--font-base); color: var(--bright); overflow-wrap: anywhere; }
 .cfg-status-meta { margin-top: 2px; font-size: var(--font-sm); color: var(--faint); overflow-wrap: anywhere; }
-.cfg-status-btn { flex: none; }
-/* 测试连接放在表单最下方：先填完再验证，右侧对齐一行。 */
-.cfg-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
-}
-.cfg-footer .cfg-test {
-  flex: none;
-  min-width: 132px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-weight: 500;
-}
+.cfg-status-btn { flex: none; min-width: 96px; padding: 7px 14px; border-radius: 8px; }
 .cfg-group { display: flex; flex-direction: column; gap: var(--space-2); }
 .cfg-group-title { margin: 0; font-size: var(--font-xs); font-weight: 500; color: var(--faint); letter-spacing: 0.02em; }
 .cfg-field { display: flex; flex-direction: column; gap: var(--space-1); }
