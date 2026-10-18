@@ -160,7 +160,6 @@ export function ConnectionConfig({
   const [testing, setTesting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [showKey, setShowKey] = useState(false);
-  const [fetchStatus, setFetchStatus] = useState<{ tone: "good" | "warn" | "crit"; text: string } | null>(null);
   const ids = useId();
   const id = (name: string) => `${ids}-${name}`;
 
@@ -189,28 +188,31 @@ export function ConnectionConfig({
     }
   };
 
+  // 拉取与测试合并成一次动作：/models 成功即说明地址与密钥可用，直接记一条通过的测试结果；
+  // 失败把原因写进同一张状态卡，用户不需要再点一次「测试连接」。
   const fetchModels = async () => {
     setFetching(true);
-    setFetchStatus(null);
     try {
       const result = await agentRuntimeApi.listModels(toProbeInput(connection));
-      // 已选中的模型若在新列表里，顺带把上游自报的窗口/输出上限刷新进来。
       const selected = result.models.find((model) => model.id === connection.model);
+      const now = new Date().toISOString();
       setConnection({
         models: result.models,
         ...(selected ? metaForModel(selected, connection) : {}),
-      });
-      setFetchStatus({
-        tone: result.models.length ? "good" : "warn",
-        text: result.models.length
-          ? t("cfg_n_models", { n: result.models.length })
-          : result.reason || t("cfg_no_models"),
+        lastTest: result.reason ? { ok: false, at: now, reason: result.reason } : { ok: true, at: now },
       });
     } catch (error) {
-      setFetchStatus({ tone: "crit", text: errorText(error) });
+      setConnection({
+        lastTest: { ok: false, at: new Date().toISOString(), reason: errorText(error) },
+      });
     } finally {
       setFetching(false);
     }
+  };
+
+  // 点列表里的模型与手输等价：选中即带出上游元数据。
+  const selectModel = (model: VlmModelInfo) => {
+    setEndpoint({ model: model.id, ...metaForModel(model, connection) });
   };
 
   const picked = models.find((m) => m.id === connection.model);
@@ -317,7 +319,6 @@ export function ConnectionConfig({
                   ? `${t("cfg_model_meta", { ctx: compact(connection.contextWindow), out: compact(connection.maxTokens) })}（${metaSource}）`
                   : t("cfg_meta_builtin", { provider: providerName(connection.provider, t) })}
               </span>
-              {fetchStatus && <span className={`cfg-tone ${fetchStatus.tone}`}>{fetchStatus.text}</span>}
             </>
           }
         >
@@ -352,6 +353,39 @@ export function ConnectionConfig({
                 <option key={model.id} value={model.id} />
               ))}
             </datalist>
+          )}
+          {models.length > 0 && (
+            <ul className="cfg-models" aria-label={t("cfg_model_list")}>
+              {models.map((model) => {
+                const on = model.id === connection.model;
+                const vision =
+                  model.vision === "yes" ? "yes" : model.vision === "no" ? "no" : "unknown";
+                return (
+                  <li key={model.id}>
+                    <button
+                      type="button"
+                      className={`cfg-model${on ? " on" : ""}`}
+                      aria-pressed={on}
+                      onClick={() => selectModel(model)}
+                    >
+                      <span className="cfg-model-id">{model.id}</span>
+                      <span className={`cfg-model-vision ${vision}`}>
+                        {t(
+                          vision === "yes"
+                            ? "cfg_vision_yes"
+                            : vision === "no"
+                              ? "cfg_vision_no"
+                              : "cfg_vision_unknown",
+                        )}
+                      </span>
+                      <span className="cfg-model-meta">
+                        {compact(model.context_window ?? null)} · {compact(model.max_tokens ?? null)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </Field>
       </section>

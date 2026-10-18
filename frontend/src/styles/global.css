@@ -3609,6 +3609,61 @@ button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space:
 .cfg-inline { display: flex; gap: var(--space-2); }
 .cfg-inline .cfgin { flex: 1; min-width: 0; }
 .cfg-inline-btn { flex: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+/* 拉取到的模型列表：每行一个可选模型，带视觉能力与窗口/输出，选中行用强调色描边。 */
+.cfg-models {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  max-height: 216px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  background: var(--input);
+  scrollbar-color: var(--line2) transparent;
+  scrollbar-width: thin;
+}
+.cfg-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.cfg-model:hover { background: var(--hover); }
+.cfg-model.on { border-color: var(--agent-line); background: var(--agent-dim); }
+.cfg-model-id {
+  overflow: hidden;
+  font-family: var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cfg-model-vision {
+  padding: 1px 7px;
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.cfg-model-vision.yes { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.cfg-model-meta {
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .cfg-tone.good { color: var(--good); }
 .cfg-tone.warn { color: var(--warn); }
 .cfg-tone.crit { color: var(--crit); }

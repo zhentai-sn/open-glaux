@@ -18,8 +18,11 @@ localStorage，随每次命令临时传给 agent-runtime，不落库。
 
 ## 入口
 
-Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent 面板的 ⋯ 浮层）→ provider / base_url / 密钥 / 模型（拉取后下拉选）/ 拉取，
-**连接状态栏在表单最下方，测试按钮就在栏内**：状态与动作是一件事，先把 provider、密钥和模型填完再一次性验证。OpenAI 兼容自定义模型的**上下文窗口 / 最大输出无需手填**：拉取模型时若上游 `/models`（或 Ollama
+Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent 面板的 ⋯ 浮层）→ provider / base_url / 密钥 / 模型。
+**连接状态栏在表单最下方，测试按钮就在栏内**：状态与动作是一件事，先把 provider、密钥和模型填完再一次性验证。
+**拉取模型同时完成连接测试**：`/models` 成功即记一条「已连接」，失败把原因写进同一条状态栏，不用再点一次测试。
+拉到的模型以**列表**列在模型输入框下方，每行给出模型 id、视觉能力（可看图 / 只收文本 / 视觉未知）与上下文窗口 · 最大输出，
+点行即选中并带出上游元数据；列表外的自定义模型仍可手输。OpenAI 兼容自定义模型的**上下文窗口 / 最大输出无需手填**：拉取模型时若上游 `/models`（或 Ollama
 `/api/show`）自报了元数据就自动带入，没有则落默认 `200000 / 32768`（界面显示 200K / 32K；本机仍存着旧默认 `128000 / 8192` 的，载入时换成新默认）；两个框仍可见可改，改过的值不会被覆盖
 （除非上游对该模型有明确值）。窗口比默认输出还小时，最大输出自动收窄到窗口的 1/4，避免撞
 `max_tokens < context_window` 的校验。
@@ -29,7 +32,8 @@ Focus 左侧栏底部 **⚙ 设置 → 模型与连接**（Workbench 为 Agent �
 - 测试连接：`POST /agent-api/v1/connection/test` → `{ ok, http_status, reason, model_count? }`
 - 拉取模型：`POST /agent-api/v1/connection/models` → `{ models: [{ id, vision, context_window?, max_tokens? }], reason? }`
   （后两项探到才有：OpenAI 兼容看条目上的 `context_length` / `max_context_length` / `max_output_tokens` 等，
-  Ollama 看 `/api/show` 的 `model_info.*.context_length`）
+  Ollama 看 `/api/show` 的 `model_info.*.context_length`）。前端把这次调用同时当作连接测试：没有 `reason`
+  记「已连接」，有 `reason` 记「连接失败」并显示原因。
 - 两个端点都在 **agent-runtime**（[`connection-probe.ts`](../../agent-runtime/src/pi/connection-probe.ts)）；
   backend 不再有 `/intent/vlm/*`。这是架构不变量"只有 agent-runtime 与模型说话"的一部分。
 

@@ -210,6 +210,49 @@ describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
     expect(lastText).toBe(test);
   });
 
+  it("拉取模型即顺带完成连接测试：成功 → 已连接", async () => {
+    vi.spyOn(agentRuntimeApi, "listModels").mockResolvedValue({
+      models: [{ id: "m1", vision: "yes", context_window: 200_000, max_tokens: 8192 }],
+    });
+    // 能拉取模型的前提是地址已填：状态卡的「已配置」按地址判定。
+    useSession.getState().setConnection({ baseUrl: "http://localhost:1234/v1" });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "拉取模型" }));
+    await waitFor(() => expect(status()).toHaveTextContent("已连接"));
+    expect(useSession.getState().connection.lastTest?.ok).toBe(true);
+  });
+
+  it("拉取失败 → 状态卡直接给出原因，不用再点测试", async () => {
+    vi.spyOn(agentRuntimeApi, "listModels").mockRejectedValue(new Error("401 unauthorized"));
+    useSession.getState().setConnection({ baseUrl: "http://localhost:1234/v1" });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "拉取模型" }));
+    await waitFor(() => expect(status()).toHaveTextContent("连接失败"));
+    expect(status()).toHaveTextContent("401 unauthorized");
+  });
+
+  it("模型以列表呈现：显示视觉能力，点行即选中", async () => {
+    vi.spyOn(agentRuntimeApi, "listModels").mockResolvedValue({
+      models: [
+        { id: "vision-model", vision: "yes", context_window: 200_000, max_tokens: 8192 },
+        { id: "text-model", vision: "no" },
+      ],
+    });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "拉取模型" }));
+
+    const list = await screen.findByRole("list", { name: "模型列表" });
+    const rows = within(list).getAllByRole("button");
+    expect(rows.map((row) => (row.textContent ?? "").trim())).toEqual([
+      "vision-model可看图200K · 8K",
+      "text-model只收文本— · —",
+    ]);
+
+    fireEvent.click(within(list).getByRole("button", { name: /text-model/ }));
+    expect(useSession.getState().connection.model).toBe("text-model");
+    expect(screen.getByLabelText("模型（可选）")).toHaveValue("text-model");
+  });
+
   it("最大输出不小于上下文窗口 → 高级组自动展开并标红", () => {
     useSession.getState().setConnection({ contextWindow: 4096, maxTokens: 8192 });
     setup();
