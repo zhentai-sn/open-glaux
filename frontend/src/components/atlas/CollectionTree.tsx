@@ -23,6 +23,12 @@ export interface CollectionNode {
   children: CollectionNode[];
 }
 
+/** 排序固定用 zh-Hans：图册章节名以中文为主，按拼音排列符合用户预期；更要紧的是
+ *  `localeCompare` 不给 locale 时结果随系统 locale 变化，同一份案例在中文 Windows 与
+ *  CI 上会排出两个顺序。 */
+const collator = new Intl.Collator("zh-Hans");
+const compareKeys = (a: CollectionNode, b: CollectionNode): number => collator.compare(a.key, b.key);
+
 /** 把 `[{collection, key, count}]` 拼成森林（根目录 "" 不进树，单独作"未分册"）。 */
 export function buildCollectionTree(counts: CollectionCount[]): { roots: CollectionNode[]; unfiled: number; total: number } {
   const byKey = new Map<string, CollectionNode>();
@@ -53,11 +59,11 @@ export function buildCollectionTree(counts: CollectionCount[]): { roots: Collect
     ensure(c.collection, c.key).own += c.count;
   }
   const sum = (n: CollectionNode): number => {
-    n.children.sort((a, b) => a.key.localeCompare(b.key));
+    n.children.sort(compareKeys);
     n.total = n.own + n.children.reduce((s, ch) => s + sum(ch), 0);
     return n.total;
   };
-  roots.sort((a, b) => a.key.localeCompare(b.key)).forEach(sum);
+  roots.sort(compareKeys).forEach(sum);
   return { roots, unfiled, total };
 }
 

@@ -20,11 +20,12 @@ describe("buildCollectionTree", () => {
     expect(roots).toHaveLength(1);
     const kidney = roots[0]!;
     expect(kidney).toMatchObject({ name: "肾脏", path: "肾脏", own: 0, total: 7 });
+    // 固定 zh-Hans 排序（拼音）：膜性肾病（mo）在 IgA 之前，且不随机器 locale 变化。
     expect(kidney.children.map((c) => [c.name, c.own, c.total])).toEqual([
-      ["IgA", 2, 2],
       ["膜性肾病", 1, 5],
+      ["IgA", 2, 2],
     ]);
-    expect(kidney.children[1]!.children[0]).toMatchObject({ name: "EDD", path: "肾脏/膜性肾病/EDD", total: 4 });
+    expect(kidney.children[0]!.children[0]).toMatchObject({ name: "EDD", path: "肾脏/膜性肾病/EDD", total: 4 });
   });
 
   it("normalizeKey 与后端归一一致（段 trim / 全角斜杠 / 大小写）", () => {
