@@ -45,6 +45,8 @@ function cspMeta(): Plugin {
 // dev：把 `localhost` 的页面导航 307 到 `127.0.0.1`。Windows 把 localhost 先解析为 ::1，
 // WSL mirrored 网络不转发 ::1，每次建连先等约 200 ms 再回退 IPv4，WSI 瓦片逐块叠加这段延迟。
 // 页面落到 127.0.0.1 后，/api 等相对请求随之走 IPv4。只改导航，不改 fetch / HMR。
+// 重定向的目标必须真的在监听，所以 server.host 缺省绑 127.0.0.1（见下）：
+// Windows 原生下 node 把 localhost 绑到 ::1，只监听 IPv6 时重定向过去的地址无人应答。
 function loopbackIpv4(): Plugin {
   return {
     name: "glaux-loopback-ipv4",
@@ -65,10 +67,14 @@ export default defineConfig({
   plugins: [react(), cspMeta(), loopbackIpv4()],
   server: {
     port: 5173,
+    // 缺省绑 IPv4 回环：`localhost` 在 Windows 原生下被解析为 ::1，此时上方重定向到 127.0.0.1
+    // 会打到一个没人监听的端口，页面直接打不开。要在局域网开放开发服务器时设 GLAUX_VITE_HOST。
+    host: process.env.GLAUX_VITE_HOST ?? "127.0.0.1",
     proxy: {
       "/api": {
         // dev 后端端口可用 GLAUX_BACKEND_PORT 覆盖（spike 工作树与主仓并存时避 8000 冲突）
-        target: `http://localhost:${process.env.GLAUX_BACKEND_PORT ?? "8000"}`,
+        // 目标写 127.0.0.1 而非 localhost：backend 只监听 IPv4，localhost 会先试 ::1。
+        target: `http://127.0.0.1:${process.env.GLAUX_BACKEND_PORT ?? "8000"}`,
         changeOrigin: true,
         // 带上原始来源：后端 /fs、/projects 只接受回环来源（SDD 13 §7.1 规则 3），
         // `vite --host` 对局域网开放时，代理直连地址恒为回环，只能靠 X-Forwarded-For 识别

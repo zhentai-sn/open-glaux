@@ -45,7 +45,7 @@ graph LR
     BE -- "subprocess" --> MD
 ```
 
-Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime（默认 :8010，`GLAUX_AGENT_PORT` 可改，与 runtime 共用同一变量），不改路径。
+Vite 开发代理：`/api` 转发到 backend（默认 :8000，`GLAUX_BACKEND_PORT` 可改）并去掉 `/api` 前缀，开启 `xfwd` 附带 `X-Forwarded-For`，供 backend 的回环守卫识别原始来源；`/agent-api` 转发到 agent-runtime（默认 :8010，`GLAUX_AGENT_PORT` 可改，与 runtime 共用同一变量），不改路径。开发服务器缺省绑 `127.0.0.1`（局域网开放时设 `GLAUX_VITE_HOST`）：Windows 原生下 `localhost` 解析为 `::1`，只监听 IPv6 时把 `localhost` 导航重定向到 `127.0.0.1` 会打到无人监听的端口。
 
 ### 生产运行模式（安装版与 `make start`）
 
