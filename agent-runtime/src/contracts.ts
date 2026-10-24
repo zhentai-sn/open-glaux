@@ -53,13 +53,15 @@ export type TranscriptBlock =
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 
 export type TranscriptMessage =
-  | { role: "user"; content: string | TranscriptBlock[] }
-  | { role: "assistant"; content: TranscriptBlock[] }
+  | { role: "user"; content: string | TranscriptBlock[]; at?: number }
+  | { role: "assistant"; content: TranscriptBlock[]; at?: number }
   | {
       role: "toolResult";
       toolCallId: string;
       toolName: string;
       content: TranscriptBlock[];
+      /** 快照里来自会话条目的时间戳（epoch 毫秒），用于按轮次统计整体用时。 */
+      at?: number;
       details?: unknown;
       isError: boolean;
       /** 工具执行耗时；只在快照中、命令结束后给出（SDD 15 §9.6）。 */

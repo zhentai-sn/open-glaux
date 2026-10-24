@@ -33,15 +33,18 @@ function toBlocks(content: unknown): TranscriptBlock[] {
   });
 }
 
-export function toTranscript(message: AgentMessage): TranscriptMessage | null {
+/** `at`：会话条目的时间戳（epoch 毫秒）；事件流里的增量消息没有条目，留空。 */
+export function toTranscript(message: AgentMessage, at?: number): TranscriptMessage | null {
   const raw = message as unknown as Record<string, unknown>;
+  const stamp = typeof at === "number" && Number.isFinite(at) ? { at } : {};
   if (raw.role === "user") {
-    return { role: "user", content: typeof raw.content === "string" ? raw.content : toBlocks(raw.content) };
+    return { role: "user", content: typeof raw.content === "string" ? raw.content : toBlocks(raw.content), ...stamp };
   }
-  if (raw.role === "assistant") return { role: "assistant", content: toBlocks(raw.content) };
+  if (raw.role === "assistant") return { role: "assistant", content: toBlocks(raw.content), ...stamp };
   if (raw.role === "toolResult") {
     return {
       role: "toolResult",
+      ...stamp,
       toolCallId: typeof raw.toolCallId === "string" ? raw.toolCallId : "",
       toolName: typeof raw.toolName === "string" ? raw.toolName : "",
       content: toBlocks(raw.content),

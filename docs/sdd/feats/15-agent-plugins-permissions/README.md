@@ -424,10 +424,12 @@ type TranscriptBlock =
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 
 type TranscriptMessage =
-  | { role: "user"; content: string | TranscriptBlock[] }
-  | { role: "assistant"; content: TranscriptBlock[] }
-  | { role: "toolResult"; toolCallId: string; toolName: string; content: TranscriptBlock[]; details?: unknown; isError: boolean; duration_ms?: number };
+  | { role: "user"; content: string | TranscriptBlock[]; at?: number }
+  | { role: "assistant"; content: TranscriptBlock[]; at?: number }
+  | { role: "toolResult"; at?: number; toolCallId: string; toolName: string; content: TranscriptBlock[]; details?: unknown; isError: boolean; duration_ms?: number };
 ```
+
+`at` 是会话条目的时间戳（epoch 毫秒），快照里带、事件流的增量消息不带；对话流据此按轮次算整体用时（SDD 00 §5.1）。
 
 `thinking` 保留为 `{ type: "thinking", text }`，供对话流的过程折叠展示；redacted thinking 只保留占位、不展示。其余未声明块类型由 runtime 丢弃，不进快照。
 

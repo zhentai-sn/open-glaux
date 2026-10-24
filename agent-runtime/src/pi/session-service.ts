@@ -299,7 +299,9 @@ export class SessionService {
       durations.set(data.tool_call_id, [...(durations.get(data.tool_call_id) ?? []), timing]);
     }
     const messages = branch.flatMap((entry) =>
-      entry.type === "message" ? visibleMessage(entry.message, durations) : [],
+      entry.type === "message"
+        ? visibleMessage(entry.message, durations, Date.parse(entry.timestamp))
+        : [],
     );
     const videoAnswers = branch.flatMap((entry) => {
       if (entry.type !== "custom" || entry.customType !== "glaux.video.answer") return [];
@@ -431,8 +433,12 @@ interface ToolTiming {
   blocked: boolean;
 }
 
-function visibleMessage(message: AgentMessage, durations: Map<string, ToolTiming[]>): TranscriptMessage[] {
-  const transcript = toTranscript(message);
+function visibleMessage(
+  message: AgentMessage,
+  durations: Map<string, ToolTiming[]>,
+  at?: number,
+): TranscriptMessage[] {
+  const transcript = toTranscript(message, at);
   if (!transcript) return [];
   if (transcript.role === "user" || transcript.role === "assistant") return [transcript];
   const kind = (transcript.details as { kind?: unknown } | undefined)?.kind;
@@ -441,6 +447,7 @@ function visibleMessage(message: AgentMessage, durations: Map<string, ToolTiming
   const timing = durations.get(transcript.toolCallId)?.shift();
   return [{
     role: "toolResult",
+    ...(at === undefined || Number.isNaN(at) ? {} : { at }),
     toolCallId: transcript.toolCallId,
     toolName: transcript.toolName,
     isError: transcript.isError,
