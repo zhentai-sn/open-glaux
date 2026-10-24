@@ -96,19 +96,63 @@ describe("SessionDrawer", () => {
     expect(groupOf("liver").querySelector("button[title]")?.getAttribute("title")).toBe("C:\\cases\\liver");
   });
 
-  it("归档默认隐藏；打开开关或搜索时显示", () => {
+  it("进行中 / 已归档按页签分列，搜索只在当前页签内生效", () => {
     renderDrawer();
     expect(screen.queryByText("Archived conversation")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Search conversations"), {
-      target: { value: "archived" },
-    });
-    expect(screen.queryByText("Active conversation")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Archived" }));
     expect(screen.getByText("Archived conversation")).toBeInTheDocument();
+    expect(screen.queryByText("Active conversation")).not.toBeInTheDocument();
+
+    // 已归档页签内搜索：命中保留，未命中的归档会话不显示
+    fireEvent.change(screen.getByPlaceholderText("Search conversations"), {
+      target: { value: "active conversation" },
+    });
+    expect(screen.queryByText("Archived conversation")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Search conversations"), { target: { value: "" } });
-    fireEvent.click(screen.getByLabelText("Show archived"));
-    expect(screen.getByText("Archived conversation")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Active" }));
+    expect(screen.getByText("Active conversation")).toBeInTheDocument();
+  });
+
+  it("置顶会话在组内排到最前并显示标记", () => {
+    const pinned: SessionListItem = {
+      ...base,
+      session_id: "019c0000-0000-7000-8000-000000000014",
+      title: "Pinned conversation",
+      pinned: true,
+      updated_at: "2026-07-01T00:00:00.000Z",
+    };
+    useAgentSessions.setState({ sessions: [inLiver, base, pinned, archived] });
+    renderDrawer();
+    const rows = [...groupOf("No project").querySelectorAll(".session-item")];
+    expect(rows[0]?.textContent).toContain("Pinned conversation");
+    expect(within(groupOf("No project")).getByRole("img", { name: "Pinned" })).toBeInTheDocument();
+  });
+
+  it("更多操作菜单可置顶、归档与复制会话 ID", async () => {
+    vi.spyOn(agentRuntimeApi, "listSessions").mockResolvedValue([inLiver, base, archived]);
+    const patchSession = vi.spyOn(agentRuntimeApi, "patchSession").mockResolvedValue({
+      ...base,
+      pinned: true,
+    } as never);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderDrawer();
+
+    const row = screen.getByText("Active conversation").closest(".session-item") as HTMLElement;
+    fireEvent.click(within(row).getByLabelText("More actions"));
+    expect(screen.getByRole("menu", { name: "More actions" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy session ID" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(base.session_id));
+
+    fireEvent.click(within(row).getByLabelText("More actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin conversation" }));
+    await waitFor(() => expect(patchSession).toHaveBeenCalledWith(base.session_id, { pinned: true }));
+
+    fireEvent.click(within(row).getByLabelText("More actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    await waitFor(() => expect(patchSession).toHaveBeenCalledWith(base.session_id, { status: "archived" }));
   });
 
   it("组头「＋」在该项目下新建会话", () => {
@@ -177,11 +221,9 @@ describe("SessionDrawer", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderDrawer();
 
-    fireEvent.click(
-      screen.getAllByTitle("Delete").find((button) =>
-        button.closest(".session-item")?.textContent?.includes(base.title),
-      )!,
-    );
+    const row = screen.getByText(base.title).closest(".session-item") as HTMLElement;
+    fireEvent.click(within(row).getByLabelText("More actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining(base.title));
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("cannot be recovered"));

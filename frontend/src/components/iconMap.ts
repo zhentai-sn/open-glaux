@@ -4,6 +4,7 @@ import {
   Archive,
   ArrowLeft,
   ArrowLeftRight,
+  ArchiveRestore,
   ArrowUp,
   Blocks,
   Brush,
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircuitBoard,
+  Copy,
   Crosshair,
   Database,
   Diamond,
@@ -32,7 +34,10 @@ import {
   Menu,
   MessageSquare,
   Moon,
+  MoreHorizontal,
   MousePointer2,
+  Pin,
+  PinOff,
   Palette,
   PanelLeft,
   Pencil,
@@ -158,5 +163,10 @@ export const ICONS = {
   folderPlus: FolderPlus, // 打开项目文件夹（SDD 13）
   trash: Trash2, // 移除项目（只注销，不删磁盘文件）
   chat: MessageSquare, // 未归属会话组
+  more: MoreHorizontal, // 会话行的「更多操作」
+  pin: Pin, // 置顶会话（SDD 13 §7.4 规则 12）
+  unpin: PinOff,
+  copy: Copy, // 复制会话 ID
+  unarchive: ArchiveRestore, // 归档会话恢复到进行中
   subagent: Bot, // 子智能体卡片与定义列表（SDD 18）
 } as const;

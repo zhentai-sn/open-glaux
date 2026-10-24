@@ -50,6 +50,14 @@ describe("buildSessionGroups", () => {
     expect(groups[groups.length - 1]).toMatchObject({ kind: "removed", label: "old" });
   });
 
+  it("置顶会话排组内最前，其余按更新时间倒序", () => {
+    const pinnedOlder = { ...session("s-old", null, "2026-01-01"), pinned: true };
+    const pinnedNewer = { ...session("s-new", null, "2026-03-01"), pinned: true };
+    const plain = session("s-plain", null, "2026-02-01");
+    const groups = buildSessionGroups([plain, pinnedOlder, pinnedNewer], [], {});
+    expect(groups[0]!.sessions.map((s) => s.session_id)).toEqual(["s-new", "s-old", "s-plain"]);
+  });
+
   it("同名项目追加父目录名", () => {
     const groups = buildSessionGroups(
       [],

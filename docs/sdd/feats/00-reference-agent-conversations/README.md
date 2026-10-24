@@ -278,7 +278,7 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 1. 顶栏：当前会话标题、会话列表、新建会话、更多菜单。
 2. 消息区：用户与 assistant 消息、流式状态、停止/重试/重新生成入口。
 3. 输入区：多行文本、图像附件（粘贴/选择/拖放，见 §4.3 与 D-021）；底栏左侧为附件 ＋ 与项目胶囊，右侧依次为上下文用量胶囊、模型胶囊（模型名 + 推理档位，点开换模型或改档位）、权限胶囊、发送/停止（D-024）。
-4. 会话列表：按项目分组，支持搜索、切换、重命名、归档、恢复和删除；分组、状态点与项目胶囊见 SDD 13 §7.4、§7.5。
+4. 会话列表：顶部「进行中 / 已归档」页签；按项目分组，支持搜索（限当前页签）、切换、置顶、重命名、归档、恢复、复制会话 ID 与删除；分组、状态点、排序与「更多操作」菜单见 SDD 13 §7.4、§7.5。
 
 不得新增分支按钮、历史消息编辑入口或替代回答版本选择器。
 
@@ -341,6 +341,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `title` | text | 1～100 字符 |
 | `status` | enum | `active`、`archived` |
 | `permission_mode` | enum | `observe`、`suggest`、`controlled`、`autonomous` |
+| `pinned` | boolean | 置顶（SDD 13 §7.4 规则 13）；旧库在打开时补列，缺省 `false` |
 | `created_at` | datetime | 非空 |
 | `updated_at` | datetime | 非空 |
 

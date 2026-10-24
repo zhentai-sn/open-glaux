@@ -94,7 +94,7 @@ export const agentRuntimeApi = {
     patch: Partial<
       Pick<
         SessionView,
-        "title" | "status" | "permission_mode" | "provider" | "model"
+        "title" | "status" | "permission_mode" | "pinned" | "provider" | "model"
       >
     >,
   ) =>

@@ -2488,7 +2488,7 @@ canvas {
 .session-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 3px;
   padding: 3px;
   border: 1px solid transparent;
@@ -2603,37 +2603,94 @@ canvas {
 .session-group-actions button:hover:not(:disabled) { color: var(--bright); background: var(--input); }
 .session-group-actions button:disabled { opacity: 0.4; }
 .session-group .session-item { margin-left: 10px; }
-.session-archived-toggle {
+/* 页签：进行中 / 已归档（SDD 13 §7.4 规则 8），取代底部的「显示归档」开关 */
+.session-tabs {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 4px 0;
-  color: var(--faint);
-  border-top: 1px solid var(--line);
-  font-size: 11px;
+  gap: 2px;
+  margin: 2px 0 1px;
+  padding: 2px;
+  background: var(--input);
+  border-radius: var(--radius-sm);
 }
-.session-actions {
-  display: none;
+.session-tabs button {
+  flex: 1;
+  padding: 4px 8px;
+  color: var(--mid);
+  border-radius: calc(var(--radius-sm) - 2px);
+  font-size: 11.5px;
+  text-align: center;
+}
+.session-tabs button:hover { color: var(--bright); }
+.session-tabs button.on {
+  color: var(--bright);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(20, 20, 19, 0.08);
+}
+
+/* 会话行的置顶标记与「更多操作」（SDD 13 §7.4 规则 12）：平时只留一个省略号。 */
+.session-row-tools {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
   gap: 1px;
 }
-.session-item:hover .session-actions,
-.session-item:focus-within .session-actions {
-  display: flex;
+.session-pin {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--agent);
 }
-.session-actions button {
+.session-more { position: relative; display: flex; }
+.session-more-btn {
   width: 22px;
   height: 22px;
   display: grid;
   place-items: center;
   color: var(--faint);
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out);
 }
-.session-actions button:hover {
-  color: var(--bright);
-  background: var(--input);
+.session-item:hover .session-more-btn,
+.session-item:focus-within .session-more-btn,
+.session-more-btn.open { opacity: 1; }
+.session-more-btn:hover,
+.session-more-btn.open { color: var(--bright); background: var(--input); }
+.session-item.active .session-more-btn { opacity: 0.75; }
+.session-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(20, 20, 19, 0.2), 0 2px 8px rgba(20, 20, 19, 0.08);
 }
+:root[data-theme="dark"] .session-menu {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.session-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  color: var(--ink);
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: left;
+  outline: none;
+}
+.session-menu button > svg { flex: none; color: var(--mid); }
+.session-menu button:hover,
+.session-menu button:focus-visible { background: var(--hover); color: var(--bright); }
+.session-menu button.danger { color: var(--crit); }
+.session-menu button.danger > svg { color: var(--crit); }
+.session-menu button + button.danger { margin-top: 3px; box-shadow: 0 -1px 0 var(--line); padding-top: 8px; border-radius: 6px; }
 .cfgnum {
   width: 120px;
 }

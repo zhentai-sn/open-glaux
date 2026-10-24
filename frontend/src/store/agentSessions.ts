@@ -116,6 +116,8 @@ interface AgentSessionsState {
   ) => Promise<void>;
   /** 换模型时同步会话绑定（SDD 00 §4）：轨迹留一条 `model_change`，会话列表里的模型不过期。 */
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
+  /** 置顶会话（SDD 13 §7.4 规则 12）：写 runtime 元数据，列表由分组函数排到组内最前。 */
+  setPinned: (sessionId: string, pinned: boolean) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   sendPrompt: (
     content: string,
@@ -484,6 +486,14 @@ export function createAgentSessionsStore(
         }
       },
 
+      setPinned: async (sessionId, pinned) => {
+        try {
+          get().applySnapshot(await runtime.patchSession(sessionId, { pinned }));
+        } catch {
+          // 离线或会话已删：下次刷新以服务端为准，这里不打扰。
+        }
+      },
+
       refreshStats: async (sessionId) => {
         try {
           const stats = await runtime.getStats(sessionId);
@@ -733,6 +743,7 @@ function toListItem(view: SessionView): SessionListItem {
     created_at: view.created_at,
     updated_at: view.updated_at,
     project_id: view.project_id ?? null,
+    pinned: view.pinned ?? false,
   };
 }
 

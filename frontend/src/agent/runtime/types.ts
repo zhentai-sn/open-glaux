@@ -189,6 +189,8 @@ export interface SessionView {
   video_answers?: VideoAnswerRecord[];
   video_observations?: ClipObservation[];
   context_usage: ContextUsage | null;
+  /** 置顶（SDD 13 §7.4 规则 12）；旧版 runtime 不下发时视为未置顶。 */
+  pinned?: boolean;
   created_at: string;
   updated_at: string;
   /** 创建时绑定的项目，不可改；空为未归属（SDD 13 §7.6、§9.5）。 */

@@ -22,9 +22,17 @@ const latest = (sessions: SessionListItem[]): string =>
   sessions.reduce((max, s) => (s.updated_at > max ? s.updated_at : max), "");
 
 /**
+ * 组内顺序：置顶会话在前，其余按 `updated_at` 倒序（SDD 13 §7.4 规则 12）。
  * 分组顺序：有会话的项目按组内最近会话倒序；无会话的项目按登记时间倒序；其后「未归属」；
- * 最后是已移除项目的只读组。组内沿用传入顺序（调用方已按 updated_at 倒序）。
+ * 最后是已移除项目的只读组。
  */
+function orderSessions(sessions: SessionListItem[]): SessionListItem[] {
+  return [...sessions].sort(
+    (left, right) =>
+      Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)) ||
+      right.updated_at.localeCompare(left.updated_at),
+  );
+}
 export function buildSessionGroups(
   sessions: SessionListItem[],
   projects: ProjectView[],
@@ -45,7 +53,7 @@ export function buildSessionGroups(
     label: projectLabel(p, labels),
     path: p.display_path,
     missing: p.status === "missing",
-    sessions: byProject.get(p.id) ?? [],
+    sessions: orderSessions(byProject.get(p.id) ?? []),
   }));
   const created = new Map(projects.map((p) => [p.id, p.created_at]));
   projectGroups.sort((a, b) => {
@@ -63,7 +71,7 @@ export function buildSessionGroups(
     label: "",
     path: "",
     missing: false,
-    sessions: byProject.get(null) ?? [],
+    sessions: orderSessions(byProject.get(null) ?? []),
   };
 
   const removed: SessionGroupModel[] = [];
@@ -77,7 +85,7 @@ export function buildSessionGroups(
       label: k?.name ?? projectId,
       path: k?.display_path ?? "",
       missing: false,
-      sessions: list,
+      sessions: orderSessions(list),
     });
   }
   removed.sort((a, b) => latest(b.sessions).localeCompare(latest(a.sessions)));
