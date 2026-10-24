@@ -1,4 +1,4 @@
-// 主题（SDD feats/12）——深色 / 浅色两档；缺省深色（纲领 G11：影像审读的暗环境基底）。
+// 主题（SDD feats/12）——浅色 / 深色两档；缺省暖纸浅色（品牌皮肤 2026-10-21）；影像视口在两种主题下仍为深色。
 // 取值写 <html data-theme>，颜色全部由 tokens.css 按该属性切换；组件不读主题做分支，
 // 例外只有 dockview 需要换主题对象（Shell.tsx）。
 import { create } from "zustand";
@@ -7,12 +7,12 @@ export type Theme = "dark" | "light";
 
 export const THEME_KEY = "glaux.theme.v1";
 
-// 缺省/非法/localStorage 不可用 → dark，不抛错。
+// 缺省/非法/localStorage 不可用 → light，不抛错。
 function loadTheme(): Theme {
   try {
-    return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 
@@ -113,6 +113,6 @@ export const useTheme = create<ThemeState>((set, get) => ({
   toggleTheme: () => get().setTheme(get().theme === "dark" ? "light" : "dark"),
 }));
 
-// 模块加载即落属性（main.tsx 在首帧渲染前 import），避免先按深色画一帧。
+// 模块加载即落属性（main.tsx 在首帧渲染前 import），避免先按浅色画一帧。
 applyTheme(useTheme.getState().theme);
 applyAccent(useTheme.getState().accent);

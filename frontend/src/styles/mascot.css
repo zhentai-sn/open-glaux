@@ -1,0 +1,10 @@
+/* 小鸮吉祥物（品牌皮肤 2026-10-21）：骑在输入框上沿，不占对话流空间。 */
+.mascot {
+  position: absolute;
+  right: 30px;
+  top: -40px;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--bright) 16%, transparent));
+}

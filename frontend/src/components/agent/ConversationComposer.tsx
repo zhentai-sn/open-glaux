@@ -20,6 +20,7 @@ import { agentRuntimeApi } from "../../agent/runtime/client";
 import { useCurrentProjectId } from "../context/shared";
 import { parseInvocation, slashItems, slashQuery, type Invocation, type SlashItem } from "./slashCommands";
 import { ProjectChip } from "./ProjectChip";
+import { Mascot, type MascotState } from "../Mascot";
 
 interface ConversationComposerProps {
   running: boolean;
@@ -31,6 +32,8 @@ interface ConversationComposerProps {
   controls?: ReactNode;
   /** 输入区顶部的提示条（未选模型、归档、只读项目）：放进卡片内，与输入框同宽同内缩。 */
   notice?: ReactNode;
+  /** 小鸮的当前状态；缺省按 running 推导（thinking / idle）。 */
+  mascotState?: MascotState;
 }
 
 export function ConversationComposer({
@@ -40,6 +43,7 @@ export function ConversationComposer({
   onAbort,
   controls,
   notice,
+  mascotState,
 }: ConversationComposerProps) {
   const { t } = useI18n();
   // 草稿在 store（非组件 state）：模式切换会重挂载对话列，未发送内容不得丢（SDD feats/01 §8/§15）。
@@ -177,6 +181,8 @@ export function ConversationComposer({
         void intake(Array.from(event.dataTransfer.files));
       }}
     >
+      {/* 提示条占据输入框上沿时让小鸮让位：警告优先，角色不抢注意力。 */}
+      {!notice && <Mascot state={mascotState ?? (running ? "typing" : "idle")} />}
       {notice}
       {attachments.length > 0 && (
         <ul className="composer-attachments" aria-label={t("agent_attachments")}>

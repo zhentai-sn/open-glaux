@@ -1,129 +1,130 @@
-/* 设计 Token — 设计稿 §2。结构色借 VS Code Dark+，领域色（智能体/边界/语义）自定。
-   语义色（good/warn/crit）与 accent 严格分离。数值一律等宽 + tabular-nums。
-   主题（SDD feats/12）：颜色 token 缺省为深色；<html data-theme="light"> 覆盖为浅色。
-   影像视口（[data-viewer-surface]）重新声明深色值，子树内的浮层控件在两种主题下都按深色渲染。
+/* 设计 Token —— 暖纸主题（2026-10-21 品牌皮肤）。
+   浅色为缺省：<html> 无 data-theme 或 data-theme="light" 时为暖纸；
+   <html data-theme="dark"> 覆盖为暖夜。
+   影像视口（[data-viewer-surface]）在两种主题下都按深色渲染，声明置于文件末尾以确保覆盖。
    强调色（SDD feats/12 §7.2）：用户自定义时 store 在 <html> 上写 --accent-user / --accent-on / --accent-status，
-   下列 token 以它们为首选、缺省回落到主题默认紫；dim/line 由 --agent 派生，无需单独覆盖。 */
-:root,
-[data-viewer-surface] {
-  color-scheme: dark;
-
-  /* 结构底 */
-  --editor: #1e1e1e;
-  --sidebar: #252526;
-  --activity: #2d2d30;
-  --titlebar: #323233;
-  --panel: #1e1e1e;
-
-  /* 描边 · 输入 · 悬停 · 选中 */
-  --input: #3c3c3c;
-  --line: #2b2b2b;
-  --line2: #3c3c3c;
-  --hover: #2a2d2e;
-  --sel: #094771;
-  --sel-line: #0e639c;
-
-  /* 文本层级 */
-  --ink: #cccccc;
-  --mid: #9d9d9d;
-  --faint: #6e7681;
-  --bright: #e7e7e7;
-
-  /* 交互蓝 · 状态栏（状态栏紫与智能体紫 --agent 同系，两种主题共用） */
-  --accent: #0e70c0;
-  --accent2: #3794ff;
-  --status: var(--accent-status, #6a3fb0);
-
-  /* 智能体专属紫（可由用户强调色覆盖） */
-  --agent: var(--accent-user, #b58bf2);
-  --agent-dim: color-mix(in srgb, var(--agent) 14%, transparent);
-  --agent-line: color-mix(in srgb, var(--agent) 34%, transparent);
-
-  /* 边界叠加（沿用 overlay.py 约定） */
-  --li: #4fb0ff;
-  --ma: #ff8a5b;
-  --roi: #2dd4bf;
-
-  /* 语义（置信 / 澄清 / 拒绝·硬拒绝） */
-  --good: #4ec98a;
-  --warn: #e9b44c;
-  --crit: #f76d6d;
-
-  /* 强调底上的前景（智能体紫按钮 / 已启用徽标） */
-  --on-agent: var(--accent-on, #1a0d2e);
-  --on-good: #052;
-
-  /* 次级结构面 */
-  --edge: #1b1b1b; /* 标题栏底边 */
-  --tab: #2d2d2d; /* 非活动标签页 */
-  --stage: #161616; /* Focus 舞台底 */
-  --surface: #181b20; /* 对话内证据卡 */
-  --file-icon: #8aa9c9;
-  --scroll-thumb: #37373d;
-  --code-bg: rgba(255, 255, 255, 0.07);
-  --code-block: #141414;
-}
-
-/* 浅色主题：结构色借 VS Code Light Modern；领域色取同色相的深一档以保证白底对比度。 */
-:root[data-theme="light"] {
+   下列 token 以它们为首选、缺省回落到品牌紫 #7c4dd6。 */
+:root {
   color-scheme: light;
 
-  --editor: #ffffff;
-  --sidebar: #f8f8f8;
-  --activity: #f8f8f8;
-  --titlebar: #f8f8f8;
-  --panel: #f8f8f8;
+  /* 结构底（暖纸） */
+  --editor: #fcfcfb;
+  --sidebar: #faf9f5;
+  --activity: #f7f5ef;
+  --titlebar: #faf9f5;
+  --panel: #faf9f5;
 
-  --input: #efefef;
-  --line: #e5e5e5;
-  --line2: #d4d4d4;
-  --hover: #ececec;
-  --sel: #d6e8fa;
-  --sel-line: #0078d4;
+  /* 描边 · 输入 · 悬停 · 选中 */
+  --input: #f2f0e9;
+  --line: #e8e6dc;
+  --line2: #dedcd2;
+  --hover: #f1efe8;
+  --sel: #ede6fb;
+  --sel-line: #7c4dd6;
 
-  --ink: #3b3b3b;
-  --mid: #616161;
-  --faint: #8b8b8b;
-  --bright: #1f1f1f;
+  /* 文本层级（bright > ink > mid > faint） */
+  --bright: #141413;
+  --ink: #3a3833;
+  --mid: #6e6a60;
+  --faint: #a6a094;
 
-  --accent: #005fb8;
-  --accent2: #0078d4;
-  --status: var(--accent-status, #6a3fb0);
+  /* 交互强调 · 状态栏（品牌紫；用户可覆盖） */
+  --accent: #7c4dd6;
+  --accent2: #6a3fc0;
+  --status: var(--accent-status, #5e36a8);
 
+  /* 智能体专属紫（可由用户强调色覆盖） */
   --agent: var(--accent-user, #7c4dd6);
   --agent-dim: color-mix(in srgb, var(--agent) 10%, transparent);
   --agent-line: color-mix(in srgb, var(--agent) 32%, transparent);
 
+  /* 边界叠加（沿用 overlay.py 约定） */
   --li: #0a76d0;
-  --ma: #d9582b;
+  --ma: #c2532a;
   --roi: #0f9d8a;
 
+  /* 语义（置信 / 澄清 / 拒绝·硬拒绝）——永不参与品牌化 */
   --good: #1e8c55;
   --warn: #b7791f;
   --crit: #d64545;
 
+  /* 强调底上的前景 */
   --on-agent: var(--accent-on, #ffffff);
   --on-good: #ffffff;
 
-  --edge: #e5e5e5;
-  --tab: #ececec;
-  --stage: #ececec;
-  --surface: #f8f8f8;
-  --file-icon: #5a7a9a;
-  --scroll-thumb: #c8c8c8;
-  --code-bg: rgba(0, 0, 0, 0.06);
-  --code-block: #f3f3f3;
+  /* 次级结构面 */
+  --edge: #e8e6dc;
+  --tab: #f2f0e9;
+  --stage: #1c1b19;
+  --surface: #faf9f5;
+  --file-icon: #7a6ea8;
+  --scroll-thumb: #cfccbf;
+  --code-bg: rgba(20, 20, 19, 0.05);
+  --code-block: #f4f2ec;
+}
+
+/* 暖夜主题：结构色取暖黑，强调色提亮一档以保证深底对比度。 */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --editor: #141413;
+  --sidebar: #1c1b1a;
+  --activity: #242320;
+  --titlebar: #1c1b1a;
+  --panel: #1c1b1a;
+
+  --input: #242320;
+  --line: rgba(255, 255, 255, 0.09);
+  --line2: rgba(255, 255, 255, 0.18);
+  --hover: rgba(255, 255, 255, 0.06);
+  --sel: rgba(124, 77, 214, 0.30);
+  --sel-line: #b58bf2;
+
+  --bright: #faf9f5;
+  --ink: #d8d4c8;
+  --mid: #b0aea5;
+  --faint: #8f8a7e;
+
+  --accent: #b58bf2;
+  --accent2: #c9a8ff;
+  --status: var(--accent-status, #5e36a8);
+
+  --agent: var(--accent-user, #b58bf2);
+  --agent-dim: color-mix(in srgb, var(--agent) 14%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent) 34%, transparent);
+
+  --li: #4fb0ff;
+  --ma: #ff8a5b;
+  --roi: #2dd4bf;
+
+  --good: #4ec98a;
+  --warn: #e9b44c;
+  --crit: #f76d6d;
+
+  --on-agent: var(--accent-on, #1a0d2e);
+  --on-good: #052;
+
+  --edge: #141413;
+  --tab: #242320;
+  --stage: #101010;
+  --surface: #1c1b1a;
+  --file-icon: #9a8fd0;
+  --scroll-thumb: #3a3833;
+  --code-bg: rgba(255, 255, 255, 0.07);
+  --code-block: #101010;
 }
 
 :root {
   /* 排版 */
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  --serif: Georgia, "Tiempos Text", "Source Han Serif SC", "Songti SC", serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
 
   /* 字号阶（纲领 §2：13px 正文 / 12px 次级 / 11px 区域标题·徽标）——组件内禁止再写死 */
   --font-xs: 11px;
   --font-sm: 12px;
   --font-base: 13px;
+  --leading: 1.6;
 
   /* 间距阶（4 的倍数，秩序之美 G11）——padding/gap/margin 一律取阶，杜绝魔法数字 */
   --space-1: 4px;
@@ -133,10 +134,10 @@
   --space-5: 20px;
   --space-6: 24px;
 
-  /* 圆角阶（纲领 §2：4 / 6 / 8px）——克制即高级，无更大圆角 */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* 圆角阶（暖纸皮肤：6 / 10 / 14px）——克制即高级，无更大圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
   /* 图标尺寸阶（SDD feats/06）——图标一律取阶，禁止写死；currentColor 着色 */
   --icon-sm: 14px;
@@ -151,6 +152,7 @@
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   /* 尺度（设计稿 §2 间距/圆角） */
   --activity-w: 48px;
@@ -159,4 +161,42 @@
   --panel-h: 150px;
   --status-h: 22px;
   --titlebar-h: 35px;
+}
+
+/* 影像视口：两档主题下都按深色渲染（SDD 12）。置于末尾以覆盖上面的主题声明。 */
+[data-viewer-surface] {
+  color-scheme: dark;
+
+  --editor: #141413;
+  --sidebar: #1c1b1a;
+  --activity: #242320;
+  --titlebar: #1c1b1a;
+  --panel: #1c1b1a;
+
+  --input: #242320;
+  --line: rgba(255, 255, 255, 0.09);
+  --line2: rgba(255, 255, 255, 0.18);
+  --hover: rgba(255, 255, 255, 0.06);
+  --sel: rgba(124, 77, 214, 0.30);
+  --sel-line: #b58bf2;
+
+  --bright: #faf9f5;
+  --ink: #d8d4c8;
+  --mid: #b0aea5;
+  --faint: #8f8a7e;
+
+  --accent: #b58bf2;
+  --accent2: #c9a8ff;
+
+  --agent: var(--accent-user, #b58bf2);
+  --agent-dim: color-mix(in srgb, var(--agent) 14%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent) 34%, transparent);
+
+  --edge: #141413;
+  --tab: #242320;
+  --stage: #101010;
+  --surface: #1c1b1a;
+  --scroll-thumb: #3a3833;
+  --code-bg: rgba(255, 255, 255, 0.07);
+  --code-block: #101010;
 }

@@ -32,6 +32,7 @@ const EMPTY_OVERLAYS: TaskOverlaySpec[] = [];
 /** 掩膜着色缓存键：改标签换色后重新着色（SDD 23 §5.1）。 */
 const maskKey = (a: { id: string; label_color?: string | null }) => `${a.id}|${a.label_color ?? ""}`;
 
+// 本文件内的画布颜色不参与主题化：它们绘制在影像视口上，而视口在两种主题下都是深色（SDD 12）。
 /** `#RRGGBB` 或 `rgb(r, g, b)` → [r, g, b]。 */
 function rgbOf(color: string): [number, number, number] {
   const hex = /^#([0-9a-f]{6})$/iu.exec(color);

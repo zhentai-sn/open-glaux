@@ -1,11 +1,11 @@
 :root {
   color-scheme: light;
-  --ink: #242424;
-  --muted: #656565;
-  --line: #dededb;
-  --paper: #ffffff;
-  --wash: #f7f7f5;
-  --brand: #6045a1;
+  --ink: #141413;
+  --muted: #6e6a60;
+  --line: #e8e6dc;
+  --paper: #fcfcfb;
+  --wash: #faf9f5;
+  --brand: #7c4dd6;
   --max: 1120px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
 }
@@ -27,7 +27,7 @@ button { font: inherit; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 26px 0 16px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 600; }
 .primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.primary:hover { background: #4f3789; }
+.primary:hover { background: #6a3fc0; }
 .secondary { background: var(--paper); }
 .secondary:hover { background: var(--wash); }
 .fine { color: var(--muted); font-size: 12px; }

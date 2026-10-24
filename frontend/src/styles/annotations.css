@@ -14,9 +14,9 @@
   max-width: calc(100vw - 32px);
   padding: 10px;
   border: 1px solid var(--line2);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--sidebar);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+  box-shadow: 0 8px 28px rgb(20 20 19 / 0.35);
   font-size: 12.5px;
 }
 .label-picker-title {
@@ -29,7 +29,7 @@
   box-sizing: border-box;
   padding: 6px 8px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--input);
   color: var(--bright);
   font-size: 12.5px;
@@ -49,7 +49,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   cursor: pointer;
 }
@@ -75,7 +75,7 @@
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+  box-shadow: inset 0 0 0 1px rgb(20 20 19 / 0.25);
 }
 .label-swatch.none {
   background: var(--faint);
@@ -138,13 +138,13 @@
   gap: 2px;
   margin-bottom: 10px;
   padding: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--input);
 }
 .ann-scope button {
   padding: 3px 10px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--mid);
   cursor: pointer;
@@ -214,7 +214,7 @@
   padding: 0;
 }
 .ann-row {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .ann-row:hover {
   background: var(--hover);
@@ -264,7 +264,7 @@
 .ann-act {
   padding: 2px 8px;
   border: 1px solid var(--line2);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink);
   cursor: pointer;
@@ -295,7 +295,7 @@
   min-width: 0;
   padding: 5px 8px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--input);
   color: var(--bright);
   font-size: 12px;
@@ -303,9 +303,9 @@
 .ann-new-label button {
   padding: 4px 12px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-agent);
   cursor: pointer;
   font-size: 12px;
 }
@@ -333,7 +333,7 @@
   height: 18px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
 }
@@ -377,7 +377,7 @@
   background: var(--input);
   color: var(--ink);
   border: 1px solid var(--line2);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
 }
 .label-blocked {

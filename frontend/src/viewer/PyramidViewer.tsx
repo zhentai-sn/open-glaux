@@ -1,3 +1,4 @@
+// 画布内的叠加颜色不参与主题化：影像视口在两种主题下都是深色（SDD 12）。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OpenSeadragon, makeWsiTileSource, makeWsiViewer } from "./openseadragon";

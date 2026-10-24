@@ -50,7 +50,7 @@ export function StatusBar() {
       </span>
       {model && (
         <button className="item" onClick={() => setView("market")}>
-          ● <span className="mono" style={{ color: "#bfe" }}>{model}</span>
+          ● <span className="mono" style={{ color: "var(--on-agent)" }}>{model}</span>
         </button>
       )}
       <button className="item" onClick={toggle} title="language">

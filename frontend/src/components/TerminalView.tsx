@@ -10,6 +10,8 @@ type Kind = "in" | "out" | "err" | "dim";
 type Line = { id: number; text: string; kind: Kind };
 
 const PROMPT = "glaux$";
+// 终端配色固定为深色（GitHub Dark 系），与影像视口同理不参与主题化：
+// 终端内容是可滚动的原始输出，浅底会与语义色和等宽文本的观感冲突。
 const COLOR: Record<Kind, string> = { in: "var(--agent)", out: "#c9d1d9", err: "#ff8a8a", dim: "var(--faint)" };
 let _lid = 0;
 

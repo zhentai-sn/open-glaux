@@ -31,6 +31,10 @@ import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
 import { projectWritable } from "./sessionGroups";
 import { OwlLogo } from "../OwlLogo";
+import type { MascotState } from "../Mascot";
+
+/** 小鸮无活动多久后入睡（ms）。 */
+const MASCOT_SLEEP_MS = 5 * 60 * 1000;
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
 import { InteractionCard, ResolvedInteractionLine } from "./InteractionCard";
 import { parseSkillMessage } from "./slashCommands";
@@ -351,6 +355,54 @@ export function AgentConversation() {
     view?.phase === "running" ||
     view?.phase === "stopping" ||
     view?.phase === "compacting";
+
+  // 小鸮状态（品牌皮肤）：确认完成时短暂庆祝，其次等用户确认，再按错误 / 流式 / 运行中 / 待机。
+  const [celebrate, setCelebrate] = useState(false);
+  const prevPhase = useRef(view?.phase);
+  useEffect(() => {
+    const prev = prevPhase.current;
+    const next = view?.phase;
+    prevPhase.current = next;
+    const finished = (prev === "running" || prev === "stopping" || prev === "compacting") && next === "idle";
+    if (!finished) return;
+    setCelebrate(true);
+    const timer = setTimeout(() => setCelebrate(false), 1000);
+    return () => clearTimeout(timer);
+  }, [view?.phase]);
+
+  const waitingOnUser = (view?.pending_interactions?.length ?? 0) > 0;
+
+  // 无活动超时入睡；醒来时短暂播一帧 waking，让"重新开始工作"可感。
+  const [asleep, setAsleep] = useState(false);
+  const [waking, setWaking] = useState(false);
+  const wasAsleep = useRef(false);
+  useEffect(() => {
+    if (running || waitingOnUser || celebrate) {
+      setAsleep(false);
+      return;
+    }
+    const timer = setTimeout(() => setAsleep(true), MASCOT_SLEEP_MS);
+    return () => clearTimeout(timer);
+  }, [running, waitingOnUser, celebrate, view?.phase]);
+  useEffect(() => {
+    if (wasAsleep.current && !asleep) {
+      setWaking(true);
+      const timer = setTimeout(() => setWaking(false), 400);
+      wasAsleep.current = asleep;
+      return () => clearTimeout(timer);
+    }
+    wasAsleep.current = asleep;
+  }, [asleep]);
+
+  const mascotState: MascotState =
+    waking ? "waking"
+      : celebrate ? "happy"
+        : waitingOnUser ? "notification"
+          : asleep ? "sleeping"
+            : view?.phase === "error" ? "error"
+              : live?.streamingAssistant ? "typing"
+                : running ? "thinking"
+                  : "idle";
   const archived = view?.status === "archived";
   // 项目已移除或目录失效：会话可看不可发（SDD 13 §7.4 规则 4、§11.1）；项目列表未加载前不拦
   const projectReadonly =
@@ -754,6 +806,7 @@ export function AgentConversation() {
 
       <ConversationComposer
         running={Boolean(running)}
+        mascotState={mascotState}
         disabled={inputDisabled}
         onSend={send}
         onAbort={abort}

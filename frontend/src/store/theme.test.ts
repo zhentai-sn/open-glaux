@@ -16,35 +16,35 @@ describe("theme（SDD feats/12）", () => {
     delete document.documentElement.dataset.theme;
   });
 
-  it("无持久化键 → dark，且 import 即落 data-theme", async () => {
-    const useTheme = await freshStore();
-    expect(useTheme.getState().theme).toBe("dark");
-    expect(document.documentElement.dataset.theme).toBe("dark");
-  });
-
-  it("合法值 light → 恢复 light", async () => {
-    localStorage.setItem(THEME_KEY, "light");
+  it("无持久化键 → light，且 import 即落 data-theme", async () => {
     const useTheme = await freshStore();
     expect(useTheme.getState().theme).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
-  it("非法值 → 回退 dark", async () => {
-    localStorage.setItem(THEME_KEY, "sepia");
+  it("合法值 dark → 恢复 dark", async () => {
+    localStorage.setItem(THEME_KEY, "dark");
     const useTheme = await freshStore();
     expect(useTheme.getState().theme).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("非法值 → 回退 light", async () => {
+    localStorage.setItem(THEME_KEY, "sepia");
+    const useTheme = await freshStore();
+    expect(useTheme.getState().theme).toBe("light");
   });
 
   it("toggleTheme 往返：写 localStorage 与 data-theme", async () => {
     const useTheme = await freshStore();
     useTheme.getState().toggleTheme();
-    expect(useTheme.getState().theme).toBe("light");
-    expect(localStorage.getItem(THEME_KEY)).toBe("light");
-    expect(document.documentElement.dataset.theme).toBe("light");
-    useTheme.getState().toggleTheme();
     expect(useTheme.getState().theme).toBe("dark");
     expect(localStorage.getItem(THEME_KEY)).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
+    useTheme.getState().toggleTheme();
+    expect(useTheme.getState().theme).toBe("light");
+    expect(localStorage.getItem(THEME_KEY)).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 });
 
