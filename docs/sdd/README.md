@@ -31,7 +31,7 @@ stateDiagram-v2
 
 | 编号 | Feature | 状态 | 负责人 | 更新时间 |
 | --- | --- | --- | --- | --- |
-| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-09-25 |
+| 00 | [内置参考智能体与本地会话管理](feats/00-reference-agent-conversations/README.md) | `implemented`（v1.1 图像附件 D-021） | Glaux 项目维护者 | 2026-10-24 |
 | 01 | [双模式外壳 Focus / Workbench](feats/01-dual-mode-shell/README.md) | `implemented`（v1.4 舞台常驻 + 浏览器分栏；v1.3 栏宽可拖拽；v1 `accepted`） | Glaux 项目维护者 | 2026-09-27 |
 | 02 | [智能体图像标注能力](feats/02-agent-image-annotation/README.md) | `implemented`（建议态实时写回与快照契约 D-12） | Glaux 项目维护者 | 2026-09-23 |
 | 03 | [Atlas · 图谱（人工策展的图文案例库）](feats/03-atlas/README.md) | `implemented`（v2.0 上传即入库；v1.2 接入会话 `consult_atlas`） | Glaux 项目维护者 | 2026-10-01 |
@@ -50,9 +50,9 @@ stateDiagram-v2
 | 16 | [智能体基础工具与会话工作区](feats/16-agent-basic-tools/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 | 17 | [智能体 Skills 与提示词管理](feats/17-agent-skills-prompts/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
 | 18 | [子智能体](feats/18-agent-subagents/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-02 |
-| 19 | [上下文管理](feats/19-context-management/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-04 |
+| 19 | [上下文管理](feats/19-context-management/README.md) | `implemented`（业务验收待补） | Glaux 项目维护者 | 2026-10-24 |
 | 20 | [提示词随界面语言切换](feats/20-prompt-language/README.md) | `implemented`（真实模型走查、业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
-| 21 | [运行轨迹](feats/21-run-trajectory/README.md) | `implemented`（维护者初步验收通过，正式业务验收待补） | Glaux 项目维护者 | 2026-10-05 |
+| 21 | [运行轨迹](feats/21-run-trajectory/README.md) | `implemented`（维护者初步验收通过，正式业务验收待补） | Glaux 项目维护者 | 2026-10-24 |
 | 22 | [智能体看图：缩放与复核](feats/22-agent-visual-inspection/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-05 |
 | 23 | [标注标签与管理](feats/23-annotation-labels/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-06 |
 | 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `implemented`（0.4.0 已发布，四平台安装冒烟与 Pages 部署通过；人工验收待补；取代 09） | Glaux 项目维护者 | 2026-10-18 |
