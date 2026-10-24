@@ -230,8 +230,17 @@ function viewerTail(
     : `${VIEWER_TEXT.label.en}: ${parts.join(", ")}.`;
 }
 
+/** 连接档位 → pi 的 thinking 档位（SDD 00 §4）；未知值按关闭处理，校验已在连接输入处完成。 */
+export type HarnessThinkingLevel = "off" | "low" | "medium" | "high";
+export function harnessThinkingLevel(connection: ConnectionInput): HarnessThinkingLevel {
+  const level = connection.thinking_level;
+  return level === "low" || level === "medium" || level === "high" ? level : "off";
+}
+
 interface Assembled {
   runtime: ModelRuntime;
+  /** 本次命令的推理档位（SDD 00 §4）：主命令与派生的子智能体共用。 */
+  thinkingLevel: HarnessThinkingLevel;
   videoTurn?: VideoTurn;
   projectId: string | null;
   permission?: PermissionRunState;
@@ -337,7 +346,7 @@ export class HarnessRegistry {
       await this.sessions.closeSession(session);
       throw error;
     }
-    const { runtime, videoTurn, projectId, permission, resources, toolContext, tools, systemPrompt } = assembled;
+    const { runtime, videoTurn, thinkingLevel, projectId, permission, resources, toolContext, tools, systemPrompt } = assembled;
     // SDD 21 §7.1 规则 1、2：请求头随审计队列在命令结束时写入；同分支已有相同哈希的全文时只写引用。
     let header: RequestHeaderEntry | undefined;
     try {
@@ -357,6 +366,7 @@ export class HarnessRegistry {
       model: runtime.model,
       systemPrompt,
       tools,
+      thinkingLevel,
       ...(resources ? { resources: { skills: resources.harnessSkills, promptTemplates: resources.harnessTemplates } } : {}),
     });
     // SDD 15 §7.2：每种钩子只注册一个组合后的 handler；chat 发行版不挂插件。
@@ -576,6 +586,7 @@ export class HarnessRegistry {
         toolContext.agents = resources.harnessAgents;
         toolContext.spawnSubagent = this.subagentSpawner({
           sessionId, commandId, toolContext, permission, resources, runtime,
+          thinkingLevel: harnessThinkingLevel(connection),
           ...(projectId ? { projectId } : {}),
           ...(videoDescription ? { videoDescription } : {}),
         });
@@ -586,7 +597,7 @@ export class HarnessRegistry {
         : systemPromptSegments(options.viewer, tools, toolContext, videoDescription, resources?.promptExtraParts);
       const systemPrompt = chatEdition() ? segments[0]!.text : joinSystemPrompt(segments);
       return {
-        runtime, projectId, toolContext, tools, systemPrompt, segments,
+        runtime, thinkingLevel: harnessThinkingLevel(connection), projectId, toolContext, tools, systemPrompt, segments,
         ...(videoTurn ? { videoTurn } : {}),
         ...(permission ? { permission } : {}),
         ...(resources ? { resources } : {}),
@@ -609,6 +620,7 @@ export class HarnessRegistry {
     permission: PermissionRunState;
     resources: LoadedResources;
     runtime: ModelRuntime;
+    thinkingLevel: HarnessThinkingLevel;
     videoDescription?: { duration_ms: number; has_audio: boolean };
   }): NonNullable<HarnessToolContext["spawnSubagent"]> {
     const slots = createSlots();
@@ -637,6 +649,7 @@ export class HarnessRegistry {
           tools,
           systemPrompt: systemPromptFor(viewer, tools, childContext, parent.videoDescription, extras),
           resources: { skills: parent.resources.harnessSkills, promptTemplates: parent.resources.harnessTemplates },
+          thinkingLevel: parent.thinkingLevel,
           plugins: activePlugins(childContext),
           runContext: {
             sessionId: parent.sessionId,

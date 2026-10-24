@@ -46,6 +46,8 @@ export interface SubagentRunDeps {
   tools: HarnessTool[];
   systemPrompt: string;
   resources?: ConstructorParameters<typeof AgentHarness>[0]["resources"];
+  /** 父命令的推理档位（SDD 00 §4）：子智能体沿用，不单独设置。 */
+  thinkingLevel?: ConstructorParameters<typeof AgentHarness>[0]["thinkingLevel"];
   plugins: GlauxPlugin[];
   runContext: RunContext;
   maxMinutes: number;
@@ -102,6 +104,7 @@ export async function runSubagent(prompt: string, deps: SubagentRunDeps): Promis
     systemPrompt: deps.systemPrompt,
     tools: deps.tools,
     ...(deps.resources ? { resources: deps.resources } : {}),
+    ...(deps.thinkingLevel ? { thinkingLevel: deps.thinkingLevel } : {}),
   });
   const budget = new RunBudget({
     limits: { maxTurns: deps.definition.maxTurns, maxMinutes: deps.maxMinutes },

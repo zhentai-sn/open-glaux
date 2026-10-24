@@ -154,7 +154,16 @@ export interface ConnectionInput {
    */
   vision?: boolean;
   media_adapter?: "qwen-omni";
+  /**
+   * 推理档位（SDD 00 §4）：`off` 不下发任何 thinking 参数，其余档位映射为 pi 的
+   * `ThinkingLevel`，由 provider 转成 `reasoning_effort` 或 thinking 预算。
+   */
+  thinking_level?: ThinkingLevel;
 }
+
+/** 推理档位（Glaux 自声明，pi-ai 的 `ThinkingLevel` 减去供应商专属的 `minimal`/`xhigh`/`max`）。 */
+export const THINKING_LEVELS = ["off", "low", "medium", "high"] as const;
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export interface VideoInterval { start_ms: number; end_ms: number }
 export interface ClipObservation {
@@ -376,6 +385,33 @@ export interface TrajectoryUsage {
   cacheRead: number;
   cacheWrite: number;
   reasoning?: number;
+  /** 供应商目录给出的单价换算出的费用；端点未定价时为 0（SDD 21 §9.5）。 */
+  cost?: number;
+}
+
+/**
+ * 会话统计（SDD 21 §9.5）：输入区上下文面板的会话级合计。
+ * 直接扫会话分支的审计条目得出，不经轨迹投影，故不带正文。
+ */
+export interface SessionStats {
+  model_calls: number;
+  tool_calls: number;
+  usage: TrajectoryUsage;
+  /** 各次模型调用时长之和（毫秒），含首 token 等待。 */
+  model_ms: number;
+  /** 工具执行时长之和（毫秒），已扣除等待用户回复的时间。 */
+  tool_ms: number;
+  first_token_avg_ms: number | null;
+  output_tps: number | null;
+  cache_hit_ratio: number | null;
+  context: {
+    /** 系统提示词 + 工具定义 + 对话消息的估算合计。 */
+    tokens: number;
+    window: number | null;
+    system: number;
+    tools: number;
+    messages: number;
+  } | null;
 }
 
 export type TrajectoryBlock =
@@ -518,7 +554,7 @@ export interface Trajectory {
     turns: number;
     model_calls: number;
     tool_calls: number;
-    usage: { input: number; output: number; cache_read: number; cache_write: number };
+    usage: { input: number; output: number; cache_read: number; cache_write: number; cost: number };
   };
 }
 

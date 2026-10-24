@@ -15,7 +15,7 @@ import {
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 
-import type { ConnectionInput } from "../contracts.js";
+import { THINKING_LEVELS, type ConnectionInput } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import { resolveOpencodeSessionHeaders } from "./opencode-session.js";
 
@@ -140,6 +140,12 @@ export function validateConnectionInput(connection: ConnectionInput): void {
   if (!connection.model.trim()) {
     throw new RuntimeError("invalid_request", "Model is required.", 400);
   }
+  if (
+    connection.thinking_level !== undefined &&
+    !(THINKING_LEVELS as readonly string[]).includes(connection.thinking_level)
+  ) {
+    throw new RuntimeError("invalid_request", "Unknown thinking level.", 400);
+  }
   if (connection.media_adapter && connection.media_adapter !== "qwen-omni") {
     throw new RuntimeError("video_connection_unsupported", "未知的音画适配器", 400);
   }
@@ -219,7 +225,9 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
     api,
     provider: providerId,
     baseUrl,
-    reasoning: known?.reasoning ?? false,
+    // 非目录模型没有能力元数据：只有用户选了非关闭档位时才声明推理能力（SDD 00 §4）。
+    // 声明即会下发 thinking 参数，未选档位时保持沉默，避免给未知端点发送它不认识的字段。
+    reasoning: known?.reasoning ?? (connection.thinking_level !== undefined && connection.thinking_level !== "off"),
     // 非内置目录模型：按连接声明的视觉能力补 "image"（否则工具结果里的图会被 pi-ai 静默丢弃）。
     input: known?.input ?? (connection.vision ? ["text", "image"] : ["text"]),
     cost: known?.cost ?? ZERO_COST,

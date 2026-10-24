@@ -65,12 +65,15 @@ export function toBlocks(content: unknown): TrajectoryBlock[] {
 function usageOf(value: unknown): TrajectoryUsage {
   const usage = record(value) ?? {};
   const num = (key: string) => (typeof usage[key] === "number" ? usage[key] as number : 0);
+  const cost = record(usage.cost);
+  const total = typeof cost?.total === "number" ? cost.total : 0;
   return {
     input: num("input"),
     output: num("output"),
     cacheRead: num("cacheRead"),
     cacheWrite: num("cacheWrite"),
     ...(typeof usage.reasoning === "number" ? { reasoning: usage.reasoning } : {}),
+    ...(total > 0 ? { cost: total } : {}),
   };
 }
 
@@ -175,7 +178,12 @@ export function projectTrajectory(input: {
   }
   const drafts = splitTurns(entries);
   const positions = new Map(entries.map((entry, index) => [entry.id, index]));
-  const totals = { turns: 0, model_calls: 0, tool_calls: 0, usage: { input: 0, output: 0, cache_read: 0, cache_write: 0 } };
+  const totals = {
+    turns: 0,
+    model_calls: 0,
+    tool_calls: 0,
+    usage: { input: 0, output: 0, cache_read: 0, cache_write: 0, cost: 0 },
+  };
   let previousHash: string | undefined;
 
   drafts.forEach((draft, draftIndex) => {
@@ -235,6 +243,7 @@ export function projectTrajectory(input: {
           totals.usage.output += usage.output;
           totals.usage.cache_read += usage.cacheRead;
           totals.usage.cache_write += usage.cacheWrite;
+          totals.usage.cost += usage.cost ?? 0;
           items.push({
             kind: "model",
             item_id: entry.id,

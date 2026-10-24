@@ -34,7 +34,8 @@ status: implemented
 - 流式分块的逐增量时间：只记首 token 时间与总耗时，不记每个增量的时间差。
 - 编辑、删除、重放轨迹中的任何记录。
 - 跨会话的统计与检索。
-- 精确 token 计数：上下文占用只做估算（同 SDD 19 §9.3）；模型返回的 `usage` 原样展示。
+- 精确 token 计数：上下文占用只做估算（同 SDD 19 §9.3）；模型返回的 `usage` 原样展示，并带上 Pi 按
+  内置目录单价算出的 `cost`（端点未定价时为 0，合计里不显示 0）。
 - 按耗时投影的时间线、拖选筛选、全文搜索、分页加载：列为二期（§3.2），本 SDD 只冻结一期。
 - chat 发行版：不显示上下文入口（SDD 19 §7.1 规则 5），runtime 仍写入采集条目。
 
@@ -405,7 +406,37 @@ interface RequestContext {
 
 - `item_id` 不是 `model` 项：`404 trajectory_item_not_found`。
 
-### 9.5 前端本地状态
+### 9.5 会话统计接口
+
+`GET /agent-api/v1/sessions/{id}/stats`，无查询参数。输入区上下文面板的数据源（SDD 00 §5.1）：
+直接扫会话分支的审计条目（`glaux.model.call`、`glaux.tool.timing`、`glaux.request.header`）与 assistant
+消息的 `usage`，**不经轨迹投影**，因此不带消息正文。
+
+```ts
+interface SessionStats {
+  model_calls: number;                // assistant 消息数 + compaction 次数
+  tool_calls: number;                 // toolResult 数
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number };
+  model_ms: number;                   // 各次调用 duration_ms 之和（含首 token 等待）
+  tool_ms: number;                    // 工具耗时之和，已扣除等待用户回复（审批、ask_user）
+  first_token_avg_ms: number | null;  // 有 first_token_ms 的调用取平均
+  output_tps: number | null;          // output / (model_ms - Σ首 token)
+  cache_hit_ratio: number | null;     // cacheRead / (input + cacheRead)
+  context: {                          // 尚无请求头与调用记录时为 null
+    tokens: number;                   // system + tools + messages
+    window: number | null;
+    system: number;
+    tools: number;
+    messages: number;
+  } | null;
+}
+```
+
+口径：三段估算分别取自最近一次带 `body` 的请求头（`est_tokens.prompt`、`est_tokens.tools`）与最近一次
+`glaux.model.call`（`request.est_tokens.messages`）；`cost` 取 assistant 消息 `usage.cost.total` 之和，
+端点未定价（Pi 只对内置目录 Anthropic 计价）时为 `0`，界面显示「未定价」而不显示 `0`。
+
+### 9.6 前端本地状态
 
 | 键 | 值 | 说明 |
 | --- | --- | --- |

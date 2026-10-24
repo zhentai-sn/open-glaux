@@ -17,6 +17,7 @@ import type {
   PatchSessionInput,
   SessionListItem,
   SessionPhase,
+  SessionStats,
   SessionStatus,
   SessionView,
   TranscriptBlock,
@@ -38,6 +39,7 @@ import type { RequestContext, Trajectory } from "../contracts.js";
 import { fullBranch } from "../trajectory/branch.js";
 import { projectTrajectory } from "../trajectory/project.js";
 import { requestContext } from "../trajectory/request.js";
+import { sessionStats } from "../trajectory/stats.js";
 
 type ClosableStorage = { cleanup?: () => Promise<void> };
 
@@ -223,6 +225,16 @@ export class SessionService {
         entries: await fullBranch(session),
         running: this.phaseForSession(sessionId) !== "idle",
       });
+    } finally {
+      await this.closeSession(session);
+    }
+  }
+
+  /** SDD 21 §9.5：会话统计（输入区上下文面板）——扫分支审计条目，不投影轨迹。 */
+  async stats(sessionId: string): Promise<SessionStats> {
+    const session = await this.openSession(sessionId);
+    try {
+      return sessionStats(await fullBranch(session));
     } finally {
       await this.closeSession(session);
     }

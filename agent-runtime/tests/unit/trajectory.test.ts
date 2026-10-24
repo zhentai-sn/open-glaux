@@ -122,7 +122,7 @@ describe("projectTrajectory", () => {
     expect(second!.items.map((i) => i.kind)).toEqual(["header", "user", "model"]);
     expect(second!.items[0]).toMatchObject({ changed: "changed" });
     expect(Object.keys(trajectory.headers)).toEqual(["h1", "h2"]);
-    expect(trajectory.totals).toEqual({ turns: 3, model_calls: 3, tool_calls: 1, usage: { input: 30, output: 6, cache_read: 3, cache_write: 0 } });
+    expect(trajectory.totals).toEqual({ turns: 3, model_calls: 3, tool_calls: 1, usage: { input: 30, output: 6, cache_read: 3, cache_write: 0, cost: 0 } });
   });
 
   it("degrades for legacy sessions without accepted, header or model-call records", () => {

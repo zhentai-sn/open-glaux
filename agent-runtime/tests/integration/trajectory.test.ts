@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { fauxAssistantMessage, fauxToolCall, Type, type Context, type FauxResponseStep } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ModelCallEntry, RequestContext, RequestHeaderEntry, Trajectory } from "../../src/contracts.js";
+import type { ModelCallEntry, RequestContext, RequestHeaderEntry, SessionStats, Trajectory } from "../../src/contracts.js";
 import { EMPTY_SETTINGS } from "../../src/permission/settings.js";
 import type { HarnessTool } from "../../src/pi/harness-registry.js";
 import { buildServer } from "../../src/transport/server.js";
@@ -194,5 +194,29 @@ describe("run trajectory", () => {
     const request = await getRequest(server, sessionId, modelItems(trajectory).at(-1)!.item_id);
     expect(request.matched).toBe(true);
     expect(request.messages[0]!.role).toBe("compactionSummary");
+  });
+
+  // SDD 21 §9.5：输入区上下文面板的会话统计。
+  it("aggregates session stats from the branch audit entries", async () => {
+    const { fixture, server, sessionId } = await setup([[call(), fauxAssistantMessage("done")]]);
+    await prompt(fixture, sessionId, "measure");
+
+    const response = await server.inject({ method: "GET", url: `/agent-api/v1/sessions/${sessionId}/stats` });
+    expect(response.statusCode).toBe(200);
+    const stats = response.json() as SessionStats;
+    expect(stats.model_calls).toBe(2);
+    expect(stats.tool_calls).toBe(1);
+    expect(stats.model_ms).toBeGreaterThanOrEqual(0);
+    expect(stats.tool_ms).toBeGreaterThanOrEqual(0);
+    // 系统提示词、工具定义与对话消息三段相加即上下文总量
+    expect(stats.context).toMatchObject({ window: 128_000 });
+    expect(stats.context!.tokens).toBe(
+      stats.context!.system + stats.context!.tools + stats.context!.messages,
+    );
+    expect(stats.context!.system).toBeGreaterThan(0);
+    expect(stats.context!.tools).toBeGreaterThan(0);
+    expect(stats.context!.messages).toBeGreaterThan(0);
+    const trajectory = await getTrajectory(server, sessionId);
+    expect(stats.usage.output).toBe(trajectory.totals.usage.output);
   });
 });

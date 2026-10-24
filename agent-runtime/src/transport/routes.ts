@@ -103,6 +103,9 @@ export function registerRoutes(
   // SDD 21 §9.3、§9.4：运行轨迹与单次请求上下文，只读。
   server.get("/agent-api/v1/sessions/:sessionId/trajectory", async (request) => sessions.trajectory(sessionIdFrom(request)));
 
+  // SDD 21 §9.5：会话统计——输入区上下文面板的合计，只读。
+  server.get("/agent-api/v1/sessions/:sessionId/stats", async (request) => sessions.stats(sessionIdFrom(request)));
+
   server.get("/agent-api/v1/sessions/:sessionId/trajectory/requests/:itemId", async (request) => {
     const { itemId } = request.params as { itemId: string };
     return sessions.requestContext(sessionIdFrom(request), itemId);
