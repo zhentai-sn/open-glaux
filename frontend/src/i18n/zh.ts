@@ -113,6 +113,7 @@ export const zh: Record<I18nKey, string> = {
   // 会话栏（SDD 13 §7.4 规则 8、12）
   agent_tab_active: "进行中",
   agent_tab_archived: "已归档",
+  agent_no_archived: "还没有归档的会话",
   agent_more_actions: "更多操作",
   agent_pin: "置顶会话",
   agent_unpin: "取消置顶",

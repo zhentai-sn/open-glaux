@@ -443,8 +443,10 @@ export function SessionDrawer() {
         onChange={(event) => setSearch(event.target.value)}
       />
       <div className="session-list">
-        {(query || tab === "archived") && !groups.length && (
-          <div className="agent-empty">{t("agent_no_sessions")}</div>
+        {!groups.length && (
+          <div className="agent-empty">
+            {query ? t("agent_no_sessions") : t("agent_no_archived")}
+          </div>
         )}
         {groups.map((group) => (
           <SessionGroup

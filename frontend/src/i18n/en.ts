@@ -116,6 +116,7 @@ export const en = {
   // Session drawer (SDD 13 §7.4 rules 8, 12)
   agent_tab_active: "Active",
   agent_tab_archived: "Archived",
+  agent_no_archived: "No archived conversations",
   agent_more_actions: "More actions",
   agent_pin: "Pin conversation",
   agent_unpin: "Unpin conversation",
