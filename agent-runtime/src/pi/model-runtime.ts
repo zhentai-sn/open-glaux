@@ -1,4 +1,4 @@
-import type { Model, Models, ProviderStreams } from "@earendil-works/pi-ai";
+import type { Api, Model, Models, ProviderStreams, StreamFunction, StreamOptions } from "@earendil-works/pi-ai";
 import {
   createModels,
   createProvider,
@@ -17,6 +17,7 @@ import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 
 import type { ConnectionInput } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
+import { resolveOpencodeSessionHeaders } from "./opencode-session.js";
 
 export interface ModelRuntime {
   models: Models;
@@ -33,6 +34,23 @@ export interface VideoMediaBridge {
 
 const VIDEO_MARKER = "GLAUX_VIDEO_OBSERVATION:";
 export { VIDEO_MARKER };
+
+/**
+ * 给 OpenCode 托管端点补 `x-opencode-session`（缺失即 400 MissingSessionID）。
+ * 头由 pi 的 `options.headers` 落地：openai-completions 与 anthropic-messages 都把
+ * 调用方头合并在内置头之后，因此不受各 API 默认头影响。
+ */
+function withOpencodeSession<TApi extends Api, TOptions extends StreamOptions>(
+  streamFn: StreamFunction<TApi, TOptions>,
+): StreamFunction<TApi, TOptions> {
+  return (model, context, options) => {
+    const headers = resolveOpencodeSessionHeaders(model, options);
+    if (headers === undefined || headers === options?.headers) {
+      return streamFn(model, context, options);
+    }
+    return streamFn(model, context, { ...options, headers } as TOptions);
+  };
+}
 
 function createVideoMediaBridge(): VideoMediaBridge {
   // 只展开「其后尚无模型回复」的观测：成功出站后会话里紧跟一条 assistant 回复，下次不再重发；
@@ -77,6 +95,9 @@ const ZERO_COST = {
   cacheRead: 0,
   cacheWrite: 0,
 } as const;
+
+/** OpenCode Zen 的缺省端点（OpenAI 兼容的 chat/completions 族）；Go 订阅用 `/zen/go/v1`，由连接覆盖。 */
+const OPENCODE_DEFAULT_BASE = "https://opencode.ai/zen/v1";
 
 /** pi-ai 内置目录：命中即用目录里的窗口、输出上限、视觉能力与地址，缺省值不必用户手填。 */
 function catalogModel(providerId: string, modelId: string) {
@@ -153,6 +174,11 @@ export function validateConnectionInput(connection: ConnectionInput): void {
     }
     return;
   }
+  // OpenCode：base_url 可省略（缺省 Zen 端点）；模型不在 Pi 内置目录，窗口与输出上限仍需声明。
+  if (connection.provider === "opencode") {
+    validateMetadata(connection);
+    return;
+  }
   throw new RuntimeError(
     "invalid_request",
     `Unsupported provider: ${connection.provider}`,
@@ -177,7 +203,11 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
   const baseUrl =
     connection.base_url?.trim() ||
     known?.baseUrl ||
-    (providerId === "deepseek" ? "https://api.deepseek.com" : "https://api.anthropic.com");
+    (providerId === "deepseek"
+      ? "https://api.deepseek.com"
+      : providerId === "opencode"
+        ? OPENCODE_DEFAULT_BASE
+        : "https://api.anthropic.com");
   const api =
     providerId === "anthropic"
       ? ("anthropic-messages" as const)
@@ -208,10 +238,13 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
     });
   const streams: ProviderStreams =
     providerId === "anthropic"
-      ? { stream: anthropicStream, streamSimple: anthropicStreamSimple }
+      ? {
+          stream: withOpencodeSession(anthropicStream),
+          streamSimple: withOpencodeSession(anthropicStreamSimple),
+        }
       : {
-          stream: videoMedia ? qwenStream : openAICompletionsStream,
-          streamSimple: videoMedia ? qwenStreamSimple : openAICompletionsStreamSimple,
+          stream: withOpencodeSession(videoMedia ? qwenStream : openAICompletionsStream),
+          streamSimple: withOpencodeSession(videoMedia ? qwenStreamSimple : openAICompletionsStreamSimple),
         };
   const provider = createProvider({
     id: providerId,
@@ -220,7 +253,9 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
         ? "Anthropic"
         : providerId === "deepseek"
           ? "DeepSeek"
-          : "OpenAI Compatible",
+          : providerId === "opencode"
+            ? "OpenCode"
+            : "OpenAI Compatible",
     baseUrl,
     auth: {
       apiKey: {

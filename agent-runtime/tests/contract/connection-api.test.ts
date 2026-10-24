@@ -305,3 +305,50 @@ describe("POST /agent-api/v1/connection/*", () => {
     expect(r.body).not.toContain("sk-super-secret");
   });
 });
+
+describe("connection probe · opencode", () => {
+  it("test: 省略地址时用 Zen 端点，且不探测 Ollama", async () => {
+    const { fetch, calls } = fakeFetch({
+      "https://opencode.ai/zen/v1/models": () => json({ data: [{ id: "deepseek-v4-flash" }] }),
+    });
+    const probe = createConnectionProbe({ fetch, resolveHost: publicIp, env });
+    const r = await probe.test({ provider: "opencode" });
+    expect(r).toEqual({ ok: true, http_status: 200, reason: "ready", model_count: 1 });
+    expect(calls).toEqual(["GET https://opencode.ai/zen/v1/models"]);
+  });
+
+  it("listModels: 用连接给的 Go 端点，且只取 /models（不发 Ollama 探测）", async () => {
+    const { fetch, calls } = fakeFetch({
+      "https://opencode.ai/zen/go/v1/models": () =>
+        json({ data: [{ id: "deepseek-v4-flash" }, { id: "claude-sonnet-5" }] }),
+    });
+    const probe = createConnectionProbe({ fetch, resolveHost: publicIp, env });
+    const r = await probe.listModels({ provider: "opencode", base_url: "https://opencode.ai/zen/go/v1" });
+    expect(r.models.map((model) => model.id)).toEqual(["deepseek-v4-flash", "claude-sonnet-5"]);
+    // claude-* 借用 Anthropic 目录的判定，其余走名称启发式。
+    expect(r.models[1]?.vision).toBe("yes");
+    expect(calls).toEqual(["GET https://opencode.ai/zen/go/v1/models"]);
+  });
+
+  it("HTTP 契约：provider=opencode 被接受，省略地址走 Zen 端点", async () => {
+    const servers: ReturnType<typeof buildServer>[] = [];
+    const server = buildServer({
+      probe: createConnectionProbe({
+        fetch: fakeFetch({
+          "https://opencode.ai/zen/v1/models": () => json({ data: [{ id: "deepseek-v4-flash" }] }),
+        }).fetch,
+        resolveHost: publicIp,
+        env,
+      }),
+    });
+    servers.push(server);
+    const r = await server.inject({
+      method: "POST",
+      url: "/agent-api/v1/connection/models",
+      payload: { provider: "opencode" },
+    });
+    await Promise.all(servers.map((s) => s.close()));
+    expect(r.statusCode).toBe(200);
+    expect(r.json().models).toEqual([{ id: "deepseek-v4-flash", vision: "unknown" }]);
+  });
+});

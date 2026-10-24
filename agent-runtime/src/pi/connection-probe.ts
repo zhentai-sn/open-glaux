@@ -10,6 +10,8 @@
  *   claude-2 / claude-instant / claude-1 → no；其它 claude-* → yes；再兜底名称启发式。
  * - openai-compatible：探到 Ollama（`{root}/api/version` 200）则查 `/api/show` capabilities；
  *   否则名称启发式。**启发式只判 yes，不判 no**（防误杀，让真失败在调用时显式报错）。
+ * - opencode：托管端点，地址可省略（缺省 `/zen/v1`，Go 订阅自填 `/zen/go/v1`）；只取 `/models`，
+ *   不做 Ollama 探测。视觉判定同样走名称启发式。
  *
  * 出站前一律经 net-guard（SSRF）；密钥只在本次请求内存里存活，不写日志。
  */
@@ -68,6 +70,8 @@ const ANTHROPIC_DEFAULT_BASE = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
 /** DeepSeek 是 OpenAI 兼容的 `/models`，但地址固定、不接受自填 base_url。 */
 const DEEPSEEK_BASE = "https://api.deepseek.com";
+/** OpenCode Zen 的缺省端点；Go 订阅由连接自带 `/zen/go/v1`。 */
+const OPENCODE_BASE = "https://opencode.ai/zen/v1";
 const DEFAULT_TIMEOUT_MS = 8000;
 
 // 名称启发式命中即判有视觉能力（用于无能力元数据的兼容网关 / 作为 Ollama 探测的兜底）。
@@ -98,6 +102,16 @@ export function anthropicVision(modelId: string): Vision {
   }
   if (s.startsWith("claude-")) return "yes";
   return nameVision(modelId);
+}
+
+/**
+ * OpenCode 托管端点也代理 Claude 与 Qwen：`claude-*` 借用 Anthropic 目录的判定，
+ * 其余走通用名称启发式（`-vl`、`vision` 等记号）。
+ */
+export function opencodeVision(modelId: string): Vision {
+  return modelId.toLowerCase().startsWith("claude")
+    ? anthropicVision(modelId)
+    : nameVision(modelId);
 }
 
 function positiveInt(value: unknown): number | undefined {
@@ -273,10 +287,11 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
   async function openaiListIds(
     input: ProbeInput,
   ): Promise<{ ids: string[]; base: string; entries: Map<string, Record<string, unknown>> }> {
-    if (!input.base_url?.trim()) {
+    // OpenCode 有缺省端点；其余兼容端点必须由连接给出地址。
+    if (input.provider !== "opencode" && !input.base_url?.trim()) {
       throw new RuntimeError("invalid_request", "openai-compatible 需要 base_url", 400);
     }
-    const base = normalizeBase(input.base_url, "");
+    const base = normalizeBase(input.base_url, input.provider === "opencode" ? OPENCODE_BASE : "");
     await assertUrlAllowed(base, guardOpts);
     const r = await get(`${base}/models`, bearer(input.credential));
     if (!r.ok) {
@@ -298,7 +313,7 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
 
   function httpReason(status: number | null, provider: ProbeProvider): string | null {
     if (status === 401 || status === 403) return "鉴权失败（密钥无效？）";
-    if (status === 404 && provider === "openai-compatible") {
+    if (status === 404 && (provider === "openai-compatible" || provider === "opencode")) {
       return "端点不存在（base_url 是否含 /v1？）";
     }
     if (status !== null && status >= 400) return `HTTP ${status}`;
@@ -356,7 +371,8 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
         }
         const { ids, base, entries } = await openaiListIds(input);
         const root = ollamaRoot(base);
-        const isOllama = await probeOllama(root);
+        // OpenCode 是托管端点，不发本地 Ollama 探测（省一次必然 404 的请求）。
+        const isOllama = input.provider !== "opencode" && (await probeOllama(root));
         const models: ProbeModelInfo[] = [];
         for (const id of ids) {
           const meta = modelMetaFromEntry(entries.get(id) ?? {});
@@ -369,7 +385,7 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
               meta.context_window = shown.contextWindow;
             }
           }
-          if (v === "unknown") v = nameVision(id);
+          if (v === "unknown") v = input.provider === "opencode" ? opencodeVision(id) : nameVision(id);
           models.push({ id, vision: v, ...meta });
         }
         return { models };

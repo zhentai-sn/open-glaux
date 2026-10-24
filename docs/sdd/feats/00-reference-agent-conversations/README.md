@@ -300,6 +300,13 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 18. Pi Storage 的 migration 和 materialized view 由官方包管理；Glaux 不复制、修改或查询其内部 schema。
 19. 归档、删除和切换 Provider/Model 只允许在 Harness 为 `idle` 时执行；生成中返回 `409 session_busy`。重命名与权限模式修改不影响当前生成。
 20. `glaux.command.*` custom entries 不注册 context projector，因此不得进入模型上下文或显示为聊天消息。
+21. 连接端点解析为 `opencode.ai`（https，host 精确匹配、忽略结尾点）时，每次模型请求必须带 `x-opencode-session`，
+    值取当前会话的 Pi session id：同一会话各轮稳定、不同会话互不相同；调用方已显式配置该头时保留原值。
+    OpenCode 自 2026-09-06 起用它做提示缓存路由，缺失时返回 `400 MissingSessionID`。非该端点的连接不发此头。
+22. `provider="opencode"` 指向 OpenCode 托管端点：地址可省略，缺省 `https://opencode.ai/zen/v1`；Go 订阅用
+    `/zen/go/v1`，由连接覆盖，仍可指向自建反代。本期只覆盖 chat/completions 族的模型（DeepSeek、GLM、Kimi、MiniMax 等）：
+    Claude / Qwen 走 Anthropic messages、GPT / Grok 走 Responses API、Gemini 走 Google 专用端点，均不在范围内，
+    误选时由 provider 显式报错，不做静默降级。窗口与输出上限按自定义模型校验，与 `openai-compatible` 一致。
 
 ## 8. 对象
 
