@@ -129,6 +129,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md](researches/20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md) | 2026-10-14 | research | 视觉 Agent、GraphRAG 与体育垂类：版本核对、主动观察、证据分层及设计影响 |
 | [20261024-01-tech-mage-vl-fit.zh-CN.md](researches/20261024-01-tech-mage-vl-fit.zh-CN.md) | 2026-10-24 | tech | 微软 Mage-VL 调研与落地评估：连接层可试跑，codec 观测采样优先，流式门控不投入 |
 | [20261024-02-tech-emil-skills-motion-audit.zh-CN.md](researches/20261024-02-tech-emil-skills-motion-audit.zh-CN.md) | 2026-10-24 | tech | Emil Kowalski 前端交互技能集：采纳动效判据与"审查→自包含计划"工序，不采纳 Apple 装饰与动画库；附本仓差距与最坏数据清单 |
+| [20261024-03-tech-mainpath-frontend-audit.zh-CN.md](researches/20261024-03-tech-mainpath-frontend-audit.zh-CN.md) | 2026-10-24 | tech | Focus 主路径前端审查（32 条：HIGH 5 / MEDIUM 18 / LOW 9）：拖拽每帧重算、舞台循环与 OSD 惯性、会话标题无全文途径；含量化基线与分批建议 |
 
 ## 二、路线图 roadmaps/
 

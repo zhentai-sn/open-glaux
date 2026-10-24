@@ -127,7 +127,7 @@ scope: 把前端设计纲领已定、但实现欠账的"打磨层"补齐到位�
 - **P1 已落地**（2026-08-19）：`ErrorBoundary` 重写为 i18n + token 样式 + 可折叠堆栈 + 复制；覆盖 App 顶层（按 uiMode keying）、dockview 四面板、Focus 对话列/右侧栏；`Notice` 单槽改队列（`notices[]`，逐条呈现、上限 6、精确 dismiss）+ 进入过渡 + 剩余计数徽标。新增 ErrorBoundary（3）与 notice 队列（4）共 7 个测试，全套 53 通过；生产构建净。**黑屏隐患（spike-error）已消除。**
 - **P2 已落地**（2026-08-19，另立 [SDD 05](../sdd/feats/05-keyboard-shortcuts-a11y/README.md) 先文档后实现）：文件树/导入头/能力卡/状态栏语义化（`div`→`button` / `role`+`tabIndex`，消除假按钮）；单一 `window` keydown 分发器 `useGlobalKeys`（工具键 V/L/M/R、`Cmd+B`/`Cmd+\` 面板、`Cmd+Shift+M` 模式、`?` 速查），输入/IME 放行、卸载移除；`ShortcutSheet` 速查面板。新增 9 项测试，全套 62 通过；lint/构建净。
 - **图标系统已落地**（2026-08-19，[SDD 06](../sdd/feats/06-icon-system/README.md)）：全站 glyph/emoji 统一到 lucide-react 线性图标（含 ActivityBar 迁移、spinner/警告图标），`Icon` 封装 + 概念映射单一真相源，尺寸走 `--icon-*` token、`currentColor` 着色；包体 gzip +6.7KB。这是"静态质感"提升的最大杠杆。
-- **待办**：P3（收敛查看器内联样式/裸 hex，随后续顺带）；设计资产采用（Radix/React Aria 无障碍原语）；动效欠账按[纲领 §5「动效判据」](../designs/frontend-design-charter.zh-CN.md)清理（M5/M6 各有一处违反，清单见[调研记录](../researches/20261024-02-tech-emil-skills-motion-audit.zh-CN.md) §4.2）。
+- **待办**：P3（收敛查看器内联样式/裸 hex，随后续顺带）；设计资产采用（Radix/React Aria 无障碍原语）；动效欠账按[纲领 §5「动效判据」](../designs/frontend-design-charter.zh-CN.md)清理（M5 已于 2026-10-24 修复，其余 32 条清单见[主路径前端审查](../researches/20261024-03-tech-mainpath-frontend-audit.zh-CN.md)）。
 
 ## 变更记录
 
