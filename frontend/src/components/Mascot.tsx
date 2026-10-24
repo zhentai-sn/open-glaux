@@ -57,7 +57,7 @@ function prefersReducedMotion(): boolean {
 const BLINK_MIN_MS = 8000;
 const BLINK_MAX_MS = 15000;
 
-export function Mascot({ state = "idle", size = 48 }: { state?: MascotState; size?: number }) {
+export function Mascot({ state = "idle", size = 64 }: { state?: MascotState; size?: number }) {
   const [frame, setFrame] = useState(0);
   const [blinking, setBlinking] = useState(false);
 
