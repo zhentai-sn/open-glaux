@@ -191,11 +191,11 @@ describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
     expect(screen.queryByLabelText("上下文窗口")).toBeNull();
   });
 
-  it("提供方顺序为 DeepSeek → OpenAI 兼容 → Anthropic 兼容；测试连接在表单最下方", () => {
+  it("提供方顺序为 DeepSeek → OpenAI 兼容 → Anthropic 兼容 → OpenCode；测试连接在表单最下方", () => {
     setup();
     const group = screen.getByRole("radiogroup", { name: "Provider" });
     const providers = within(group).getAllByRole("radio").map((node) => (node.textContent ?? "").trim());
-    expect(providers).toEqual(["DeepSeek", "OpenAI 兼容", "Anthropic 兼容"]);
+    expect(providers).toEqual(["DeepSeek", "OpenAI 兼容", "Anthropic 兼容", "OpenCode"]);
 
     fireEvent.click(screen.getByRole("radio", { name: "DeepSeek" }));
     expect(useSession.getState().connection.provider).toBe("deepseek");
@@ -208,6 +208,35 @@ describe("ConnectionConfig · 状态卡与分组（SDD feats/01 D26）", () => {
     const test = screen.getByRole("button", { name: "测试连接" });
     const lastText = [...buttons].reverse().find((node) => (node.textContent ?? "").trim() !== "");
     expect(lastText).toBe(test);
+  });
+
+  it("切到 OpenCode：预填 Zen 端点，Go 可一键切换，地址仍可手改", () => {
+    setup();
+    fireEvent.click(screen.getByRole("radio", { name: "OpenCode" }));
+
+    const connection = () => useSession.getState().connection;
+    expect(connection().provider).toBe("opencode");
+    expect(connection().baseUrl).toBe("https://opencode.ai/zen/v1");
+    const url = screen.getByLabelText("服务地址") as HTMLInputElement;
+    expect(url.value).toBe("https://opencode.ai/zen/v1");
+    // OpenCode 的模型不在内置目录：窗口与输出上限要能填（「高级」可见）。
+    expect(screen.getByLabelText("上下文窗口")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+    expect(connection().baseUrl).toBe("https://opencode.ai/zen/go/v1");
+
+    fireEvent.change(url, { target: { value: "https://proxy.example/zen/v1" } });
+    expect(connection().baseUrl).toBe("https://proxy.example/zen/v1");
+  });
+
+  it("从 OpenCode 切到地址固定的提供商时清掉服务地址", () => {
+    setup();
+    fireEvent.click(screen.getByRole("radio", { name: "OpenCode" }));
+    expect(useSession.getState().connection.baseUrl).toBe("https://opencode.ai/zen/v1");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Anthropic 兼容" }));
+    expect(useSession.getState().connection.baseUrl).toBe("");
+    expect(useSession.getState().connection.provider).toBe("anthropic");
   });
 
   it("拉取模型即顺带完成连接测试：成功 → 已连接", async () => {

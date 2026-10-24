@@ -12,6 +12,7 @@ const DEFAULT_HOST: Record<Connection["provider"], string> = {
   deepseek: "api.deepseek.com",
   openai_compatible: "",
   anthropic: "api.anthropic.com",
+  opencode: "opencode.ai",
 };
 
 /** 已选模型且未被探测为不支持图像（探测未知时按可用处理，失败由描述错误兜底）。 */

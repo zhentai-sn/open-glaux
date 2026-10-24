@@ -18,17 +18,44 @@ const LOCAL_PRESETS = [
   { label: "Ollama", baseUrl: "http://localhost:11434/v1" },
   { label: "LM Studio", baseUrl: "http://localhost:1234/v1" },
 ] as const;
+/** OpenCode 两个端点：Zen 为缺省（付费网关），Go 为订阅计划。地址仍可手改（自建反代）。 */
+const OPENCODE_PRESETS = [
+  { label: "Zen", baseUrl: "https://opencode.ai/zen/v1" },
+  { label: "Go", baseUrl: "https://opencode.ai/zen/go/v1" },
+] as const;
 const MODEL_LIST_ID = "glaux-model-options";
 
 type MediaAdapter = NonNullable<Connection["mediaAdapter"]>;
 type T = (key: I18nKey, vars?: Record<string, string | number>) => string;
 
-/** 提供方的展示名：三家顺序固定（DeepSeek → OpenAI 兼容 → Anthropic 兼容），选项与状态卡共用。 */
+/** 提供方的展示名：四家顺序固定（DeepSeek → OpenAI 兼容 → Anthropic 兼容 → OpenCode），选项与状态卡共用。 */
 const PROVIDERS: { value: VlmProvider; key: I18nKey }[] = [
   { value: "deepseek", key: "cfg_deepseek" },
   { value: "openai_compatible", key: "cfg_openai_compat" },
   { value: "anthropic", key: "cfg_anthropic_compat" },
+  { value: "opencode", key: "cfg_opencode" },
 ];
+
+/** 服务地址可填的提供商：OpenAI 兼容与 OpenCode；Anthropic / DeepSeek 地址固定。 */
+function needsBaseUrl(provider: VlmProvider): boolean {
+  return provider === "openai_compatible" || provider === "opencode";
+}
+
+function isOpencodeUrl(url: string): boolean {
+  return /^https:\/\/opencode\.ai(\/|$)/iu.test(url.trim());
+}
+
+/**
+ * 切换提供商时对服务地址的处置：切到地址固定的一家就清空（否则会把上一个端点继续发给它），
+ * 切到 OpenCode 时若当前不是 opencode.ai 地址则预填 Zen。
+ */
+function baseUrlPatch(provider: VlmProvider, current: Connection): Partial<Connection> {
+  if (provider === "opencode") {
+    return isOpencodeUrl(current.baseUrl) ? {} : { baseUrl: OPENCODE_PRESETS[0].baseUrl };
+  }
+  if (provider === "openai_compatible") return {};
+  return current.baseUrl ? { baseUrl: "" } : {};
+}
 
 function providerName(provider: VlmProvider, t: T): string {
   const hit = PROVIDERS.find((item) => item.value === provider);
@@ -105,8 +132,8 @@ function StatusCard({
   onTest: () => void;
   t: T;
 }) {
-  const oai = connection.provider === "openai_compatible";
-  const configured = oai ? connection.baseUrl.trim() !== "" : connection.apiKey.trim() !== "";
+  const needsUrl = needsBaseUrl(connection.provider);
+  const configured = needsUrl ? connection.baseUrl.trim() !== "" : connection.apiKey.trim() !== "";
   const test = connection.lastTest;
   const state = !configured ? "unset" : !test ? "untested" : test.ok ? "ok" : "fail";
   const providerLabel = providerName(connection.provider, t);
@@ -120,7 +147,7 @@ function StatusCard({
     : state === "ok" ? `${t("cfg_connected")} · ${model}`
     : t("cfg_status_fail");
   const meta =
-    state === "unset" ? t(oai ? "cfg_status_need_url" : "cfg_status_need_key")
+    state === "unset" ? t(needsUrl ? "cfg_status_need_url" : "cfg_status_need_key")
     : state === "untested" ? `${providerLabel} · ${model}`
     : state === "ok"
       ? [providerLabel, count ? t("cfg_n_models", { n: count }) : null, t("cfg_status_passed_at", { time })]
@@ -164,6 +191,8 @@ export function ConnectionConfig({
   const id = (name: string) => `${ids}-${name}`;
 
   const oai = connection.provider === "openai_compatible";
+  /** 自填端点 + 自报元数据的一组（OpenAI 兼容 / OpenCode）：地址、上下文与输出上限都要填。 */
+  const custom = needsBaseUrl(connection.provider);
   const models = connection.models ?? [];
 
   const errorText = (error: unknown) =>
@@ -236,18 +265,25 @@ export function ConnectionConfig({
           <Segmented<VlmProvider>
             label={t("cfg_provider")}
             value={connection.provider}
-            onChange={(provider) => setEndpoint({ provider, models: undefined, mediaAdapter: "none" })}
+            onChange={(provider) =>
+              setEndpoint({
+                provider,
+                models: undefined,
+                mediaAdapter: "none",
+                ...baseUrlPatch(provider, connection),
+              })
+            }
             options={PROVIDERS.map((item) => ({ value: item.value, label: t(item.key) }))}
           />
         </Field>
-        {oai && (
+        {custom && (
           <Field
             label={t("cfg_base_url")}
             htmlFor={id("url")}
             hint={
               <>
-                <span>{t("cfg_quickfill")}</span>
-                {LOCAL_PRESETS.map((preset) => (
+                <span>{t(connection.provider === "opencode" ? "cfg_quickfill_opencode" : "cfg_quickfill")}</span>
+                {(connection.provider === "opencode" ? OPENCODE_PRESETS : LOCAL_PRESETS).map((preset) => (
                   <button
                     key={preset.label}
                     className="cfgqbtn"
@@ -315,7 +351,7 @@ export function ConnectionConfig({
           hint={
             <>
               <span>
-                {oai
+                {custom
                   ? `${t("cfg_model_meta", { ctx: compact(connection.contextWindow), out: compact(connection.maxTokens) })}（${metaSource}）`
                   : t("cfg_meta_builtin", { provider: providerName(connection.provider, t) })}
               </span>
@@ -329,7 +365,7 @@ export function ConnectionConfig({
               type="text"
               list={models.length ? MODEL_LIST_ID : undefined}
               placeholder={
-                oai
+                custom
                   ? t("cfg_model_ph")
                   : connection.provider === "deepseek"
                     ? "deepseek-v4-flash"
@@ -407,7 +443,7 @@ export function ConnectionConfig({
         </section>
       )}
 
-      {oai && (
+      {custom && (
         <details className="cfg-group cfg-advanced" open={maxInvalid || undefined}>
           <summary className="cfg-group-title">
             <span>{t("cfg_group_advanced")}</span>

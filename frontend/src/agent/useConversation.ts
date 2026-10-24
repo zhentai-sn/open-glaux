@@ -33,10 +33,10 @@ export function toViewerContext(): ViewerContext {
   return out;
 }
 
-/** 前端枚举（下划线）→ runtime 枚举（连字符）；deepseek 与 anthropic 两侧同名。 */
+/** 前端枚举（下划线）→ runtime 枚举（连字符）；deepseek / anthropic / opencode 两侧同名。 */
 function runtimeProvider(
   provider: Connection["provider"],
-): "anthropic" | "openai-compatible" | "deepseek" {
+): "anthropic" | "openai-compatible" | "deepseek" | "opencode" {
   return provider === "openai_compatible" ? "openai-compatible" : provider;
 }
 
