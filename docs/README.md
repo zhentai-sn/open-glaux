@@ -128,6 +128,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20261013-01-research-vista-visual-memory-impact.zh-CN.md](researches/20261013-01-research-vista-visual-memory-impact.zh-CN.md) | 2026-10-13 | research | VISTA 视觉记忆与 Glaux 设计影响：总体中等；Atlas 核心低，历史观测访问与视频策略中高 |
 | [20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md](researches/20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md) | 2026-10-14 | research | 视觉 Agent、GraphRAG 与体育垂类：版本核对、主动观察、证据分层及设计影响 |
 | [20261024-01-tech-mage-vl-fit.zh-CN.md](researches/20261024-01-tech-mage-vl-fit.zh-CN.md) | 2026-10-24 | tech | 微软 Mage-VL 调研与落地评估：连接层可试跑，codec 观测采样优先，流式门控不投入 |
+| [20261024-02-tech-emil-skills-motion-audit.zh-CN.md](researches/20261024-02-tech-emil-skills-motion-audit.zh-CN.md) | 2026-10-24 | tech | Emil Kowalski 前端交互技能集：采纳动效判据与"审查→自包含计划"工序，不采纳 Apple 装饰与动画库；附本仓差距与最坏数据清单 |
 
 ## 二、路线图 roadmaps/
 
