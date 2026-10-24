@@ -39,15 +39,17 @@ button {
   outline-offset: -1px;
 }
 @media (prefers-reduced-motion: reduce) {
-  /* 纲领 §5 M5：位移/缩放/循环动效全关，功能语义靠瞬时切换保留（spinner 降级为静态字形，仍表状态） */
+  /* 纲领 §5 M5：位移/缩放/旋转与循环动效全关，颜色与透明度过渡保留。
+     降级按属性做、不按选择器做——`* { transition: none }` 会连按压态与状态色变化一起变成瞬变，与 G13 反馈无空窗冲突。
+     关键帧动效在本仓只有"入场"与"循环"两类：循环必须停，入场瞬时化正是 M5 要的"状态瞬时切换"。 */
   * {
-    transition: none !important;
     animation: none !important;
+    transition-property: color, background-color, background, border-color, outline-color, fill, stroke, opacity !important;
   }
 }
 
 /* ---- 交互动效基线（纲领 §5 M2/M6：微交互 --motion-fast，只过渡颜色与合成属性；
-   reduced-motion 由上方 * 规则统一关闭；直接操纵对象——舞台画布/手柄——不在此列，保持零延迟 M4） ---- */
+   reduced-motion 由上方 * 规则保留颜色/透明度过渡、关掉位移类；直接操纵对象——舞台画布/手柄——不在此列，保持零延迟 M4） ---- */
 .menu,
 .act,
 .act .tip,
@@ -1774,9 +1776,6 @@ canvas {
 .composer-pill > svg:last-child:not(:first-child) { color: var(--faint); }
 .usage-pie { display: block; flex: none; }
 .usage-pie-base { fill: color-mix(in srgb, var(--mid) 22%, transparent); }
-.usage-pie-system { fill: var(--mid); }
-.usage-pie-tools { fill: color-mix(in srgb, var(--agent) 52%, var(--panel)); }
-.usage-pie-messages { fill: var(--agent); }
 .composer-pop {
   /* 挂在 body 上的 fixed 弹层：位置由 ComposerPopover 按触发按钮实测给出 */
   position: fixed;
