@@ -331,36 +331,55 @@ function streamBlocks(messages: unknown[]): StreamBlock[] {
   return blocks;
 }
 
-// 输入区上下文胶囊的环形指示（SDD 21 §9.5）：环弧 = 已用 / 窗口。
-// 精确数字与分段明细交给点开的上下文面板；窗口未知时只给灰环。
-function UsageRing({ tokens, windowSize }: { tokens: number | null; windowSize: number | null }) {
-  const pct = tokens != null && windowSize ? Math.min(1, tokens / windowSize) : null;
-  const R = 5;
-  const C = 2 * Math.PI * R;
-  const tone =
-    pct == null
-      ? "var(--mid)"
-      : pct >= 0.9
-        ? "var(--crit)"
-        : pct >= 0.7
-          ? "var(--warn)"
-          : "var(--agent)";
+interface PieSlice { key: "system" | "tools" | "messages"; value: number }
+
+// 输入区上下文胶囊的饼图（SDD 21 §9.5）：按系统提示词 / 工具定义 / 对话消息三段的占比切分，
+// 一眼看出上下文被什么占着；用量百分比由胶囊文本给出。统计未到时退回「已用 / 窗口」两色饼。
+function UsagePie({
+  parts,
+  ratio,
+}: {
+  parts: PieSlice[] | null;
+  ratio: number | null;
+}) {
+  const R = 7;
+  const origin = [8, 8] as const;
+  const total = parts?.reduce((sum, part) => sum + Math.max(0, part.value), 0) ?? 0;
+  // 三段占比；总量为 0（统计未到）但有窗口比例时，用单色扇形表示已用。
+  const slices = total > 0 && parts
+    ? parts.filter((part) => part.value > 0)
+    : ratio != null && ratio > 0
+      ? [{ key: "messages" as const, value: ratio }]
+      : [];
+  const sum = slices.reduce((acc, slice) => acc + slice.value, 0);
+  const point = (angle: number) => [origin[0] + R * Math.sin(angle), origin[1] - R * Math.cos(angle)] as const;
+  const wedge = (from: number, to: number) => {
+    const [x0, y0] = point(from);
+    const [x1, y1] = point(to);
+    const large = to - from > Math.PI ? 1 : 0;
+    return `M${origin[0]} ${origin[1]} L${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+  };
+  let cursor = 0;
   return (
-    <svg className="usage-ring" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-      <circle cx="7" cy="7" r={R} fill="none" stroke="var(--line2)" strokeWidth="2.4" />
-      {pct != null && pct > 0 && (
-        <circle
-          cx="7"
-          cy="7"
-          r={R}
-          fill="none"
-          stroke={tone}
-          strokeWidth="2.4"
-          strokeDasharray={`${Math.max(C * pct, 0.9)} ${C}`}
-          strokeLinecap="round"
-          transform="rotate(-90 7 7)"
-        />
-      )}
+    <svg className="usage-pie" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <circle className="usage-pie-base" cx={origin[0]} cy={origin[1]} r={R} />
+      {sum > 0 && slices.map((slice, index) => {
+        const from = cursor;
+        const span = (slice.value / sum) * 2 * Math.PI;
+        cursor += span;
+        if (span >= 2 * Math.PI - 0.001) {
+          return <circle key={index} cx={origin[0]} cy={origin[1]} r={R} className={`usage-pie-${slice.key}`} />;
+        }
+        // 留一道 0.04 弧度的缝，相邻同色系也分得开
+        const gap = span > 0.12 ? 0.02 : 0;
+        return (
+          <path
+            key={index}
+            className={`usage-pie-${slice.key}`}
+            d={wedge(from + gap, from + span - gap)}
+          />
+        );
+      })}
     </svg>
   );
 }
@@ -988,12 +1007,23 @@ export function AgentConversation() {
             <ComposerPopover
               label={t("agent_usage_used")}
               tip={t("agent_usage_title")}
-              icon={<UsageRing tokens={contextTokens} windowSize={contextWindow} />}
+              icon={
+                <UsagePie
+                  parts={stats?.context
+                    ? [
+                      { key: "system", value: stats.context.system },
+                      { key: "tools", value: stats.context.tools },
+                      { key: "messages", value: stats.context.messages },
+                    ]
+                    : null}
+                  ratio={contextRatio}
+                />
+              }
               text={contextRatio != null
                 ? percentText(contextRatio)
                 : contextTokens != null ? estimateTokens(contextTokens) : "—"}
               chevron={false}
-              width={320}
+              width={340}
               onOpen={() => {
                 if (currentSessionId) void refreshStats(currentSessionId);
               }}
