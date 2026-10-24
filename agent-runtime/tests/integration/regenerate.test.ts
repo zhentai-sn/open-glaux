@@ -1,11 +1,18 @@
 import { contentText, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 
+import type { TranscriptBlock } from "../../src/contracts.js";
 import {
   TEST_CONNECTION,
   createRuntimeFixture,
   waitFor,
 } from "../helpers/runtime-fixture.js";
+
+/** 快照消息是 Glaux 自有结构（含 thinking 块），不能直接交给 pi 的 contentText。 */
+function transcriptText(content: string | TranscriptBlock[]): string {
+  if (typeof content === "string") return content;
+  return content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");
+}
 
 describe("latest answer regeneration", () => {
   it("uses Pi tree navigation and exposes only the new active branch", async () => {
@@ -38,7 +45,7 @@ describe("latest answer regeneration", () => {
       expect(view.messages[0]?.role).toBe("user");
       expect(
         view.messages[1]?.role === "assistant"
-          ? contentText(view.messages[1].content)
+          ? transcriptText(view.messages[1].content)
           : "",
       ).toBe("new answer");
 
@@ -102,10 +109,10 @@ describe("latest answer regeneration", () => {
       const view = await fixture.sessions.getSession(sessionId);
       expect(view.messages.filter((message) => message.role === "user")).toHaveLength(1);
       const last = view.messages.at(-1);
-      expect(last?.role === "assistant" ? contentText(last.content) : "").toBe("new answer");
+      expect(last?.role === "assistant" ? transcriptText(last.content) : "").toBe("new answer");
       expect(
         view.messages.some(
-          (message) => message.role === "assistant" && contentText(message.content) === "old answer",
+          (message) => message.role === "assistant" && transcriptText(message.content) === "old answer",
         ),
       ).toBe(false);
     } finally {
@@ -176,7 +183,7 @@ describe("latest answer regeneration", () => {
       expect(view.messages).toHaveLength(2);
       expect(
         view.messages[1]?.role === "assistant"
-          ? contentText(view.messages[1].content)
+          ? transcriptText(view.messages[1].content)
           : "",
       ).toBe("stable answer");
     } finally {
