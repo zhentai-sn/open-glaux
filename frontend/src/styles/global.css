@@ -1778,10 +1778,9 @@ canvas {
 .usage-pie-tools { fill: color-mix(in srgb, var(--agent) 52%, var(--panel)); }
 .usage-pie-messages { fill: var(--agent); }
 .composer-pop {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  z-index: 30;
+  /* 挂在 body 上的 fixed 弹层：位置由 ComposerPopover 按触发按钮实测给出 */
+  position: fixed;
+  z-index: 60;
   display: flex;
   width: 340px;
   flex-direction: column;
