@@ -1775,7 +1775,10 @@ canvas {
 .composer-pill > svg { flex: none; }
 .composer-pill > svg:last-child:not(:first-child) { color: var(--faint); }
 .usage-pie { display: block; flex: none; }
-.usage-pie-base { fill: color-mix(in srgb, var(--mid) 22%, transparent); }
+.usage-pie-base { fill: var(--mid); fill-opacity: 0.18; }
+.usage-pie-used.agent { fill: var(--agent); }
+.usage-pie-used.warn { fill: var(--warn); }
+.usage-pie-used.crit { fill: var(--crit); }
 .composer-pop {
   /* 挂在 body 上的 fixed 弹层：位置由 ComposerPopover 按触发按钮实测给出 */
   position: fixed;

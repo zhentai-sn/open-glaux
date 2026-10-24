@@ -331,55 +331,26 @@ function streamBlocks(messages: unknown[]): StreamBlock[] {
   return blocks;
 }
 
-interface PieSlice { key: "system" | "tools" | "messages"; value: number }
-
-// 输入区上下文胶囊的饼图（SDD 21 §9.5）：按系统提示词 / 工具定义 / 对话消息三段的占比切分，
-// 一眼看出上下文被什么占着；用量百分比由胶囊文本给出。统计未到时退回「已用 / 窗口」两色饼。
-function UsagePie({
-  parts,
-  ratio,
-}: {
-  parts: PieSlice[] | null;
-  ratio: number | null;
-}) {
+// 输入区上下文胶囊的饼图（SDD 21 §9.5）：两色，高亮扇形 = 已用占窗口的比例，其余是浅色底盘。
+// 百分比由胶囊文本给出；窗口未知时只画底盘，不编比例。
+function UsagePie({ ratio }: { ratio: number | null }) {
   const R = 7;
-  const origin = [8, 8] as const;
-  const total = parts?.reduce((sum, part) => sum + Math.max(0, part.value), 0) ?? 0;
-  // 三段占比；总量为 0（统计未到）但有窗口比例时，用单色扇形表示已用。
-  const slices = total > 0 && parts
-    ? parts.filter((part) => part.value > 0)
-    : ratio != null && ratio > 0
-      ? [{ key: "messages" as const, value: ratio }]
-      : [];
-  const sum = slices.reduce((acc, slice) => acc + slice.value, 0);
-  const point = (angle: number) => [origin[0] + R * Math.sin(angle), origin[1] - R * Math.cos(angle)] as const;
-  const wedge = (from: number, to: number) => {
-    const [x0, y0] = point(from);
-    const [x1, y1] = point(to);
-    const large = to - from > Math.PI ? 1 : 0;
-    return `M${origin[0]} ${origin[1]} L${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
-  };
-  let cursor = 0;
+  const sweep = ratio == null ? 0 : Math.max(0, Math.min(1, ratio));
+  const tone = sweep >= 0.9 ? "crit" : sweep >= 0.7 ? "warn" : "agent";
+  const angle = sweep * 2 * Math.PI;
+  const x = 8 + R * Math.sin(angle);
+  const y = 8 - R * Math.cos(angle);
   return (
     <svg className="usage-pie" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <circle className="usage-pie-base" cx={origin[0]} cy={origin[1]} r={R} />
-      {sum > 0 && slices.map((slice, index) => {
-        const from = cursor;
-        const span = (slice.value / sum) * 2 * Math.PI;
-        cursor += span;
-        if (span >= 2 * Math.PI - 0.001) {
-          return <circle key={index} cx={origin[0]} cy={origin[1]} r={R} className={`usage-pie-${slice.key}`} />;
-        }
-        // 留一道 0.04 弧度的缝，相邻同色系也分得开
-        const gap = span > 0.12 ? 0.02 : 0;
-        return (
+      <circle className="usage-pie-base" cx="8" cy="8" r={R} />
+      {sweep >= 0.999
+        ? <circle className={`usage-pie-used ${tone}`} cx="8" cy="8" r={R} />
+        : sweep > 0 && (
           <path
-            key={index}
-            className={`usage-pie-${slice.key}`}
-            d={wedge(from + gap, from + span - gap)}
+            className={`usage-pie-used ${tone}`}
+            d={`M8 8 L8 ${8 - R} A${R} ${R} 0 ${sweep > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)} Z`}
           />
-        );
-      })}
+        )}
     </svg>
   );
 }
