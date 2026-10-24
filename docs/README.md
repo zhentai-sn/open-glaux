@@ -127,6 +127,7 @@ superseded_by: docs/plans/…       # 从仓库根写起；仅 status 为 supers
 | [20261005-01-tech-pi-1-upgrade-impact.zh-CN.md](researches/20261005-01-tech-pi-1-upgrade-impact.zh-CN.md) | 2026-10-05 | tech | Pi 1.0 删除 AgentHarness、改由实验性 pi-durable 承接；近期维持 0.82.1 |
 | [20261013-01-research-vista-visual-memory-impact.zh-CN.md](researches/20261013-01-research-vista-visual-memory-impact.zh-CN.md) | 2026-10-13 | research | VISTA 视觉记忆与 Glaux 设计影响：总体中等；Atlas 核心低，历史观测访问与视频策略中高 |
 | [20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md](researches/20261014-01-research-visual-agents-graphrag-sports-impact.zh-CN.md) | 2026-10-14 | research | 视觉 Agent、GraphRAG 与体育垂类：版本核对、主动观察、证据分层及设计影响 |
+| [20261024-01-tech-mage-vl-fit.zh-CN.md](researches/20261024-01-tech-mage-vl-fit.zh-CN.md) | 2026-10-24 | tech | 微软 Mage-VL 调研与落地评估：连接层可试跑，codec 观测采样优先，流式门控不投入 |
 
 ## 二、路线图 roadmaps/
 
