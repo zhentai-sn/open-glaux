@@ -14,6 +14,7 @@ interface MetaRow {
   title: string;
   status: string;
   permission_mode: string;
+  pinned: number;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +31,7 @@ function toMeta(row: MetaRow): GlauxMetaRecord {
     title: row.title,
     status: row.status as SessionStatus,
     permission_mode: row.permission_mode as PermissionMode,
+    pinned: row.pinned === 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -51,10 +53,20 @@ export class GlauxMetaRepo {
         permission_mode TEXT NOT NULL CHECK(
           permission_mode IN ('observe', 'suggest', 'controlled', 'autonomous')
         ),
+        pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0, 1)),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     `);
+    // 2026-10 之前建的表没有 pinned 列：就地补列（SQLite 不支持 ADD COLUMN IF NOT EXISTS）。
+    const columns = this.database
+      .prepare("PRAGMA table_info(glaux_session_meta)")
+      .all() as { name?: unknown }[];
+    if (!columns.some((column) => column.name === "pinned")) {
+      this.database.exec(
+        "ALTER TABLE glaux_session_meta ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0, 1))",
+      );
+    }
   }
 
   close(): void {
@@ -102,7 +114,7 @@ export class GlauxMetaRepo {
 
   update(
     sessionId: string,
-    patch: Partial<Pick<GlauxMetaRecord, "title" | "status" | "permission_mode">>,
+    patch: Partial<Pick<GlauxMetaRecord, "title" | "status" | "permission_mode" | "pinned">>,
   ): GlauxMetaRecord {
     const current = this.get(sessionId);
     if (!current) {
@@ -112,18 +124,20 @@ export class GlauxMetaRepo {
       title: patch.title ?? current.title,
       status: patch.status ?? current.status,
       permission_mode: patch.permission_mode ?? current.permission_mode,
+      pinned: patch.pinned ?? current.pinned,
       updated_at: new Date().toISOString(),
     };
     this.database
       .prepare(
         `UPDATE glaux_session_meta
-         SET title = ?, status = ?, permission_mode = ?, updated_at = ?
+         SET title = ?, status = ?, permission_mode = ?, pinned = ?, updated_at = ?
          WHERE session_id = ?`,
       )
       .run(
         next.title,
         next.status,
         next.permission_mode,
+        next.pinned ? 1 : 0,
         next.updated_at,
         sessionId,
       );

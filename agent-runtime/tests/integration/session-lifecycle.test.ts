@@ -74,6 +74,7 @@ describe("SessionService lifecycle", () => {
         title: "Renamed",
         status: "archived",
         permission_mode: "suggest",
+        pinned: true,
         provider: "anthropic",
         model: "test-model",
       });
@@ -81,6 +82,7 @@ describe("SessionService lifecycle", () => {
         title: "Renamed",
         status: "archived",
         permission_mode: "suggest",
+        pinned: true,
         provider: "anthropic",
         model: "test-model",
       });
@@ -101,6 +103,7 @@ describe("SessionService lifecycle", () => {
         "title",
         "status",
         "permission_mode",
+        "pinned",
         "created_at",
         "updated_at",
       ]);

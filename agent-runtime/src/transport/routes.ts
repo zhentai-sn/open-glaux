@@ -259,8 +259,12 @@ function parsePatchSession(value: unknown): PatchSessionInput {
   ) {
     throw new RuntimeError("invalid_request", "Invalid permission mode.", 400);
   }
+  if (body.pinned !== undefined && typeof body.pinned !== "boolean") {
+    throw new RuntimeError("invalid_request", "Invalid pinned flag.", 400);
+  }
   return {
     ...(typeof body.title === "string" ? { title: body.title } : {}),
+    ...(body.pinned === undefined ? {} : { pinned: body.pinned }),
     ...(body.status
       ? { status: body.status as (typeof SESSION_STATUSES)[number] }
       : {}),

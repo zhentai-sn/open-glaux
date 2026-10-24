@@ -197,6 +197,7 @@ export class SessionService {
         ...(patch.permission_mode === undefined
           ? {}
           : { permission_mode: patch.permission_mode }),
+        ...(patch.pinned === undefined ? {} : { pinned: patch.pinned }),
       });
       return await this.toView(session, meta);
     } finally {

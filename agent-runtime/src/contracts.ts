@@ -22,6 +22,11 @@ export interface GlauxSessionMeta {
   created_at: string;
   updated_at: string;
   /**
+   * 置顶（SDD 13 §7.4 规则 12）：置顶会话排在自己项目组的最前，随 companion 表持久化。
+   * 与归档正交：归档态也能置顶，恢复到进行中后仍排在前面。
+   */
+  pinned: boolean;
+  /**
    * 会话绑定的项目（SDD 13 §7.6）；来自 Pi 会话 `metadata.glaux_project_id`，`null` 为未归属。
    * 创建时写入、不可改；不进 companion 表（SDD 00 D-018、D-023）。
    */
@@ -132,6 +137,7 @@ export interface PatchSessionInput {
   title?: string;
   status?: SessionStatus;
   permission_mode?: PermissionMode;
+  pinned?: boolean;
   provider?: string;
   model?: string;
 }
