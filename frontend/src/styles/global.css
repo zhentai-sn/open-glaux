@@ -1504,6 +1504,10 @@ canvas {
   flex-direction: column;
   min-width: 0;
   gap: 1px;
+  /* 长工具链不把最终回答推得太远：过程区自己滚动（与 DSH 的过程折叠同形）。 */
+  max-height: min(42vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 /* 紧跟智能体正文的步骤组不再重复头像，贴近上方正文 */
 .turn.assistant.tool.continued { margin-top: -6px; }
