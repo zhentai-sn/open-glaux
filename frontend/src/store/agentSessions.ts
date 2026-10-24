@@ -29,6 +29,7 @@ import type {
   PromptImage,
   RuntimeEvent,
   SessionListItem,
+  SessionStats,
   SessionStatus,
   SessionView,
   TranscriptMessage,
@@ -96,6 +97,9 @@ interface AgentSessionsState {
   /** 运行中工具的起止时刻（`tool.start` / `tool.end`），按会话、工具调用标识保存；快照带 `duration_ms` 后以快照为准。 */
   toolTimings: Record<string, Record<string, ToolTiming>>;
   error:{ code: string; message: string; traceId?: string } | null;
+  /** 会话统计（SDD 21 §9.5）：输入区上下文面板用，按会话缓存；一轮结束或打开面板时刷新。 */
+  stats: Record<string, SessionStats>;
+  refreshStats: (sessionId: string) => Promise<void>;
 
   initialize: () => Promise<void>;
   /**
@@ -110,6 +114,8 @@ interface AgentSessionsState {
     sessionId: string,
     permissionMode: PermissionMode,
   ) => Promise<void>;
+  /** 换模型时同步会话绑定（SDD 00 §4）：轨迹留一条 `model_change`，会话列表里的模型不过期。 */
+  setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   sendPrompt: (
     content: string,
@@ -287,6 +293,7 @@ export function createAgentSessionsStore(
       subagentProgress: {},
       toolTimings: {},
       error: null,
+      stats: {},
 
       initialize: async () => {
         if (get().initialized || get().loading) return;
@@ -469,6 +476,23 @@ export function createAgentSessionsStore(
       setSearch: (search) => set({ search }),
       clearError: () => set({ error: null }),
 
+      setModel: async (sessionId, provider, model) => {
+        try {
+          get().applySnapshot(await runtime.patchSession(sessionId, { provider, model }));
+        } catch {
+          // 运行中（409）或离线：下一次发送仍以连接为准，这里不打扰。
+        }
+      },
+
+      refreshStats: async (sessionId) => {
+        try {
+          const stats = await runtime.getStats(sessionId);
+          set((state) => ({ stats: { ...state.stats, [sessionId]: stats } }));
+        } catch {
+          // 统计是便利信息：失败不弹错，胶囊回退到消息估算。
+        }
+      },
+
       replyInteraction: async (sessionId, requestId, reply) => {
         const request = get().views[sessionId]?.pending_interactions?.find((item) => item.request_id === requestId);
         try {
@@ -527,7 +551,14 @@ export function createAgentSessionsStore(
               : {}),
           };
         });
-        if (snapshot.phase === "idle") releaseIdleEvents();
+        if (snapshot.phase === "idle") {
+          releaseIdleEvents();
+          // 一轮结束（或首次连上）刷新统计：输入区的上下文面板与胶囊百分比都读它。
+          // 命令的审计条目（模型调用、工具耗时）在结束后才落盘，稍后再取一次，避免读到上一轮。
+          const sessionId = snapshot.session_id;
+          void get().refreshStats(sessionId);
+          window.setTimeout(() => void get().refreshStats(sessionId), 600);
+        }
       },
 
       applyRuntimeEvent: (event) => {

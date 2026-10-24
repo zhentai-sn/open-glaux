@@ -27,6 +27,10 @@ import { FileCard, parseFileRead } from "./FileCard";
 import { SubagentCard, parseSubagentRun } from "./SubagentCard";
 import { ConnectionConfig } from "./ConnectionConfig";
 import { ConversationComposer } from "./ConversationComposer";
+import { ComposerPopover } from "./ComposerPopover";
+import { ContextUsagePanel } from "./ContextUsagePanel";
+import { ModelMenu, REASONING_LEVEL_KEY } from "./ModelMenu";
+import { estimateTokens, percentText } from "./usageFormat";
 import { PermissionMenu } from "./PermissionMenu";
 import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
@@ -327,19 +331,10 @@ function streamBlocks(messages: unknown[]): StreamBlock[] {
   return blocks;
 }
 
-// 上下文用量环形图（Claude Code 式）：环弧 = 已用 / 窗口；悬停/聚焦弹出精确数字。
-// 窗口未知时只给灰环 + tokens 数（无单位裸数不上屏，G7）。用量语义色：≥90% crit、≥70% warn。
-function ContextRing({
-  tokens,
-  windowSize,
-  label,
-}: {
-  tokens: number | null;
-  windowSize: number | null;
-  label: string;
-}) {
-  const pct =
-    tokens != null && windowSize ? Math.min(1, tokens / windowSize) : null;
+// 输入区上下文胶囊的环形指示（SDD 21 §9.5）：环弧 = 已用 / 窗口。
+// 精确数字与分段明细交给点开的上下文面板；窗口未知时只给灰环。
+function UsageRing({ tokens, windowSize }: { tokens: number | null; windowSize: number | null }) {
+  const pct = tokens != null && windowSize ? Math.min(1, tokens / windowSize) : null;
   const R = 5;
   const C = 2 * Math.PI * R;
   const tone =
@@ -350,36 +345,23 @@ function ContextRing({
         : pct >= 0.7
           ? "var(--warn)"
           : "var(--agent)";
-  const pctText =
-    pct == null ? "" : pct > 0 && pct * 100 < 0.1 ? "<0.1%" : `${(pct * 100).toFixed(1)}%`;
-  const tip =
-    tokens == null
-      ? `${label} —`
-      : windowSize
-        ? `${label} ${tokens.toLocaleString()} / ${windowSize.toLocaleString()} · ${pctText}`
-        : `${label} ${tokens.toLocaleString()} tokens`;
   return (
-    <span className="context-ring" tabIndex={0} aria-label={tip}>
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-        <circle cx="7" cy="7" r={R} fill="none" stroke="var(--line2)" strokeWidth="2.4" />
-        {pct != null && pct > 0 && (
-          <circle
-            cx="7"
-            cy="7"
-            r={R}
-            fill="none"
-            stroke={tone}
-            strokeWidth="2.4"
-            strokeDasharray={`${Math.max(C * pct, 0.9)} ${C}`}
-            strokeLinecap="round"
-            transform="rotate(-90 7 7)"
-          />
-        )}
-      </svg>
-      <span className="context-ring-tip" role="tooltip">
-        {tip}
-      </span>
-    </span>
+    <svg className="usage-ring" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <circle cx="7" cy="7" r={R} fill="none" stroke="var(--line2)" strokeWidth="2.4" />
+      {pct != null && pct > 0 && (
+        <circle
+          cx="7"
+          cy="7"
+          r={R}
+          fill="none"
+          stroke={tone}
+          strokeWidth="2.4"
+          strokeDasharray={`${Math.max(C * pct, 0.9)} ${C}`}
+          strokeLinecap="round"
+          transform="rotate(-90 7 7)"
+        />
+      )}
+    </svg>
   );
 }
 
@@ -423,6 +405,10 @@ export function AgentConversation() {
   const runNotice = useAgentSessions((state) =>
     state.currentSessionId ? state.runNotices[state.currentSessionId] : undefined,
   );
+  const stats = useAgentSessions((state) =>
+    state.currentSessionId ? state.stats[state.currentSessionId] : undefined,
+  );
+  const refreshStats = useAgentSessions((state) => state.refreshStats);
   const connection = useSession((state) => state.connection);
   const projects = useProjects((state) => state.projects);
   const projectsLoaded = useProjects((state) => state.loaded);
@@ -578,8 +564,12 @@ export function AgentConversation() {
       ? -1
       : messages.length - reversedAssistantIndex - 1;
   const context = view?.context_usage;
+  // 上下文用量（SDD 21 §9.5）：统计到了用三段合计，未到用快照里的消息估算；
   // 窗口大小：运行时回传优先，缺省回退连接配置里的 contextWindow（自定义模型必填）。
-  const contextWindow = context?.context_window ?? connection.contextWindow ?? null;
+  const contextTokens = stats?.context?.tokens ?? context?.tokens ?? null;
+  const contextWindow = stats?.context?.window ?? context?.context_window ?? connection.contextWindow ?? null;
+  const contextRatio = contextTokens != null && contextWindow ? Math.min(1, contextTokens / contextWindow) : null;
+  const level = connection.thinkingLevel ?? "off";
 
   // 已处理的交互请求显示在主对话中关联的工具调用之后；找不到该调用时（旧版 runtime、
   // 调用已不在当前分支）放在消息末尾。
@@ -994,15 +984,49 @@ export function AgentConversation() {
         notice={readonlyNotice}
         controls={
           <>
-            <ContextRing
-              tokens={context?.tokens ?? null}
-              windowSize={contextWindow}
-              label={t("agent_context")}
-            />
-            {/* 只显示模型名：服务类型对用户没有决策价值，点击进连接设置 */}
-            <button className="composer-model" type="button" title={t("cfg_title")} onClick={openConfig}>
-              {connection.model || t("agent_model_none")}
-            </button>
+            {/* 上下文胶囊：环 + 百分比，点开是详细统计（数值全部来自 runtime 的会话统计） */}
+            <ComposerPopover
+              label={t("agent_usage_used")}
+              tip={t("agent_usage_title")}
+              icon={<UsageRing tokens={contextTokens} windowSize={contextWindow} />}
+              text={contextRatio != null
+                ? percentText(contextRatio)
+                : contextTokens != null ? estimateTokens(contextTokens) : "—"}
+              chevron={false}
+              width={320}
+              onOpen={() => {
+                if (currentSessionId) void refreshStats(currentSessionId);
+              }}
+            >
+              {() => (
+                <ContextUsagePanel
+                  stats={stats ?? null}
+                  fallbackTokens={context?.tokens ?? null}
+                  fallbackWindow={connection.contextWindow ?? null}
+                />
+              )}
+            </ComposerPopover>
+            {/* 模型胶囊：模型名 + 推理档位，点开换模型或改档位 */}
+            <ComposerPopover
+              label={t("agent_model")}
+              tip={t("agent_model_hint")}
+              text={connection.model || t("agent_model_none")}
+              suffix={level === "off" ? undefined : (
+                <span className="composer-pill-suffix">{t(REASONING_LEVEL_KEY[level])}</span>
+              )}
+              width={340}
+            >
+              {(close) => (
+                <ModelMenu
+                  sessionId={currentSessionId}
+                  running={Boolean(activeRun)}
+                  onMore={() => {
+                    close();
+                    openConfig();
+                  }}
+                />
+              )}
+            </ComposerPopover>
             {!CHAT_EDITION && (
               <PermissionMenu
                 value={view?.permission_mode ?? "controlled"}

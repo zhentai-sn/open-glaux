@@ -1749,47 +1749,77 @@ canvas {
   margin-left: auto;
 }
 .composer-uploading { color: var(--faint); font-size: 11px; white-space: nowrap; }
-.composer-model,
-.composer-permission {
+/* 输入区胶囊：上下文、模型、权限同构（SDD 00 §5.2）。图标 + 文本 + 可选弱化后缀，
+   点击向上弹层；三者的弹层都由 .composer-pop 提供外壳。 */
+.composer-pop-wrap { position: relative; min-width: 0; }
+.composer-pill {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  padding: 4px 7px;
+  max-width: 220px;
+  padding: 3px 7px;
   color: var(--mid);
   border-radius: var(--radius-sm);
   font-size: 12px;
   white-space: nowrap;
 }
-.composer-model { overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-.composer-model:hover,
-.composer-permission:hover { color: var(--bright); background: var(--hover); }
-.composer-permission.open { color: var(--bright); background: var(--hover); }
-.composer-permission:disabled { opacity: 0.5; cursor: default; background: transparent; }
-/* 权限菜单：向上弹出、右对齐；图标 + 名称 + 一句说明，当前项打勾 */
-.permission-menu-wrap { position: relative; min-width: 0; }
-.permission-menu {
+.composer-pill:hover,
+.composer-pill.open { color: var(--bright); background: var(--hover); }
+.composer-pill:disabled { opacity: 0.5; cursor: default; background: transparent; }
+.composer-pill-text { overflow: hidden; text-overflow: ellipsis; }
+.composer-pill-suffix { flex: none; color: var(--agent); font-size: 11px; }
+.composer-pill > svg { flex: none; }
+.composer-pill > svg:last-child:not(:first-child) { color: var(--faint); }
+.usage-ring { display: block; }
+.composer-pop {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
   z-index: 30;
   display: flex;
-  width: 300px;
+  max-width: 360px;
   flex-direction: column;
   gap: 2px;
-  padding: 6px;
+  padding: 10px 12px;
+  color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line2);
   border-radius: var(--radius-lg);
   box-shadow: 0 10px 30px rgba(20, 20, 19, 0.28);
-  animation: permission-menu-in var(--motion-fast) var(--ease-out);
+  animation: composer-pop-in var(--motion-fast) var(--ease-out);
 }
-@keyframes permission-menu-in {
+.composer-pop--permission { padding: 6px; }
+@keyframes composer-pop-in {
   from { opacity: 0; transform: translateY(4px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .permission-menu { animation: none; }
+  .composer-pop { animation: none; }
 }
+.composer-pop-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.composer-pop-sep { height: 1px; margin: 8px 0 6px; background: var(--line); }
+.composer-pop-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px;
+  color: var(--mid);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  text-align: left;
+}
+.composer-pop-more:hover,
+.composer-pop-more:focus-visible { color: var(--bright); background: var(--hover); }
+
+/* 权限弹层：图标 + 名称 + 一句说明，当前项打勾 */
+.permission-menu { display: flex; flex-direction: column; gap: 2px; }
 .permission-menu button {
   display: flex;
   align-items: flex-start;
@@ -1808,8 +1838,178 @@ canvas {
 .permission-menu-text b { font-size: 13px; font-weight: 500; color: var(--bright); }
 .permission-menu-text small { font-size: 11.5px; line-height: 1.45; color: var(--faint); }
 .permission-menu-check { flex: none; margin-top: 2px; color: var(--agent); }
-.composer-actions .context-ring { padding: 0 4px; }
-.conversation-composer .context-ring-tip { top: auto; bottom: 19px; }
+
+/* ---- 上下文面板：分段条 + 三段明细 + 会话统计 + Token 用量 ---- */
+.usage-panel { display: flex; flex-direction: column; gap: 8px; width: 312px; }
+.usage-head { display: flex; align-items: baseline; gap: 6px; }
+.usage-head-label { font-size: 12px; color: var(--mid); }
+.usage-head-pct { font-size: 13px; font-weight: 600; color: var(--bright); }
+.usage-head-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--mid);
+  font-variant-numeric: tabular-nums;
+}
+.usage-bar {
+  position: relative;
+  overflow: hidden;
+  height: 6px;
+  background: var(--input);
+  border-radius: 3px;
+}
+.usage-bar-fill { display: flex; height: 100%; max-width: 100%; }
+.usage-seg { display: block; min-width: 0; }
+.usage-seg-system { background: var(--mid); }
+.usage-seg-tools { background: color-mix(in srgb, var(--agent) 48%, var(--panel)); }
+.usage-seg-messages { background: var(--agent); }
+.usage-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.usage-legend li { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--mid); }
+.usage-legend b {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--bright);
+  font-variant-numeric: tabular-nums;
+}
+.usage-dot { width: 7px; height: 7px; flex: none; border-radius: 2px; }
+.usage-empty { margin: 2px 0 0; font-size: 11.5px; color: var(--faint); }
+.usage-section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.usage-section h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.usage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin: 0;
+}
+.usage-grid dt { font-size: 11.5px; color: var(--mid); }
+.usage-grid dd {
+  margin: 1px 0 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--bright);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 模型面板：模型列表 + 推理等级滑块 ---- */
+.model-menu { display: flex; flex-direction: column; gap: 6px; width: 316px; }
+.model-list {
+  display: flex;
+  max-height: 220px;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.model-list button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  outline: none;
+}
+.model-list button:hover,
+.model-list button:focus-visible { background: var(--hover); }
+.model-list button.on { background: var(--hover); }
+.model-list-id {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-list button.on .model-list-id { color: var(--bright); }
+.model-list-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.model-list-check { flex: none; color: var(--agent); }
+.model-empty { display: flex; flex-direction: column; gap: 4px; }
+.model-empty small { color: var(--crit); font-size: 11px; line-height: 1.4; }
+.model-fetch {
+  align-self: flex-start;
+  padding: 4px 9px;
+  color: var(--bright);
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.model-fetch:disabled { opacity: 0.6; cursor: default; }
+.reason-head { display: flex; align-items: baseline; gap: 8px; }
+.reason-head b { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--bright); }
+.reason-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.reason-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 18px;
+  padding: 0 2px;
+}
+.reason-rail,
+.reason-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+}
+.reason-rail { left: 2px; right: 2px; background: var(--line2); }
+.reason-track::before {
+  left: 2px;
+  z-index: 1;
+  width: calc((100% - 4px) * var(--reason-ratio, 0));
+  background: var(--mid);
+}
+.reason-track button { z-index: 2; }
+.reason-track button {
+  position: relative;
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 50%;
+  outline: none;
+}
+.reason-track button:focus-visible { box-shadow: 0 0 0 2px var(--agent-line); }
+.reason-dot { width: 5px; height: 5px; background: var(--line2); border-radius: 50%; }
+.reason-track button.on .reason-dot {
+  width: 13px;
+  height: 13px;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  box-shadow: 0 1px 3px rgba(20, 20, 19, 0.22);
+}
+.reason-hint { margin: 0; font-size: 10.5px; line-height: 1.4; color: var(--faint); }
 
 /* 输入区项目胶囊（SDD 13 §7.5） */
 .project-chip-wrap { position: relative; min-width: 0; }
@@ -2751,8 +2951,8 @@ body.resizing .focus-rail { transition: none; }
 .focus-conversation.empty .focus-hero { margin-top: auto; }
 .focus-conversation.empty > .focus-cards { flex: none; margin-bottom: auto; padding-bottom: 12px; }
 .focus-conversation.empty .conversation-stream { display: none; }
-/* 空状态还没有用量，上下文环不显示 */
-.focus-conversation.empty .composer-actions .context-ring { display: none; }
+/* 空状态还没有用量，上下文胶囊不显示 */
+.focus-conversation.empty .composer-pop-wrap:has(.usage-ring) { display: none; }
 /* 空状态只管布局（卡片外观/光晕/透明 textarea 已泛化到上方 Focus 通用段）。 */
 .focus-conversation.empty .agent {
   flex: none;
@@ -2921,35 +3121,6 @@ body.resizing .focus-rail { transition: none; }
   pointer-events: none;
 }
 
-/* ---- 上下文用量环形图（Claude Code 式；hover/focus 弹出精确数字） ---- */
-.context-ring {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: default;
-  outline: none;
-}
-.context-ring svg { display: block; }
-.context-ring-tip {
-  position: absolute;
-  right: 0;
-  top: 19px;
-  z-index: 30;
-  white-space: nowrap;
-  background: var(--activity);
-  border: 1px solid var(--line2);
-  border-radius: var(--radius-sm);
-  padding: 4px 9px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--bright);
-  font-variant-numeric: tabular-nums;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--motion-fast) var(--ease-out);
-}
-.context-ring:hover .context-ring-tip,
-.context-ring:focus-visible .context-ring-tip { opacity: 1; }
 .who svg { flex: none; }
 
 /* ---- 对话消息 Markdown 渲染（SDD feats/00 §5.1；react-markdown，无原始 HTML） ----

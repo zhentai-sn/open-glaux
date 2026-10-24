@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import type { PermissionMode } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
+import { ComposerPopover } from "./ComposerPopover";
 
 const MODES: { mode: PermissionMode; icon: LucideIcon }[] = [
   { mode: "observe", icon: ICONS.permObserve },
@@ -13,8 +14,8 @@ const MODES: { mode: PermissionMode; icon: LucideIcon }[] = [
   { mode: "autonomous", icon: ICONS.permAutonomous },
 ];
 
-// 输入框底栏的权限模式菜单（SDD 15 §7.4）：向上弹出，每项图标 + 名称 + 一句说明，当前项打勾。
-// 切到 autonomous 前的确认由调用方在 onChange 里做。
+// 输入区底栏的权限模式胶囊（SDD 15 §7.4）：向上弹出，每项图标 + 名称 + 一句说明，当前项打勾。
+// 切到 autonomous 前的确认由调用方在 onChange 里做。外壳与其余胶囊同构（SDD 00 §5.2）。
 export function PermissionMenu({
   value,
   disabled,
@@ -25,70 +26,44 @@ export function PermissionMenu({
   onChange: (mode: PermissionMode) => void;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = MODES.find((item) => item.mode === value) ?? MODES[2]!;
 
-  useEffect(() => {
-    if (!open) return;
-    itemRefs.current[MODES.findIndex((item) => item.mode === value)]?.focus();
-    const onDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [open, value]);
-
-  const close = () => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  };
-  const choose = (mode: PermissionMode) => {
-    close();
-    if (mode !== value) onChange(mode);
-  };
-  const onMenuKey = (event: KeyboardEvent) => {
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
     const items = itemRefs.current;
-    const at = items.findIndex((el) => el === document.activeElement);
-    if (event.key === "Escape" || event.key === "Tab") {
-      event.preventDefault();
-      close();
-    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const step = event.key === "ArrowDown" ? 1 : -1;
-      items[(at + step + items.length) % items.length]?.focus();
-    }
+    const at = items.findIndex((element) => element === document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    items[(at + step + items.length) % items.length]?.focus();
   };
 
   return (
-    <div className="permission-menu-wrap" ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`composer-permission${open ? " open" : ""}`}
-        title={t(`agent_permission_${value}_hint`)}
-        aria-label={`${t("agent_permission")}: ${t(`agent_permission_${value}`)}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Icon icon={current.icon} size="sm" />
-        <span>{t(`agent_permission_${value}`)}</span>
-        <Icon icon={open ? ICONS.chevronUp : ICONS.chevronDown} size="sm" />
-      </button>
-      {open && (
-        <div className="permission-menu" role="menu" aria-label={t("agent_permission")} onKeyDown={onMenuKey}>
+    <ComposerPopover
+      label={`${t("agent_permission")}: ${t(`agent_permission_${value}`)}`}
+      tip={t(`agent_permission_${value}_hint`)}
+      icon={<Icon icon={current.icon} size="sm" />}
+      text={t(`agent_permission_${value}`)}
+      disabled={disabled}
+      width={300}
+      role="menu"
+      className="composer-pop--permission"
+      onKeyDown={onMenuKey}
+    >
+      {(close) => (
+        <div className="permission-menu">
           {MODES.map((item, index) => (
             <button
               key={item.mode}
-              ref={(el) => { itemRefs.current[index] = el; }}
+              ref={(element) => { itemRefs.current[index] = element; }}
               type="button"
               role="menuitemradio"
               aria-checked={item.mode === value}
-              onClick={() => choose(item.mode)}
+              {...(item.mode === value ? { "data-autofocus": true } : {})}
+              onClick={() => {
+                close();
+                if (item.mode !== value) onChange(item.mode);
+              }}
             >
               <Icon icon={item.icon} size="sm" />
               <span className="permission-menu-text">
@@ -100,6 +75,6 @@ export function PermissionMenu({
           ))}
         </div>
       )}
-    </div>
+    </ComposerPopover>
   );
 }

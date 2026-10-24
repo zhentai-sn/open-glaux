@@ -72,6 +72,7 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
 | Base URL | 否 | OpenAI-compatible、本地 Ollama/LM Studio 等连接可使用 |
 | Context Window | 自定义模型必填 | Pi 内置目录已知的模型可省略；否则提供模型上下文上限 |
 | Max Output Tokens | 自定义模型必填 | Pi 内置目录已知的模型可省略；否则提供单次输出上限 |
+| 推理档位 | 否 | `off`、`low`、`medium`、`high`；缺省 `off`（不下发 thinking 参数）。随连接持久化，发送时进 `connection.thinking_level` |
 | 权限模式 | 是 | `observe`、`suggest`、`controlled`、`autonomous`；首期默认 `controlled` |
 
 ### 4.2 系统输入
@@ -104,6 +105,10 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
   探不到则预填默认 `context_window=200000`、`max_tokens=32768`（本机存储中恰为旧默认组合 128000/8192 的，
   载入时迁移为新默认）。预填值**始终可见且可改**，
   因此送到 runtime 的仍是用户可核对的显式值——不是静默猜测。
+- 推理档位由连接持有（2026-10-24）：`off` 不声明推理能力、不下发任何 thinking 参数；其余三档映射为 Pi 的
+  `ThinkingLevel` 传给 `AgentHarness`，由 provider 转成 `reasoning_effort`（OpenAI 兼容族）或 thinking 预算
+  （Anthropic）。Pi 内置目录之外的自定义模型默认 `reasoning: false`，只有用户选了非 `off` 档位时才置真——
+  用户不碰档位就不会给未知端点多发参数；端点若拒绝该字段，用户把档位改回 `off` 即可。
 - Glaux 不直接读写 Pi SQLite 内部表；所有 transcript、消息树和 compaction 操作必须通过 Pi Session/Harness API。
 
 ## 5. 输出
@@ -120,6 +125,9 @@ Glaux 仍是智能体运行环境；内置参考 Agent 由 Pi `AgentHarness` 提
   影像的导航与测量归查看器，不在对话里重复一套。
 - 明确的运行状态：等待、生成中、已完成、已停止、失败。
 - 会话列表、归档状态、最近消息时间和当前上下文占用。
+- 输入区三个同构胶囊（2026-10-24）：「上下文已用」显示环与百分比，点开是上下文面板（三色分段条 +
+  系统提示词/工具定义/对话消息三段估算，以及会话统计与 Token 用量）；「模型」显示模型名与推理档位后缀，
+  点开可换模型、改推理档位或进连接设置；「权限」保持原有模式菜单。三者的弹层同一外壳，点外与 Esc 关闭。
 - 可恢复的错误提示与重试入口。
 - 上下文压缩完成提示，不暴露内部摘要全文。
 
@@ -269,7 +277,7 @@ SSE 不提供历史 token 重放，也不持久化第二份 RuntimeEvent。重�
 
 1. 顶栏：当前会话标题、会话列表、新建会话、更多菜单。
 2. 消息区：用户与 assistant 消息、流式状态、停止/重试/重新生成入口。
-3. 输入区：多行文本、图像附件（粘贴/选择/拖放，见 §4.3 与 D-021）；底栏左侧为附件 ＋ 与项目胶囊，右侧依次为上下文占用、模型名（点击打开连接设置）、权限模式、发送/停止（D-024）。
+3. 输入区：多行文本、图像附件（粘贴/选择/拖放，见 §4.3 与 D-021）；底栏左侧为附件 ＋ 与项目胶囊，右侧依次为上下文用量胶囊、模型胶囊（模型名 + 推理档位，点开换模型或改档位）、权限胶囊、发送/停止（D-024）。
 4. 会话列表：按项目分组，支持搜索、切换、重命名、归档、恢复和删除；分组、状态点与项目胶囊见 SDD 13 §7.4、§7.5。
 
 不得新增分支按钮、历史消息编辑入口或替代回答版本选择器。
@@ -370,6 +378,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.max_tokens` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
 | `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022） |
+| `connection.thinking_level` | enum nullable | 推理档位 `off`、`low`、`medium`、`high`；缺省 `off`，未知值返回 `400 invalid_request` |
 | `skill` | text nullable | 仅 `prompt`；显式调用的 Skill 名称，与 `template` 互斥，不接受 `images`（[SDD 17](../17-agent-skills-prompts/README.md) §7.4） |
 | `template` | object nullable | 仅 `prompt`；`{name, args}`，显式调用的提示词模板（SDD 17 §7.4） |
 | `lang` | enum nullable | `prompt`/`regenerate` 可选；`en`、`zh`，系统提示词与工具定义的语言，缺省 `en`；出现时参与命令摘要（[SDD 20](../20-prompt-language/README.md) §7.1、§10） |
@@ -526,6 +535,7 @@ erDiagram
 - [x] Runtime 异常退出再启动后，最后一条已提交 Pi session entry 可恢复，允许丢失未提交 token。
 - [x] 同 Session 并发发送第二个生成命令返回 `409 session_busy`；不同 Session 可以并发运行。
 - [x] SSE 输出只包含 `snapshot`、SDD 15 §9.5 的运行事件、`video.answer`、`adapter.error`，不透传 Pi 事件。
+- [x] 输入区三胶囊同构；上下文面板给出三段估算与会话统计；换模型写连接并同步会话绑定；推理档位持久化并随命令下发。
 
 ### 15.3 重新生成与无分支约束
 

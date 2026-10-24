@@ -216,7 +216,13 @@ export interface ConnectionInput {
    */
   vision?: boolean;
   media_adapter?: "qwen-omni";
+  /** 推理档位（SDD 00 §4）：`off` 不下发 thinking 参数。 */
+  thinking_level?: ThinkingLevel;
 }
+
+/** 推理档位（与 runtime 的 `THINKING_LEVELS` 同集合）。 */
+export const THINKING_LEVELS = ["off", "low", "medium", "high"] as const;
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export interface VideoInterval { start_ms: number; end_ms: number }
 export interface ClipObservation {
@@ -556,8 +562,27 @@ export interface Trajectory {
     turns: number;
     model_calls: number;
     tool_calls: number;
-    usage: { input: number; output: number; cache_read: number; cache_write: number };
+    usage: { input: number; output: number; cache_read: number; cache_write: number; cost: number };
   };
+}
+
+/** 会话统计（SDD 21 §9.5）：输入区上下文面板的数据。 */
+export interface SessionStats {
+  model_calls: number;
+  tool_calls: number;
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number };
+  model_ms: number;
+  tool_ms: number;
+  first_token_avg_ms: number | null;
+  output_tps: number | null;
+  cache_hit_ratio: number | null;
+  context: {
+    tokens: number;
+    window: number | null;
+    system: number;
+    tools: number;
+    messages: number;
+  } | null;
 }
 
 export interface RequestContextMessage {

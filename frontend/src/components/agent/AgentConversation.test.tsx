@@ -88,10 +88,9 @@ describe("AgentConversation", () => {
     expect(screen.getByText("Explain this scan")).toBeInTheDocument();
     expect(screen.getByText("What is visible?")).toBeInTheDocument();
     expect(screen.getByText("A concise observation.")).toBeInTheDocument();
-    // 上下文用量为环形图，精确数字在 aria-label/tooltip 里（Claude Code 式）
-    expect(
-      screen.getByLabelText(/Context usage 128 \/ 32,768/),
-    ).toBeInTheDocument();
+    // 输入区三个胶囊同构（SDD 00 §5.2）：上下文用量、模型、权限
+    expect(screen.getByRole("button", { name: "Context used" })).toHaveTextContent("0.4%");
+    expect(screen.getByRole("button", { name: "Model" })).toHaveTextContent("claude-test");
     expect(screen.getByRole("button", { name: "Permission: Controlled" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Instruct the agent…" })).toBeEnabled();
   });

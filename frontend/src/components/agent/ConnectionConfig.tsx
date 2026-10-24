@@ -79,7 +79,7 @@ function compact(n: number | null): string {
  * 选中模型时补齐上下文元数据（SDD 00 §4）：上游自报值优先，探不到落默认值。
  * 只在字段为空时兜底默认值——用户手改过的数字不覆盖；上游有明确值则以上游为准。
  */
-function metaForModel(model: VlmModelInfo | undefined, current: Connection) {
+export function metaForModel(model: VlmModelInfo | undefined, current: Connection) {
   const contextWindow =
     model?.context_window ?? current.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
   const wanted = model?.max_tokens ?? current.maxTokens ?? DEFAULT_MAX_TOKENS;

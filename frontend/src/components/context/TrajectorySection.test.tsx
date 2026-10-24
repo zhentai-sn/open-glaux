@@ -28,7 +28,7 @@ const usage = { input: 100, output: 20, cacheRead: 10, cacheWrite: 0 };
 const TRAJECTORY: Trajectory = {
   session_id: "s1",
   headers: { h1: H1, h2: H2 },
-  totals: { turns: 2, model_calls: 3, tool_calls: 1, usage: { input: 300, output: 60, cache_read: 30, cache_write: 0 } },
+  totals: { turns: 2, model_calls: 3, tool_calls: 1, usage: { input: 300, output: 60, cache_read: 30, cache_write: 0, cost: 0 } },
   turns: [
     {
       index: 1, command_id: "c1", command_type: "prompt", started_at: 1000, ended_at: 4000, outcome: "completed",

@@ -34,7 +34,7 @@ export function toViewerContext(): ViewerContext {
 }
 
 /** 前端枚举（下划线）→ runtime 枚举（连字符）；deepseek / anthropic / opencode 两侧同名。 */
-function runtimeProvider(
+export function runtimeProviderName(
   provider: Connection["provider"],
 ): "anthropic" | "openai-compatible" | "deepseek" | "opencode" {
   return provider === "openai_compatible" ? "openai-compatible" : provider;
@@ -43,7 +43,7 @@ function runtimeProvider(
 /** 连接探测入参（测试连接 / 拉模型）——只带 provider / 端点 / 密钥，不带 model。 */
 export function toProbeInput(connection: Connection): ConnectionProbeInput {
   return {
-    provider: runtimeProvider(connection.provider),
+    provider: runtimeProviderName(connection.provider),
     ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
     ...(connection.apiKey ? { credential: connection.apiKey } : {}),
   };
@@ -71,7 +71,7 @@ export function toConnectionInput(
 ): ConnectionInput {
   return {
     vision: visionFor(connection, hasImages),
-    provider: runtimeProvider(connection.provider),
+    provider: runtimeProviderName(connection.provider),
     model: connection.model,
     ...(connection.mediaAdapter === "qwen-omni" ? { media_adapter: "qwen-omni" as const } : {}),
     ...(connection.baseUrl ? { base_url: connection.baseUrl } : {}),
@@ -80,6 +80,7 @@ export function toConnectionInput(
       : {}),
     ...(connection.maxTokens ? { max_tokens: connection.maxTokens } : {}),
     ...(connection.apiKey ? { credential: connection.apiKey } : {}),
+    ...(connection.thinkingLevel ? { thinking_level: connection.thinkingLevel } : {}),
   };
 }
 

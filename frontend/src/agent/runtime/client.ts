@@ -16,6 +16,7 @@ import type {
   ViewerContext,
   RuntimeHealth,
   SessionListItem,
+  SessionStats,
   SessionStatus,
   SessionView,
   SystemPromptPreview,
@@ -157,6 +158,8 @@ export const agentRuntimeApi = {
     }),
   // SDD 21 §9.3、§9.4：运行轨迹与单次请求上下文
   getTrajectory: (sessionId: string) => request<Trajectory>(`/sessions/${encodeURIComponent(sessionId)}/trajectory`),
+  // SDD 21 §9.5：输入区上下文面板的会话统计
+  getStats: (sessionId: string) => request<SessionStats>(`/sessions/${encodeURIComponent(sessionId)}/stats`),
   getRequestContext: (sessionId: string, itemId: string) =>
     request<RequestContext>(`/sessions/${encodeURIComponent(sessionId)}/trajectory/requests/${encodeURIComponent(itemId)}`),
   previewSystemPrompt: (sessionId: string, connection: ConnectionProbeInput | object, viewer?: ViewerContext, lang?: PromptLang) =>

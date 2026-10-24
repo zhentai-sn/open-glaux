@@ -19,6 +19,7 @@ import type {
   VlmProvider,
 } from "../api/types";
 import type { Attachment } from "../agent/attachments";
+import type { ThinkingLevel } from "../agent/runtime/types";
 import { readRecent, writeRecent, type RecentItem } from "../data/recent";
 import { useContextSection, type ContextSection } from "./contextSection";
 
@@ -33,6 +34,8 @@ export interface Connection {
   maxTokens: number | null; // 同上；Pi 内置目录已知模型可为空
   models?: VlmModelInfo[]; // 上次拉取缓存（UI 便利，可失效）
   lastTest?: { ok: boolean; at: string; reason?: string };
+  /** 推理档位（SDD 00 §4）：随连接持久化，发送时进 `ConnectionInput.thinking_level`。 */
+  thinkingLevel?: ThinkingLevel;
 }
 
 /** Composer 里待发送的问题所绑定的视频对象；源文件由上传数据源保存。 */
