@@ -413,9 +413,20 @@ interface RequestContext {
 消息的 `usage`，**不经轨迹投影**，因此不带消息正文。
 
 ```ts
+interface TurnStats {               // 逐轮：命令受理开一轮、结算收尾
+  started_at: number | null;
+  ended_at: number | null;
+  provider: string | null;            // 取自本轮请求头
+  model: string | null;
+  usage: TrajectoryUsage;
+  model_calls: number;
+  tool_calls: number;
+}
+
 interface SessionStats {
   model_calls: number;                // assistant 消息数 + compaction 次数
   tool_calls: number;                 // toolResult 数
+  turns: TurnStats[];                 // 逐轮统计，对话流的「本轮用量」用它
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number };
   model_ms: number;                   // 各次调用 duration_ms 之和（含首 token 等待）
   tool_ms: number;                    // 工具耗时之和，已扣除等待用户回复（审批、ask_user）

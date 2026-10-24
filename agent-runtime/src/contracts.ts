@@ -401,9 +401,23 @@ export interface TrajectoryUsage {
  * 会话统计（SDD 21 §9.5）：输入区上下文面板的会话级合计。
  * 直接扫会话分支的审计条目得出，不经轨迹投影，故不带正文。
  */
+/** 一轮（一次命令）的用量与身份（SDD 21 §9.5）：对话流按轮显示「本轮用量」。 */
+export interface TurnStats {
+  /** 命令受理时间；历史遗留轮次取第一条消息的时间。 */
+  started_at: number | null;
+  ended_at: number | null;
+  provider: string | null;
+  model: string | null;
+  usage: TrajectoryUsage;
+  model_calls: number;
+  tool_calls: number;
+}
+
 export interface SessionStats {
   model_calls: number;
   tool_calls: number;
+  /** 按时间顺序的逐轮统计；下标与「第 N 条 user 消息」对应。 */
+  turns: TurnStats[];
   usage: TrajectoryUsage;
   /** 各次模型调用时长之和（毫秒），含首 token 等待。 */
   model_ms: number;

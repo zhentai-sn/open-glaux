@@ -4,7 +4,7 @@
  */
 import type { SessionTreeEntry } from "@earendil-works/pi-agent-core";
 
-import type { SessionStats } from "../contracts.js";
+import type { SessionStats, TurnStats } from "../contracts.js";
 import { TOOL_TIMING_ENTRY } from "../pi/session-service.js";
 import { MODEL_CALL_ENTRY, REQUEST_HEADER_ENTRY } from "./capture.js";
 
@@ -32,6 +32,38 @@ export function sessionStats(entries: readonly SessionTreeEntry[]): SessionStats
   let tools = 0;
   let window: number | null = null;
 
+  // 逐轮统计：命令受理（`glaux.command.accepted`）开一轮，命令结算（`…settled`）收尾；
+  // 历史（无受理记录）里遇到 user 消息也开一轮。
+  const turns: TurnStats[] = [];
+  let turn: TurnStats | null = null;
+  const openTurn = (startedAt: number | null): TurnStats => {
+    const created: TurnStats = {
+      started_at: startedAt,
+      ended_at: null,
+      provider: null,
+      model: null,
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
+      model_calls: 0,
+      tool_calls: 0,
+    };
+    turns.push(created);
+    return created;
+  };
+  const stamp = (entry: unknown): number | null => {
+    const raw = (entry as { timestamp?: unknown }).timestamp;
+    const at = typeof raw === "string" ? Date.parse(raw) : NaN;
+    return Number.isFinite(at) ? at : null;
+  };
+  const addTurnUsage = (value: unknown) => {
+    if (!turn) return;
+    const source = record(value);
+    turn.usage.input += num(source, "input");
+    turn.usage.output += num(source, "output");
+    turn.usage.cacheRead += num(source, "cacheRead");
+    turn.usage.cacheWrite += num(source, "cacheWrite");
+    turn.usage.cost = (turn.usage.cost ?? 0) + num(record(source?.cost), "total");
+  };
+
   const addUsage = (value: unknown) => {
     const source = record(value);
     usage.input += num(source, "input");
@@ -47,8 +79,16 @@ export function sessionStats(entries: readonly SessionTreeEntry[]): SessionStats
       if (message?.role === "assistant") {
         modelCalls += 1;
         addUsage(message.usage);
+        if (turn) {
+          turn.model_calls += 1;
+          addTurnUsage(message.usage);
+        }
       } else if (message?.role === "toolResult") {
         toolCalls += 1;
+        if (turn) turn.tool_calls += 1;
+      } else if (message?.role === "user" && !turn) {
+        // 历史遗留：没有受理记录的旧轮次
+        turn = openTurn(stamp(entry));
       }
       continue;
     }
@@ -60,6 +100,17 @@ export function sessionStats(entries: readonly SessionTreeEntry[]): SessionStats
     }
     if (entry.type !== "custom") continue;
     const data = record(entry.data) ?? {};
+    if (entry.customType === "glaux.command.accepted") {
+      turn = openTurn(stamp(entry));
+      continue;
+    }
+    if (entry.customType === "glaux.command.settled") {
+      if (turn) {
+        turn.ended_at = stamp(entry);
+        turn = null;
+      }
+      continue;
+    }
     if (entry.customType === MODEL_CALL_ENTRY) {
       modelMs += num(data, "duration_ms");
       if (typeof data.first_token_ms === "number") {
@@ -72,6 +123,10 @@ export function sessionStats(entries: readonly SessionTreeEntry[]): SessionStats
       // 等待用户回复（审批、ask_user）的时长不算工具执行时间。
       toolMs += Math.max(0, num(data, "duration_ms") - num(data, "waited_ms"));
     } else if (entry.customType === REQUEST_HEADER_ENTRY) {
+      if (turn) {
+        if (typeof data.provider === "string") turn.provider = data.provider;
+        if (typeof data.model === "string") turn.model = data.model;
+      }
       if (typeof data.context_window === "number") window = data.context_window;
       const est = record(record(data.body)?.est_tokens);
       if (est) {
@@ -87,6 +142,7 @@ export function sessionStats(entries: readonly SessionTreeEntry[]): SessionStats
   return {
     model_calls: modelCalls,
     tool_calls: toolCalls,
+    turns,
     usage: { ...usage },
     model_ms: modelMs,
     tool_ms: toolMs,

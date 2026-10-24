@@ -63,6 +63,31 @@ describe("sessionStats", () => {
     expect(stats.context).toEqual({ tokens: 1_500 + 16_700 + 2_500, window: 200_000, system: 1_500, tools: 16_700, messages: 2_500 });
   });
 
+  it("按命令受理/结算切轮，逐轮累计用量与身份", () => {
+    const stats = sessionStats([
+      custom("glaux.command.accepted", { command_id: "c1", command_type: "prompt", digest: "d" }),
+      header({ provider: "opencode", model: "deepseek-v4.1-flash", context_window: 200_000, body: { prompt: "p", segments: [], tools: [], est_tokens: { prompt: 10, tools: 20 } } }),
+      assistant({ input: 100, output: 10, cacheRead: 900, cacheWrite: 0, cost: { total: 0.01 } }),
+      toolResult(),
+      custom("glaux.command.settled", { command_id: "c1", command_type: "prompt", digest: "d", result: "completed" }),
+      custom("glaux.command.accepted", { command_id: "c2", command_type: "prompt", digest: "d" }),
+      assistant({ input: 50, output: 5, cacheRead: 0, cacheWrite: 0 }),
+    ]);
+
+    expect(stats.turns).toHaveLength(2);
+    expect(stats.turns[0]).toMatchObject({
+      provider: "opencode",
+      model: "deepseek-v4.1-flash",
+      model_calls: 1,
+      tool_calls: 1,
+      usage: { input: 100, output: 10, cacheRead: 900, cost: 0.01 },
+    });
+    expect(stats.turns[0]!.started_at).toBeTypeOf("number");
+    expect(stats.turns[0]!.ended_at).toBeTypeOf("number");
+    expect(stats.turns[1]).toMatchObject({ model_calls: 1, tool_calls: 0, usage: { output: 5 } });
+    expect(stats.turns[1]!.ended_at).toBeNull();
+  });
+
   it("空会话没有上下文估算，也不算速度", () => {
     expect(sessionStats([])).toMatchObject({
       model_calls: 0,
