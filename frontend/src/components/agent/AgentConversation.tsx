@@ -68,6 +68,20 @@ export function formatDuration(ms: number): string {
 // 工具调用条目（SDD 15 §5.1）：标题行为工具名、入参摘要、耗时，点开看完整输入与输出；
 // 产出卡片（文件、对象、子智能体等）挂在条目下方。run_task 的产出另经 toolBridge 写回查看器。
 // 被拦截或失败的调用在标题行附理由。
+function toolSummary(call: MessageToolCall): string {
+  const args = call.arguments;
+  const value =
+    (typeof args.command === "string" && args.command)
+    || (typeof args.path === "string" && args.path)
+    || (typeof args.task === "string" && args.task)
+    || (typeof args.description === "string" && args.description)
+    || (typeof args.query === "string" && args.query)
+    || Object.values(args).find((item): item is string => typeof item === "string" && item.length > 0)
+    || "";
+  const line = value.replace(/\s+/gu, " ").trim();
+  return line.length > 120 ? `${line.slice(0, 120)}…` : line;
+}
+
 function ToolCallItem({
   call,
   result,
@@ -90,6 +104,7 @@ function ToolCallItem({
   const args = Object.entries(call.arguments)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join("  ");
+  const summary = toolSummary(call);
   const duration = toolDuration(result, timing);
   const pending = !result && !error && running;
   const failed = Boolean(error || result?.isError);
@@ -105,12 +120,14 @@ function ToolCallItem({
         type="button"
         className="tool-item-head"
         aria-expanded={open}
+        aria-label={`${t("agent_tool_row")} ${call.name}${summary ? ` ${summary}` : ""}`}
         title={args || undefined}
         onClick={() => setOpen((value) => !value)}
       >
         <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" className="tool-item-chevron" />
+        <span className="process-row-label">{t("agent_tool_row")}</span>
         <span className="tool-item-name mono">{call.name}</span>
-        {args && <span className="tool-call-args mono">{args}</span>}
+        {summary && <span className="tool-call-args">{summary}</span>}
         {failed && (
           <span className="tool-call-error" data-testid="tool-call-error">
             {t(blocked ? "agent_tool_not_run" : "agent_tool_failed", { reason })}
@@ -145,27 +162,120 @@ function ToolCallItem({
   );
 }
 
+/** 过程折叠里的“思考”行：一行摘要，点开看完整内容。 */
+function ThinkItem({ text }: { text: string }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const summary = text.replace(/\s+/gu, " ").trim();
+  return (
+    <div className="think-item" data-testid="think-item">
+      <button
+        type="button"
+        className="think-item-head"
+        aria-expanded={open}
+        aria-label={`${t("agent_think_row")} ${summary}`}
+        title={summary}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
+        <span className="process-row-label">{t("agent_think_row")}</span>
+        {!open && <span className="think-summary">{summary}</span>}
+      </button>
+      {open && <div className="think-item-body">{text}</div>}
+    </div>
+  );
+}
+
+/** 一条 assistant 消息按顺序拆出的内容块；过程折叠按这个顺序混排“思考”与工具调用。 */
+type ContentItem =
+  | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
+  | { type: "toolCall"; call: MessageToolCall };
+
+function contentItems(message: unknown): ContentItem[] {
+  const content = (message as { content?: unknown } | null)?.content;
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((raw): ContentItem[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const block = raw as Record<string, unknown>;
+    if (block.type === "text" && typeof block.text === "string" && block.text.trim() !== "") {
+      return [{ type: "text", text: block.text }];
+    }
+    if (block.type === "thinking" && typeof block.text === "string" && block.text.trim() !== "") {
+      return [{ type: "thinking", text: block.text }];
+    }
+    if (block.type === "toolCall" && typeof block.name === "string") {
+      return [{
+        type: "toolCall",
+        call: {
+          id: typeof block.id === "string" ? block.id : "",
+          name: block.name,
+          arguments: block.arguments && typeof block.arguments === "object"
+            ? block.arguments as Record<string, unknown>
+            : {},
+        },
+      }];
+    }
+    return [];
+  });
+}
+
 /**
- * 对话流的渲染单元：单条消息（只渲染正文）、一段连续的工具调用组成的步骤组，
+ * 每轮的最终回答：从末尾往前第一条 assistant 消息——
+ * 有工具调用说明还在干活；只有 thinking 说明还在思考；有正文（或空回复）才是答案。
+ */
+function finalAnswerIndexes(messages: unknown[]): Set<number> {
+  const finals = new Set<number>();
+  let start = 0;
+  const settle = (end: number) => {
+    for (let index = end - 1; index >= start; index -= 1) {
+      if (messageRole(messages[index]) !== "assistant") continue;
+      if (messageToolCalls(messages[index]).length > 0) return;
+      if (messageText(messages[index]).trim() !== "") {
+        finals.add(index);
+        return;
+      }
+      if (contentItems(messages[index]).some((item) => item.type === "thinking")) return;
+      finals.add(index);
+      return;
+    }
+  };
+  for (let index = 0; index <= messages.length; index += 1) {
+    if (index === messages.length || messageRole(messages[index]) === "user") {
+      settle(index);
+      start = index + 1;
+    }
+  }
+  return finals;
+}
+
+/**
+ * 对话流的渲染单元：单条消息（最终回答、用户消息）、一个“过程”折叠，
  * 或只含交互类调用（`ask_user`）的消息——只渲染它已处理的交互结论行。
  */
 type StreamBlock =
   | { kind: "message"; index: number }
   | { kind: "interactions"; index: number }
-  | { kind: "steps"; start: number; indices: number[]; calls: number; trailing: boolean };
+  | { kind: "process"; start: number; indices: number[]; calls: number; trailing: boolean };
 
 /**
- * 连续的工具调用（及其结果）归为一个步骤组；模型的文字不进组、始终可见（Claude Code 式）。
- * 同一条消息里先有文字再有调用时，文字照常显示，调用另起一组。
- * 位于对话流末尾的组（`trailing`）默认展开，其后已有文字的组默认收起。
+ * 出结果之前的“过程”折叠：中间说明、thinking、工具调用与结果按顺序归入同一组，
+ * 最终回答留在组外按正文渲染（Claude Code 式）。
+ * 位于对话流末尾的组（`trailing`）默认展开，其后已有回答的组默认收起。
  */
 function streamBlocks(messages: unknown[]): StreamBlock[] {
+  const finals = finalAnswerIndexes(messages);
   const blocks: StreamBlock[] = [];
-  let group: Extract<StreamBlock, { kind: "steps" }> | null = null;
+  let group: Extract<StreamBlock, { kind: "process" }> | null = null;
   const flush = () => {
     if (group) blocks.push(group);
     group = null;
   };
+  const ensureGroup = (index: number) => {
+    group ??= { kind: "process", start: index, indices: [], calls: 0, trailing: false };
+    return group;
+  };
+
   messages.forEach((message, index) => {
     if (messageToolResult(message)) {
       // 结果紧跟在调用之后，挂进当前组；不在组里的结果（调用已不在当前分支）单独渲染卡片
@@ -173,25 +283,47 @@ function streamBlocks(messages: unknown[]): StreamBlock[] {
       else blocks.push({ kind: "message", index });
       return;
     }
-    const allCalls = messageRole(message) === "assistant" ? messageToolCalls(message) : [];
-    const calls = allCalls.filter(isStepCall).length;
-    if (!allCalls.length || messageText(message) || messageImages(message).length) {
+    if (messageRole(message) !== "assistant") {
       flush();
       blocks.push({ kind: "message", index });
+      return;
     }
-    if (!allCalls.length) return;
-    if (!calls) {
+    if (finals.has(index)) {
+      flush();
+      blocks.push({ kind: "message", index });
+      return;
+    }
+
+    const items = contentItems(message);
+    const calls = messageToolCalls(message);
+    const stepCalls = calls.filter(isStepCall);
+    const hasBody = items.some((item) => item.type === "text" || item.type === "thinking");
+
+    if (!calls.length) {
+      if (hasBody && !messageImages(message).length) {
+        ensureGroup(index).indices.push(index);
+        return;
+      }
+      flush();
+      blocks.push({ kind: "message", index });
+      return;
+    }
+
+    if (!stepCalls.length) {
+      // 只有交互类调用：先收下它之前的说明，再把交互结论行单独成块
+      if (hasBody) ensureGroup(index).indices.push(index);
       flush();
       blocks.push({ kind: "interactions", index });
       return;
     }
-    group ??= { kind: "steps", start: index, indices: [], calls: 0, trailing: false };
-    group.indices.push(index);
-    group.calls += calls;
+
+    const target = ensureGroup(index);
+    target.indices.push(index);
+    target.calls += stepCalls.length;
   });
   flush();
   const last = blocks[blocks.length - 1];
-  if (last?.kind === "steps") last.trailing = true;
+  if (last?.kind === "process") last.trailing = true;
   return blocks;
 }
 
@@ -520,66 +652,81 @@ export function AgentConversation() {
   };
 
   // `withOwl`：接在智能体输出之后的组不再重复头像。
-  const renderSteps = (block: Extract<StreamBlock, { kind: "steps" }>, withOwl: boolean) => {
-    const links = block.indices.flatMap((index) =>
-      messageRole(messages[index]) === "assistant"
-        ? messageToolCalls(messages[index]).flatMap((call, position) => {
-            if (!isStepCall(call)) return [];
-            const linked = resultFor(call.id, index);
-            return [{ key: `${index}:${position}`, callId: call.id, linked, error: errorFor(call.id, linked?.result) }];
-          })
-        : [],
-    );
-    const linkFor = (index: number, position: number) => links.find((link) => link.key === `${index}:${position}`);
+  const renderProcess = (block: Extract<StreamBlock, { kind: "process" }>, withOwl: boolean) => {
+    const links = block.indices.flatMap((index) => {
+      const message = messages[index];
+      if (messageRole(message) !== "assistant") return [];
+      return messageToolCalls(message).flatMap((call) => {
+        if (!isStepCall(call)) return [];
+        const linked = resultFor(call.id, index);
+        return [{ index, callId: call.id, linked, error: errorFor(call.id, linked?.result) }];
+      });
+    });
     const linkedIndices = new Set(links.flatMap((link) => (link.linked ? [link.linked.index] : [])));
     const actionable: ReactNode[] = [];
-    const items = block.indices.map((index) => {
+    const rows: ReactNode[] = [];
+    let thinks = 0;
+
+    for (const index of block.indices) {
       const message = messages[index];
       const result = messageToolResult(message);
       if (result) {
         // 已挂到调用条目上的结果不再单独渲染；找不到调用（已不在当前分支）时照常显示卡片
-        const card = linkedIndices.has(index) ? null : resultCard(message);
+        if (linkedIndices.has(index)) continue;
+        const card = resultCard(message);
         if (card?.actionable) actionable.push(<Fragment key={`${card.key}-${index}`}>{card.node}</Fragment>);
-        return card && !card.actionable ? <Fragment key={`${card.key}-${index}`}>{card.node}</Fragment> : null;
+        else if (card) rows.push(<Fragment key={`${card.key}-${index}`}>{card.node}</Fragment>);
+        continue;
       }
-      if (messageRole(message) !== "assistant") return null;
-      return (
-        <Fragment key={`step-${index}`}>
-          {messageToolCalls(message).map((call, position) => {
-            if (!isStepCall(call)) return null;
-            const { linked, error } = linkFor(index, position) ?? {};
-            const card = linked ? resultCard(messages[linked.index], true) : null;
-            if (card?.actionable) actionable.push(<Fragment key={`${card.key}-${call.id}`}>{card.node}</Fragment>);
-            return (
-              <ToolCallItem
-                key={call.id || call.name}
-                call={call}
-                result={linked?.result}
-                timing={toolTimings?.[call.id]}
-                error={error}
-                progress={subagentProgress?.[call.id]}
-                card={card && !card.actionable ? card.node : null}
-                running={Boolean(running)}
-              />
-            );
-          })}
-          {!CHAT_EDITION && anchoredInteractions.get(index)?.map((item) => (
-            <ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />
-          ))}
-        </Fragment>
-      );
-    });
+      if (messageRole(message) !== "assistant") continue;
+      for (const [position, item] of contentItems(message).entries()) {
+        if (item.type === "text" || item.type === "thinking") {
+          thinks += 1;
+          rows.push(<ThinkItem key={`think-${index}-${position}`} text={item.text} />);
+          continue;
+        }
+        if (!isStepCall(item.call)) continue;
+        const link = links.find((candidate) => candidate.index === index && candidate.callId === item.call.id);
+        const card = link?.linked ? resultCard(messages[link.linked.index], true) : null;
+        if (card?.actionable) actionable.push(<Fragment key={`${card.key}-${item.call.id}`}>{card.node}</Fragment>);
+        rows.push(
+          <ToolCallItem
+            key={`tool-${index}-${item.call.id || position}`}
+            call={item.call}
+            result={link?.linked?.result}
+            timing={toolTimings?.[item.call.id]}
+            error={link?.error}
+            progress={subagentProgress?.[item.call.id]}
+            card={card && !card.actionable ? card.node : null}
+            running={Boolean(running)}
+          />,
+        );
+      }
+      if (!CHAT_EDITION) {
+        anchoredInteractions.get(index)?.forEach((item) => {
+          rows.push(<ResolvedInteractionLine key={`resolved-${item.request.request_id}`} item={item} />);
+        });
+      }
+    }
+
     const key = `${currentSessionId}:${block.start}`;
-    // 对话流末尾的组默认展开（运行中可看进度），其后已有文字的组默认收起
+    // 对话流末尾的组默认展开（运行中可看进度），其后已有回答的组默认收起
     const open = stepsOpen[key] ?? block.trailing;
     // 总耗时：全部调用都有耗时才给出（运行中用实时计时）
-    const totalMs = links.reduce<number | null>((sum, link) => {
-      const duration = toolDuration(link.linked?.result, toolTimings?.[link.callId]);
-      return sum === null || duration === undefined ? null : sum + duration.ms;
-    }, 0);
+    const totalMs = links.length === 0
+      ? null
+      : links.reduce<number | null>((sum, link) => {
+          const duration = toolDuration(link.linked?.result, toolTimings?.[link.callId]);
+          return sum === null || duration === undefined ? null : sum + duration.ms;
+        }, 0);
     const failed = links.filter((link) => link.error || link.linked?.result.isError).length;
+    const summary = thinks > 0 && block.calls > 0
+      ? t("agent_process_summary", { thinks, tools: block.calls })
+      : thinks > 0
+        ? t("agent_process_thinks", { thinks })
+        : t("agent_process_tools", { tools: block.calls });
     return (
-      <Fragment key={`steps-${block.start}`}>
+      <Fragment key={`process-${block.start}`}>
         <div className={`turn assistant tool${withOwl ? "" : " continued"}`}>
           {withOwl && owl}
           <div className="tool-steps" data-testid="tool-steps">
@@ -590,11 +737,11 @@ export function AgentConversation() {
               onClick={() => setStepsOpen((state) => ({ ...state, [key]: !open }))}
             >
               <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
-              <span>{t("agent_steps", { n: block.calls })}</span>
+              <span className="tool-steps-summary">{summary}</span>
               {failed > 0 && <span className="tool-call-error">{t("agent_steps_failed", { n: failed })}</span>}
               {totalMs !== null && <span className="tool-item-meta">{formatDuration(totalMs)}</span>}
             </button>
-            {open && <div className="tool-steps-body">{items}</div>}
+            {open && <div className="tool-steps-body">{rows}</div>}
           </div>
         </div>
         {actionable.map((node, i) => (
@@ -772,8 +919,8 @@ export function AgentConversation() {
           <div className="agent-empty">{t("agent_loading")}</div>
         )}
         {blocks.map((block, i) =>
-          // 已处理的交互请求锚在带工具调用的消息上，随步骤组渲染（renderSteps）
-          block.kind === "steps" ? renderSteps(block, !continuesAgent(blocks[i - 1]))
+          // 已处理的交互请求锚在带工具调用的消息上，随“过程”折叠渲染（renderProcess）
+          block.kind === "process" ? renderProcess(block, !continuesAgent(blocks[i - 1]))
           : block.kind === "interactions" ? (
             !CHAT_EDITION && (
               <Fragment key={`i-${block.index}`}>

@@ -1,4 +1,4 @@
-/** SDD 15 §7.10 规则 2：pi-ai 消息 → Glaux `TranscriptMessage`。未声明的块（thinking 等）丢弃。 */
+/** SDD 15 §7.10 规则 2：pi-ai 消息 → Glaux `TranscriptMessage`；thinking 保留给过程折叠，其余未声明块丢弃。 */
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 
 import type { TranscriptBlock, TranscriptMessage } from "../contracts.js";
@@ -9,6 +9,15 @@ function toBlocks(content: unknown): TranscriptBlock[] {
     if (!raw || typeof raw !== "object") return [];
     const block = raw as Record<string, unknown>;
     if (block.type === "text" && typeof block.text === "string") return [{ type: "text", text: block.text }];
+    // pi-ai 的 thinking 文本放在 `thinking` 字段；redacted 只是占位符，不展示。
+    if (
+      block.type === "thinking"
+      && typeof block.thinking === "string"
+      && block.thinking.trim() !== ""
+      && block.redacted !== true
+    ) {
+      return [{ type: "thinking", text: block.thinking }];
+    }
     if (block.type === "image" && typeof block.data === "string") {
       return [{ type: "image", data: block.data, mimeType: typeof block.mimeType === "string" ? block.mimeType : "image/png" }];
     }

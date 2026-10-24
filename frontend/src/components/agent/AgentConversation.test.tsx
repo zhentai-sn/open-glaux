@@ -230,7 +230,7 @@ describe("AgentConversation", () => {
     expect(screen.getByTestId("tool-call-error")).toHaveTextContent("Failed: EISDIR: illegal operation");
   });
 
-  it("keeps the agent's text outside the steps group and folds only the tool calls", () => {
+  it("folds intermediate text and tool calls into one process group", () => {
     useAgentSessions.setState({
       views: {
         [session.session_id]: {
@@ -245,11 +245,12 @@ describe("AgentConversation", () => {
       },
     });
     render(<I18nProvider><AgentConversation /></I18nProvider>);
-    // 文字可见；其后已有文字的组收起；ask_user 不进步骤组（由提问卡片与结论行呈现）
-    expect(screen.getByText("I could not list it.")).toBeInTheDocument();
-    const heads = screen.getAllByRole("button", { name: /Tool calls: 1/u });
-    expect(heads.map((head) => head.getAttribute("aria-expanded"))).toEqual(["false"]);
-    fireEvent.click(heads[0]!);
+    // 中间说明收进过程折叠；ask_user 不进过程组（由提问卡片与结论行呈现）
+    expect(screen.queryByText("I could not list it.")).toBeNull();
+    const head = screen.getByRole("button", { name: /Thinking steps: 1 · Tool calls: 1/u });
+    expect(head).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(head);
+    expect(screen.getAllByText("I could not list it.").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("tool-item").map((item) => item.textContent)).toEqual([expect.stringContaining("read")]);
   });
 
@@ -413,15 +414,42 @@ describe("AgentConversation", () => {
 
     fireEvent.click(head);
     const item = screen.getByTestId("tool-item");
-    expect(item).toHaveTextContent("path=README.md");
+    expect(item).toHaveTextContent("README.md");
     expect(screen.getByTestId("tool-duration")).toHaveTextContent("1.2s");
-    fireEvent.click(screen.getByRole("button", { name: /^read/u }));
+    fireEvent.click(screen.getByRole("button", { name: /Tool call read/u }));
     expect(screen.getByTestId("tool-output")).toHaveTextContent("# Title");
     expect(item).toHaveTextContent(/"path": "README.md"/u);
   });
 
-  it("pairs each call with the next result of the same id when ids are reused across turns", () => {
-    const call = { role: "assistant" as const, content: [{ type: "toolCall" as const, id: "c", name: "read", arguments: { path: "a.md" } }] };
+  it("renders thinking blocks as rows inside the process group", () => {
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "read it" },
+            {
+              role: "assistant",
+              content: [
+                { type: "thinking", text: "Check the file first." },
+                { type: "toolCall", id: "t1", name: "read", arguments: { path: "README.md" } },
+              ],
+            },
+            { role: "toolResult", toolCallId: "t1", toolName: "read", isError: false, content: [{ type: "text", text: "# Title" }] },
+            { role: "assistant", content: [{ type: "text", text: "It is a title." }] },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    const head = screen.getByRole("button", { name: /Thinking steps: 1 · Tool calls: 1/u });
+    fireEvent.click(head);
+    expect(screen.getByTestId("think-item")).toHaveTextContent("Check the file first.");
+    expect(screen.getByTestId("tool-item")).toHaveTextContent("read");
+    expect(screen.getByText("It is a title.")).toBeInTheDocument();
+  });
+
+  it("pairs each call with the next result of the same id when ids are reused across turns", () => {    const call = { role: "assistant" as const, content: [{ type: "toolCall" as const, id: "c", name: "read", arguments: { path: "a.md" } }] };
     useAgentSessions.setState({
       views: {
         [session.session_id]: {
@@ -441,7 +469,7 @@ describe("AgentConversation", () => {
     });
     render(<I18nProvider><AgentConversation /></I18nProvider>);
     screen.getAllByRole("button", { name: /Tool calls: 1/u }).forEach((head) => fireEvent.click(head));
-    screen.getAllByRole("button", { name: /^read/u }).forEach((head) => fireEvent.click(head));
+    screen.getAllByRole("button", { name: /Tool call read/u }).forEach((head) => fireEvent.click(head));
     expect(screen.getAllByTestId("tool-output").map((el) => el.textContent)).toEqual(["ENOENT", "# Hello"]);
   });
 

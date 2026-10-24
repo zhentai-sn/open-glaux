@@ -1435,7 +1435,8 @@ canvas {
   min-width: 0;
 }
 .tool-steps-head,
-.tool-item-head {
+.tool-item-head,
+.think-item-head {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1450,6 +1451,41 @@ canvas {
   white-space: nowrap;
   overflow: hidden;
 }
+.tool-steps-summary {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-steps-head { font-size: 12px; }
+.process-row-label {
+  flex: none;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+.think-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--mid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.think-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.think-item-body {
+  margin: 2px 0 6px 18px;
+  color: var(--mid);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
 .tool-item-head .tool-call-error,
 .tool-item-head .tool-call-progress {
   flex: 0 1 auto;
@@ -1458,7 +1494,8 @@ canvas {
   text-overflow: ellipsis;
 }
 .tool-steps-head:hover,
-.tool-item-head:hover {
+.tool-item-head:hover,
+.think-item-head:hover {
   color: var(--ink);
   background: var(--sidebar);
 }
@@ -1466,10 +1503,7 @@ canvas {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 2px;
-  margin-left: 9px;
-  padding-left: 8px;
-  border-left: 1px solid var(--line);
+  gap: 1px;
 }
 /* 紧跟智能体正文的步骤组不再重复头像，贴近上方正文 */
 .turn.assistant.tool.continued { margin-top: -6px; }

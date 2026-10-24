@@ -419,6 +419,7 @@ type InteractionOutcome = "answered" | "expired" | "cancelled";
 ```ts
 type TranscriptBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
   | { type: "image"; data: string; mimeType: string }
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 
@@ -428,7 +429,7 @@ type TranscriptMessage =
   | { role: "toolResult"; toolCallId: string; toolName: string; content: TranscriptBlock[]; details?: unknown; isError: boolean; duration_ms?: number };
 ```
 
-thinking 等其他块类型由 runtime 丢弃，不进快照。
+`thinking` 保留为 `{ type: "thinking", text }`，供对话流的过程折叠展示；redacted thinking 只保留占位、不展示。其余未声明块类型由 runtime 丢弃，不进快照。
 
 快照中的 `toolResult`（`session-service.ts` 的 `visibleMessage`）：
 
@@ -594,7 +595,7 @@ stateDiagram-v2
 | D-13 | 图像裁剪保留最近 4 个含图像的工具结果，不区分工具 | 规则简单；够模型对比相邻几次观察 |
 | D-14 | 收尾宽限 3 回合或 2 分钟 | 留出一次收尾回复的余量，又不让模型长期无视拦截 |
 | D-15 | 设置文件格式错误时忽略该文件并告警，不阻断命令 | 模式默认值本身安全；一个坏文件不应让智能体整体不可用 |
-| D-16 | `TranscriptMessage` 不保留 thinking 块 | 前端当前不展示思考过程；需要时另立需求 |
+| D-16 | `TranscriptMessage` 保留 thinking 块（2026-10-24 修订） | 对话流的过程折叠要展示“思考”步骤；redacted thinking 只留占位、不展示 |
 | D-17 | 快照保留全部工具结果的截断文本，耗时另记审计记录 | 对话流要展示每次工具调用的输出与耗时；只留 2000 字符文本控制快照体积；pi 的工具结果消息没有起始时刻，耗时只能由 runtime 在事件流上测得 |
 | D-18 | 「未执行」由 runtime 标出，不由前端按报错文本推断 | 拦截只发生在插件 `tool_call` 钩子；在钩子组合处记录被拦截的标识最可靠，文本推断会随理由措辞失效 |
 

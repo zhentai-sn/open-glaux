@@ -43,6 +43,7 @@ export interface ContextUsage {
  */
 export type TranscriptBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
   | { type: "image"; data: string; mimeType: string }
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 

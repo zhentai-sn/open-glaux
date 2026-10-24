@@ -13,6 +13,7 @@ export interface ContextUsage {
 /** SDD 15 §9.6：由 Glaux 声明的消息结构，与 pi-ai 解耦。 */
 export type TranscriptBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
   | { type: "image"; data: string; mimeType: string }
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 

@@ -8,13 +8,20 @@ import { toTranscript } from "../../src/transport/transcript.js";
 const map = (event: unknown) => mapPiEvent("s1", "c1", event as AgentHarnessEvent);
 
 describe("mapPiEvent", () => {
-  it("maps assistant message_update to message.delta and drops thinking blocks", () => {
+  it("maps assistant message_update to message.delta and keeps thinking blocks", () => {
     expect(map({
       type: "message_update",
       message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "text", text: "hi" }] },
     })).toEqual({
       event: "message.delta",
-      data: { session_id: "s1", command_id: "c1", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } },
+      data: {
+        session_id: "s1",
+        command_id: "c1",
+        message: {
+          role: "assistant",
+          content: [{ type: "thinking", text: "hm" }, { type: "text", text: "hi" }],
+        },
+      },
     });
   });
 
