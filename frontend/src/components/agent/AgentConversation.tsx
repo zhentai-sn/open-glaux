@@ -821,14 +821,16 @@ export function AgentConversation() {
           runKey={currentSessionId}
         />
         {!following && activeRun && (
-          <button
-            type="button"
-            className="follow-pill"
-            aria-label={t("agent_jump_latest")}
-            onClick={jumpToLatest}
-          >
-            <Icon icon={ICONS.chevronDown} size="sm" /> {t("agent_jump_latest")}
-          </button>
+          <div className="follow-pill-row">
+            <button
+              type="button"
+              className="follow-pill"
+              aria-label={t("agent_jump_latest")}
+              onClick={jumpToLatest}
+            >
+              <Icon icon={ICONS.chevronDown} size="sm" /> {t("agent_jump_latest")}
+            </button>
+          </div>
         )}
       </div>
 

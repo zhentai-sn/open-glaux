@@ -70,6 +70,11 @@ export default defineConfig({
     // 缺省绑 IPv4 回环：`localhost` 在 Windows 原生下被解析为 ::1，此时上方重定向到 127.0.0.1
     // 会打到一个没人监听的端口，页面直接打不开。要在局域网开放开发服务器时设 GLAUX_VITE_HOST。
     host: process.env.GLAUX_VITE_HOST ?? "127.0.0.1",
+    // 编辑器/工具用「临时目录 + 原子改名」写文件时，目录会短暂存在再消失；
+    // chokidar 在 Windows 上对它的 EBUSY 会直接打崩 dev server，排除掉。
+    watch: {
+      ignored: ["**/*.tmpdir/**", "**/.*.tmpdir/**"],
+    },
     proxy: {
       "/api": {
         // dev 后端端口可用 GLAUX_BACKEND_PORT 覆盖（spike 工作树与主仓并存时避 8000 冲突）

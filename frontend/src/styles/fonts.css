@@ -1,0 +1,34 @@
+/* 随包字体：与 dsh-claude-style 实际渲染所用的三款一致（Inter / Noto Serif / JetBrains Mono）。
+   插件里 Anthropic 三款字体不随 npm 包分发，缺失时回落到这三款；此处直接使用回落款，
+   避免请求 404 后闪字。许可证见 assets/fonts/OFL.txt。 */
+@font-face {
+  font-family: "Glaux Inter";
+  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Glaux Noto Serif";
+  src: url("../assets/fonts/NotoSerifVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Glaux Mono";
+  src: url("../assets/fonts/JetBrainsMonoVariable.ttf") format("truetype-variations");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Glaux Mono";
+  src: url("../assets/fonts/JetBrainsMonoItalicVariable.ttf") format("truetype-variations");
+  font-weight: 100 800;
+  font-style: italic;
+  font-display: swap;
+}
