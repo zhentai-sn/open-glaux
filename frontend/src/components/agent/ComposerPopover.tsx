@@ -65,9 +65,10 @@ export function ComposerPopover({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
-  const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null);
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
 
-  // 打开前量触发按钮：弹层右缘与其右缘对齐，底边贴在其上方 10px。
+  // 打开前量触发按钮：弹层右缘与其右缘对齐、底边贴在其上方 10px；
+  // 右侧放不下时（例如对话流末尾的操作行靠左）整体左移，但不越出视口。
   useLayoutEffect(() => {
     if (!open) {
       setAnchor(null);
@@ -75,11 +76,16 @@ export function ComposerPopover({
     }
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const popWidth = width ?? 340;
+    const left = Math.min(
+      Math.max(8, rect.right - popWidth),
+      Math.max(8, window.innerWidth - popWidth - 8),
+    );
     setAnchor({
-      right: Math.max(8, window.innerWidth - rect.right),
+      left,
       bottom: Math.max(8, window.innerHeight - rect.top + 10),
     });
-  }, [open]);
+  }, [open, width]);
 
   // 依赖 anchor：弹层是下一帧才挂载的 portal，锚点就位后才聚焦得到。
   useEffect(() => {
@@ -135,7 +141,7 @@ export function ComposerPopover({
           className={`composer-pop${className ? ` ${className}` : ""}`}
           role={role}
           aria-label={label}
-          style={{ right: anchor.right, bottom: anchor.bottom, ...(width ? { width } : {}) }}
+          style={{ left: anchor.left, bottom: anchor.bottom, ...(width ? { width } : {}) }}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();

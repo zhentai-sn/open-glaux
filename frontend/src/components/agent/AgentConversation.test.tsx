@@ -397,7 +397,7 @@ describe("AgentConversation", () => {
     expect(head.textContent).toContain("1.0s");
   });
 
-  it("marks a turn with a blocked call as failed", () => {
+  it("does not mark a turn failed just because a tool call was blocked", () => {
     const start = Date.parse("2026-10-24T10:00:00.000Z");
     useAgentSessions.setState({
       views: {
@@ -413,7 +413,9 @@ describe("AgentConversation", () => {
       toolErrors: { [session.session_id]: { b1: "denied by policy" } },
     });
     render(<I18nProvider><AgentConversation /></I18nProvider>);
-    expect(screen.getByText(/Failed · took 2s/u)).toBeInTheDocument();
+    // 中途工具失败不算本轮失败：状态看本轮最终有没有输出
+    expect(screen.getByText(/Done · took 2s/u)).toBeInTheDocument();
+    expect(screen.queryByText(/Failed/u)).toBeNull();
   });
 
   it("keeps one avatar when a suggestion card follows the tool steps", () => {

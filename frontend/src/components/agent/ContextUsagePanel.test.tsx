@@ -8,6 +8,7 @@ import { ContextUsagePanel } from "./ContextUsagePanel";
 const stats: SessionStats = {
   model_calls: 3,
   tool_calls: 2,
+  turns: [],
   usage: { input: 1_905_807, output: 247_996, cacheRead: 137_982_208, cacheWrite: 0, cost: 0 },
   model_ms: 4_919_000,
   tool_ms: 823_000,

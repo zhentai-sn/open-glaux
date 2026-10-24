@@ -21,6 +21,9 @@ function load(): ContextSection {
 interface ContextSectionState {
   section: ContextSection;
   setSection: (section: ContextSection) => void;
+  /** 待定位的轮次（SDD 00 §5.1「在上下文视图中查看此轮」）：轨迹页读走后立即清空。 */
+  focusTurn: number | null;
+  setFocusTurn: (turn: number | null) => void;
 }
 
 export const useContextSection = create<ContextSectionState>((set) => ({
@@ -33,4 +36,6 @@ export const useContextSection = create<ContextSectionState>((set) => ({
     }
     set({ section });
   },
+  focusTurn: null,
+  setFocusTurn: (focusTurn) => set({ focusTurn }),
 }));

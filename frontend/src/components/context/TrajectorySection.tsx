@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { RequestHeaderBody, Trajectory, TrajectoryItem, TrajectoryTurn } from "../../agent/runtime/types";
 import { useI18n, type I18nKey } from "../../i18n";
+import { useContextSection } from "../../store/contextSection";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
 import { CompactionDetail, HeaderDetail, ModelDetail, NoticeDetail, ToolDetail, UserDetail } from "./trajectory/Details";
@@ -52,6 +53,22 @@ export function TrajectorySection() {
   const [callsCollapsed, setCallsCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const data = state.status === "ready" || state.status === "loading" ? state.data : undefined;
+  // 对话流「在上下文视图中查看此轮」（SDD 00 §5.1）：展开目标轮并滚到可见，读走即清标记。
+  const focusTurn = useContextSection((state2) => state2.focusTurn);
+  const setFocusTurn = useContextSection((state2) => state2.setFocusTurn);
+  useEffect(() => {
+    if (focusTurn === null || !data) return;
+    setCollapsedTurns((prev) => {
+      if (!prev.has(focusTurn)) return prev;
+      const next = new Set(prev);
+      next.delete(focusTurn);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      document.querySelector(`.traj-turn[data-turn="${focusTurn}"]`)?.scrollIntoView?.({ block: "start" });
+    });
+    setFocusTurn(null);
+  }, [focusTurn, data, setFocusTurn]);
 
   const toggle = <T,>(set: ReadonlySet<T>, value: T): Set<T> => {
     const next = new Set(set);

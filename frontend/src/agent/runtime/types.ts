@@ -570,10 +570,23 @@ export interface Trajectory {
   };
 }
 
+/** 一轮的用量与身份（SDD 21 §9.5）：对话流末尾的「本轮用量」。 */
+export interface TurnStats {
+  started_at: number | null;
+  ended_at: number | null;
+  provider: string | null;
+  model: string | null;
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; cost?: number };
+  model_calls: number;
+  tool_calls: number;
+}
+
 /** 会话统计（SDD 21 §9.5）：输入区上下文面板的数据。 */
 export interface SessionStats {
   model_calls: number;
   tool_calls: number;
+  /** 逐轮统计；下标与命令受理顺序一致，前端按「从末尾数第几条 user 消息」对齐。 */
+  turns: TurnStats[];
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number };
   model_ms: number;
   tool_ms: number;

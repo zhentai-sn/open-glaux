@@ -12,6 +12,7 @@ import {
   type MessageToolResult,
 } from "../../agent/runtime/events";
 import { useConversation } from "../../agent/useConversation";
+import type { TurnStats } from "../../agent/runtime/types";
 import { useI18n } from "../../i18n";
 import { useAgentSessions, type ResolvedInteraction, type SubagentProgress, type ToolTiming } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
@@ -32,6 +33,7 @@ import { ContextUsagePanel } from "./ContextUsagePanel";
 import { ModelMenu, REASONING_LEVEL_KEY } from "./ModelMenu";
 import { estimateTokens, percentText } from "./usageFormat";
 import { PermissionMenu } from "./PermissionMenu";
+import { TurnActions } from "./TurnActions";
 import { Markdown } from "./Markdown";
 import { SessionDrawer } from "./SessionDrawer";
 import { projectWritable } from "./sessionGroups";
@@ -604,48 +606,70 @@ export function AgentConversation() {
   // 待决交互卡片接在智能体输出之后时同样不重复头像
   const pendingContinues = continuesAgent(blocks[blocks.length - 1]);
 
-  // 轮次整体用时（SDD 00 §5.1）：快照里每条消息带 `at`，按 user 消息切轮，取该轮首尾时间差。
-  // 运行中的轮次不给数字——等待行已经在计时，两处同跳只会互相干扰。
+  // 轮次信息（SDD 00 §5.1）：快照里每条消息带 `at`，按 user 消息切轮。
+  // 状态只看本轮最终有没有输出——中途工具失败不算本轮失败，过程组里的「N 次失败」已经说明。
   const turnMeta = useMemo(() => {
-    const spans: ({ startedAt?: number; endedAt?: number; failed: boolean })[] = [];
-    let current: { startedAt?: number; endedAt?: number; failed: boolean } | undefined;
+    type Span = {
+      startedAt?: number;
+      endedAt?: number;
+      hasText: boolean;
+      /** 本轮序号（第几条 user 消息，1 起）。 */
+      ordinal: number;
+      /** 本轮最后一条带正文的 assistant 消息下标（操作行挂在这里）。 */
+      lastAnswer: number | null;
+    };
+    const spans: (Span | undefined)[] = [];
+    let current: Span | undefined;
+    let ordinal = 0;
     for (const [index, message] of messages.entries()) {
       const role = messageRole(message);
       const at = (message as { at?: number }).at;
       if (role === "user") {
-        current = { startedAt: at, failed: false };
+        ordinal += 1;
+        current = { startedAt: at, hasText: false, ordinal, lastAnswer: null };
         spans[index] = current;
         continue;
       }
-      current ??= { failed: false };
-      if (messageToolResult(message)?.isError) current.failed = true;
+      current ??= { hasText: false, ordinal: Math.max(1, ordinal), lastAnswer: null };
       if (typeof at === "number") current.endedAt = at;
+      if (role === "assistant" && messageText(message).trim()) {
+        current.hasText = true;
+        current.lastAnswer = index;
+      }
       spans[index] = current;
     }
     return spans;
   }, [messages]);
 
-  // 轮次状态与用时：挂在「本轮自己」的那条头像行右侧，后续块（continued）不重复。
-  // `failedHint` 来自过程组（被拦截的调用不一定有 isError 的 toolResult，只有组里数得准）。
-  const turnBadge = (index: number, failedHint = 0) => {
+  // 轮次状态与整体用时：挂在「本轮自己」的那条头像行右侧，后续块（continued）不重复。
+  const turnBadge = (index: number) => {
     const span = turnMeta[index];
     if (!span) return null;
     const runningHere = activeRun && index >= lastAssistantIndex;
-    const failed = span.failed || failedHint > 0;
     const label = runningHere
       ? t("agent_turn_running")
-      : failed
-        ? t("agent_turn_failed")
-        : t("agent_turn_done");
+      : span.hasText
+        ? t("agent_turn_done")
+        : t("agent_turn_incomplete");
     const elapsed = !runningHere && span.startedAt !== undefined && span.endedAt !== undefined
       ? span.endedAt - span.startedAt
       : null;
     return (
-      <span className={`turn-meta${failed && !runningHere ? " failed" : ""}`}>
+      <span className={`turn-meta${!runningHere && !span.hasText ? " incomplete" : ""}`}>
         {label}
         {elapsed !== null && elapsed >= 0 && ` · ${t("agent_turn_elapsed", { time: formatSpan(elapsed, t) })}`}
       </span>
     );
+  };
+
+  // 本轮用量：stats.turns 与命令受理顺序一致，按「从末尾数第几条 user 消息」对齐。
+  const turns = stats?.turns ?? [];
+  const userTotal = messages.filter((message) => messageRole(message) === "user").length;
+  const usageFor = (ordinal: number): TurnStats | null => {
+    if (!turns.length || userTotal === 0) return null;
+    const fromEnd = userTotal - ordinal;
+    const at = turns.length - 1 - fromEnd;
+    return at >= 0 && at < turns.length ? turns[at]! : null;
   };
 
   const owl = (
@@ -653,12 +677,16 @@ export function AgentConversation() {
       <OwlLogo size={16} />
     </div>
   );
-  const owlFor = (index: number, failedHint = 0) => (
-    <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-      <OwlLogo size={16} />
-      {turnBadge(index, failedHint)}
-    </div>
-  );
+  const owlFor = (index: number) => {
+    return (
+      <div className="turn-head">
+        <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+          <OwlLogo size={16} />
+        </div>
+        {turnBadge(index)}
+      </div>
+    );
+  };
 
   // 工具结果的产出卡片；`actionable` 的卡片等人确认，不收进折叠的步骤组。
   // `inSteps`：卡片挂在步骤组的条目下方，子智能体卡片收成一行，点开看最终回复与过程。
@@ -765,7 +793,7 @@ export function AgentConversation() {
     return (
       <Fragment key={`process-${block.start}`}>
         <div className={`turn assistant tool${withOwl ? "" : " continued"}`}>
-          {withOwl && owlFor(block.start, failed)}
+          {withOwl && owlFor(block.start)}
           <div className="tool-steps" data-testid="tool-steps">
             <button
               type="button"
@@ -818,6 +846,8 @@ export function AgentConversation() {
       );
     }
     // 带工具调用的 assistant 消息都在步骤组里渲染（streamBlocks），这里只剩正文消息。
+    const span = turnMeta[index];
+    const answerEndsHere = role === "assistant" && span && span.lastAnswer === index && !running;
     return (
       <div
         className={`turn ${role === "user" ? "user" : "assistant"}`}
@@ -874,6 +904,14 @@ export function AgentConversation() {
               <Icon icon={ICONS.regenerate} size="sm" /> {t("agent_regenerate")}
             </button>
           )}
+        {answerEndsHere && span && (
+          <TurnActions
+            text={text}
+            turn={usageFor(span.ordinal)}
+            turnIndex={span.ordinal}
+            endedAt={span.endedAt ?? null}
+          />
+        )}
       </div>
     );
   };

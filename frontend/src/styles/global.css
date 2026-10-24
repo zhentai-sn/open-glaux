@@ -1040,14 +1040,79 @@ canvas {
   color: var(--agent);
   font-weight: 600;
 }
-/* 轮次状态与整体用时（SDD 00 §5.1）：挂在头像行右侧，不参与正文 */
+/* 轮次头（SDD 00 §5.1）：头像 + 状态/用时，与下方正文之间用一条细线分开 */
+.turn-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.turn-head .who { line-height: 0; }
 .turn-meta {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 500;
+  line-height: 1;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
-.turn-meta.failed { color: var(--crit); }
+.turn-meta.incomplete { color: var(--crit); }
+
+/* 轮次操作行（对齐 DSH）：复制、赞踩、定位上下文、本轮用量、时间戳 */
+.turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  color: var(--faint);
+}
+.turn-action {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--faint);
+  border-radius: var(--radius-sm);
+}
+.turn-action:hover:not(:disabled) { color: var(--bright); background: var(--hover); }
+.turn-action:disabled { opacity: 0.4; cursor: default; }
+.turn-action[aria-pressed="true"] { color: var(--agent); background: var(--agent-dim); }
+.turn-actions .composer-pop-wrap { margin-left: 2px; }
+.turn-actions .composer-pill { padding: 2px 6px; font-size: 11.5px; }
+.turn-time {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 本轮用量弹层（对齐 DSH 的「本轮用量」） */
+.turn-usage { display: flex; width: 100%; flex-direction: column; gap: 8px; }
+.turn-usage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--bright);
+}
+.turn-usage-head b { font-family: var(--mono); font-size: 12.5px; }
+.turn-usage-grid { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.turn-usage-grid > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.turn-usage-grid dt { flex: none; font-size: 11.5px; color: var(--mid); white-space: nowrap; }
+.turn-usage-grid dd {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--bright);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .who .d {
   width: 5px;
   height: 5px;

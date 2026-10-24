@@ -21,6 +21,7 @@ import {
   Copy,
   Crosshair,
   Database,
+  LocateFixed,
   Diamond,
   Eye,
   EyeOff,
@@ -55,6 +56,8 @@ import {
   Spline,
   Square,
   Tags,
+  ThumbsDown,
+  ThumbsUp,
   Sun,
   Trash2,
   Waves,
@@ -168,5 +171,9 @@ export const ICONS = {
   unpin: PinOff,
   copy: Copy, // 复制会话 ID
   unarchive: ArchiveRestore, // 归档会话恢复到进行中
+  thumbUp: ThumbsUp, // 轮次反馈（本地，无后端回写）
+  thumbDown: ThumbsDown,
+  locate: LocateFixed, // 在上下文视图中定位该轮
+  usage: Database, // 本轮用量
   subagent: Bot, // 子智能体卡片与定义列表（SDD 18）
 } as const;
