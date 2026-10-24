@@ -628,7 +628,7 @@ export function AgentConversation() {
 
   const owl = (
     <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
-      <OwlLogo size={18} />
+      <OwlLogo size={16} />
     </div>
   );
 
@@ -965,7 +965,7 @@ export function AgentConversation() {
         )}
         {!CHAT_EDITION && view?.video_answers?.map((record) => (
           <div className="turn assistant tool" key={`video-answer-${record.command_id}`}>
-            <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={18} /></div>
+            <div className="who" title={t("agent_name")} aria-label={t("agent_name")}><OwlLogo size={16} /></div>
             <VideoEvidenceCard record={record} observations={view.video_observations ?? []} />
           </div>
         ))}

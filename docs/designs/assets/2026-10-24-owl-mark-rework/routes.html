@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Glaux 标识路线 · 评审页</title>
+<style>
+  :root{
+    --paper:#FAF9F5; --card:#FFFFFF; --ink:#141413; --mid:#6E6A60; --faint:#A6A094;
+    --line:#E8E6DC; --line2:#DEDCD2; --p:#7c4dd6; --f:#f0eafc; --d:#2a1b4a;
+    --stage:#1C1B19;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:32px 40px 64px; background:var(--paper); color:var(--ink);
+    font:14px/1.6 "Segoe UI","Noto Sans SC",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{max-width:1080px;margin:0 0 26px}
+  h1{font:600 22px/1.35 "Noto Serif SC",Georgia,serif;margin:0 0 6px;letter-spacing:.01em}
+  .lead{color:var(--mid);font-size:13px;max-width:820px}
+  .how{display:flex;gap:22px;margin-top:14px;font-size:12px;color:var(--mid)}
+  .how b{color:var(--ink);font-weight:600}
+
+  .row{
+    display:grid; grid-template-columns:250px 1fr; gap:24px;
+    border-top:1px solid var(--line); padding:22px 0 24px; max-width:1180px;
+  }
+  .meta h2{font:600 15px/1.4 "Segoe UI";margin:0 0 4px}
+  .meta .tagline{color:var(--mid);font-size:12px;margin:0 0 10px}
+  .meta dl{margin:0;font-size:12px;line-height:1.55}
+  .meta dt{color:var(--faint);margin-top:8px;font-size:11px;letter-spacing:.03em}
+  .meta dd{margin:1px 0 0;color:var(--mid)}
+  .meta dd b{color:var(--ink);font-weight:600}
+
+  .stagewrap{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 26px}
+  .sizes{display:flex;align-items:flex-end;gap:26px}
+  .slot{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .slot .px{font:11px/1 "Segoe UI";color:var(--faint);font-variant-numeric:tabular-nums}
+  .box{display:flex;align-items:flex-end;justify-content:center;min-height:16px}
+  .chip{
+    display:flex;flex-direction:column;align-items:center;gap:9px;margin-left:16px;
+    padding:10px 12px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+  }
+  .chip.dark{background:var(--stage);border-color:var(--stage)}
+  .chip .px{font:11px/1 "Segoe UI";color:var(--faint)}
+  .chip.dark .px{color:#8d8579}
+  svg{display:block;overflow:visible}
+  img{display:block;image-rendering:pixelated}
+
+  .note{
+    max-width:1080px;margin:6px 0 0;padding:12px 16px;border-left:2px solid var(--line2);
+    color:var(--mid);font-size:12px;line-height:1.6;
+  }
+  .note b{color:var(--ink);font-weight:600}
+
+  .contexts{max-width:1180px;border-top:1px solid var(--line);padding-top:22px;margin-top:6px}
+  .contexts h2{font:600 15px/1.4 "Segoe UI";margin:0 0 4px}
+  .contexts p{color:var(--mid);font-size:12px;margin:0 0 14px}
+  .bars{display:flex;flex-direction:column;gap:10px}
+  .bar{
+    display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:8px;
+    background:var(--card);border:1px solid var(--line);width:420px;
+  }
+  .bar .who{font:600 12px/1 "Segoe UI";color:var(--faint);min-width:132px}
+  .bar b{font-size:12px;color:var(--ink);font-weight:600}
+  .bar .dots{display:flex;gap:6px;margin-left:auto;opacity:.5}
+  .bar .dot{width:14px;height:14px;border-radius:3px;background:var(--line2)}
+
+  footer{max-width:1080px;border-top:1px solid var(--line);margin-top:28px;padding-top:20px;
+         color:var(--mid);font-size:13px}
+  footer ol{margin:8px 0 0;padding-left:20px}
+  footer li{margin:4px 0}
+  footer b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Glaux 标识路线 · 评审页</h1>
+  <p class="lead">
+    每行是一条路线的一个具体方案，同一份几何按 16 / 24 / 32 / 48 / 96 / 256 逐级渲染，右侧另给单色版与反白版。
+    颜色与现有品牌 token 一致（紫 <code>#7c4dd6</code>、纸底 <code>#f0eafc</code>），没有任何新颜色。
+  </p>
+  <div class="how">
+    <div><b>怎么判</b> 先看 16 和 24 两列——顶栏用 18px，那是主战场</div>
+    <div><b>再看</b> 单色与反白是否还成立</div>
+    <div><b>最后看</b> 远看剪影是否像猫头鹰，而不是先读细节</div>
+  </div>
+</header>
+
+<div id="rows"></div>
+
+<section class="contexts">
+  <h2>放进真实的顶栏里</h2>
+  <p>同一个 18px 尺寸、同一段文字，只换标识。默认字号与底色取自当前 <code>TitleBar</code>。</p>
+  <div class="bars" id="bars"></div>
+</section>
+
+<footer>
+  <b>看完请给三个判断</b>
+  <ol>
+    <li>哪一条能当主标识（16–18px 也站得住）？</li>
+    <li>要不要保留一条只在 ≥48px 用的二级徽记（R3）？</li>
+    <li>像素网格与线性，选一个还是分开用（标识线性、吉祥物像素）？</li>
+  </ol>
+</footer>
+
+<script>
+const COL = ['#7c4dd6', '#f0eafc', '#2a1b4a'];
+const INK = '#141413';
+
+// ---------- 几何工具 ----------
+const inEll = (x, y, cx, cy, rx, ry) => {
+  const dx = (x + .5 - cx) / rx, dy = (y + .5 - cy) / ry;
+  return dx * dx + dy * dy <= 1;
+};
+const inRect = (x, y, x0, y0, x1, y1, r = 0) => {
+  const px = x + .5, py = y + .5;
+  if (px < x0 || px > x1 || py < y0 || py > y1) return false;
+  const cx = Math.min(Math.max(px, x0 + r), x1 - r);
+  const cy = Math.min(Math.max(py, y0 + r), y1 - r);
+  return (px - cx) ** 2 + (py - cy) ** 2 <= r * r;
+};
+const inTri = (x, y, a, b, c) => {
+  const px = x + .5, py = y + .5;
+  const s = (p, q, r) => (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1]);
+  const d1 = s([px, py], a, b), d2 = s([px, py], b, c), d3 = s([px, py], c, a);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos);
+};
+const grid = (G, fn) => {
+  const a = [];
+  for (let y = 0; y < G; y++) {
+    const row = [];
+    for (let x = 0; x < G; x++) row.push(fn(x, y));
+    a.push(row);
+  }
+  return a;
+};
+
+// ---------- 网格 -> SVG ----------
+function svgOf(mark, size, mode) {
+  const { G, cells, mass = 0 } = mark;
+  let out = '';
+  for (let y = 0; y < G; y++) {
+    let x = 0;
+    while (x < G) {
+      const f = cells[y][x];
+      let keep;
+      if (mode === 'color') keep = f >= 0;
+      else keep = f === mass;              // mono / rev：只画主体
+      if (!keep) { x++; continue; }
+      let w = 1;
+      while (x + w < G && (mode === 'color' ? cells[y][x + w] === f : cells[y][x + w] === mass)) w++;
+      const fill = mode === 'color' ? COL[f] : mode === 'mono' ? INK : '#f0eafc';
+      out += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${fill}"/>`;
+      x += w;
+    }
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${G} ${G}" shape-rendering="crispEdges">${out}</svg>`;
+}
+
+// ---------- 造型 ----------
+// 统一骨架（16 网格）：头身合一的剪影 + 两撮耳羽 + 负形眼，眼必须留出 2 单元隔断
+const H16 = {
+  sil: (x, y) =>
+    inEll(x, y, 8, 8.2, 5.4, 5.0) ||
+    inEll(x, y, 8, 10.6, 5.6, 4.2) ||
+    inTri(x, y, [3.2, 6.8], [4.6, 1.2], [6.5, 5.4]) ||
+    inTri(x, y, [12.8, 6.8], [11.4, 1.2], [9.5, 5.4]),
+  eyeL: (x, y) => inEll(x, y, 5.4, 7.6, 1.9, 1.9),
+  eyeR: (x, y) => inEll(x, y, 10.6, 7.6, 1.9, 1.9),
+  beak: (x, y) => inTri(x, y, [8, 10.2], [7.0, 12.2], [9.0, 12.2]),
+};
+
+// R1a：负形眼，无喙——测“两个元素够不够”
+const mR1a = grid(16, (x, y) => {
+  if (!H16.sil(x, y)) return -1;
+  if (H16.eyeL(x, y) || H16.eyeR(x, y)) return 1;
+  return 0;
+});
+
+// R1b：负形眼 + 喙——测“喙值不值得多花一个元素”
+const mR1b = grid(16, (x, y) => {
+  if (!H16.sil(x, y)) return -1;
+  if (H16.eyeL(x, y) || H16.eyeR(x, y) || H16.beak(x, y)) return 1;
+  return 0;
+});
+
+// R1c：图标形态——紫底圆角方 + 纸色剪影，眼翻回紫色
+const mR1c = grid(16, (x, y) => {
+  if (!inRect(x, y, 1, 1, 15, 15, 3.4)) return -1;
+  if (!H16.sil(x, y)) return 0;
+  if (H16.eyeL(x, y) || H16.eyeR(x, y) || H16.beak(x, y)) return 0;
+  return 1;
+});
+
+// R2：耳羽徽记——两撮耳羽 + 一条底边，不画眼
+const mR2 = grid(16, (x, y) => {
+  const left = inTri(x, y, [1.8, 12.4], [4.1, 1.8], [6.4, 12.4]);
+  const right = inTri(x, y, [14.2, 12.4], [11.9, 1.8], [9.6, 12.4]);
+  const base = inRect(x, y, 1.8, 11.2, 14.2, 13.2, 1);
+  if (!(left || right || base)) return -1;
+  return 0;
+});
+
+// R3a：站姿剪影，32 网格，眼睛留 1 单元隔断
+const H32 = {
+  sil: (x, y) =>
+    inEll(x, y, 16, 10.6, 5.8, 5.6) ||
+    inEll(x, y, 16.2, 20.4, 5.6, 7.4) ||
+    inTri(x, y, [11.2, 6.6], [13.0, 1.6], [15.0, 6.0]) ||
+    inTri(x, y, [20.8, 6.6], [19.0, 1.6], [17.0, 6.0]) ||
+    inRect(x, y, 12.6, 27.4, 14.8, 30.2, 1) ||
+    inRect(x, y, 17.4, 27.4, 19.6, 30.2, 1),
+  eyeL: (x, y) => inEll(x, y, 13.7, 10.2, 1.7, 1.7),
+  eyeR: (x, y) => inEll(x, y, 18.3, 10.2, 1.7, 1.7),
+  beak: (x, y) => inTri(x, y, [16, 12.1], [15.25, 13.9], [16.75, 13.9]),
+};
+const mR3a = grid(32, (x, y) => {
+  if (!H32.sil(x, y)) return -1;
+  if (H32.eyeL(x, y) || H32.eyeR(x, y) || H32.beak(x, y)) return 1;
+  return 0;
+});
+
+// R3b：R3a 的图标形态
+const mR3b = grid(32, (x, y) => {
+  if (!inRect(x, y, 1, 1, 31, 31, 7)) return -1;
+  if (!H32.sil(x, y)) return 0;
+  if (H32.eyeL(x, y) || H32.eyeR(x, y) || H32.beak(x, y)) return 0;
+  return 1;
+});
+
+// R4：线性同构（与 lucide 同一语言，非像素）
+const linear = (size, color = '#7c4dd6') => `<svg width="${size}" height="${size}" viewBox="0 0 32 32"
+  fill="none" stroke="${color}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11.6 10.4 L13.4 13.6"/><path d="M20.4 10.4 L18.6 13.6"/>
+  <path d="M16 4.6 C10.4 4.6 6.2 9.2 6.2 15.4 C6.2 22.2 10.6 27.4 16 27.4 C21.4 27.4 25.8 22.2 25.8 15.4 C25.8 9.2 21.6 4.6 16 4.6 Z"/>
+  <circle cx="12.8" cy="14.8" r="2.6"/><circle cx="19.2" cy="14.8" r="2.6"/>
+  <path d="M16 18.6 L14.6 21 H17.4 Z"/></svg>`;
+
+// ---------- 行定义 ----------
+const SRC = '../2026-10-21-brand-skin/glaux-owl-b-pixel-1024.png';
+const SIZES = [16, 24, 32, 48, 96, 256];
+
+const ROWS = [
+  {
+    name: '现状（对照）',
+    tag: '32 网格 · 五层细节',
+    takes: '整只小鸮：面盘描边、瞳孔、高光、肚皮、脚',
+    omits: '未省略任何细节',
+    risk: '16–18px 下细节全丢，只剩一团紫',
+    kind: 'img',
+  },
+  {
+    name: 'R1a · 负形眼（两个元素）',
+    tag: '16 网格 · 2 色 · 剪影 + 眼洞',
+    takes: '头身合一的剪影、两撮耳羽、两只负形眼',
+    omits: '喙、肚皮、脚、高光、面盘描边',
+    risk: '读作「暗处两只眼」；没有喙时语义靠耳羽撑',
+    cells: mR1a, G: 16, mass: 0,
+  },
+  {
+    name: 'R1b · 负形眼 + 喙',
+    tag: '16 网格 · 2 色 · 三个元素',
+    takes: '同 R1a，多一个喙',
+    omits: '肚皮、脚、高光、面盘描边',
+    risk: '喙在 16px 只有 2–3 个单元，可能并进眼洞',
+    cells: mR1b, G: 16, mass: 0,
+  },
+  {
+    name: 'R1c · 图标形态（紫底）',
+    tag: '16 网格 · 紫底 + 纸色剪影',
+    takes: 'R1b 的几何翻成应用图标：紫底、纸色小鸮',
+    omits: '同 R1b',
+    risk: '适合 32–256；顶栏位置通常不带底块',
+    cells: mR1c, G: 16, mass: 1,
+  },
+  {
+    name: 'R2 · 耳羽徽记',
+    tag: '16 网格 · 单色 · 无眼',
+    takes: '两撮耳羽 + 一条底边',
+    omits: '眼、喙、身体',
+    risk: '像双峰 / M，语义要靠名字补',
+    cells: mR2, G: 16, mass: 0,
+  },
+  {
+    name: 'R3a · 站姿剪影',
+    tag: '32 网格 · 单色 · 眼为负形',
+    takes: '站立姿态：正面头、侧向身、短足',
+    omits: '月桂、羽毛分块、爪、尾羽',
+    risk: '32 网格细节多，16px 需另画 16 网格主稿',
+    cells: mR3a, G: 32, mass: 0,
+  },
+  {
+    name: 'R3b · 站姿图标形态',
+    tag: '32 网格 · 紫底 + 纸色剪影',
+    takes: 'R3a 的几何，翻成应用图标',
+    omits: '同上',
+    risk: '适合 48 以上；18px 下耳羽与足会丢',
+    cells: mR3b, G: 32, mass: 1,
+  },
+  {
+    name: 'R4 · 线性同构',
+    tag: '矢量 · 2.1px 描边 · 与 lucide 同一语言',
+    takes: '同一只猫头鹰的线性写法',
+    omits: '像素网格；耳羽改为两条短线',
+    risk: '失去像素风；16px 下描边会发灰',
+    kind: 'linear',
+  },
+  {
+    name: 'R5 · 字标 lockup',
+    tag: '衬线字标 + 标识',
+    takes: '把标识当作字标的左挂件',
+    omits: '不做独立标记',
+    risk: 'favicon 退化为字母 G；需要先定字标字体',
+    kind: 'lockup',
+  },
+];
+
+const rows = document.getElementById('rows');
+for (const r of ROWS) {
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `<h2>${r.name}</h2><p class="tagline">${r.tag}</p>
+    <dl><dt>取</dt><dd>${r.takes}</dd>
+    <dt>省</dt><dd>${r.omits}</dd>
+    <dt>风险</dt><dd>${r.risk}</dd></dl>`;
+  row.appendChild(meta);
+
+  const stage = document.createElement('div');
+  stage.className = 'stagewrap';
+  const sizes = document.createElement('div');
+  sizes.className = 'sizes';
+
+  const draw = (size, mode) => {
+    const tint = mode === 'mono' ? INK : mode === 'rev' ? '#f0eafc' : '#7c4dd6';
+    if (r.kind === 'img') {
+      return `<img src="${SRC}" width="${size}" height="${size}" alt=""${mode === 'mono' ? ' style="filter:grayscale(1) contrast(1.15)"' : ''}>`;
+    }
+    if (r.kind === 'linear') return linear(size, tint);
+    if (r.kind === 'lockup') {
+      const m = svgOf({ G: 16, cells: mR1b, mass: 0 }, Math.round(size * 0.8), mode === 'color' ? 'color' : mode === 'mono' ? 'mono' : 'rev');
+      return `<div style="display:flex;align-items:center;gap:${(size * 0.14).toFixed(1)}px">
+        ${m}<span style="font:600 ${(size * 0.52).toFixed(1)}px/1 Georgia,'Noto Serif SC',serif;
+        color:${tint};letter-spacing:.005em;white-space:nowrap">Glaux</span></div>`;
+    }
+    return svgOf({ G: r.G, cells: r.cells, mass: r.mass }, size, mode);
+  };
+
+  const sizesFor = r.kind === 'lockup' ? [16, 24, 32, 48, 96] : SIZES;
+  sizesFor.forEach(size => {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.innerHTML = `<div class="box">${draw(size, 'color')}</div><div class="px">${size}</div>`;
+    sizes.appendChild(slot);
+  });
+  stage.appendChild(sizes);
+
+  const mono = document.createElement('div');
+  mono.className = 'chip';
+  mono.innerHTML = `<div class="box">${draw(32, 'mono')}</div><div class="px">单色 32</div>`;
+  stage.appendChild(mono);
+
+  const rev = document.createElement('div');
+  rev.className = 'chip dark';
+  rev.innerHTML = `<div class="box">${draw(32, 'rev')}</div><div class="px">反白 32</div>`;
+  stage.appendChild(rev);
+
+  row.appendChild(stage);
+  rows.appendChild(row);
+}
+
+// ---------- 顶栏上下文 ----------
+const bars = document.getElementById('bars');
+const BAR_ROWS = [
+  { who: '现状', draw: s => `<img src="${SRC}" width="${s}" height="${s}" alt="">` },
+  { who: 'R1a 面盘', draw: s => svgOf({ G: 16, cells: mR1a, mass: 0 }, s, 'color') },
+  { who: 'R1c 抽象眼', draw: s => svgOf({ G: 16, cells: mR1c, mass: 0 }, s, 'color') },
+  { who: 'R3a 站立侧影', draw: s => svgOf({ G: 32, cells: mR3a, mass: 0 }, s, 'color') },
+  { who: 'R4 线性', draw: s => linear(s) },
+];
+for (const b of BAR_ROWS) {
+  const el = document.createElement('div');
+  el.className = 'bar';
+  el.innerHTML = `<span class="who">${b.who}</span>${b.draw(18)}<b>Glaux</b>
+    <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
+  bars.appendChild(el);
+}
+</script>
+</body>
+</html>

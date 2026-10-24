@@ -32,7 +32,7 @@ function FocusHero() {
   return (
     <div className="focus-hero">
       <span className="focus-hero-logo" aria-hidden="true">
-        <OwlLogo size={40} />
+        <OwlLogo size={48} />
       </span>
       <h2>{t("focus_hero_title")}</h2>
       <p>{t("focus_hero_sub")}</p>

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Glaux 标识 · 心形面盘</title>
+<style>
+  :root{
+    --paper:#FAF9F5; --card:#FFFFFF; --ink:#141413; --mid:#6E6A60; --faint:#A6A094;
+    --line:#E8E6DC; --p:#7c4dd6; --stage:#1C1B19;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px 40px 64px;background:var(--paper);color:var(--ink);
+       font:14px/1.6 "Segoe UI","Noto Sans SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  header{max-width:1080px;margin:0 0 24px}
+  h1{font:600 22px/1.35 "Noto Serif SC",Georgia,serif;margin:0 0 6px}
+  .lead{color:var(--mid);font-size:13px;max-width:880px}
+  .lead b{color:var(--ink);font-weight:600}
+  .how{display:flex;gap:24px;margin-top:14px;font-size:12px;color:var(--mid);flex-wrap:wrap}
+  .how b{color:var(--ink);font-weight:600}
+
+  .row{display:grid;grid-template-columns:250px 1fr;gap:24px;border-top:1px solid #E8E6DC;
+       padding:20px 0 22px;max-width:1240px}
+  .meta h2{font:600 15px/1.4 "Segoe UI";margin:0 0 4px;display:flex;align-items:baseline;gap:8px}
+  .badge{font:600 10px/1 "Segoe UI";letter-spacing:.05em;color:#fff;background:var(--p);
+         border-radius:3px;padding:3px 5px}
+  .badge.grey{background:var(--faint)}
+  .meta .tagline{color:var(--mid);font-size:12px;margin:0 0 10px}
+  .meta dl{margin:0;font-size:12px;line-height:1.55}
+  .meta dt{color:var(--faint);margin-top:8px;font-size:11px;letter-spacing:.03em}
+  .meta dd{margin:1px 0 0;color:var(--mid)}
+
+  .stagewrap{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 26px}
+  .sizes{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap}
+  .slot{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .slot .px,.chip .px{font:11px/1 "Segoe UI";color:var(--faint);font-variant-numeric:tabular-nums}
+  .box{display:flex;align-items:flex-end;justify-content:center;min-height:16px}
+  .chip{display:flex;flex-direction:column;align-items:center;gap:9px;margin-left:16px;
+        padding:10px 12px 8px;border:1px solid #E8E6DC;border-radius:8px;background:var(--card)}
+  .chip.dark{background:var(--stage);border-color:var(--stage)}
+  .chip.dark .px{color:#8d8579}
+  svg{display:block;overflow:visible}
+
+  .contexts{max-width:1240px;border-top:1px solid #E8E6DC;padding-top:22px;margin-top:6px}
+  .contexts h2{font:600 15px/1.4 "Segoe UI";margin:0 0 4px}
+  .contexts p{color:var(--mid);font-size:12px;margin:0 0 14px}
+  .bars{display:flex;flex-direction:column;gap:10px}
+  .bar{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:8px;
+       background:var(--card);border:1px solid #E8E6DC;width:420px}
+  .bar .who{font:600 12px/1 "Segoe UI";color:var(--faint);min-width:150px}
+  .bar b{font-size:12px;color:var(--ink);font-weight:600}
+  .bar .dots{display:flex;gap:6px;margin-left:auto;opacity:.5}
+  .bar .dot{width:14px;height:14px;border-radius:3px;background:#DEDCD2}
+
+  footer{max-width:1080px;border-top:1px solid #E8E6DC;margin-top:28px;padding-top:20px;
+         color:var(--mid);font-size:13px}
+  footer ol{margin:8px 0 0;padding-left:20px}
+  footer li{margin:4px 0}
+  footer b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Glaux 标识 · 心形面盘（负形耳羽）</h1>
+  <p class="lead">
+    上一轮 V1 的耳羽是往外支的三角，读起来像猫耳。这一轮把耳羽改成<b>头顶中央的 V 形缺口</b>：
+    剪影是心形面盘，两只眼是洞，整个符号不含任何突出的尖角，全部由负形构成。
+  </p>
+  <div class="how">
+    <div><b>看什么</b> 16 / 18px 下两个眼洞与中间缺口是否还分得清</div>
+    <div><b>再看</b> 缺口深度：浅了像留海，深了像兔子</div>
+    <div><b>最后</b> 单色与反白</div>
+  </div>
+</header>
+
+<div id="rows"></div>
+
+<section class="contexts">
+  <h2>18px 顶栏上下文</h2>
+  <p>同一段文字、同一底色，只换标识。</p>
+  <div class="bars" id="bars"></div>
+</section>
+
+<footer>
+  <b>看完给判断</b>
+  <ol>
+    <li>缺口深度取哪一档（浅 / 中 / 深）？</li>
+    <li>要不要把底部收成尖（心形收口，像鸟嘴）还是保持圆底？</li>
+    <li>眼洞保持 3×3 还是缩到 5 格（更小的眼，更空的盘）？</li>
+  </ol>
+</footer>
+
+<script>
+const COL = ['#7c4dd6', '#f0eafc', '#2a1b4a'];
+const INK = '#141413';
+
+const inEll = (x, y, cx, cy, rx, ry) => {
+  const dx = (x + .5 - cx) / rx, dy = (y + .5 - cy) / ry;
+  return dx * dx + dy * dy <= 1;
+};
+const inTri = (x, y, a, b, c) => {
+  const px = x + .5, py = y + .5;
+  const s = (p, q, r) => (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1]);
+  const d1 = s([px, py], a, b), d2 = s([px, py], b, c), d3 = s([px, py], c, a);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos);
+};
+const grid = (G, fn) => {
+  const a = [];
+  for (let y = 0; y < G; y++) { const row = []; for (let x = 0; x < G; x++) row.push(fn(x, y)); a.push(row); }
+  return a;
+};
+
+function svgOf(mark, size, mode) {
+  const { G, cells, mass = 0 } = mark;
+  let out = '';
+  for (let y = 0; y < G; y++) {
+    let x = 0;
+    while (x < G) {
+      const f = cells[y][x];
+      const keep = mode === 'color' ? f >= 0 : f === mass;
+      if (!keep) { x++; continue; }
+      let w = 1;
+      while (x + w < G && (mode === 'color' ? cells[y][x + w] === f : cells[y][x + w] === mass)) w++;
+      const fill = mode === 'color' ? COL[f] : mode === 'mono' ? INK : '#f0eafc';
+      out += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${fill}"/>`;
+      x += w;
+    }
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${G} ${G}" shape-rendering="crispEdges">${out}</svg>`;
+}
+
+const inRect = (x, y, x0, y0, x1, y1, r = 0) => {
+  const px = x + .5, py = y + .5;
+  if (px < x0 || px > x1 || py < y0 || py > y1) return false;
+  const cx = Math.min(Math.max(px, x0 + r), x1 - r);
+  const cy = Math.min(Math.max(py, y0 + r), y1 - r);
+  return (px - cx) ** 2 + (py - cy) ** 2 <= r * r;
+};
+
+// 心形面盘：椭圆 − 顶部中央 V 缺口（可选底部收尖）
+const heartSil = (notchTop, notchBot, halfW, taper) => (x, y) => {
+  if (!inEll(x, y, 8, 9.4, 6.0, 5.5)) return false;
+  if (inTri(x, y, [8 - halfW, notchTop], [8 + halfW, notchTop], [8, notchBot])) return false;
+  if (taper) {
+    const py = y + .5, px = x + .5;
+    if (py > 11.0) {
+      const allow = 5.4 - (py - 11.0) * (4.8 / 3.6);   // 11.0 处 ±5.4，收到 y=14.6 附近
+      if (Math.abs(px - 8) > allow) return false;
+    }
+  }
+  return true;
+};
+
+const eyes3 = (x, y) => inEll(x, y, 5.3, 9.2, 1.9, 1.9) || inEll(x, y, 10.7, 9.2, 1.9, 1.9);
+const eyes5 = (x, y) => inEll(x, y, 5.4, 9.2, 1.35, 1.35) || inEll(x, y, 10.6, 9.2, 1.35, 1.35);
+
+const build = (sil, eyeFn) => grid(16, (x, y) => {
+  if (!sil(x, y)) return -1;
+  if (eyeFn(x, y)) return 1;
+  return 0;
+});
+
+// A：浅缺口
+const silA = heartSil(3.2, 6.4, 2.4, false);
+// B：中缺口
+const silB = heartSil(3.0, 7.6, 3.0, false);
+// C：深缺口
+const silC = heartSil(2.8, 8.6, 3.4, false);
+// D：中缺口 + 底部收尖
+const silD = heartSil(3.0, 7.6, 3.0, true);
+// G：深缺口 + 底部收尖
+const silG = heartSil(2.8, 8.6, 3.4, true);
+
+const mkIcon = (sil, eyeFn) => grid(16, (x, y) => {
+  if (!inRect(x, y, 1, 1, 15, 15, 3.4)) return -1;
+  if (!sil(x, y)) return 0;
+  if (eyeFn(x, y)) return 0;
+  return 1;
+});
+
+const SIZES = [16, 24, 32, 48, 96, 256];
+
+const ROWS = [
+  {
+    name: 'A 浅缺口', badge: '克制',
+    tag: 'V 深 3.2 单元 · 口宽 4.8 · 眼 3×3',
+    note: '缺口只切掉面部上缘一小段，两个圆丘像耳羽但不尖。',
+    risk: '16px 下缺口可能只剩 1 单元，退化成一道缝。',
+    cells: build(silA, eyes3), G: 16, mass: 0,
+  },
+  {
+    name: 'B 中缺口', badge: '推荐',
+    tag: 'V 深 4.6 单元 · 口宽 6.0 · 眼 3×3',
+    note: '缺口到底、耳丘明显，心形面盘成立；仍是纯负形，没有突出的尖角。',
+    risk: '缺口偏深时中间可能读成「留海」而不是耳羽。',
+    cells: build(silB, eyes3), G: 16, mass: 0,
+  },
+  {
+    name: 'C 深缺口', badge: '更锐',
+    tag: 'V 深 5.8 单元 · 口宽 6.8 · 眼 3×3',
+    note: '耳丘几乎分开成两只角，猫头鹰感最强，但开始接近 V1 的猫耳。',
+    risk: '与「两只角」的其他品牌符号接近。',
+    cells: build(silC, eyes3), G: 16, mass: 0,
+  },
+  {
+    name: 'D 中缺口 + 收尖', badge: '更像鸟',
+    tag: 'V 深 3.6 · 底部收成尖',
+    note: '底部收窄成尖，整块剪影读作「面盘 + 喙」，不需要单独画喙。',
+    risk: '收尖占掉底部空间，16px 下可能被削平。',
+    cells: build(silD, eyes3), G: 16, mass: 0,
+  },
+  {
+    name: 'G 深缺口 + 收尖', badge: '推荐',
+    tag: 'V 深 5.8 · 口宽 6.8 · 底部收成尖 · 眼 3×3',
+    note: '耳丘与底尖同时成立：上端两个耳丘、下端一个收口，整块剪影像一枚面盘，底部收口兼作喙——不必单独画喙。',
+    risk: '底尖在 16px 只有 2 个单元，可能被削平；届时用 16px 专用微调版（底尖加宽一格）。',
+    cells: build(silG, eyes3), G: 16, mass: 0,
+  },
+  {
+    name: 'H 图标形态', badge: '应用图标',
+    tag: 'G 的几何 + 紫底圆角方',
+    note: '紫底、纸色心形面盘、眼洞回紫。',
+    risk: '仅用于图标与安装器，不进顶栏。',
+    cells: mkIcon(silG, eyes3), G: 16, mass: 1,
+  },
+];
+
+const rowsEl = document.getElementById('rows');
+for (const r of ROWS) {
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `<h2>${r.name}<span class="badge${r.badge === '推荐' ? '' : ' grey'}">${r.badge}</span></h2>
+    <p class="tagline">${r.tag}</p>
+    <dl><dt>说明</dt><dd>${r.note}</dd><dt>风险</dt><dd>${r.risk}</dd></dl>`;
+  row.appendChild(meta);
+
+  const stage = document.createElement('div');
+  stage.className = 'stagewrap';
+  const sizes = document.createElement('div');
+  sizes.className = 'sizes';
+  const draw = (size, mode) => svgOf({ G: r.G, cells: r.cells, mass: r.mass }, size, mode);
+
+  SIZES.forEach(size => {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.innerHTML = `<div class="box">${draw(size, 'color')}</div><div class="px">${size}</div>`;
+    sizes.appendChild(slot);
+  });
+  stage.appendChild(sizes);
+
+  const mono = document.createElement('div');
+  mono.className = 'chip';
+  mono.innerHTML = `<div class="box">${draw(32, 'mono')}</div><div class="px">单色 32</div>`;
+  stage.appendChild(mono);
+
+  const rev = document.createElement('div');
+  rev.className = 'chip dark';
+  rev.innerHTML = `<div class="box">${draw(32, 'rev')}</div><div class="px">反白 32</div>`;
+  stage.appendChild(rev);
+
+  row.appendChild(stage);
+  rowsEl.appendChild(row);
+}
+
+const bars = document.getElementById('bars');
+const BAR_ROWS = [
+  { who: 'A 浅缺口', cells: build(silA, eyes3), mass: 0 },
+  { who: 'B 中缺口', cells: build(silB, eyes3), mass: 0 },
+  { who: 'C 深缺口', cells: build(silC, eyes3), mass: 0 },
+  { who: 'D 收尖', cells: build(silD, eyes3), mass: 0 },
+  { who: 'G 深缺口 + 收尖', cells: build(silG, eyes3), mass: 0 },
+  { who: 'H 图标形态', cells: mkIcon(silG, eyes3), mass: 1 },
+];
+for (const b of BAR_ROWS) {
+  const el = document.createElement('div');
+  el.className = 'bar';
+  el.innerHTML = `<span class="who">${b.who}</span>
+    ${svgOf({ G: 16, cells: b.cells, mass: b.mass }, 18, 'color')}<b>Glaux</b>
+    <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
+  bars.appendChild(el);
+}
+</script>
+</body>
+</html>
