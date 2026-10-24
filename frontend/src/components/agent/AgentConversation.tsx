@@ -69,6 +69,13 @@ export function formatDuration(ms: number): string {
   return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 }
 
+/** 轮次整体用时：不足一分钟给整数秒，之后给分秒（「12 秒」/「5 分 45 秒」），走同一套词面。 */
+function formatSpan(ms: number, t: (key: "agent_dur_sec" | "agent_dur_min_sec", vars: Record<string, number>) => string): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return t("agent_dur_sec", { s: seconds });
+  return t("agent_dur_min_sec", { m: Math.floor(seconds / 60), s: seconds % 60 });
+}
+
 // 工具调用条目（SDD 15 §5.1）：标题行为工具名、入参摘要、耗时，点开看完整输入与输出；
 // 产出卡片（文件、对象、子智能体等）挂在条目下方。run_task 的产出另经 toolBridge 写回查看器。
 // 被拦截或失败的调用在标题行附理由。
@@ -597,9 +604,59 @@ export function AgentConversation() {
   // 待决交互卡片接在智能体输出之后时同样不重复头像
   const pendingContinues = continuesAgent(blocks[blocks.length - 1]);
 
+  // 轮次整体用时（SDD 00 §5.1）：快照里每条消息带 `at`，按 user 消息切轮，取该轮首尾时间差。
+  // 运行中的轮次不给数字——等待行已经在计时，两处同跳只会互相干扰。
+  const turnMeta = useMemo(() => {
+    const spans: ({ startedAt?: number; endedAt?: number; failed: boolean })[] = [];
+    let current: { startedAt?: number; endedAt?: number; failed: boolean } | undefined;
+    for (const [index, message] of messages.entries()) {
+      const role = messageRole(message);
+      const at = (message as { at?: number }).at;
+      if (role === "user") {
+        current = { startedAt: at, failed: false };
+        spans[index] = current;
+        continue;
+      }
+      current ??= { failed: false };
+      if (messageToolResult(message)?.isError) current.failed = true;
+      if (typeof at === "number") current.endedAt = at;
+      spans[index] = current;
+    }
+    return spans;
+  }, [messages]);
+
+  // 轮次状态与用时：挂在「本轮自己」的那条头像行右侧，后续块（continued）不重复。
+  // `failedHint` 来自过程组（被拦截的调用不一定有 isError 的 toolResult，只有组里数得准）。
+  const turnBadge = (index: number, failedHint = 0) => {
+    const span = turnMeta[index];
+    if (!span) return null;
+    const runningHere = activeRun && index >= lastAssistantIndex;
+    const failed = span.failed || failedHint > 0;
+    const label = runningHere
+      ? t("agent_turn_running")
+      : failed
+        ? t("agent_turn_failed")
+        : t("agent_turn_done");
+    const elapsed = !runningHere && span.startedAt !== undefined && span.endedAt !== undefined
+      ? span.endedAt - span.startedAt
+      : null;
+    return (
+      <span className={`turn-meta${failed && !runningHere ? " failed" : ""}`}>
+        {label}
+        {elapsed !== null && elapsed >= 0 && ` · ${t("agent_turn_elapsed", { time: formatSpan(elapsed, t) })}`}
+      </span>
+    );
+  };
+
   const owl = (
     <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
       <OwlLogo size={16} />
+    </div>
+  );
+  const owlFor = (index: number, failedHint = 0) => (
+    <div className="who" title={t("agent_name")} aria-label={t("agent_name")}>
+      <OwlLogo size={16} />
+      {turnBadge(index, failedHint)}
     </div>
   );
 
@@ -708,7 +765,7 @@ export function AgentConversation() {
     return (
       <Fragment key={`process-${block.start}`}>
         <div className={`turn assistant tool${withOwl ? "" : " continued"}`}>
-          {withOwl && owl}
+          {withOwl && owlFor(block.start, failed)}
           <div className="tool-steps" data-testid="tool-steps">
             <button
               type="button"
@@ -719,7 +776,8 @@ export function AgentConversation() {
               <Icon icon={open ? ICONS.chevronDown : ICONS.chevronRight} size="sm" />
               <span className="tool-steps-summary">{summary}</span>
               {failed > 0 && <span className="tool-call-error">{t("agent_steps_failed", { n: failed })}</span>}
-              {totalMs !== null && <span className="tool-item-meta">{formatDuration(totalMs)}</span>}
+              {/* 细节闭合时不显示工具总耗时：那是展开后才需要的信息，折叠行只留状态与计数 */}
+              {open && totalMs !== null && <span className="tool-item-meta">{formatDuration(totalMs)}</span>}
             </button>
             {open && <div className="tool-steps-body">{rows}</div>}
           </div>
@@ -765,7 +823,7 @@ export function AgentConversation() {
         className={`turn ${role === "user" ? "user" : "assistant"}`}
         key={`${role}-${index}-${text.slice(0, 24)}`}
       >
-        {role === "assistant" && withOwl && owl}
+        {role === "assistant" && withOwl && owlFor(index)}
         <div className={role === "user" ? "bubble" : "abody plain"}>
           {images.length > 0 && (
             <div className="message-images">
@@ -978,18 +1036,7 @@ export function AgentConversation() {
             <ComposerPopover
               label={t("agent_usage_used")}
               tip={t("agent_usage_title")}
-              icon={
-                <UsagePie
-                  parts={stats?.context
-                    ? [
-                      { key: "system", value: stats.context.system },
-                      { key: "tools", value: stats.context.tools },
-                      { key: "messages", value: stats.context.messages },
-                    ]
-                    : null}
-                  ratio={contextRatio}
-                />
-              }
+              icon={<UsagePie ratio={contextRatio} />}
               text={contextRatio != null
                 ? percentText(contextRatio)
                 : contextTokens != null ? estimateTokens(contextTokens) : "—"}

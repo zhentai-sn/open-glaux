@@ -18,10 +18,12 @@ export type TranscriptBlock =
   | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
 
 export type TranscriptMessage =
-  | { role: "user"; content: string | TranscriptBlock[] }
-  | { role: "assistant"; content: TranscriptBlock[] }
+  | { role: "user"; content: string | TranscriptBlock[]; at?: number }
+  | { role: "assistant"; content: TranscriptBlock[]; at?: number }
   | {
       role: "toolResult";
+      /** 会话条目时间戳（epoch 毫秒）；事件流的增量消息没有。 */
+      at?: number;
       toolCallId: string;
       toolName: string;
       content: TranscriptBlock[];

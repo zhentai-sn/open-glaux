@@ -364,6 +364,58 @@ describe("AgentConversation", () => {
     expect(order[order.length - 1]).toContain("tool-r2");
   });
 
+  it("shows the turn status and wall time beside the avatar, and hides tool time when folded", () => {
+    const start = Date.parse("2026-10-24T10:00:00.000Z");
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "measure", at: start },
+            {
+              role: "assistant",
+              at: start + 4_000,
+              content: [{ type: "toolCall", id: "t1", name: "run_task", arguments: {} }],
+            },
+            {
+              role: "toolResult", at: start + 5_000, toolCallId: "t1", toolName: "run_task",
+              isError: false, content: [{ type: "text", text: "ok" }], duration_ms: 1000,
+            },
+            { role: "assistant", at: start + 65_000, content: [{ type: "text", text: "Measured." }] },
+          ],
+        },
+      },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+
+    // 头像行：状态 + 整轮墙钟时间（1 分 5 秒），而不是工具耗时
+    expect(screen.getByText(/Done · took 1m 5s/u)).toBeInTheDocument();
+    // 折叠组收起时不显示工具总耗时
+    const head = screen.getByRole("button", { name: /Tool calls: 1/u });
+    expect(head.textContent).not.toContain("1.0s");
+    fireEvent.click(head);
+    expect(head.textContent).toContain("1.0s");
+  });
+
+  it("marks a turn with a blocked call as failed", () => {
+    const start = Date.parse("2026-10-24T10:00:00.000Z");
+    useAgentSessions.setState({
+      views: {
+        [session.session_id]: {
+          ...session,
+          messages: [
+            { role: "user", content: "run it", at: start },
+            { role: "assistant", at: start + 1_000, content: [{ type: "toolCall", id: "b1", name: "bash", arguments: {} }] },
+            { role: "assistant", at: start + 2_000, content: [{ type: "text", text: "Blocked." }] },
+          ],
+        },
+      },
+      toolErrors: { [session.session_id]: { b1: "denied by policy" } },
+    });
+    render(<I18nProvider><AgentConversation /></I18nProvider>);
+    expect(screen.getByText(/Failed · took 2s/u)).toBeInTheDocument();
+  });
+
   it("keeps one avatar when a suggestion card follows the tool steps", () => {
     useAgentSessions.setState({
       views: {
@@ -407,11 +459,13 @@ describe("AgentConversation", () => {
     expect(container.querySelectorAll(".conversation-stream .who")).toHaveLength(1);
     const head = screen.getByRole("button", { name: /Tool calls: 1/u });
     expect(head).toHaveAttribute("aria-expanded", "false");
-    expect(head).toHaveTextContent("1.2s");
+    // 折叠时不显示工具总耗时，展开后才有
+    expect(head).not.toHaveTextContent("1.2s");
     expect(screen.queryByTestId("tool-item")).not.toBeInTheDocument();
     expect(screen.getByText("It is a title.")).toBeInTheDocument();
 
     fireEvent.click(head);
+    expect(head).toHaveTextContent("1.2s");
     const item = screen.getByTestId("tool-item");
     expect(item).toHaveTextContent("README.md");
     expect(screen.getByTestId("tool-duration")).toHaveTextContent("1.2s");

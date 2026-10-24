@@ -1040,6 +1040,14 @@ canvas {
   color: var(--agent);
   font-weight: 600;
 }
+/* 轮次状态与整体用时（SDD 00 §5.1）：挂在头像行右侧，不参与正文 */
+.turn-meta {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.turn-meta.failed { color: var(--crit); }
 .who .d {
   width: 5px;
   height: 5px;
