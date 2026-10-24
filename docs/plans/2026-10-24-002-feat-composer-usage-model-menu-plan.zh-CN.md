@@ -108,5 +108,7 @@ date: 2026-10-24
 - 滚动条：模型列表的自定义 `::-webkit-scrollbar` 原先被标准 `scrollbar-width/color` 覆盖，退化成带箭头
   的原生条；改为只用伪元素（thin 6px、圆角、悬停加深），列表底部加 12px 渐隐，避免切在行中间。
 - 节奏统一：弹层内距 14px、区块间距 10px、圆角 12px；行高与数值字号上调半档；当前模型行改用强调底。
+- 弹层挂载位置：`ComposerPopover` 改用 portal 挂到 `document.body` + fixed 定位（按触发按钮实测贴右缘、
+  向上 10px），脱离 `.agent-conversation` 的 `overflow: hidden` 与对话滚动的合成层；视口变化即收起。
 
 未做（§4 开放问题仍开放）：费用单价、草稿是否计入上下文、档位默认值。
