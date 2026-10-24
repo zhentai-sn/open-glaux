@@ -3,6 +3,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
 
 import { useI18n, type I18nKey, type Lang } from "../../i18n";
+import { useReading, type ReadingSize } from "../../store/reading";
 import { DEFAULT_ACCENT, useTheme, type Theme } from "../../store/theme";
 import { ConnectionConfig } from "../agent/ConnectionConfig";
 import { ICONS } from "../iconMap";
@@ -95,6 +96,10 @@ function AppearanceSection() {
   const { t, lang, setLang } = useI18n();
   const theme = useTheme((s) => s.theme);
   const setTheme = useTheme((s) => s.setTheme);
+  const readingSize = useReading((s) => s.size);
+  const setReadingSize = useReading((s) => s.setSize);
+  const follow = useReading((s) => s.follow);
+  const setFollow = useReading((s) => s.setFollow);
   return (
     <>
       <SettingRow title={t("settings_theme")} desc={t("settings_theme_desc")}>
@@ -120,6 +125,29 @@ function AppearanceSection() {
           options={[
             { value: "zh", label: "中文" },
             { value: "en", label: "English" },
+          ]}
+        />
+      </SettingRow>
+      <SettingRow title={t("settings_reading_size")} desc={t("settings_reading_size_desc")}>
+        <Segmented<ReadingSize>
+          label={t("settings_reading_size")}
+          value={readingSize}
+          onChange={setReadingSize}
+          options={[
+            { value: "compact", label: t("settings_reading_compact") },
+            { value: "standard", label: t("settings_reading_standard") },
+            { value: "comfortable", label: t("settings_reading_comfortable") },
+          ]}
+        />
+      </SettingRow>
+      <SettingRow title={t("settings_reading_follow")} desc={t("settings_reading_follow_desc")}>
+        <Segmented<"on" | "off">
+          label={t("settings_reading_follow")}
+          value={follow ? "on" : "off"}
+          onChange={(value) => setFollow(value === "on")}
+          options={[
+            { value: "on", label: t("settings_reading_on") },
+            { value: "off", label: t("settings_reading_off") },
           ]}
         />
       </SettingRow>

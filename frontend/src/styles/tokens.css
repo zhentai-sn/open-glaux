@@ -126,6 +126,12 @@
   --font-base: 13px;
   --leading: 1.6;
 
+  /* 阅读面（对话列）：三档由 <html data-reading> 选择；chrome 与侧栏仍用上面的字号阶。
+     组件只读 --read-*，不判断档位（2026-10-24 阅读体验，SDD 00 §5.1）。 */
+  --read-size: 14px;
+  --read-leading: 23px;
+  --read-gap: 10px;
+
   /* 间距阶（4 的倍数，秩序之美 G11）——padding/gap/margin 一律取阶，杜绝魔法数字 */
   --space-1: 4px;
   --space-2: 8px;
@@ -161,6 +167,19 @@
   --panel-h: 150px;
   --status-h: 22px;
   --titlebar-h: 35px;
+}
+
+/* 阅读档：紧凑 / 标准（缺省）/ 舒适。只覆盖 --read-*，不影响字号阶。 */
+:root[data-reading="compact"] {
+  --read-size: 13px;
+  --read-leading: 21px;
+  --read-gap: 8px;
+}
+
+:root[data-reading="comfortable"] {
+  --read-size: 15px;
+  --read-leading: 25px;
+  --read-gap: 12px;
 }
 
 /* 影像视口：两档主题下都按深色渲染（SDD 12）。置于末尾以覆盖上面的主题声明。 */

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../../i18n";
+import { useReading } from "../../store/reading";
 import { useTheme } from "../../store/theme";
 
 vi.mock("../agent/ConnectionConfig", () => ({
@@ -58,4 +59,17 @@ it("外观分区：强调色预设、取色器与恢复默认", () => {
   fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
   expect(useTheme.getState().accent).toBeNull();
   expect(screen.getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+});
+
+it("外观分区：阅读字号与跟随写 useReading 与 <html data-reading>", () => {
+  useReading.getState().setSize("standard");
+  useReading.getState().setFollow(true);
+  fireEvent.click(screen.getByRole("button", { name: /Appearance/ }));
+
+  fireEvent.click(screen.getByRole("radio", { name: "Comfortable" }));
+  expect(useReading.getState().size).toBe("comfortable");
+  expect(document.documentElement.dataset.reading).toBe("comfortable");
+
+  fireEvent.click(screen.getByRole("radio", { name: "Off" }));
+  expect(useReading.getState().follow).toBe(false);
 });

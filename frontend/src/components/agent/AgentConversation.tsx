@@ -15,6 +15,7 @@ import { useConversation } from "../../agent/useConversation";
 import { useI18n } from "../../i18n";
 import { useAgentSessions, type ResolvedInteraction, type SubagentProgress, type ToolTiming } from "../../store/agentSessions";
 import { useProjects } from "../../store/projects";
+import { useReading } from "../../store/reading";
 import { activeObject, useSession } from "../../store/session";
 import { Icon } from "../Icon";
 import { ICONS } from "../iconMap";
@@ -37,6 +38,8 @@ import type { MascotState } from "../Mascot";
 const MASCOT_SLEEP_MS = 5 * 60 * 1000;
 import { VideoEvidenceCard } from "./VideoEvidenceCard";
 import { InteractionCard, ResolvedInteractionLine } from "./InteractionCard";
+import { TurnActivity } from "./TurnActivity";
+import { useFollowTail } from "./useFollowTail";
 import { parseSkillMessage } from "./slashCommands";
 
 /**
@@ -346,15 +349,20 @@ export function AgentConversation() {
     return result;
   }, [live, view?.messages]);
 
-  useEffect(() => {
-    const stream = streamRef.current;
-    if (stream) stream.scrollTop = stream.scrollHeight;
-  }, [messages]);
+  // 跟随新输出（阅读体验）：只有贴近底部才跟随；用户向上回读即暂停，胶囊可回到底部。
+  const followNewOutput = useReading((state) => state.follow);
+  const { following, jumpToLatest } = useFollowTail(streamRef, {
+    revision: messages,
+    resetKey: currentSessionId,
+    enabled: followNewOutput,
+  });
 
   const running =
     view?.phase === "running" ||
     view?.phase === "stopping" ||
     view?.phase === "compacting";
+  // 只有真正生成时才算“智能体在工作”：停止中与压缩中不显示等待行，也不提示“回到最新”。
+  const activeRun = view?.phase === "running";
 
   // 小鸮状态（品牌皮肤）：确认完成时短暂庆祝，其次等用户确认，再按错误 / 流式 / 运行中 / 待机。
   const [celebrate, setCelebrate] = useState(false);
@@ -673,7 +681,10 @@ export function AgentConversation() {
             <button
               className="agent-regenerate"
               type="button"
-              onClick={() => void regenerate()}
+              onClick={() => {
+                jumpToLatest();
+                void regenerate();
+              }}
             >
               <Icon icon={ICONS.regenerate} size="sm" /> {t("agent_regenerate")}
             </button>
@@ -802,13 +813,34 @@ export function AgentConversation() {
             <VideoEvidenceCard record={record} observations={view.video_observations ?? []} />
           </div>
         ))}
+        <TurnActivity
+          messages={messages}
+          running={activeRun}
+          waitingOnUser={waitingOnUser}
+          streamingText={messageText(live?.streamingAssistant)}
+          runKey={currentSessionId}
+        />
+        {!following && activeRun && (
+          <button
+            type="button"
+            className="follow-pill"
+            aria-label={t("agent_jump_latest")}
+            onClick={jumpToLatest}
+          >
+            <Icon icon={ICONS.chevronDown} size="sm" /> {t("agent_jump_latest")}
+          </button>
+        )}
       </div>
 
       <ConversationComposer
         running={Boolean(running)}
         mascotState={mascotState}
         disabled={inputDisabled}
-        onSend={send}
+        onSend={async (content, images, invocation) => {
+          // 自己的发送总是回到最新，随后由跟随策略接管。
+          jumpToLatest();
+          await send(content, images, invocation);
+        }}
         onAbort={abort}
         notice={readonlyNotice}
         controls={

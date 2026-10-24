@@ -1547,6 +1547,56 @@ canvas {
   color: var(--agent);
   background: var(--agent-dim);
 }
+/* 等待行：首 token 前与工具等待期间的一行状态（SDD 00 §5.1）；文案切换只做透明度。 */
+.turn-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  color: var(--mid);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+.turn-activity-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--agent);
+  flex: none;
+}
+.turn-activity-text { animation: turn-activity-in var(--motion-fast) var(--ease-out); }
+.turn-activity-clock {
+  color: var(--faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes turn-activity-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* 跟随暂停时的“回到最新”：sticky 在滚动层底部，不挤压正文。 */
+.follow-pill {
+  position: sticky;
+  bottom: 0;
+  align-self: flex-end;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 4px 10px;
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--mid);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(20, 20, 19, 0.08);
+}
+.follow-pill:hover {
+  color: var(--bright);
+  background: var(--hover);
+}
 .agent-empty {
   display: flex;
   flex: 1;
@@ -2850,17 +2900,20 @@ body.resizing .focus-rail { transition: none; }
 .context-ring:focus-visible .context-ring-tip { opacity: 1; }
 .who svg { flex: none; }
 
-/* ---- 对话消息 Markdown 渲染（feats/00 §5.1；react-markdown，无原始 HTML） ---- */
-/* white-space 复位：气泡的 pre-wrap 会让块元素之间的换行符显示成空行，列表与段落间距被撑大 */
-.md { font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: normal; }
+/* ---- 对话消息 Markdown 渲染（SDD feats/00 §5.1；react-markdown，无原始 HTML） ----
+   基础档 13px 给 Workbench 侧栏；Focus 与 chat 发行版的对话列是阅读面，走 --read-* 三档。
+   white-space 复位：气泡的 pre-wrap 会让块元素之间的换行符显示成空行，列表与段落间距被撑大。 */
+.md { font-size: var(--font-base); line-height: 1.65; color: var(--ink); white-space: normal; }
 .md > :first-child { margin-top: 0; }
 .md > :last-child { margin-bottom: 0; }
 .md p { margin: 6px 0; }
 .md h1, .md h2, .md h3, .md h4 {
   margin: 12px 0 6px;
   color: var(--bright);
+  font-family: var(--serif);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
 }
 .md h1 { font-size: 15px; }
 .md h2 { font-size: 14px; }
@@ -2873,8 +2926,9 @@ body.resizing .focus-rail { transition: none; }
 .md code {
   font-family: var(--mono);
   font-size: 11.5px;
+  line-height: 1.3;
   background: var(--code-bg);
-  border-radius: var(--radius-sm);
+  border-radius: 5px;
   padding: 1px 5px;
 }
 .md pre {
@@ -2885,19 +2939,61 @@ body.resizing .focus-rail { transition: none; }
   border-radius: var(--radius-md);
   overflow-x: auto;
 }
-.md pre code { background: none; padding: 0; font-size: 11.5px; }
+.md pre code { background: none; padding: 0; font-size: 12px; line-height: 1.5; }
 .md blockquote {
   margin: 8px 0;
   padding: 2px 12px;
-  border-left: 3px solid var(--agent-line);
+  border-left: 2px solid var(--agent-line);
   color: var(--mid);
 }
 .md a { color: var(--accent2); text-decoration: none; }
-.md a:hover { text-decoration: underline; }
+.md a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .md hr { border: none; border-top: 1px solid var(--line2); margin: 10px 0; }
-.md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; overflow-x: auto; }
-.md th, .md td { border: 1px solid var(--line2); padding: 4px 9px; }
-.md th { color: var(--bright); background: var(--sidebar); }
+/* 表格自带滚动容器（Markdown.tsx 包一层）：外框与圆角归容器，单元格只画内部分隔线。 */
+.md-table {
+  margin: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background-clip: padding-box;
+}
+.md table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
+.md th, .md td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.md th { color: var(--bright); background: var(--sidebar); font-weight: 600; }
+.md th + th, .md td + td { border-left: 1px solid var(--line); }
+.md tr:last-child td { border-bottom: none; }
+
+/* 阅读面：Focus（720px 列）与 chat 发行版（960px 列）。字号/行高/段距只读 token。 */
+:is(.focus-conversation, .chat-shell .chat-main) .md {
+  font-size: var(--read-size);
+  line-height: var(--read-leading);
+}
+:is(.focus-conversation, .chat-shell .chat-main) .md p { margin: var(--read-gap) 0; }
+:is(.focus-conversation, .chat-shell .chat-main) .md h1 { font-size: 20px; margin: 20px 0 10px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md h2 { font-size: 17px; margin: 18px 0 8px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md h3,
+:is(.focus-conversation, .chat-shell .chat-main) .md h4 { font-size: 15px; margin: 14px 0 6px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md ul,
+:is(.focus-conversation, .chat-shell .chat-main) .md ol { margin: 8px 0; padding-left: 22px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md li { margin: 4px 0; }
+:is(.focus-conversation, .chat-shell .chat-main) .md code {
+  font-size: calc(var(--read-size) - 1.5px);
+}
+:is(.focus-conversation, .chat-shell .chat-main) .md pre { margin: 10px 0; padding: 12px 14px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md pre code { font-size: 13px; line-height: 1.55; }
+:is(.focus-conversation, .chat-shell .chat-main) .md blockquote { margin: 10px 0; padding: 4px 14px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md .md-table { margin: 10px 0; }
+:is(.focus-conversation, .chat-shell .chat-main) .md table { font-size: 13px; }
+:is(.focus-conversation, .chat-shell .chat-main) .md th,
+:is(.focus-conversation, .chat-shell .chat-main) .md td { padding: 7px 11px; }
+/* 阅读档的标题/段落间距更大，仍要让首尾不贴边（上面 :is 规则的优先级高于 .md > :first-child）。 */
+:is(.focus-conversation, .chat-shell .chat-main) .md > :first-child { margin-top: 0; }
+:is(.focus-conversation, .chat-shell .chat-main) .md > :last-child { margin-bottom: 0; }
 
 /* ---- M5：reduced-motion 下位移/缩放动效全关，仅保状态瞬时切换 ---- */
 @media (prefers-reduced-motion: reduce) {
@@ -2906,6 +3002,7 @@ body.resizing .focus-rail { transition: none; }
   .focus-rail,
   .focus-card,
   .mode-switch { transition: none; }
+  .turn-activity-text { animation: none; }
 }
 
 /* ==== Atlas · 图谱（SDD feats/03）====
@@ -3813,7 +3910,14 @@ button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space:
 
 /* Chat distribution: one conversation surface, no image workspace. */
 .chat-main { flex: 1; min-width: 0; min-height: 0; display: flex; justify-content: center; }
-.chat-main > .agent-conversation { width: 100%; max-width: 960px; border: 0; }
+.chat-main > .agent-conversation { width: 100%; max-width: 960px; border: 0; background: var(--editor); }
+/* 与 Focus 同一阅读语义：助手正文平铺在画布上，用户输入保留紧凑气泡。 */
+.chat-shell .chat-main .turn.assistant:not(.tool) > .abody.plain {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
 .chat-shell .focus-rail { --focus-rail-w: 240px; }
 .chat-shell .agent-empty { padding: 40px 20px; }
 .chat-shell .agent-readonly button { color: var(--agent); cursor: pointer; }
