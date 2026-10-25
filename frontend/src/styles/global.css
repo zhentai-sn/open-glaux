@@ -114,6 +114,12 @@ button {
   place-items: center;
   margin-right: 6px;
 }
+/* 品牌标识与文字并排时的光学对位：标识墨迹在 16 网格里偏下（面盘重心 y≈9.4，墨迹 4..15），
+   因此「框居中」不等于「墨迹居中」，与相邻文字差约 1.5 单元。这里按标识自身高度上移 12.5%
+   （16px → 2px），把墨迹中心对到文字墨迹中心；48px hero 不并排文字，保持原稿不动。 */
+.titlebar .logo svg,
+.focus-topbar .logo svg,
+.who svg { transform: translateY(-12.5%); }
 .menu {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
