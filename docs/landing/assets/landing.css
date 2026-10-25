@@ -73,6 +73,17 @@ button { font: inherit; }
 .faq details { border-bottom: 1px solid var(--line); padding: 18px 0; }
 .faq summary { font-weight: 600; cursor: pointer; }
 .faq details p { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
+/* 项目数据：只展示 GitHub 上的发行版下载与 Star；页面不发统计请求（SDD 24 §7.9 第 5 条）。
+   数据由 pages.yml 部署时写进 stats.json，取不到就整条隐藏。 */
+.stats { border-top: 1px solid var(--line); background: var(--wash); }
+.stats[hidden] { display: none; }
+.stats-in { display: flex; align-items: baseline; gap: 36px; flex-wrap: wrap; padding: 20px 0; }
+.stat { display: flex; align-items: baseline; gap: 8px; }
+.stat[hidden] { display: none; }
+.stat b { font-size: 20px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 13px; }
+.stats-note { margin: 0 0 0 auto; color: var(--muted); font-size: 12px; }
+.privacy-item a { display: inline-block; margin-top: 6px; font-size: 13px; }
 .foot { padding: 24px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .foot-in { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
@@ -87,6 +98,8 @@ button { font: inherit; }
   .features, .install-grid, .privacy { grid-template-columns: 1fr; }
   .install-grid, .privacy { gap: 28px; }
   .pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-in { gap: 20px 28px; padding: 16px 0; }
+  .stats-note { margin: 0; }
   .product-shot { margin-top: 28px; }
   .caption { font-size: 11px; }
 }

@@ -14,7 +14,7 @@
 <body>
   <header class="nav"><div class="wrap nav-in">
     <a class="brand" href="#top" aria-label="Glaux home"><span>Glaux</span></a>
-    <nav class="navlinks" aria-label="Main navigation"><a href="#features">Explore</a><a href="#install">Install</a><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a><a class="lang" href="zh/" lang="zh-CN">中文</a></nav>
+    <nav class="navlinks" aria-label="Main navigation"><a href="#features">Explore</a><a href="#install">Install</a><a href="#contact">Contact</a><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a><a class="lang" href="zh/" lang="zh-CN">中文</a></nav>
   </div></header>
   <main id="top">
     <section class="hero"><div class="wrap">
@@ -23,6 +23,13 @@
       <div class="actions"><a class="btn primary" href="#install">Install Glaux <span aria-hidden="true">↓</span></a><a class="btn secondary" href="https://github.com/zhentai-sn/open-glaux">View source on GitHub <span aria-hidden="true">↗</span></a></div>
       <p class="fine">Runs on your computer · Bring your own model · Apache-2.0</p>
       <figure class="product-shot"><img src="assets/screenshots/en/glaux-overview.webp" width="1440" height="900" alt="Glaux light workspace showing a sample image, annotations, and files beside the agent conversation"><figcaption class="caption">The Glaux workspace. The sample photograph is released under CC0 1.0.</figcaption></figure>
+    </div></section>
+
+    <section id="stats" class="stats" aria-label="Project activity" hidden><div class="wrap stats-in">
+      <div class="stat"><b id="stat-downloads">—</b><span>release downloads</span></div>
+      <div class="stat"><b id="stat-stars">—</b><span>GitHub stars</span></div>
+      <div class="stat"><b id="stat-version">—</b><span>latest version</span></div>
+      <p class="stats-note">Counts come from GitHub and refresh with each site deploy. The page loads no analytics script.</p>
     </div></section>
 
     <section id="features" class="section"><div class="wrap">
@@ -80,12 +87,22 @@
       </div>
     </div></section>
 
+    <section id="contact" class="section wash"><div class="wrap privacy">
+      <div><h2>Contact</h2><p class="body-copy">Chinese or English both work. Tell me about a problem, a modality you want covered, or a workflow you want to connect.</p></div>
+      <div class="privacy-list">
+        <div class="privacy-item"><div><b>GitHub Issues</b><span>Bug reports and feature requests stay public so the next person can find the same answer.</span><a href="https://github.com/zhentai-sn/open-glaux/issues/new">Open an issue ↗</a></div></div>
+        <div class="privacy-item"><div><b>Email</b><span>For anything you would rather not post publicly, or collaboration.</span><a href="mailto:zhentai.sn@gmail.com">zhentai.sn@gmail.com</a></div></div>
+      </div>
+    </div></section>
+
   </main>
   <footer class="foot"><div class="wrap foot-in"><span>© 2026 Glaux · Apache-2.0</span><span><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a> · <a href="zh/">简体中文</a> · <a href="https://github.com/zhentai-sn/open-glaux/blob/main/LICENSE">License</a></span></div></footer>
   <script>
     (()=>{const commands={windows:'irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex',macos:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh',linux:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh'};const tabs=[...document.querySelectorAll('[data-platform]')],output=document.querySelector('#install-command'),copy=document.querySelector('#copy-command'),status=document.querySelector('#copy-status');let selected='linux';const choose=(name,focus=false)=>{document.querySelector("#windows-download").hidden=name!=="windows"||!window.glauxWindowsSetup;selected=name;for(const tab of tabs){const active=tab.dataset.platform===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus()}output.textContent=commands[name]};for(const tab of tabs){tab.addEventListener('click',()=>choose(tab.dataset.platform));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;choose(tabs[next].dataset.platform,true)})}const ua=navigator.userAgent.toLowerCase();choose(ua.includes('windows')?'windows':ua.includes('mac')?'macos':'linux');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.textContent);status.textContent='Command copied.'}catch{status.textContent='Select and copy the command above.'}})})();
 
     fetch("latest.json").then(r=>{if(!r.ok)throw new Error('manifest');return r.json()}).then(m=>{const a=m.assets&&m.assets['windows-setup'];if(a&&a.url&&a.sha256){window.glauxWindowsSetup=true;document.querySelector('#windows-setup-link').href=a.url;const active=document.querySelector('[data-platform="windows"]').getAttribute('aria-selected')==='true';document.querySelector('#windows-download').hidden=!active}}).catch(()=>{});
+
+    fetch("stats.json").then(r=>{if(!r.ok)throw new Error('stats');return r.json()}).then(s=>{const num=(v)=>typeof v==='number'&&v>0?v.toLocaleString('en-US'):null;const put=(id,v)=>{const el=document.querySelector(id);if(!el)return;if(v==null||v===''){el.parentElement.hidden=true;return}el.textContent=v};put('#stat-downloads',num(s.downloads));put('#stat-stars',num(s.stars));put('#stat-version',s.version?'v'+s.version:null);document.querySelector('#stats').hidden=false}).catch(()=>{});
   </script>
 </body>
 </html>

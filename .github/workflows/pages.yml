@@ -86,6 +86,49 @@ jobs:
           else
             printf '{"version":null,"tag":null,"published_at":null,"assets":{}}\n' > _site/latest.json
           fi
+      # 落地页的数据条：下载量与 Star 在部署时取好写进 stats.json，页面因此不需要任何统计脚本
+      # （SDD 24 §7.9 第 5 条）。取数失败整条隐藏，不影响页面其余部分。
+      - name: Collect repository stats
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime, json, os, urllib.request
+
+          repo = os.environ["REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+
+          def get(url):
+              req = urllib.request.Request(
+                  url,
+                  headers={"Authorization": f"Bearer {token}", "User-Agent": "glaux-pages"},
+              )
+              return json.load(urllib.request.urlopen(req, timeout=30))
+
+          releases, page = [], 1
+          while True:
+              batch = get(f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}")
+              if not batch:
+                  break
+              releases += batch
+              if len(batch) < 100:
+                  break
+              page += 1
+
+          published = [r for r in releases if not r.get("draft") and not r.get("prerelease")]
+          stats = {
+              "downloads": sum(a.get("download_count", 0) for r in published for a in r.get("assets", [])),
+              "releases": len(published),
+              "stars": get(f"https://api.github.com/repos/{repo}").get("stargazers_count", 0),
+              "version": json.load(open("_site/latest.json", encoding="utf-8")).get("version"),
+              "updated_at": datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
+          }
+          with open("_site/stats.json", "w", encoding="utf-8") as fh:
+              fh.write(json.dumps(stats, indent=2) + "\n")
+          print(json.dumps(stats))
+          PY
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

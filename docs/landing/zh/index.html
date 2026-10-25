@@ -14,7 +14,7 @@
 <body>
   <header class="nav"><div class="wrap nav-in">
     <a class="brand" href="#top" aria-label="Glaux 首页"><span>Glaux</span></a>
-    <nav class="navlinks" aria-label="主导航"><a href="#features">了解功能</a><a href="#install">安装</a><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a><a class="lang" href="../" lang="en">English</a></nav>
+    <nav class="navlinks" aria-label="主导航"><a href="#features">了解功能</a><a href="#install">安装</a><a href="#contact">联系</a><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a><a class="lang" href="../" lang="en">English</a></nav>
   </div></header>
   <main id="top">
     <section class="hero"><div class="wrap">
@@ -23,6 +23,13 @@
       <div class="actions"><a class="btn primary" href="#install">安装 Glaux <span aria-hidden="true">↓</span></a><a class="btn secondary" href="https://github.com/zhentai-sn/open-glaux">在 GitHub 查看源码 <span aria-hidden="true">↗</span></a></div>
       <p class="fine">运行在你的电脑上 · 模型由你接入 · Apache-2.0</p>
       <figure class="product-shot"><img src="../assets/screenshots/zh/glaux-overview.webp" width="1440" height="900" alt="Glaux 亮色工作区，示例图像、标注和文件栏位于智能体对话旁"><figcaption class="caption">Glaux 工作区。示例图片采用 CC0 1.0 许可。</figcaption></figure>
+    </div></section>
+
+    <section id="stats" class="stats" aria-label="项目数据" hidden><div class="wrap stats-in">
+      <div class="stat"><b id="stat-downloads">—</b><span>发行版下载</span></div>
+      <div class="stat"><b id="stat-stars">—</b><span>GitHub Star</span></div>
+      <div class="stat"><b id="stat-version">—</b><span>最新版本</span></div>
+      <p class="stats-note">数字取自 GitHub，随站点部署更新；页面不加载统计脚本。</p>
     </div></section>
 
     <section id="features" class="section"><div class="wrap">
@@ -80,12 +87,22 @@
       </div>
     </div></section>
 
+    <section id="contact" class="section wash"><div class="wrap privacy">
+      <div><h2>联系我</h2><p class="body-copy">中文或英文都可以。遇到问题、想补一种模态、想把它接进自己的流程，直接说。</p></div>
+      <div class="privacy-list">
+        <div class="privacy-item"><div><b>GitHub Issues</b><span>报问题、提需求都走公开 issue，方便后来的人检索到同一个坑。</span><a href="https://github.com/zhentai-sn/open-glaux/issues/new">新建 issue ↗</a></div></div>
+        <div class="privacy-item"><div><b>邮箱</b><span>不方便公开的内容，或合作事宜。</span><a href="mailto:zhentai.sn@gmail.com">zhentai.sn@gmail.com</a></div></div>
+      </div>
+    </div></section>
+
   </main>
   <footer class="foot"><div class="wrap foot-in"><span>© 2026 Glaux · Apache-2.0</span><span><a href="https://github.com/zhentai-sn/open-glaux">GitHub</a> · <a href="../">English</a> · <a href="https://github.com/zhentai-sn/open-glaux/blob/main/LICENSE">许可</a></span></div></footer>
   <script>
     (()=>{const commands={windows:'irm https://zhentai-sn.github.io/open-glaux/install.ps1 | iex',macos:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh',linux:'curl -fsSL https://zhentai-sn.github.io/open-glaux/install.sh | sh'};const tabs=[...document.querySelectorAll('[data-platform]')],output=document.querySelector('#install-command'),copy=document.querySelector('#copy-command'),status=document.querySelector('#copy-status');const choose=(name,focus=false)=>{document.querySelector("#windows-download").hidden=name!=="windows"||!window.glauxWindowsSetup;for(const tab of tabs){const active=tab.dataset.platform===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus()}output.textContent=commands[name]};for(const tab of tabs){tab.addEventListener('click',()=>choose(tab.dataset.platform));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;choose(tabs[next].dataset.platform,true)})}const ua=navigator.userAgent.toLowerCase();choose(ua.includes('windows')?'windows':ua.includes('mac')?'macos':'linux');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.textContent);status.textContent='已复制命令。'}catch{status.textContent='请手动选择并复制上方命令。'}})})();
 
     fetch("../latest.json").then(r=>{if(!r.ok)throw new Error('manifest');return r.json()}).then(m=>{const a=m.assets&&m.assets['windows-setup'];if(a&&a.url&&a.sha256){window.glauxWindowsSetup=true;document.querySelector('#windows-setup-link').href=a.url;const active=document.querySelector('[data-platform="windows"]').getAttribute('aria-selected')==='true';document.querySelector('#windows-download').hidden=!active}}).catch(()=>{});
+
+    fetch("../stats.json").then(r=>{if(!r.ok)throw new Error('stats');return r.json()}).then(s=>{const num=(v)=>typeof v==='number'&&v>0?v.toLocaleString('zh-CN'):null;const put=(id,v)=>{const el=document.querySelector(id);if(!el)return;if(v==null||v===''){el.parentElement.hidden=true;return}el.textContent=v};put('#stat-downloads',num(s.downloads));put('#stat-stars',num(s.stars));put('#stat-version',s.version?'v'+s.version:null);document.querySelector('#stats').hidden=false}).catch(()=>{});
   </script>
 </body>
 </html>
