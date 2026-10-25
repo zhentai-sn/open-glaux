@@ -1850,7 +1850,9 @@ canvas {
 .composer-pill.open { color: var(--bright); background: var(--hover); }
 .composer-pill:disabled { opacity: 0.5; cursor: default; background: transparent; }
 .composer-pill-text { overflow: hidden; text-overflow: ellipsis; }
-.composer-pill-suffix { flex: none; color: var(--agent); font-size: 11px; letter-spacing: 0.02em; }
+/* 后缀（推理档位）与模型名同字号：字号不同时两个 flex 项按框居中，墨水中心差 1.5px，
+   「高」看起来比模型名抬高半个字；同字号后行盒等高、基线重合，无需再对位。 */
+.composer-pill-suffix { flex: none; color: var(--agent); font-size: inherit; letter-spacing: 0.02em; }
 .composer-pill > svg { flex: none; }
 .composer-pill > svg:last-child:not(:first-child) { color: var(--faint); }
 .usage-pie { display: block; flex: none; }

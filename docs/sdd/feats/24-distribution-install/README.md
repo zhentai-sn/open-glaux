@@ -159,7 +159,7 @@ graph LR
 7. 控制窗口通过便携 Node 和已有启动器执行命令，隐藏命令行窗口；操作期间按钮禁用，成功或失败在窗口内反馈。卸载需确认，默认保留用户数据。
 8. `install.json` 在程序目录持久保存 `home`。显式 `GLAUX_HOME` 优先，其次安装记录，最后用户默认目录；新终端和桌面入口使用相同的数据目录。桌面入口直接绑定安装目录，不依赖当前终端 PATH。
 9. PowerShell 一键安装完成后，将 `bin` 同时加入用户 PATH 和当前进程 PATH，当前窗口即可调用 `glaux`。
-10. 桌面、开始菜单、控制窗口与安装 EXE 统一使用前端 `OwlLogo.tsx` 的小鸮标识，紫色圆角底（`#7c4dd6`，沿用应用浅色主题默认智能体色）配浅色轮廓；Windows ICO 包含 16–256 px 多尺寸图层，安装时复制到程序目录 `bin`。
+10. 桌面、开始菜单、控制窗口与安装 EXE 统一使用前端 `OwlLogo.tsx` 的小鸮标识，紫色圆角底（`#7c4dd6`，沿用应用浅色主题默认智能体色）配浅色轮廓；Windows ICO 包含 16–256 px 多尺寸图层，安装时复制到程序目录 `bin`。标识换稿后两处旧图不会自动跟随：已安装的副本要重装或 `glaux update` 才更新；用 Chrome 窗口（`--app-id=…`）打开开发服务器的机器上，窗口与任务栏图标取自 Chrome 建快捷方式时截下的快照——`User Data\Default\Web Applications\Manifest Resources\<app-id>\Icons\*.png` 与 `_crx_<app-id>\Glaux.ico`，需按 `scripts/release/build-icon.py` 的新稿重出、覆盖后重启窗口，并 `ie4uinit.exe -show` 刷新系统图标缓存。
 11. Windows 安装 EXE 内嵌同版本安装脚本、图标资源和控制窗口源码。发布工作流编译 EXE、生成独立 SHA256 校验文件；落地页 Windows 页签提供下载按钮，仍保留命令行安装方式。
 
 ### 7.5 打包
