@@ -10,11 +10,11 @@ status: implemented
 | 字段 | 内容 |
 | --- | --- |
 | 状态 | `implemented` |
-| 当前阶段 | `v0.4.0` 已发布，含 DeepSeek、连接模型列表与 Windows WPF 控制窗口；四平台安装冒烟通过，Release 与 Pages 部署成功；人工卸载重装验收待补 |
+| 当前阶段 | `v0.5.0` 已发布，含对话阅读面重做、会话列表页签与置顶、输入区三枚胶囊、OpenCode 端点与品牌换新；四平台安装冒烟通过，Release 与 Pages 部署成功；人工卸载重装验收待补 |
 | 来源 | 2026-10-08 维护者决定进入上线准备：更新落地页，提供下载与一键安装脚本；仓库公开，托管走 GitHub，不用自定义域名；三平台原生；落地页中英双语；首个公开版本 `0.3.0` |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 01 版本与发布治理](../../01-version-release-governance.md) · [SDD 09 基本对话 Docker 发行包](../09-chat-distribution/README.md)（由本 SDD 取代） · [SDD 13 项目文件夹会话](../13-project-folder-sessions/README.md) · [SDD 16 智能体基础工具](../16-agent-basic-tools/README.md) |
 | 负责人 | Glaux 项目维护者 |
-| 最后更新 | 2026-10-18 |
+| 最后更新 | 2026-10-25 |
 
 > 状态合法值仅四个：`draft` → `ready` → `implemented` → `accepted`。
 
@@ -359,10 +359,10 @@ stateDiagram-v2
 
 ### 15.3 发布
 
-- [x] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。`v0.4.0` 的 GitHub 资产摘要、`SHA256SUMS` 与公开清单一致；公开安装脚本与仓库源码一致。
+- [x] 推送 `v*` 标签后 Release 自动生成，含两个包、`SHA256SUMS` 与发布说明；`latest.json` 同步更新。`v0.5.0` 的 GitHub 资产摘要、`SHA256SUMS` 与公开清单一致；公开安装脚本与仓库源码一致。
 - [ ] 标签与 `VERSION` 不一致时发布失败。
 
-当前发布证据：[四平台 CI](https://github.com/zhentai-sn/open-glaux/actions/runs/39093450276)、[正式 Release 流程](https://github.com/zhentai-sn/open-glaux/actions/runs/39093804980)、[Pages 部署](https://github.com/zhentai-sn/open-glaux/actions/runs/39094016705)、[v0.4.0 Release](https://github.com/zhentai-sn/open-glaux/releases/tag/v0.4.0)。Release 四平台安装冒烟与 Pages 部署均通过；`Glaux-Setup.exe` 实际下载文件的 SHA256、GitHub 资产摘要、`WINDOWS-SHA256SUMS` 与公开清单一致，公开清单为 `0.4.0`。自动冒烟覆盖 Ubuntu 22.04、Windows Server 2022、macOS 14 arm64 与 macOS 15 Intel；不替代 Windows 11、最低支持 macOS 版本、图形按钮交互及带真实旧数据的人工验收。
+当前发布证据：[四平台 CI](https://github.com/zhentai-sn/open-glaux/actions/runs/40170745847)、[正式 Release 流程](https://github.com/zhentai-sn/open-glaux/actions/runs/40170748528)、[Pages 部署](https://github.com/zhentai-sn/open-glaux/actions/runs/40170950396)、[v0.5.0 Release](https://github.com/zhentai-sn/open-glaux/releases/tag/v0.5.0)。Release 四平台安装冒烟与 Pages 部署均通过；`Glaux-Setup.exe` 实际下载文件的 SHA256、GitHub 资产摘要、`WINDOWS-SHA256SUMS` 与公开清单一致，公开清单为 `0.5.0`；落地页 `stats.json` 已切到 `0.5.0`。自动冒烟覆盖 Ubuntu 22.04、Windows Server 2022、macOS 14 arm64 与 macOS 15 Intel；不替代 Windows 11、最低支持 macOS 版本、图形按钮交互及带真实旧数据的人工验收。
 
 ### 15.4 落地页
 
