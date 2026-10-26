@@ -4,7 +4,7 @@ import type { ConnectionInput } from "../contracts.js";
 import { RuntimeError } from "../errors.js";
 import { parseProviderId } from "../pi/compatibility.js";
 import type { ModelRuntime } from "../pi/model-runtime.js";
-import { describeImage, type AtlasDescription, type ImageInput } from "../pi/vision.js";
+import { describeImage, visionSessionId, type AtlasDescription, type ImageInput } from "../pi/vision.js";
 
 /**
  * `/agent-api/v1/atlas/describe`——为图谱案例生成 SDD 03 §7.6 结构化描述。
@@ -36,6 +36,8 @@ export function registerAtlasRoutes(server: FastifyInstance, deps: AtlasRouteDep
         image,
         ...(hint ? { hint } : {}),
         signal: controller.signal,
+        // 同一张图（含重试）落在同一条上游缓存路由；换图换标识，不共用路由。
+        sessionId: visionSessionId("atlas-describe", image.data),
       });
       return { description, statement_version: "v1" };
     } finally {

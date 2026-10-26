@@ -72,6 +72,8 @@ export interface ConsultAtlasToolOptions {
   runtime: VisionRuntime;
   connection: Pick<ConnectionInput, "provider" | "base_url">;
   viewer?: ViewerContext;
+  /** 会话标识（视觉调用带的 x-opencode-session）；缺省由每次查阅的 traceId 派生。 */
+  sessionId?: string;
   client?: AtlasClient;
   backendBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -147,6 +149,7 @@ export function createConsultAtlasTool(
         traceId,
         k,
         signal: combined,
+        ...(options.sessionId ? { sessionId: options.sessionId } : {}),
       });
 
       const details: AtlasReferencedDetails = {

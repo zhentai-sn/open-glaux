@@ -59,7 +59,7 @@ export const annotationPlugin: GlauxPlugin = {
   tools: [
     {
       name: LOCATE_ROI_TOOL_NAME, effect: "compute", projectScoped: true, requires: { vision: true, runtime: true }, supports: (focus) => !!focus,
-      create: (ctx) => localizeTool(createLocateRoiTool({ runtime: ctx.runtime!, connection: ctx.connection!, ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }), langOf(ctx), LOCATE_ROI_ZH) as HarnessTool,
+      create: (ctx) => localizeTool(createLocateRoiTool({ runtime: ctx.runtime!, connection: ctx.connection!, ...(ctx.viewer ? { viewer: ctx.viewer } : {}), ...(ctx.run ? { sessionId: ctx.run.sessionId } : {}) }), langOf(ctx), LOCATE_ROI_ZH) as HarnessTool,
       promptFragment: (ctx) => LOCATE_PROMPT[langOf(ctx)],
     },
     {

@@ -11,7 +11,7 @@ status: implemented
 | --- | --- |
 | SDD 状态 | `implemented`（v2.0 上传即入库 2026-10-01 实现完成、自查见 §15 v2.0；v1.2 图谱接入会话 2026-08-20 实现完成、自查见 §15 v1.2；v1.1 图册 collection + Focus 右侧栏 2026-08-16 完成；v1 §15.1 结论不变；待维护者端到端验收） |
 | 创建日期 | 2026-08-16 |
-| 最近更新 | 2026-10-01 |
+| 最近更新 | 2026-10-26 |
 | 目标阶段 | 第一阶段：上传即入库的图谱 + agent 检索先验（VLM 两步 few-shot） |
 | 首个场景 | **膜性肾病 EDD（电子致密物）TEM 图谱**——肾脏超微病理，透射电镜图像 |
 | 上位 SDD | [Glaux SDD 索引](../../README.md) |
@@ -168,7 +168,8 @@ sequenceDiagram
 - 详情页「重新生成描述」按钮、列表多选后的「生成描述」批量操作本身即用户确认，按钮文案带目标 host；批量操作仍弹出一次含张数与 host 的确认。
 - 确认只对当次列出的案例有效，不记忆、不跨批次、不跨页面会话；切换连接后须重新确认。
 - 当前连接不可用（未配模型或非视觉连接）时不出现确认条，案例保持「待描述」，页面提示配置视觉连接。
-- 单条失败保持 `pending` 并记失败次数（仅前端内存），同一页面会话内最多自动重试 1 次，之后只能在详情页手动重试。
+- 单条失败保持 `pending` 并记失败次数（仅前端内存），同一页面会话内最多自动重试 1 次，之后只能在详情页手动重试。结束行写明首个失败原因（runtime 报错原文），不只给计数。
+- 视觉调用须带会话标识：OpenCode Go / Zen 端点缺 `x-opencode-session` 直接 `400 MissingSessionID`。描述按图像内容派生稳定标识（同图重试同路由、换图换标识），`consult_atlas` / `locate_roi` 的挑选与定位步用当前会话标识（见 `agent-runtime/src/pi/vision.ts`、`pi/opencode-session.ts`）。
 - 外发：描述生成发往用户自配的当前连接，与 v1 相同，不受案例 `egress` 约束（§7.4 末条）。
 
 凭据边界：VLM 连接凭据只从前端发往 agent-runtime（同 00 的约束），**不经 backend**；backend 只存描述结果。
@@ -455,6 +456,7 @@ v1.1（图册 + Focus 右侧栏）：
 | 下架不可检索、历史卡片可开、恢复可检索 | `test_atlas_store.py` retire/restore；`AtlasRefCard.test.tsx` 已下架/已删除案例降级展示且可点开 |
 | 被引用过的不可硬删；未引用可硬删 | `test_atlas_store.py`（`mark_referenced` 后 delete → `REFERENCED`） |
 | describe 失败仍入库可重试；成功含全部固定字段且 `extra` 为对象 | agent-runtime `atlas-vision.test.ts`（一次重试 / `describe_failed` / 规整）+ `atlas-api.test.ts`（502 且凭据不落 body、请求后 dispose）；backend `PUT /description` 测试；前端详情页"生成描述"按钮 |
+| 视觉调用带 `x-opencode-session`（OpenCode Go / Zen 缺它即 400）；失败原因显示在确认条 | agent-runtime `vision-session.test.ts`（标识下发与不臆造）+ `opencode-session-header.test.ts`（描述调用真实请求带该头）；前端 `AtlasView.test.tsx`「生成失败：结束行写明失败原因」 |
 | 检索链路无 torch | `test_atlas_store.py::test_search_path_does_not_import_torch` |
 
 **未完成**

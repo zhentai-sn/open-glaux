@@ -17,7 +17,7 @@ export const atlasPlugin: GlauxPlugin = {
   tools: [
     {
       name: CONSULT_ATLAS_TOOL_NAME, effect: "read", requires: { vision: true, runtime: true }, supports: () => true,
-      create: (ctx) => localizeTool(createConsultAtlasTool({ runtime: ctx.runtime!, connection: ctx.connection!, ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }), langOf(ctx), CONSULT_ATLAS_ZH) as HarnessTool,
+      create: (ctx) => localizeTool(createConsultAtlasTool({ runtime: ctx.runtime!, connection: ctx.connection!, ...(ctx.viewer ? { viewer: ctx.viewer } : {}), ...(ctx.run ? { sessionId: ctx.run.sessionId } : {}) }), langOf(ctx), CONSULT_ATLAS_ZH) as HarnessTool,
       promptFragment: (ctx) => ATLAS_PROMPT[langOf(ctx)],
     },
   ],

@@ -141,6 +141,26 @@ describe("生成描述须用户确认（D-28）", () => {
     await waitFor(() => expect(useAtlasUi.getState().describeJob).toMatchObject({ running: false, ok: 2, failed: 0 }));
   });
 
+  it("生成失败：结束行写明失败原因，而不是只剩计数", async () => {
+    mockFetch((url) => {
+      if (url.startsWith("/agent-api/v1/atlas/describe"))
+        return jsonRes(
+          { error: { code: "describe_failed", message: "400: Request is missing x-opencode-session" } },
+          502,
+        );
+      const m = url.match(/^\/api\/atlas\/exemplars\/(e\d)$/);
+      if (m) return jsonRes(ex(m[1]!));
+      return pendingList(url);
+    });
+    ui();
+    await screen.findByTestId("describe-confirm");
+    fireEvent.click(screen.getByRole("button", { name: "生成描述" }));
+    await waitFor(() => expect(useAtlasUi.getState().describeJob).toMatchObject({ running: false, ok: 0, failed: 2 }));
+    const reason = await screen.findByTestId("describe-error");
+    expect(reason.textContent).toContain("x-opencode-session");
+    expect(calls.filter((c) => c.url.endsWith("/description"))).toHaveLength(0);
+  });
+
   it("「暂不」隐藏本组确认条且不发图", async () => {
     mockFetch(pendingList);
     ui();

@@ -26,7 +26,7 @@ import { AtlasClient, backendBaseUrl, egressFor } from "../../atlas/client.js";
 import { selectExemplars } from "../../atlas/select.js";
 import type { AtlasReferencedPayload, ConnectionInput, ViewerContext } from "../../contracts.js";
 import { fetchObservation, toObjectCoords } from "../../observation/index.js";
-import { locateInImage, type ImageInput, type LocatedBox, type VisionRuntime } from "../vision.js";
+import { locateInImage, visionSessionId, type ImageInput, type LocatedBox, type VisionRuntime } from "../vision.js";
 
 export const LOCATE_ROI_TOOL_NAME = "locate_roi";
 export const ROI_LOCATED_DETAILS_KIND = "glaux.roi_located";
@@ -71,6 +71,8 @@ export interface LocateRoiToolOptions {
   runtime: VisionRuntime;
   connection: Pick<ConnectionInput, "provider" | "base_url">;
   viewer?: ViewerContext;
+  /** 会话标识（视觉调用带的 x-opencode-session）；缺省由本次定位的 traceId 派生。 */
+  sessionId?: string;
   client?: AtlasClient;
   backendBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -140,6 +142,7 @@ export function createLocateRoiTool(
             traceId: randomUUID(),
             k: 3,
             signal: combined,
+            ...(options.sessionId ? { sessionId: options.sessionId } : {}),
           });
           atlas = picked.event;
           references = picked.selected.map((e) => ({
@@ -165,6 +168,7 @@ export function createLocateRoiTool(
         height: observation.frame.height,
         ...(references.length ? { references } : {}),
         signal: combined,
+        sessionId: options.sessionId ?? visionSessionId("atlas-locate", image.data),
       });
 
       const minConfidence = params.min_confidence ?? DEFAULT_MIN_CONFIDENCE;

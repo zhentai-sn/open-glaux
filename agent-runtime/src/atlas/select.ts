@@ -12,7 +12,7 @@
  */
 
 import type { AtlasReferencedPayload } from "../contracts.js";
-import { chooseAmongImages, type ImageInput, type VisionRuntime } from "../pi/vision.js";
+import { chooseAmongImages, visionSessionId, type ImageInput, type VisionRuntime } from "../pi/vision.js";
 import type { AtlasClient, AtlasExemplar, Egress } from "./client.js";
 
 export interface SelectExemplarsInput {
@@ -28,6 +28,8 @@ export interface SelectExemplarsInput {
   limit?: number;
   skipSelectionUpTo?: number;
   signal?: AbortSignal;
+  /** 挑选步（视觉调用）的会话标识；缺省时由 traceId 派生，保证同一次查阅的重试同路由。 */
+  sessionId?: string;
 }
 
 export interface SelectedExemplar extends AtlasExemplar {
@@ -118,6 +120,7 @@ export async function selectExemplars(
     })),
     k: input.k ?? 3,
     ...(input.signal ? { signal: input.signal } : {}),
+    sessionId: input.sessionId ?? visionSessionId("atlas-select", input.traceId),
   });
   const byId = new Map(withCrops.map((c) => [c.exemplar_id, c]));
   const selected = chosen.map((id) => byId.get(id)).filter((c): c is SelectedExemplar => Boolean(c));

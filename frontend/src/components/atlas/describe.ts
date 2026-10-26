@@ -4,7 +4,7 @@
 import { atlasApi, fetchCropBase64, type Exemplar } from "../../api/atlas";
 import { agentRuntimeApi } from "../../agent/runtime/client";
 import { toConnectionInput } from "../../agent/useConversation";
-import { useAtlasUi } from "../../store/atlas";
+import { useAtlasUi, type DescribeJob } from "../../store/atlas";
 import { useSession, type Connection } from "../../store/session";
 
 const CONCURRENCY = 2;
@@ -58,38 +58,51 @@ export async function describeExemplar(ex: Exemplar, connection: Connection): Pr
   return atlasApi.setDescription(ex.exemplar_id, res.description, "done");
 }
 
+/** runtime 报错原文（"400: {...}" 这类），截断到能放进确认条的长度。 */
+function errorText(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const text = raw.replace(/\s+/gu, " ").trim();
+  return text.length > 240 ? `${text.slice(0, 240)}…` : text;
+}
+
 /**
  * 用户确认后对一组案例生成描述（§6.1 描述队列）：并发 2、单条失败自动重试 1 次；
  * 进度写 useAtlasUi.describeJob。确认绑定在当时的连接上：中途切换连接即停止，剩余案例保持待描述。
+ * 失败原因留在 job.error（只记首个），确认条据此显示为什么没生成——不然界面只有计数。
  */
 export async function runDescribeQueue(ids: string[], connection: Connection): Promise<void> {
   const ui = useAtlasUi.getState();
   if (ui.describeJob?.running || ids.length === 0) return;
-  const job = { total: ids.length, done: 0, ok: 0, failed: 0, running: true };
+  const job: DescribeJob = { total: ids.length, done: 0, ok: 0, failed: 0, running: true };
   ui.setDescribeJob({ ...job });
   const queue = [...ids];
   const stillConfirmed = () => useSession.getState().connection === connection;
 
-  const one = async (id: string) => {
+  const one = async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    let reason: string | undefined;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const ex = await atlasApi.get(id);
         if (ex.describe_status !== "done") await describeExemplar(ex, connection);
-        return true;
-      } catch {
-        if (!stillConfirmed()) return false;
+        return { ok: true };
+      } catch (error) {
+        reason = errorText(error);
+        if (!stillConfirmed()) return { ok: false, error: reason };
       }
     }
-    return false;
+    return { ok: false, error: reason };
   };
 
   const worker = async () => {
     while (queue.length && stillConfirmed()) {
       const id = queue.shift()!;
-      const ok = await one(id);
+      const outcome = await one(id);
       job.done += 1;
-      if (ok) job.ok += 1;
-      else job.failed += 1;
+      if (outcome.ok) job.ok += 1;
+      else {
+        job.failed += 1;
+        if (!job.error && outcome.error) job.error = outcome.error;
+      }
       useAtlasUi.getState().setDescribeJob({ ...job });
     }
   };

@@ -42,6 +42,11 @@ export function DescribeConfirm() {
     return (
       <div className="atlas-describe-bar" role="status">
         <span>{t("atlas_describe_done", { ok: job.ok, failed: job.failed })}</span>
+        {job.failed > 0 && job.error ? (
+          <span className="atlas-describe-reason" data-testid="describe-error">
+            {t("atlas_describe_error", { message: job.error })}
+          </span>
+        ) : null}
         <button type="button" className="atlas-link" onClick={() => setJob(null)}>
           {t("atlas_close")}
         </button>

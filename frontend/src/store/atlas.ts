@@ -14,6 +14,8 @@ export interface DescribeJob {
   ok: number;
   failed: number;
   running: boolean;
+  /** 首个失败原因（runtime 报错原文），结束行据此显示为什么没生成；全部成功时缺省。 */
+  error?: string;
 }
 
 interface AtlasUiState {

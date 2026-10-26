@@ -98,4 +98,5 @@ manifest：`{"query": "…", "tags": ["TEM","EDD"], "items": [{"image": "img/001
 | 网页导入一律 `FETCH_BLOCKED` | 目标解析到真实私网 → `GLAUX_VLM_HOST_ALLOW` 加白；若报的是 `198.18.x.x`，检查是否被显式设了 `GLAUX_VLM_ALLOW_FAKEIP=0` |
 | "N 条案例待描述。先在设置里配置一个视觉模型连接" | 描述生成需要在「设置 → 模型与连接」里选定支持图像的模型 |
 | 案例一直"待补描述" | 未在确认条点「生成描述」，或 VLM 返回非 JSON 两次 / 网络失败 → 确认条或详情页「生成描述」重试 |
+| 确认条写"失败原因：400: … MissingSessionID" | 视觉调用没带 `x-opencode-session`（OpenCode Go / Zen 端点缺它即 400）；0.5.1 已修。旧版本换到不带该要求的端点，或升级后用 `vision: "yes"` 的模型重试 |
 | v1 库首次以 v2.0 打开 | backend 补 `reviewed` 列（旧案例为已确认），并把 v1 向导写入的 `textbook` / `web` 案例 ROI 由 `x0,y0,x1,y1` 换算为 `x,y,w,h`、重建裁剪图；旧 `staging/` 目录不再使用，可删除 |

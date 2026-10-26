@@ -8,6 +8,7 @@ import type { Context } from "@earendil-works/pi-ai";
 
 import type { ConnectionInput } from "../../src/contracts.js";
 import { createModelRuntime } from "../../src/pi/model-runtime.js";
+import { describeImage, visionSessionId } from "../../src/pi/vision.js";
 
 const OPENCODE_CONNECTION: ConnectionInput = {
   provider: "openai-compatible",
@@ -119,5 +120,21 @@ describe("OpenCode 会话头接线", () => {
     );
     expect(call.url.startsWith("https://opencode.ai/zen/go/v1/")).toBe(true);
     expect(call.headers["x-opencode-session"]).toBe("conversation-4");
+  });
+
+  it("图谱描述这类视觉调用也带会话标识（否则 400 MissingSessionID）", async () => {
+    const calls = captureFetch();
+    const runtime = createModelRuntime({
+      ...OPENCODE_PROVIDER_CONNECTION,
+      base_url: "https://opencode.ai/zen/go/v1",
+      vision: true,
+    });
+    const image = { data: "iVBORw0KGgo=", mimeType: "image/png" };
+    const sessionId = visionSessionId("atlas-describe", image.data);
+    // fetch 被替换成固定 400，这里只断言请求头；调用本身必然失败。
+    await describeImage(runtime, { image, sessionId }).catch(() => undefined);
+    const call = await waitForCalls(calls);
+    expect(call.url.startsWith("https://opencode.ai/zen/go/v1/")).toBe(true);
+    expect(call.headers["x-opencode-session"]).toBe(sessionId);
   });
 });

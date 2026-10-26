@@ -9,6 +9,8 @@
  * 输出要求 JSON；解析失败重试一次后抛 `RuntimeError("describe_failed" | "select_failed")`。
  */
 
+import { createHash } from "node:crypto";
+
 import type { ImageContent, Model, Models, TextContent } from "@earendil-works/pi-ai";
 
 import { RuntimeError } from "../errors.js";
@@ -16,6 +18,25 @@ import { RuntimeError } from "../errors.js";
 export interface VisionRuntime {
   models: Models;
   model: Model<string>;
+}
+
+/**
+ * 视觉调用的公共选项。
+ *
+ * - `sessionId`：OpenCode 托管端点（Zen / Go）缺 `x-opencode-session` 直接 400 MissingSessionID
+ *   （见 `pi/opencode-session.ts`）。视觉调用不是对话，没有现成的会话标识，须由调用方给出：
+ *   同一张图 / 同一次挑选的重试传同一个值（命中同一缓存路由），不同来源互不相同。
+ */
+export interface VisionCallOptions {
+  sessionId?: string;
+}
+
+/**
+ * 由作用域 + 内容派生稳定会话标识：内容相同（重试）得到同一个值，内容不同互不相同。
+ * 作用域区分调用来源（`atlas-describe`、`atlas-select`…），不把两次无关的视觉调用并到一条路由。
+ */
+export function visionSessionId(scope: string, payload: string): string {
+  return `${scope}-${createHash("sha256").update(payload).digest("hex").slice(0, 32)}`;
 }
 
 export interface ImageInput {
@@ -130,7 +151,9 @@ export async function completeJson(
   content: (TextContent | ImageContent)[],
   signal: AbortSignal | undefined,
   errorCode: string,
+  sessionId?: string,
 ): Promise<unknown> {
+  const options = { ...(signal ? { signal } : {}), ...(sessionId ? { sessionId } : {}) };
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const messages = [
@@ -149,7 +172,7 @@ export async function completeJson(
       const msg = await rt.models.complete(
         rt.model,
         { systemPrompt, messages },
-        signal ? { signal } : undefined,
+        Object.keys(options).length ? options : undefined,
       );
       if (msg.stopReason === "error") {
         throw new RuntimeError(errorCode, msg.errorMessage ?? "model returned an error", 502);
@@ -166,11 +189,18 @@ export async function completeJson(
 
 export async function describeImage(
   rt: VisionRuntime,
-  input: { image: ImageInput; hint?: string; signal?: AbortSignal },
+  input: { image: ImageInput; hint?: string; signal?: AbortSignal } & VisionCallOptions,
 ): Promise<AtlasDescription> {
   const content: (TextContent | ImageContent)[] = [img(input.image)];
   content.push(txt(input.hint?.trim() ? `Hint: ${input.hint.trim()}` : "Describe this image."));
-  const raw = await completeJson(rt, DESCRIBE_SYSTEM, content, input.signal, "describe_failed");
+  const raw = await completeJson(
+    rt,
+    DESCRIBE_SYSTEM,
+    content,
+    input.signal,
+    "describe_failed",
+    input.sessionId,
+  );
   try {
     return normalizeDescription(raw);
   } catch (error) {
@@ -189,7 +219,7 @@ export interface SelectCandidate {
  */
 export async function chooseAmongImages(
   rt: VisionRuntime,
-  input: { target: ImageInput; candidates: SelectCandidate[]; k?: number; signal?: AbortSignal },
+  input: { target: ImageInput; candidates: SelectCandidate[]; k?: number; signal?: AbortSignal } & VisionCallOptions,
 ): Promise<string[]> {
   const k = Math.max(1, Math.min(input.k ?? 3, input.candidates.length));
   if (input.candidates.length === 0) return [];
@@ -199,7 +229,7 @@ export async function chooseAmongImages(
     content.push(img(c.image));
   });
   content.push(txt(`Pick up to ${k} most similar candidate ids.`));
-  const raw = await completeJson(rt, SELECT_SYSTEM, content, input.signal, "select_failed");
+  const raw = await completeJson(rt, SELECT_SYSTEM, content, input.signal, "select_failed", input.sessionId);
   const valid = new Set(input.candidates.map((c) => c.id));
   const selected = (raw as { selected?: unknown }).selected;
   if (!Array.isArray(selected)) {
@@ -252,7 +282,7 @@ export async function locateInImage(
     references?: SelectCandidate[];
     maxBoxes?: number;
     signal?: AbortSignal;
-  },
+  } & VisionCallOptions,
 ): Promise<LocatedBox[]> {
   const content: (TextContent | ImageContent)[] = [];
   for (const ref of input.references ?? []) {
@@ -265,7 +295,7 @@ export async function locateInImage(
   content.push(img(input.image));
   content.push(txt(`Locate: ${input.target}`));
 
-  const raw = await completeJson(rt, LOCATE_SYSTEM, content, input.signal, "locate_failed");
+  const raw = await completeJson(rt, LOCATE_SYSTEM, content, input.signal, "locate_failed", input.sessionId);
   const boxes = (raw as { boxes?: unknown }).boxes;
   if (!Array.isArray(boxes)) {
     throw new RuntimeError("locate_failed", "model output lacks boxes[]", 502);

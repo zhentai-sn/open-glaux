@@ -3619,6 +3619,7 @@ body.resizing .focus-rail { transition: none; }
   color: var(--ink);
 }
 .atlas-describe-bar.muted { border-color: var(--line2); background: var(--input); color: var(--mid); }
+.atlas-describe-reason { flex-basis: 100%; color: var(--warn); font-size: 11px; line-height: 1.4; word-break: break-word; }
 .atlas-batch { display: flex; flex-direction: column; gap: 6px; margin: 8px 12px 0; padding: 8px 10px; border: 1px solid var(--line2); border-radius: var(--radius-sm); background: var(--editor); font-size: 11.5px; }
 .atlas-batch .dsin { flex: 1; min-width: 0; }
 .atlas-card-open { display: flex; flex-direction: column; text-align: left; background: none; border: none; padding: 0; color: inherit; cursor: pointer; }
