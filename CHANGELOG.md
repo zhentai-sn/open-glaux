@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-26
+
+### Fixed
+
+- 图谱「生成描述」在 OpenCode Go / Zen 连接上一律失败并报 `400 MissingSessionID`：视觉调用补 `x-opencode-session`，描述按图像内容派生稳定会话标识；`consult_atlas` 与 `locate_roi` 的挑选、定位步一并修正。
+- 生成描述失败时确认条只显示计数、看不出原因：结束行改为「描述生成已结束：…」，并附首个失败原因。
+
 ## [0.5.0] - 2026-10-25
 
 ### Added

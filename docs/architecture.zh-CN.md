@@ -266,4 +266,4 @@ graph LR
 
 ### 版本治理
 
-根 `VERSION` 为整体产品版本；frontend、agent-runtime、backend、science-core 四个组件独立维护版本号。当前产品版本为 `0.5.0`，组件版本仍为 `0.2.0`。规则见 [SDD 01](sdd/01-version-release-governance.md)，机器校验是 `scripts/version_matrix.py`。
+根 `VERSION` 为整体产品版本；frontend、agent-runtime、backend、science-core 四个组件独立维护版本号。当前产品版本为 `0.5.1`，组件版本仍为 `0.2.0`。规则见 [SDD 01](sdd/01-version-release-governance.md)，机器校验是 `scripts/version_matrix.py`。
