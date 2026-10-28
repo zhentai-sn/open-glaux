@@ -56,6 +56,7 @@ stateDiagram-v2
 | 22 | [智能体看图：缩放与复核](feats/22-agent-visual-inspection/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-05 |
 | 23 | [标注标签与管理](feats/23-annotation-labels/README.md) | `implemented` | Glaux 项目维护者 | 2026-10-06 |
 | 24 | [完整版分发与一键安装](feats/24-distribution-install/README.md) | `implemented`（0.5.1 已发布，四平台安装冒烟与 Pages 部署通过；人工验收待补；取代 09） | Glaux 项目维护者 | 2026-10-27 |
+| 25 | [可选模型组件（Model Packs）](feats/25-optional-model-packs/README.md) | `ready` | Glaux 项目维护者 | 2026-10-28 |
 
 ## 维护约定
 
