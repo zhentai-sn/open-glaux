@@ -1,7 +1,7 @@
 /** 注册表任务执行与当前帧观看（SDD 02 §7.2、SDD 10）。 */
 import { langOf, localizeTool, type Bilingual } from "../i18n/prompt-lang.js";
 import type { HarnessTool } from "../pi/harness-registry.js";
-import { createEstimateDepthTool, DEPTH_PACK_ID, ESTIMATE_DEPTH_TOOL_NAME, estimateDepthZh } from "../pi/tools/estimate-depth.js";
+import { createEstimateDepthTool, DEPTH_PACK_ID, ESTIMATE_DEPTH_TOOL_NAME, estimateDepthPrompt, estimateDepthZh } from "../pi/tools/estimate-depth.js";
 import { createRunTaskTool, runTaskZh } from "../pi/tools/run-task.js";
 import { createViewCurrentImageTool, VIEW_CURRENT_IMAGE_TOOL_NAME, VIEW_CURRENT_IMAGE_ZH } from "../pi/tools/view-image.js";
 import { viewRegistryFor } from "../pi/tools/view-registry.js";
@@ -39,7 +39,7 @@ export const imagingPlugin: GlauxPlugin = {
         langOf(ctx),
         estimateDepthZh,
       ) as HarnessTool,
-      promptFragment: () => "",
+      promptFragment: (ctx) => estimateDepthPrompt({ lang: langOf(ctx) }),
     },
     {
       name: VIEW_CURRENT_IMAGE_TOOL_NAME, effect: "read", projectScoped: true, requires: { vision: true }, supports: (focus) => !!focus,

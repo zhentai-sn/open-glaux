@@ -4,7 +4,7 @@
  * 依赖可选组件 `depth-dav2s`（未安装时本工具不挂载）。取帧复用 `fetchObservation`，
  * 推理在 backend 的 vision-runtime 隔离子进程里完成；本工具只搬运字节与结果。
  */
-import type { ToolZh } from "../../i18n/prompt-lang.js";
+import { langOf, type Bilingual, type ToolZh } from "../../i18n/prompt-lang.js";
 import { Type, type ImageContent, type Static, type TextContent } from "@earendil-works/pi-ai";
 import type { AgentHarnessTool } from "@earendil-works/pi-agent-core";
 
@@ -18,6 +18,20 @@ export const DEPTH_ESTIMATED_DETAILS_KIND = "glaux.depth_estimated";
 export const DEPTH_PACK_ID = "depth-dav2s";
 
 const DEPTH_SIZE = 518;
+
+/**
+ * 工具自带的提示词片段（SDD 15 §7.1）：只在 `estimate_depth` 已挂载时随插件片段下发。
+ * 放在工具上而不是系统提示词，理由：① 系统提示词是跨能力恒真内容，工具约定不属于它；
+ * ② base prompt 无条件下发，pack 未安装时会把一个不存在的工具讲给模型；
+ * ③ 工具随插件增删，指引应跟着生命周期走，而不是每次改 base prompt。
+ */
+const DEPTH_PROMPT: Bilingual = {
+  en: " Questions about depth, distance or the 3D layout of the current image go to estimate_depth: " +
+    "call it instead of inferring depth order from occlusion, perspective or relative size, and do not treat " +
+    "the absence of a depth task in run_task as evidence that Glaux cannot do it.",
+  zh: "涉及当前图像的深度、远近或三维布局时，调用 estimate_depth：不要凭遮挡、透视或大小自行推断远近，" +
+    "也不要把 run_task 里没有深度任务当成 Glaux 做不到。",
+};
 
 const EstimateDepthParams = Type.Object({});
 
@@ -45,6 +59,9 @@ interface InferResponse {
   /** 写进项目目录时的相对路径（会话绑定项目且落盘成功才有）。 */
   saved_path?: string;
 }
+
+export const estimateDepthPrompt = (options: { lang?: unknown } = {}): string =>
+  DEPTH_PROMPT[langOf(options as never)];
 
 export function createEstimateDepthTool(
   options: { viewer?: ViewerContext; backendBaseUrl?: string; projectId?: string },

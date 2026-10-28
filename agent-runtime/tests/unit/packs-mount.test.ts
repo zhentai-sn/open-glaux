@@ -97,3 +97,18 @@ describe("readyPacks client", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("工具提示词归属（SDD 15 §7.1）", () => {
+  it("estimate_depth 的指引在工具自带的 promptFragment，不在系统提示词", async () => {
+    const { PLUGINS, pluginTools, promptFragmentParts } = await import("../../src/plugins/registry.js");
+    const tool = pluginTools(PLUGINS).find((t) => t.name === "estimate_depth");
+    expect(tool).toBeTruthy();
+    const ctx = { lang: "en" } as unknown as HarnessToolContext;
+    // 工具片段本身带指引
+    expect(tool!.promptFragment(ctx)).toContain("estimate_depth");
+    // 未挂载（mounted 为空）时不下发任何片段
+    expect(promptFragmentParts(ctx, new Set<string>(), PLUGINS).map((p) => p.text).join("")).not.toContain("estimate_depth");
+    // 已挂载时才出现
+    expect(promptFragmentParts(ctx, new Set(["estimate_depth"]), PLUGINS).map((p) => p.text).join("")).toContain("estimate_depth");
+  });
+});
