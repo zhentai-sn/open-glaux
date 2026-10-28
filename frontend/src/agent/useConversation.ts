@@ -59,10 +59,11 @@ export function toProbeInput(connection: Connection): ConnectionProbeInput {
 function visionFor(connection: Connection, hasImages: boolean): boolean {
   if (hasImages) return true;
   if (connection.mediaAdapter === "qwen-omni") return true;
-  return (
-    connection.models?.find((model) => model.id === connection.model)?.vision ===
-    "yes"
-  );
+  // 只有探测明确说"不收图"才关闭；unknown 一律乐观放行（SDD 00 D-023）。
+  // 依据 D-022：多数兼容端点的 /models 不含视觉字段，据 unknown 关闭会把大量可用模型
+  // 误判成纯文本，连带 needs_vision 的工具全部不挂载；让 provider 返回明确错误更可诊断。
+  const probe = connection.models?.find((model) => model.id === connection.model)?.vision;
+  return probe !== "no";
 }
 
 export function toConnectionInput(

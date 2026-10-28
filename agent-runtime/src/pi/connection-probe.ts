@@ -84,6 +84,10 @@ const VISION_NAME_TOKENS = [
   // 单靠通用记号会被判 unknown → 前端按无视觉连接，consult_atlas / locate_roi /
   // view_current_image 全都不注册，用户只会看到"模型看不见图"。
   "minimax-m2", "minimax-m3",
+  // DeepSeek v4.1 起为原生多模态（收图），但 pi-ai 0.82.1 的模型目录只到 v4-flash/v4-pro
+  // 且都标 input=["text"]，v4.x 新 id 走名称启发式时会被判 unknown → 需要图像的工具全部不挂载。
+  // 只列到 v4.1，避免把目录外可能仍是纯文本的 v4 变体误判为有视觉。
+  "deepseek-v4.1",
 ] as const;
 
 export function nameVision(modelId: string): Vision {
@@ -143,9 +147,49 @@ function pickInt(entry: Record<string, unknown>, keys: readonly string[]): numbe
 }
 
 /** 从一条 `/models` 记录里挖上下文元数据；OpenRouter 把上限藏在 `top_provider` 里，一并看。 */
+/**
+ * 从提供商 `/models` 返回的条目里读视觉能力（SDD 00 §4，2026-10-28 修订）。
+ *
+ * **提供商自报的模态是第一权威**：本地模型目录与名称启发式都会滞后于新模型上线，
+ * 拿它们去覆盖提供商明说的话就会得出「模型能看图但工具不挂载」。各网关字段名不统一，
+ * 按常见形状逐个探测；都没有才返回 undefined，交调用方兜底。
+ */
+export function visionFromEntry(entry: Record<string, unknown>): Vision | undefined {
+  const hasImage = (value: unknown): boolean => {
+    if (typeof value === "string") return value.toLowerCase().includes("image") || value.toLowerCase().includes("vision");
+    if (Array.isArray(value)) return value.some(hasImage);
+    if (typeof value === "object" && value !== null) return Object.values(value as Record<string, unknown>).some(hasImage);
+    return false;
+  };
+
+  // 显式布尔/标签
+  for (const key of ["supports_vision", "vision", "supports_image_input"]) {
+    const v = entry[key];
+    if (typeof v === "boolean") return v ? "yes" : "no";
+  }
+  // 能力数组：capabilities: ["vision"] / ["text", "image"]
+  const caps = entry.capabilities;
+  if (Array.isArray(caps)) return hasImage(caps) ? "yes" : "no";
+  // 模态字段：input_modalities / modalities / architecture.{input_modalities,modality}
+  const arch = typeof entry.architecture === "object" && entry.architecture !== null
+    ? (entry.architecture as Record<string, unknown>)
+    : {};
+  for (const key of ["input_modalities", "inputs", "modality"]) {
+    if (key in arch) return hasImage(arch[key]) ? "yes" : "no";
+  }
+  for (const key of ["input_modalities", "inputs", "modalities"]) {
+    if (key in entry) return hasImage(entry[key]) ? "yes" : "no";
+  }
+  // LM Studio 之类的 type 标记
+  const type = entry.type;
+  if (typeof type === "string" && /vlm|vision|multimodal/iu.test(type)) return "yes";
+  return undefined;
+}
+
 export function modelMetaFromEntry(entry: Record<string, unknown>): {
   context_window?: number;
   max_tokens?: number;
+  vision?: Vision;
 } {
   const nested =
     typeof entry.top_provider === "object" && entry.top_provider !== null
@@ -153,9 +197,11 @@ export function modelMetaFromEntry(entry: Record<string, unknown>): {
       : {};
   const contextWindow = pickInt(entry, CONTEXT_KEYS) ?? pickInt(nested, CONTEXT_KEYS);
   const maxTokens = pickInt(entry, MAX_TOKENS_KEYS) ?? pickInt(nested, MAX_TOKENS_KEYS);
+  const declared = visionFromEntry(entry);
   return {
     ...(contextWindow === undefined ? {} : { context_window: contextWindow }),
     ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
+    ...(declared === undefined ? {} : { vision: declared }),
   };
 }
 
@@ -352,20 +398,25 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
         }
         if (input.provider === "deepseek") {
           // 目录里有的模型直接给出窗口/输出上限；目录外的按名称启发式，窗口留给前端默认值。
-          const { ids } = await openaiListIds({ ...input, base_url: DEEPSEEK_BASE });
+          const { ids, entries } = await openaiListIds({ ...input, base_url: DEEPSEEK_BASE });
           const catalog = new Map(deepseekProvider().getModels().map((model) => [model.id, model]));
           return {
             models: ids.map((id) => {
+              const entry = entries.get(id) ?? {};
+              // 优先级：提供商自报 → 名称启发式（`-vl` 等强记号）→ 本地目录兜底。
+              const declared = visionFromEntry(entry);
+              if (declared !== undefined) return { id, vision: declared };
+              const heuristic = nameVision(id);
+              if (heuristic === "yes") return { id, vision: heuristic };
               const known = catalog.get(id);
               return known
                 ? {
                     id,
-                    // DeepSeek 的对话模型只收文本；有视觉能力时目录里会写明。
                     vision: (known.input.includes("image") ? "yes" : "no") as Vision,
                     context_window: known.contextWindow,
                     max_tokens: known.maxTokens,
                   }
-                : { id, vision: nameVision(id) };
+                : { id, vision: heuristic };
             }),
           };
         }
@@ -376,8 +427,9 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
         const models: ProbeModelInfo[] = [];
         for (const id of ids) {
           const meta = modelMetaFromEntry(entries.get(id) ?? {});
-          let v: Vision = "unknown";
-          if (isOllama) {
+          // 提供商自报优先（meta.vision），其余再走 Ollama 探测与本地启发式。
+          let v: Vision = meta.vision ?? "unknown";
+          if (isOllama && v === "unknown") {
             const shown = await ollamaShow(root, id);
             v = shown.vision;
             // Ollama 的 /models 不带窗口，只有 /api/show 有；已从 /models 拿到就不覆盖。
@@ -386,7 +438,8 @@ export function createConnectionProbe(deps: ConnectionProbeDeps = {}): Connectio
             }
           }
           if (v === "unknown") v = input.provider === "opencode" ? opencodeVision(id) : nameVision(id);
-          models.push({ id, vision: v, ...meta });
+          const { vision: _declared, ...rest } = meta;
+          models.push({ id, vision: v, ...rest });
         }
         return { models };
       } catch (error) {

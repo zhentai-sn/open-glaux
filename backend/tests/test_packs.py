@@ -377,3 +377,60 @@ def test_mirror_prefix_rewrites_host() -> None:
     )
     url = installer_mod._mirror("https://huggingface.co/a/b", "")
     assert urlsplit(url).hostname == "huggingface.co"
+
+
+# --- 推理产物落盘（SDD 25 实施追加） -------------------------------------------------
+
+
+def test_save_output_writes_into_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import datasource_registry as dsreg
+    from app.routers import packs as packs_router
+
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir()
+    project, _ = dsreg.register_project(proj_dir)
+    try:
+        rel = packs_router._save_output(project.id, "depth-demo.png", b"PNGDATA")
+        assert rel == "glaux-output/depth-demo.png"
+        assert (proj_dir / rel).read_bytes() == b"PNGDATA"
+    finally:
+        dsreg.remove_project(project.id)
+
+
+def test_save_output_rejects_unknown_project() -> None:
+    from app.routers import packs as packs_router
+
+    with pytest.raises(Exception) as exc:
+        packs_router._save_output("prj-ghost", "a.png", b"x")
+    assert getattr(exc.value, "status_code", None) == 404
+
+
+def test_save_output_strips_path_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import datasource_registry as dsreg
+    from app.routers import packs as packs_router
+
+    proj_dir = tmp_path / "proj2"
+    proj_dir.mkdir()
+    project, _ = dsreg.register_project(proj_dir)
+    try:
+        rel = packs_router._save_output(project.id, "../../escape.png", b"x")
+        assert rel == "glaux-output/escape.png"
+        assert (proj_dir / rel).is_file()
+        assert not (tmp_path / "escape.png").exists()
+    finally:
+        dsreg.remove_project(project.id)
+
+
+def test_save_output_rejects_hidden_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import datasource_registry as dsreg
+    from app.routers import packs as packs_router
+
+    proj_dir = tmp_path / "proj3"
+    proj_dir.mkdir()
+    project, _ = dsreg.register_project(proj_dir)
+    try:
+        with pytest.raises(Exception) as exc:
+            packs_router._save_output(project.id, ".hidden.png", b"x")
+        assert getattr(exc.value, "status_code", None) == 400
+    finally:
+        dsreg.remove_project(project.id)

@@ -360,8 +360,8 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `provider` | text nullable | 从 Pi 活动路径解析 |
 | `model` | text nullable | 从 Pi 活动路径解析 |
 | `phase` | enum | `idle`、`running`、`stopping`、`compacting`、`error`；由 Harness phase 投影 |
-| `messages` | array | Pi 活动 leaf 路径投影；不返回非活动分支 |
 | `project_id` | text nullable | 来自 Pi Session `metadata.glaux_project_id`；空为未归属（D-023） |
+| `messages` | array | Pi 活动 leaf 路径投影；不返回非活动分支 |
 | `context_usage` | object nullable | Pi token 估算可用时返回 |
 | `created_at` | datetime | 合并 Pi 与 Glaux 元数据 |
 | `updated_at` | datetime | 最近 Pi entry 或元数据更新时间 |
@@ -380,7 +380,7 @@ Pi Session、SessionEntry、AgentMessage 和 compaction 的字段结构以 lockf
 | `connection.context_window` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.max_tokens` | integer nullable | 自定义模型必填（由 UI 探测/默认预填，见 §4）；Pi 内置目录已知模型可省略 |
 | `connection.credential` | text nullable | 临时敏感字段，禁止持久化 |
-| `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022） |
+| `connection.vision` | boolean nullable | 是否按视觉模型构造 `Model.input`；带 `images` 时必须为 `true`（D-022）。探测为 `unknown` 时前端乐观传 `true`，只有探测明确 `no` 才关闭（D-025） |
 | `connection.thinking_level` | enum nullable | 推理档位 `off`、`low`、`medium`、`high`；缺省 `off`，未知值返回 `400 invalid_request` |
 | `skill` | text nullable | 仅 `prompt`；显式调用的 Skill 名称，与 `template` 互斥，不接受 `images`（[SDD 17](../17-agent-skills-prompts/README.md) §7.4） |
 | `template` | object nullable | 仅 `prompt`；`{name, args}`，显式调用的提示词模板（SDD 17 §7.4） |
@@ -575,6 +575,7 @@ erDiagram
 - [x] 连接未声明 `vision` 时，pi 把用户消息里的图降级为文本占位而不报错——该行为由 Pi 兼容性
   测试锁定，pi 升级改变它时会先失败（`pi-public-api.test.ts`）。
 - [x] 前端发图时恒传 `connection.vision = true`，`regenerate` 同样携带；transport 层透传该字段。
+- [x] 模型列表的视觉判定以提供商条目自报优先，`unknown` 时前端乐观传 `true`；仅明确 `no` 才关闭（`connection-probe-vision.test.ts` 锁定字段解析与兜底顺序）。
 - [ ] 真实 vision provider（Anthropic / OpenAI 兼容）贴图对话 smoke——与 §15.5 同属人工验收。
 
 ### 15.5 安全与兼容
@@ -636,8 +637,9 @@ erDiagram
 | D-019 | 2026-07-27 | 自定义模型显式提供 context window 与 max output tokens | Pi `Model` 强制需要两项元数据，官方 custom model 配置也要求显式声明；静默猜测会破坏压缩与溢出判断 |
 | D-022 | 2026-08-20 | 带图的 prompt 恒声明 `vision: true`，不依赖 `/connection/models` 的探测结论 | ① D-021 落地后首次真机贴图即失败，根因是 `ConnectionInput.vision` 从未被前端填、也未被 transport 解析，模型按 `input:["text"]` 构造，pi `downgradeUnsupportedImages` 把图换成占位文本——**不报错**，表现为"能对话但读不懂图"，是最难诊断的一类失败；② 探测结论不可靠：多数 OpenAI 兼容端点的 `/models` 不含视觉字段，判定为 `unknown`，若据此不发图则大量可用模型被误伤；③ 用户显式贴图即意图明确，让 provider 返回明确错误远优于本地静默降级后照常作答（G5 失败可见）；④ 旧注释"用户消息中的图像块无条件转换"与 pi 实际行为不符，已在 `contracts.ts` 更正并由兼容性测试锁定 |
 | D-021 | 2026-08-19 | Composer 支持粘贴/选择/拖放图像，随 `prompt` 以 base64 内联下发，不建 Glaux 侧附件存储 | ① 贴图提问是通用对话智能体的基础能力，"附件暂未开放"占位在有视觉模型可用时是纯粹的能力缺口；② Pi `AgentHarness.prompt(text, { images })` 与 pi-ai `ImageContent` 已原生支持，两条 provider 路径在 SDD 03 §7.6 落地时已核实，内联下发不需要新协议；③ 与领域影像分工明确——CT/WSI 等已入库对象走查看器上下文与 `run_task`（只传 id，不传像素），此通道只承载"用户手上这张图"，二者不合并；④ 不做独立附件存储：图像随 Pi transcript 持久化，天然获得会话删除、归档与重放语义，避免第二份生命周期 |
-| D-020 | 2026-07-27 | regenerate 导航到最近 user 的 parent 后 replay 原文 | Pi 0.82.1 `AgentHarness` 没有公开 continue API；`prompt()` 会自行追加 user entry，该方式在不使用私有 API 的前提下生成等价新分支 |
 | D-023 | 2026-09-25 | 会话与项目的绑定在创建时写入 Pi Session `metadata.glaux_project_id`，不写 `cwd`，不进 companion table | ① Pi 的 `cwd` 与 `metadata` 均无更新接口，写入即冻结，符合「创建时绑定、不可改」；② 既有会话的 `cwd` 都是仓库根，复用 `cwd` 会让旧会话误归属；③ 不给 companion table 增列，保持 D-018 边界；契约归 [SDD 13](../13-project-folder-sessions/README.md) |
+| D-020 | 2026-07-27 | regenerate 导航到最近 user 的 parent 后 replay 原文 | Pi 0.82.1 `AgentHarness` 没有公开 continue API；`prompt()` 会自行追加 user entry，该方式在不使用私有 API 的前提下生成等价新分支 |
+| D-025 | 2026-10-28 | 视觉能力以提供商 `/models` 自报为第一权威；`unknown` 乐观放行，本地目录与名称表降为兜底 | ① 本地 pi-ai 目录只收 `deepseek-v4-flash`/`v4-pro` 且都标 `input: ["text"]`，用户所用 `deepseek-v4.1-flash` 不在目录，退回名称启发式被判 `unknown`，结果是 `needs_vision` 的工具（`view_current_image`、`estimate_depth` 等）全部不挂载、发图被降级成占位文本，表现为「模型明明能看图却说看不见」，且不报错；② 判定顺序改为：提供商条目字段（`architecture.input_modalities`、`supports_vision`、`capabilities`、`modalities`、LM Studio 的 `type` 等）→ 名称强记号（`-vl`、`vision` 等）→ 本地模型目录 → `unknown`；③ `unknown` 不再等同「不支持」：`visionFor` 只在明确 `no` 时关闭，`Model.input` 在用户显式声明视觉时补 `image`，与 D-022「让 provider 返回明确错误优于本地静默降级」一致；④ 本地目录与名称表只作兜底，避免模型上下线反复发版 |
 | D-024 | 2026-10-05 | 配置栏并入输入框底栏，只显示模型名，不显示服务类型 | ① 服务类型（OpenAI 兼容 / Anthropic）对发消息没有决策价值，只增加阅读负担；② 模型、权限与发送同处输入框内，发消息前一眼可核对；③ 附件入口只留 ＋ 图标，悬停提示说明用途 |
 
 ## 17. 开放问题

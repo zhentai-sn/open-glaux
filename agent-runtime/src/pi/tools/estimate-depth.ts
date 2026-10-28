@@ -42,10 +42,12 @@ interface InferResponse {
   mid_ratio: number;
   far_ratio: number;
   preview_png_base64?: string;
+  /** 写进项目目录时的相对路径（会话绑定项目且落盘成功才有）。 */
+  saved_path?: string;
 }
 
 export function createEstimateDepthTool(
-  options: { viewer?: ViewerContext; backendBaseUrl?: string },
+  options: { viewer?: ViewerContext; backendBaseUrl?: string; projectId?: string },
 ): AgentHarnessTool<undefined, typeof EstimateDepthParams, DepthEstimatedDetails> {
   const base = (options.backendBaseUrl ?? backendBaseUrl()).replace(/\/+$/u, "");
   const viewer = options.viewer;
@@ -70,7 +72,15 @@ export function createEstimateDepthTool(
         ...(signal ? { signal } : {}),
       });
 
-      const res = await (globalThis.fetch ?? fetch)(`${base}/packs/${DEPTH_PACK_ID}/infer`, {
+      const query = new URLSearchParams();
+      if (options.projectId) {
+        query.set("project_id", options.projectId);
+        // 文件名带对象与时间，避免同名覆盖；落在项目的 glaux-output/ 下
+        query.set("save_name", `depth-${focus.object_id}-${Date.now()}.png`);
+      }
+      const suffix = query.toString() ? `?${query.toString()}` : "";
+
+      const res = await (globalThis.fetch ?? fetch)(`${base}/packs/${DEPTH_PACK_ID}/infer${suffix}`, {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: observation.bytes,
@@ -106,7 +116,10 @@ export function createEstimateDepthTool(
         `far ${(data.far_ratio * 100).toFixed(1)}% of pixels. ` +
         `The image below is the depth visualisation (bright = near, dark = far).`;
 
-      const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
+      const saved = data.saved_path
+        ? ` The depth image was saved to the project as ${data.saved_path} — open it from the file panel if the user wants to look at it.`
+        : "";
+      const content: (TextContent | ImageContent)[] = [{ type: "text", text: text + saved }];
       if (data.preview_png_base64) {
         content.push({ type: "image", data: data.preview_png_base64, mimeType: "image/png" });
       }

@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import config
+from .. import datasource_registry as dsreg
 from ..packs import installer as installer_mod
 from ..packs import registry as reg
 from .loopback import require_loopback
@@ -119,6 +120,8 @@ RUNNER = _Runner()
 # 各模型组件的推理入口：脚本名 + 需要就位的权重文件（按通用性可继续加）
 INFER_SCRIPTS: dict[str, str] = {"depth-dav2s": "infer_depth.py"}
 INFER_TIMEOUT_SECONDS = 120
+# 推理产物落在项目根下的固定子目录，非隐藏名，文件栏可直接浏览打开。
+OUTPUT_DIR_NAME = "glaux-output"
 
 
 def _specs() -> dict[str, reg.PackSpec]:
@@ -243,7 +246,12 @@ def _cleanup(pack_id: str) -> None:
 
 
 @router.post("/{pack_id}/infer")
-async def infer_pack(pack_id: str, request: Request) -> dict[str, Any]:
+async def infer_pack(
+    pack_id: str,
+    request: Request,
+    project_id: str | None = None,
+    save_name: str | None = None,
+) -> dict[str, Any]:
     """用已安装的模型组件做一次推理（SDD 25 §7.1 的模型能力出口）。
 
     请求体为图片原始字节；推理在 vision-runtime 的隔离子进程中完成，主进程不 import onnxruntime。
@@ -286,4 +294,31 @@ async def infer_pack(pack_id: str, request: Request) -> dict[str, Any]:
         if proc.returncode != 0 or not out_path.is_file():
             detail = (proc.stderr or b"").decode("utf-8", "replace")[-800:]
             raise HTTPException(500, f"推理失败：{detail or proc.returncode}")
-        return json.loads(out_path.read_text(encoding="utf-8"))
+        payload = json.loads(out_path.read_text(encoding="utf-8"))
+    # 显式给出 project_id 时把深度图落到项目目录，用户可在文件栏直接打开
+    if project_id and save_name and payload.get("preview_png_base64"):
+        import base64
+
+        data = base64.b64decode(payload["preview_png_base64"])
+        payload["saved_path"] = _save_output(project_id, save_name, data)
+    return payload
+
+
+def _save_output(project_id: str, name: str, data: bytes) -> str:
+    """把产物写进项目的 ``glaux-output/``，返回相对项目根的路径。"""
+    project = dsreg.get_project(project_id)
+    if project is None:
+        raise HTTPException(404, f"项目不存在：{project_id}")
+    root = project.path.resolve()
+    if not root.is_dir():
+        raise HTTPException(409, "项目目录不可用")
+    safe = Path(name).name
+    if not safe or safe.startswith("."):
+        raise HTTPException(400, "输出文件名不合法")
+    out_dir = (root / OUTPUT_DIR_NAME).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = (out_dir / safe).resolve()
+    if root != target and root not in target.parents:
+        raise HTTPException(400, "输出路径越界")
+    target.write_bytes(data)
+    return str(target.relative_to(root))

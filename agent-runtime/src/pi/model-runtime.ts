@@ -229,7 +229,11 @@ export function createModelRuntime(connection: ConnectionInput): ModelRuntime {
     // 声明即会下发 thinking 参数，未选档位时保持沉默，避免给未知端点发送它不认识的字段。
     reasoning: known?.reasoning ?? (connection.thinking_level !== undefined && connection.thinking_level !== "off"),
     // 非内置目录模型：按连接声明的视觉能力补 "image"（否则工具结果里的图会被 pi-ai 静默丢弃）。
-    input: known?.input ?? (connection.vision ? ["text", "image"] : ["text"]),
+    // 用户显式声明可看图时不接受本地目录的 text-only（目录滞后会静默把图降级成占位文本）。
+    // 目录已含 image 时保持原样；否则在文本基础上补 image（SDD 00 D-023）。
+    input: connection.vision
+      ? Array.from(new Set([...(known?.input ?? ["text"]), "image" as const]))
+      : (known?.input ?? ["text"]),
     cost: known?.cost ?? ZERO_COST,
     contextWindow: metadata.contextWindow,
     maxTokens: metadata.maxTokens,

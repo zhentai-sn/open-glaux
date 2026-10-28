@@ -32,7 +32,10 @@ export const imagingPlugin: GlauxPlugin = {
       name: ESTIMATE_DEPTH_TOOL_NAME, effect: "compute", projectScoped: true,
       requires: { vision: true, pack: DEPTH_PACK_ID }, supports: (focus) => !!focus,
       create: (ctx) => localizeTool(
-        createEstimateDepthTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }),
+        createEstimateDepthTool({
+          ...(ctx.viewer ? { viewer: ctx.viewer } : {}),
+          ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+        }),
         langOf(ctx),
         estimateDepthZh,
       ) as HarnessTool,
