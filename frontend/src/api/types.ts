@@ -443,3 +443,30 @@ export interface AnnotationCreated {
   hook_result?: TaskOutput | null;
   hook_error?: string | null;
 }
+
+/** SDD 25 §9.4：可选模型组件（pack）的对外状态。 */
+export type PackStatus = "absent" | "installing" | "ready" | "failed" | "uninstalling";
+
+export interface PackRow {
+  id: string;
+  type: "runtime" | "model";
+  depends_on: string | null;
+  display_name: string;
+  description: string;
+  license: string;
+  bytes: number;
+  status: PackStatus;
+  dependency_ready: boolean;
+  error: string | null;
+}
+
+export interface PackProgress {
+  id: string;
+  status: PackStatus;
+  phase: string | null;
+  bytes_done: number;
+  bytes_total: number;
+  updated_at: string | null;
+  error: string | null;
+  queue_position: number | null;
+}

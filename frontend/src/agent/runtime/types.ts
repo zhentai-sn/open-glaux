@@ -115,13 +115,15 @@ export interface ResourceDiagnostic {
 }
 
 /** SDD 19 §9.1：工具目录条目。 */
-export type ToolRequirement = "project" | "vision" | "runtime" | "egress";
+export type ToolRequirement = "project" | "vision" | "runtime" | "egress" | "pack";
 
 export interface ToolItem {
   name: string;
   plugin: string;
   effect: ToolEffect;
   requires: ToolRequirement[];
+  /** 依赖的可选组件 id（SDD 25 §7.8）；有值时界面给出安装入口。 */
+  pack?: string;
 }
 
 export interface ResourceList {
@@ -154,7 +156,7 @@ export interface MountedTool {
 }
 
 export type UnmountedReason =
-  | "needs_project" | "needs_vision" | "needs_runtime" | "needs_egress"
+  | "needs_project" | "needs_vision" | "needs_runtime" | "needs_egress" | "needs_pack"
   | "plugin_inactive" | "unsupported_focus" | "mode";
 
 export interface UnmountedTool {

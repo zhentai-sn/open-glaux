@@ -1,6 +1,7 @@
 /** 注册表任务执行与当前帧观看（SDD 02 §7.2、SDD 10）。 */
 import { langOf, localizeTool, type Bilingual } from "../i18n/prompt-lang.js";
 import type { HarnessTool } from "../pi/harness-registry.js";
+import { createEstimateDepthTool, DEPTH_PACK_ID, ESTIMATE_DEPTH_TOOL_NAME, estimateDepthZh } from "../pi/tools/estimate-depth.js";
 import { createRunTaskTool, runTaskZh } from "../pi/tools/run-task.js";
 import { createViewCurrentImageTool, VIEW_CURRENT_IMAGE_TOOL_NAME, VIEW_CURRENT_IMAGE_ZH } from "../pi/tools/view-image.js";
 import { viewRegistryFor } from "../pi/tools/view-registry.js";
@@ -24,6 +25,17 @@ export const imagingPlugin: GlauxPlugin = {
     {
       name: "run_task", effect: "compute", projectScoped: true, requires: {}, supports: () => true,
       create: (ctx) => localizeTool(createRunTaskTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }), langOf(ctx), runTaskZh(ctx.viewer)) as HarnessTool,
+      promptFragment: () => "",
+    },
+    {
+      // SDD 25：依赖可选组件 depth-dav2s；未安装时以 needs_pack 不挂载，界面就地给安装入口。
+      name: ESTIMATE_DEPTH_TOOL_NAME, effect: "compute", projectScoped: true,
+      requires: { vision: true, pack: DEPTH_PACK_ID }, supports: (focus) => !!focus,
+      create: (ctx) => localizeTool(
+        createEstimateDepthTool({ ...(ctx.viewer ? { viewer: ctx.viewer } : {}) }),
+        langOf(ctx),
+        estimateDepthZh,
+      ) as HarnessTool,
       promptFragment: () => "",
     },
     {

@@ -236,7 +236,7 @@ export interface Observation { bytes: Uint8Array; mime: string; frame: Reference
 export interface ToolProvider {
   name: string;
   /** `project`：只对绑定了项目的会话挂载（SDD 13 §7.3 规则 1）。 */
-  requires: { vision?: boolean; egress?: boolean; runtime?: boolean; project?: true };
+  requires: { vision?: boolean; egress?: boolean; runtime?: boolean; project?: true; /** 依赖的可选组件 id（SDD 25 §7.8）；未就绪时该工具不挂载。 */ pack?: string };
   supports(focus: Focus | undefined): boolean;
   create(context: HarnessToolContext): HarnessTool;
   promptFragment(context: HarnessToolContext): string;

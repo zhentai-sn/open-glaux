@@ -50,6 +50,7 @@ import type { AgentDefinition } from "../resources/agents.js";
 import { createSlots, runSubagent, type SubagentRequest, type SubagentResult } from "../subagents/run.js";
 import type { RequestHeaderEntry } from "../contracts.js";
 import { fullBranch } from "../trajectory/branch.js";
+import { readyPacks } from "../packs/client.js";
 import { MODEL_CALL_ENTRY, ModelCallRecorder, REQUEST_HEADER_ENTRY, requestHeader } from "../trajectory/capture.js";
 
 export interface HarnessRuntimeFactory {
@@ -83,6 +84,8 @@ export interface HarnessToolContext extends HarnessStartOptions {
   agents?: AgentDefinition[];
   spawnSubagent?: (request: SubagentRequest, options?: { signal?: AbortSignal; toolCallId?: string }) => Promise<SubagentResult>;
   subagent?: { description: string; toolCallId?: string };
+  /** 已就绪的可选组件 id（SDD 25 §7.8）；工具声明 `requires.pack` 时据此判定挂载。 */
+  readyPacks?: ReadonlySet<string>;
 }
 
 export type HarnessTool = AgentHarnessTool<undefined>;
@@ -562,6 +565,7 @@ export class HarnessRegistry {
       // 项目绑定只存 Pi metadata（SDD 13 D-5）；浏览工具挂载与越界校验都以它为准。
       const projectId = sessionProjectId(await session.getMetadata());
       const videoDescription = videoTurn ? await videoTurn.describe() : undefined;
+      const packs = chatEdition() ? new Set<string>() : await readyPacks();
       const prepared = chatEdition() ? undefined : await this.preparePermission(sessionId, session, projectId, options);
       const permission = prepared?.permission;
       const resources = prepared?.resources;
@@ -572,6 +576,7 @@ export class HarnessRegistry {
         ...(videoTurn ? { videoTurn } : {}),
         ...(projectId ? { projectId } : {}),
         interactions: this.interactions,
+        readyPacks: packs,
         run: { sessionId, commandId },
         ...(permission?.cwd ? {
           cwd: permission.cwd,

@@ -24,6 +24,8 @@ import type {
   TaskOutput,
   TaskSpec,
   TaskType,
+  PackProgress,
+  PackRow,
   TaskView,
   UploadResult,
 } from "./types";
@@ -150,6 +152,13 @@ export const api = {
     if (opts.maxBytes != null) q.set("max_bytes", String(opts.maxBytes));
     return getDetailed<ProjectText>(`/projects/${encodeURIComponent(id)}/text?${q.toString()}`);
   },
+  /** SDD 25：可选模型组件（仅回环来源；安装由后端独立子进程执行）。 */
+  packs: () => get<{ packs: PackRow[] }>("/packs"),
+  packProgress: (id: string) => get<PackProgress>(`/packs/${encodeURIComponent(id)}/progress`),
+  installPack: (id: string) => post<unknown>(`/packs/${encodeURIComponent(id)}/install`, {}),
+  cancelPack: (id: string) => post<unknown>(`/packs/${encodeURIComponent(id)}/cancel`, {}),
+  uninstallPack: (id: string) => del(`/packs/${encodeURIComponent(id)}`),
+
   objects: (modality: Modality) =>
     get<ObjectMeta[]>(`/images?modality=${encodeURIComponent(modality)}`),
   /** SDD 10 §5.2：任务结果编辑（base_seq 乐观并发，冲突 409）。 */

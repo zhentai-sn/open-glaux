@@ -4474,3 +4474,40 @@ button.subagent-head b { overflow: hidden; text-overflow: ellipsis; white-space:
 .skill-call { display: flex; flex-direction: column; gap: 4px; }
 .skill-call-name { display: inline-flex; align-items: center; gap: 4px; color: var(--agent); font-size: 12px; }
 .skill-call-extra { white-space: pre-wrap; }
+
+/* SDD 25：工具分区里的模型组件安装入口 */
+.ctx-pack {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.ctx-pack-progress {
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ctx-pack-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--motion-fast) linear;
+}
+.ctx-pack-action {
+  font-size: var(--font-xs);
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.ctx-pack-action:hover {
+  background: var(--hover);
+}
+.ctx-pack-error {
+  color: var(--crit);
+}

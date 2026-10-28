@@ -163,7 +163,7 @@ open-glaux/
 | 技术栈 | Node.js ≥ 22.19（镜像用 node:24）, TypeScript, Fastify 5, Vitest |
 | 端点 | `/agent-api/v1/health`；会话 CRUD 与命令/SSE；交互请求回复 `POST /sessions/{id}/interactions/{request_id}`（SDD 15 §9.4）；Skills、模板、`GLAUX.md` 的管理与系统提示词预览（`/resources`、`/skills/*`、`/prompts/*`、`/instructions/*`、`POST /sessions/{id}/system-prompt`，SDD 17 §9.2；工具目录与分段预览见 SDD 19 §9）；运行轨迹、单次请求上下文与会话统计（`GET /sessions/{id}/trajectory`、`GET /sessions/{id}/trajectory/requests/{item_id}`、`GET /sessions/{id}/stats`，SDD 21 §9）；`connection/test\|models`；`atlas/describe` |
 | 会话绑定项目 | `POST /sessions` 接受 `project_id`，写入 Pi 会话 `metadata.glaux_project_id`，创建后不可改；未归属会话不写 metadata。`SessionView` / `SessionListItem` 带 `project_id`；空会话按 `project_id`（含 `null`）各复用一个；同 `session_id` 换 `project_id` 返回 409 `idempotency_conflict`。`glaux_session_meta` 表不存项目（SDD 13 §7.6） |
-| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`interaction/`（交互请求表与 `ask_user`，SDD 15）、`permission/`（权限判定、设置文件、会话授权，SDD 15）、`budget/`（运行预算，SDD 15）、`workspace/`（工作目录、会话工作区、路径范围、`bash` 环境变量白名单，SDD 16）、`resources/`（Skills、模板、`GLAUX.md`、子智能体定义的加载与读写，SDD 17、SDD 18）、`subagents/`（子智能体运行与并发槽位，SDD 18）、`i18n/`（系统提示词与工具定义的语言，SDD 20）、`trajectory/`（请求头与模型调用的采集、运行轨迹投影与请求重建，SDD 21）、`observation/`（统一取帧与坐标换算）、`atlas/`、`annotation/`、`security/`、`storage/` |
+| 源码分区 | `transport/`（路由、SSE broker）、`pi/`（harness、工具、vision）、`plugins/`（插件契约、登记表、钩子组合器，SDD 15）、`interaction/`（交互请求表与 `ask_user`，SDD 15）、`permission/`（权限判定、设置文件、会话授权，SDD 15）、`budget/`（运行预算，SDD 15）、`workspace/`（工作目录、会话工作区、路径范围、`bash` 环境变量白名单，SDD 16）、`resources/`（Skills、模板、`GLAUX.md`、子智能体定义的加载与读写，SDD 17、SDD 18）、`subagents/`（子智能体运行与并发槽位，SDD 18）、`i18n/`（系统提示词与工具定义的语言，SDD 20）、`trajectory/`（请求头与模型调用的采集、运行轨迹投影与请求重建，SDD 21）、`observation/`（统一取帧与坐标换算）、`packs/`（可选模型组件就绪状态查询，SDD 25）、`atlas/`、`annotation/`、`security/`、`storage/` |
 | 连接探测 | 测试连通、列模型、标注视觉能力（`pi/connection-probe.ts`） |
 | 安全 | 凭据脱敏（`security/redact.ts`）；出站 SSRF 守卫（`security/net-guard.ts`，backend 另有同规则实现） |
 
@@ -196,7 +196,7 @@ open-glaux/
 | 关键点 | 说明 |
 | --- | --- |
 | 技术栈 | Python ≥ 3.12, FastAPI, Pydantic, uv；**不含任何 LLM SDK** |
-| 路由 | 九组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04；含度量与 `/annotations/summary`，SDD 23）、标签目录 `/labels`（SDD 23）、上传（SDD 08）、图谱（SDD 03）、目录浏览 `/fs`、项目 `/projects`（SDD 13）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
+| 路由 | 十组：数据源与查看器数据、任务执行与测量、能力清单、标注（SDD 04；含度量与 `/annotations/summary`，SDD 23）、标签目录 `/labels`（SDD 23）、上传（SDD 08）、图谱（SDD 03）、目录浏览 `/fs`、项目 `/projects`（SDD 13）、可选模型组件 `/packs`（SDD 25）。端点清单以 `backend/app/routers/` 和运行时的 `/docs` 为准 |
 | 数据源 | 运行时注册表（`datasource_registry.py`）：`GLAUX_DEV_MODE=1` 为开发者模式（内置源实时视图 + `synthetic-us` / `synthetic-hc` 合成源），缺省 0 为产品模式（只有导入源）；`resolve_object` 是对象 id 的唯一解析入口，未知 id 一律 404。`DataSource.origin` 取 `builtin` / `imported` / `connector` / `project`，`project_id` 为空即「未归属」；注册表读写与落盘共用一把 `RLock` |
 | 项目（SDD 13） | 项目 = 后端文件系统上的一个目录，`project_id = "prj-" + sha1(规范化路径)[:8]`，重复登记幂等；登记不扫描目录。文件被打开时按「目录 + 模态」登记 `origin=project` 的数据源（id `psrc-<sha1(目录\0模态)[:8]>`），依据 `SOURCES[*].formats` 后缀与魔数和 `Source.object_id_for`；`natural_image`、`video`、`ct_abdomen`、`pathology` 均参与按需识别。项目源登记即 `active`，标定以对象级为准，对象缺标定时依赖标定的任务 422。移除项目连带注销其数据源，不删磁盘文件。浏览器上传可带 `project_id`，文件仍落 `GLAUX_DATASETS_ROOT/uploads/` |
 | 项目端点 | `GET /fs/roots`（主目录、`GLAUX_DATASETS_ROOT`、WSL 下各 `/mnt/<盘符>`）、`GET /fs/dirs?path=`（只列子目录）；`GET/POST /projects`、`DELETE /projects/{id}`、`GET /projects/{id}/entries?path=`（列一层，按后缀给候选模态）、`POST /projects/{id}/objects`（按需打开，返回 `ObjectMeta`）、`GET /projects/{id}/text?path=&start_line=&max_lines=&max_bytes=`（只读文本，按内容判定编码，隐藏路径与二进制拒绝，SDD 14）。entries / objects / text 的错误体为 `{detail: {code, message}}`，`code` 取 `project_not_found`、`not_found`、`outside_project`、`hidden_path`、`not_directory`、`not_file`、`unsupported_format`、`corrupt`、`binary` |
@@ -243,6 +243,7 @@ graph LR
 | 子目录 | 内容 |
 | --- | --- |
 | `hc_seg/` | 胎儿头围分割（CSM, HuggingFace, Apache-2.0），含无头推理与验证脚本（MAE 1.13 mm, Dice 0.982） |
+| — | 运行时安装位置 `~/glaux_models/packs/`：由 SDD 25 的可选模型组件机制落盘（`vision-runtime` 等），与上方 legacy 模型同级不同域 |
 
 ### `data/` — 数据集存储
 

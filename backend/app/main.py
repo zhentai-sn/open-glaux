@@ -19,6 +19,7 @@ from .routers.atlas import router as atlas_router
 from .routers.fs import router as fs_router
 from .routers.labels import router as labels_router
 from .routers.objects import router as objects_router
+from .routers.packs import router as packs_router
 from .routers.projects import router as projects_router
 from .routers.uploads import router as uploads_router
 
@@ -53,6 +54,7 @@ app.include_router(uploads_router)  # 浏览器图像上传（SDD 08）
 app.include_router(objects_router)  # 视觉对象表征面（SDD 10 §5.2）
 app.include_router(fs_router)  # 目录选择器，仅回环来源（SDD 13）
 app.include_router(projects_router)  # 项目登记，仅回环来源（SDD 13）
+app.include_router(packs_router)  # 可选模型组件，仅回环来源（SDD 25）
 
 
 @app.get("/health", tags=["meta"])

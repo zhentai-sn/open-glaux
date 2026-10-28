@@ -62,7 +62,7 @@ export function activePlugins(ctx: HarnessToolContext, plugins: readonly GlauxPl
 
 /** 未挂载原因（SDD 19 §7.5 规则 4）；`mode` 由调用方按权限模式判定。 */
 export type UnmountedReason =
-  | "needs_project" | "needs_vision" | "needs_runtime" | "needs_egress"
+  | "needs_project" | "needs_vision" | "needs_runtime" | "needs_egress" | "needs_pack"
   | "plugin_inactive" | "unsupported_focus" | "mode";
 
 /** 工具自身的声明式条件，先于插件条件判定，能给出具体原因。 */
@@ -72,6 +72,8 @@ function requirementGap(tool: PluginTool, ctx: HarnessToolContext): UnmountedRea
   if (tool.requires.runtime && !ctx.runtime) return "needs_runtime";
   // 挂一个必然失败的工具只会让模型反复重试并把失败当成"图里没有该结构"（SDD 02 §7.4）。
   if (tool.requires.egress && (!segmentationEgressAllowed() || !process.env.GLAUX_SEG_API_TOKEN?.trim())) return "needs_egress";
+  // SDD 25：pack 未就绪时不挂载，避免模型反复调用一个必然失败的工具。
+  if (tool.requires.pack && !ctx.readyPacks?.has(tool.requires.pack)) return "needs_pack";
   return undefined;
 }
 
@@ -112,8 +114,8 @@ export function promptFragments(
   return promptFragmentParts(ctx, mounted, plugins).map((part) => part.text).join("");
 }
 
-export type ToolRequirement = "project" | "vision" | "runtime" | "egress";
-const REQUIREMENTS: readonly ToolRequirement[] = ["project", "vision", "runtime", "egress"];
+export type ToolRequirement = "project" | "vision" | "runtime" | "egress" | "pack";
+const REQUIREMENTS: readonly ToolRequirement[] = ["project", "vision", "runtime", "egress", "pack"];
 
 /** SDD 19 §9.1：资源清单中的工具目录条目。 */
 export interface ToolItem {
@@ -121,6 +123,8 @@ export interface ToolItem {
   plugin: string;
   effect: ToolEffect;
   requires: ToolRequirement[];
+  /** 依赖的可选组件 id（SDD 25 §7.8）；前端据此渲染安装入口。 */
+  pack?: string;
 }
 
 /** 全部插件工具的静态目录，按登记顺序；不依赖会话（SDD 19 §7.5 规则 1、2）。 */
@@ -130,5 +134,6 @@ export function toolCatalog(plugins: readonly GlauxPlugin[] = PLUGINS): ToolItem
     plugin: plugin.name,
     effect: tool.effect,
     requires: REQUIREMENTS.filter((key) => tool.requires[key]),
+    ...(tool.requires.pack ? { pack: tool.requires.pack } : {}),
   })));
 }

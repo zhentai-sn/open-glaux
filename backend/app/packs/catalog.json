@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "id": "vision-runtime",
+      "type": "runtime",
+      "depends_on": null,
+      "display_name": "视觉运行时",
+      "description": "onnxruntime + openvino + opencv 的共享运行环境，供所有 ONNX 视觉模型复用",
+      "license": "Apache-2.0",
+      "bytes": 120000000,
+      "requirements": [
+        "onnxruntime==1.31.1",
+        "openvino==2026.4.1",
+        "opencv-python-headless==5.0.0.93",
+        "numpy>=2.0",
+        "pillow>=11.0"
+      ],
+      "index_url": "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+    },
+    {
+      "id": "depth-dav2s",
+      "type": "model",
+      "depends_on": "vision-runtime",
+      "display_name": "深度估计（Depth Anything V2-Small）",
+      "description": "单目相对深度估计；CPU + OpenVINO 实测约 0.5–0.8 秒/张（518×518）",
+      "license": "Apache-2.0",
+      "bytes": 99061300,
+      "files": [
+        {
+          "name": "model_fp32.onnx",
+          "url": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model.onnx",
+          "sha256": "afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c",
+          "bytes": 99060839
+        },
+        {
+          "name": "preprocessor_config.json",
+          "url": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/preprocessor_config.json",
+          "sha256": "03576db3c13dd0471fdf5f5e1428befcb95de063fe699879150b293dc9e0a2c6",
+          "bytes": 461
+        }
+      ]
+    },
+    {
+      "id": "detect-rtdetr",
+      "type": "model",
+      "depends_on": "vision-runtime",
+      "display_name": "目标检测（RT-DETRv2 R18）",
+      "description": "通用目标检测；CPU + OpenVINO 实测约 0.31–0.37 秒/张（640×640）",
+      "license": "Apache-2.0",
+      "bytes": 81057954,
+      "files": [
+        {
+          "name": "model.onnx",
+          "url": "https://huggingface.co/onnx-community/rtdetr_v2_r18vd-ONNX/resolve/main/onnx/model.onnx",
+          "sha256": "583a236ac21c95a7fd94f284fc21485e42355bfef82c27011ba78fbc09ee87e2",
+          "bytes": 81057510
+        },
+        {
+          "name": "preprocessor_config.json",
+          "url": "https://huggingface.co/onnx-community/rtdetr_v2_r18vd-ONNX/resolve/main/preprocessor_config.json",
+          "sha256": "cd38cd59999e7a95d68e487fbe5132df3d4e5c32a0836add57e6126ba0c4eaf1",
+          "bytes": 444
+        }
+      ]
+    }
+  ]
+}

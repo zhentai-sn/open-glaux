@@ -28,6 +28,7 @@ describe("plugin registry", () => {
       submit_video_answer: "read",
       run_task: "compute",
       view_current_image: "read",
+      estimate_depth: "compute",
       consult_atlas: "read",
       locate_roi: "compute",
       segment_region: "egress",

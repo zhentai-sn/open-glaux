@@ -1,6 +1,6 @@
 ---
 kind: record
-status: active
+status: done
 title: "实施计划：可选模型组件（Model Packs）"
 date: 2026-10-28
 ---
@@ -97,6 +97,34 @@ T4 与 T5 可并行；其余串行。T6 前必须 T3 与 T5 完成（T4 与 T6 �
 
 回滚：本计划全部为新增文件与三处增量修改（`config.py`、`main.py`、`registry.ts`），回滚即撤销新增目录与这三处改动；安装产物在 `GLAUX_MODELS_ROOT/packs/`，删除不影响既有模型。
 
-## 4 执行结果
+## 4 执行结果（2026-10-28）
 
-（实施完成后回填）
+| 任务 | 状态 | 证据 |
+| --- | --- | --- |
+| T1 清单与状态注册表 | 完成 | `backend/app/packs/{catalog.json,registry.py,__init__.py}`；`config.py` 新增 `PACKS_CATALOG`/`PACKS_ROOT`/`PACK_PROXY`/`PACK_MIRROR`，`_venv_python` 转公开 `venv_python` |
+| T2 安装子进程 | 完成 | `backend/app/packs/installer.py`：五阶段、sha256 边下边算、`.partial` 原子落盘、磁盘预检、代理与镜像、失败清理暂存 |
+| T3 端点与守卫 | 完成 | `backend/app/routers/packs.py` 六个端点（含 `/infer`）+ 全局串行 Runner；`main.py` 注册；回环守卫继承 |
+| T4 runtime 挂载接线 | 完成 | `src/packs/client.ts`（TTL 缓存 + 失败降级）、`requires.pack`、`reason=needs_pack`、`toolCatalog.pack` |
+| T5 前端安装交互 | 完成 | `ToolsSection` 就地安装/取消/卸载/进度轮询；`data/packs.ts`；中英文案与样式 |
+| T6 端到端真机验收 | 完成 | `vision-runtime` 3.26s 装通；`depth-dav2s` 19.34s 装通（99MB）；`POST /packs/depth-dav2s/infer` 返回 200，1936ms（含子进程冷启动）；卸载被依赖运行时返回 409 `pack_in_use` |
+| T7 文档同步 | 完成 | 架构总览补 `packs/`、路由十组与安装位置；SDD 25 转 `implemented` 并回写实现期调整 |
+
+### 实现期的三处规范调整（已回写 SDD 25）
+
+1. **模型 pack 是多文件**：`urls`+单 `sha256` 改为 `files[]`，每项独立校验。
+2. **runtime 型没有单一下载产物**：改用锁定版本的 `requirements` + 可选 `index_url`，不设 `sha256`。
+3. **DELETE 语义**：从 202 改为 200 同步删除——删除本身很快，异步语义反而增加状态。
+
+### 实测中发现的环境约束
+
+- 本机缺 `python3.12-venv`（ensurepip 不可用），`python -m venv` 直接失败；改用 `uv venv` 后正常。安装器已按此实现并保留回落路径。
+- 推理 1936ms 中大部分是子进程启动与框架加载，纯推理约 0.5–0.8s（与调研基线一致）。这印证了脑暴阶段指出的冷启动成本，是后续做成常驻 worker 的动因。
+
+### 测试
+
+| 套件 | 结果 |
+| --- | --- |
+| backend | 556 passed / 0 failed（基线 533 + 新增 23） |
+| agent-runtime | 578 passed / 1 failed —— 失败项为 `tests/compatibility/pi-public-api.test.ts`，因本机 Node 22.18.0 低于项目要求的 22.19，与本次改动无关 |
+| frontend | 547 passed / 0 failed |
+

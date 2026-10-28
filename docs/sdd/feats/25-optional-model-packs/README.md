@@ -9,8 +9,8 @@ status: ready
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | `ready` |
-| 当前阶段 | 规范冻结，待实现。落地首个 pack 组合：`vision-runtime` + `depth-dav2s` + `detect-rtdetr` |
+| 状态 | `implemented` |
+| 当前阶段 | 已实现。`vision-runtime` + `depth-dav2s` 在本机（Intel Core Ultra 5 225H, CPU-only）实测装通并跑出深度图；`detect-rtdetr` 在清单中但未安装验证。业务验收待补 |
 | 来源 | 2026-10-28 维护者提出：视觉模型默认不随安装包分发，用户在工具界面按需选装；并明确该机制须为后续所有可选能力铺路。承接 SDD 24 §2「重模型按需下载另立 SDD」 |
 | 关联主 SDD | [Glaux SDD 索引](../../README.md) · [SDD 24 完整版分发与一键安装](../24-distribution-install/README.md) · [SDD 15 插件契约与权限引擎](../15-agent-plugins-permissions/README.md) · [SDD 19 上下文管理](../19-context-management/README.md) · [SDD 02 智能体图像标注能力](../02-agent-image-annotation/README.md) |
 | 负责人 | Glaux 项目维护者 |
@@ -106,7 +106,7 @@ flowchart TD
 
 ### 7.1 Pack 类型与清单
 
-1. 每个 pack 有稳定 `id`（kebab-case）、`type`、`display_name`、`description`、`license`、`bytes`、`sha256`、`urls`。
+1. 每个 pack 有稳定 `id`（kebab-case）、`type`、`display_name`、`description`、`license`、`bytes`。`model` 型另带 `files` 数组（每项 `name`/`url`/`sha256`/`bytes`），`runtime` 型另带 `requirements` 与可选 `index_url`。
 2. `type=runtime` 的 pack 提供一个可复用的 Python 环境；`type=model` 的 pack 提供权重与配置，必须声明 `depends_on`（指向一个 runtime）。
 3. `depends_on` 只允许指向 `type=runtime` 的 pack，不支持多级依赖链。
 4. 首期清单固定三项：
@@ -117,7 +117,8 @@ flowchart TD
    | `depth-dav2s` | model | `vision-runtime` | Depth Anything V2-Small ONNX（FP32）+ preprocessor 配置 | 约 99MB |
    | `detect-rtdetr` | model | `vision-runtime` | RT-DETRv2 R18 ONNX + 配置 | 约 81MB |
 
-5. 清单中的 `sha256` 由实现时计算并写入；不允许留空。模型许可证一律 Apache-2.0，与仓库一致。
+5. 清单中每个 `files[]` 条目的 `sha256` 必填，缺失即启动报错。模型许可证一律 Apache-2.0，与仓库一致。
+   `runtime` 型没有单一下载产物（依赖经包管理器安装），故不设 `sha256`，改用锁定版本的 `requirements`。
 
 ### 7.2 目录布局
 
@@ -152,7 +153,7 @@ GLAUX_MODELS_ROOT/packs/
 1. `resolving`：解析依赖、检查父目录可写、磁盘预检。
 2. `downloading`：流式下载全部 `urls`，边下边算 sha256，按累计字节写 `.progress.json`。
 3. `verifying`：与清单 `sha256` 比对。
-4. `installing`：`model` 为解压并移到 pack 目录；`runtime` 为用 `uv pip install` 建 `.venv`。
+4. `installing`：`model` 为把已校验文件移入 pack 目录；`runtime` 为建 `.venv` 并安装 `requirements`。建环境优先用 `uv`（Debian/Ubuntu 常缺 `python3.12-venv`，`python -m venv` 会因 ensurepip 缺失直接失败），仅在无 uv 时回落 `python -m venv` + `pip`。
 5. `finalizing`：写 `.state.json`，删除 `.progress.json` 与 `.partial`。
 
 任一阶段失败即写 `failed` 并保留 `phase` 与 `error`。
@@ -174,8 +175,9 @@ GLAUX_MODELS_ROOT/packs/
 | GET | `/packs` | 返回清单与每项状态、依赖是否满足、体积 |
 | POST | `/packs/{id}/install` | 202；已在装则幂等返回当前任务；依赖未就绪时连带排队 |
 | POST | `/packs/{id}/cancel` | 终止子进程，删 `.partial` 与 `.progress.json`，置 `absent` |
-| DELETE | `/packs/{id}` | 202；被其他 `ready` pack 依赖时返回 409 `pack_in_use` |
+| DELETE | `/packs/{id}` | 200，同步删除；被其他 `ready` pack 依赖时返回 409 `pack_in_use` |
 | GET | `/packs/{id}/progress` | 读 `.progress.json`；无进度文件时返回状态摘要 |
+| POST | `/packs/{id}/infer` | 模型组件的推理出口：请求体为图片字节，在 runtime 隔离子进程中推理 |
 
 ### 7.7 进度与轮询
 
@@ -244,9 +246,8 @@ GLAUX_MODELS_ROOT/packs/
       "description": "onnxruntime + openvino + opencv 的共享环境，供所有 ONNX 视觉模型复用",
       "license": "Apache-2.0",
       "bytes": 120000000,
-      "sha256": "<实现时计算>",
-      "urls": ["https://..."],
-      "target_subdir": ".venv"
+      "requirements": ["onnxruntime==1.31.1", "openvino==2026.4.1"],
+      "index_url": "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
     }
   ]
 }

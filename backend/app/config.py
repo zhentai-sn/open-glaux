@@ -28,7 +28,7 @@ HOME = Path.home()
 MODELS_ROOT = _env_path("GLAUX_MODELS_ROOT", HOME / "glaux_models")
 
 
-def _venv_python(venv: Path) -> Path:
+def venv_python(venv: Path) -> Path:
     """隔离 venv 的解释器路径：Windows 为 ``Scripts/python.exe``，其余为 ``bin/python``。"""
     return venv / "Scripts" / "python.exe" if sys.platform == "win32" else venv / "bin" / "python"
 
@@ -53,7 +53,7 @@ DEMO_ID_HI = int(os.environ.get("GLAUX_DEMO_HI", "500"))
 
 # --- caroSegDeep 隔离环境 ----------------------------------------------------
 CSD_ROOT = _env_path("GLAUX_CSD_ROOT", MODELS_ROOT / "caroSegDeep")
-CSD_PYTHON = _env_path("GLAUX_CSD_PYTHON", _venv_python(CSD_ROOT / ".venv-csd"))
+CSD_PYTHON = _env_path("GLAUX_CSD_PYTHON", venv_python(CSD_ROOT / ".venv-csd"))
 CSD_DRIVER = _env_path("GLAUX_CSD_DRIVER", CSD_ROOT / "SEGMENTATION/run_headless.py")
 CSD_WEIGHTS = _env_path("GLAUX_CSD_WEIGHTS", CSD_ROOT / "EXAMPLE/TRAINED_MODEL")
 # caroSegDeep 真实产出缓存（eval 100 图）+ 本会话新算结果落盘目录。
@@ -64,7 +64,7 @@ HC18_ROOT = _env_path("GLAUX_HC18_ROOT", HOME / "glaux_datasets/hc18_data")
 
 # --- HC 分割隔离环境（CSM，HuggingFace gauravxthakur/Fetal-Head-Biometry，Apache-2.0）
 HC_SEG_ROOT = _env_path("GLAUX_HC_SEG_ROOT", MODELS_ROOT / "hc_seg")
-HC_SEG_PYTHON = _env_path("GLAUX_HC_SEG_PYTHON", _venv_python(HC_SEG_ROOT / ".venv-hc"))
+HC_SEG_PYTHON = _env_path("GLAUX_HC_SEG_PYTHON", venv_python(HC_SEG_ROOT / ".venv-hc"))
 HC_SEG_DRIVER = _env_path("GLAUX_HC_SEG_DRIVER", HC_SEG_ROOT / "run_headless.py")
 HC_SEG_WEIGHTS = _env_path("GLAUX_HC_SEG_WEIGHTS", HC_SEG_ROOT / "hf/test_model.pth")
 HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", MODELS_ROOT / "hc_seg_out")
@@ -73,7 +73,7 @@ HC_SEG_CACHE = _env_path("GLAUX_HC_SEG_CACHE", MODELS_ROOT / "hc_seg_out")
 CT_ROOT = _env_path("GLAUX_CT_ROOT", REPO_ROOT / "data/ct")
 # 隔离环境（主进程绝不 import torch；与 .venv-csd / .venv-hc 同构）
 TS_ROOT = _env_path("GLAUX_TS_ROOT", MODELS_ROOT / "totalseg")
-TS_PYTHON = _env_path("GLAUX_TS_PYTHON", _venv_python(TS_ROOT / ".venv-ts"))
+TS_PYTHON = _env_path("GLAUX_TS_PYTHON", venv_python(TS_ROOT / ".venv-ts"))
 TS_DRIVER = _env_path("GLAUX_TS_DRIVER", TS_ROOT / "run_headless.py")
 TS_WEIGHTS = _env_path("GLAUX_TS_WEIGHTS", TS_ROOT / "weights")
 TS_CACHE = _env_path("GLAUX_TS_CACHE", MODELS_ROOT / "ts_out")
@@ -84,7 +84,7 @@ WSI_ROOT = _env_path("GLAUX_WSI_ROOT", REPO_ROOT / "data/wsi")
 WSI_CACHE = _env_path("GLAUX_WSI_CACHE", MODELS_ROOT / "wsi_tiles")
 # 核分割隔离环境（主进程绝不 import torch/TF；与 .venv-ts 同构）
 WSI_SEG_ROOT = _env_path("GLAUX_WSI_SEG_ROOT", MODELS_ROOT / "wsi_seg")
-WSI_SEG_PYTHON = _env_path("GLAUX_WSI_SEG_PYTHON", _venv_python(WSI_SEG_ROOT / ".venv-wsi"))
+WSI_SEG_PYTHON = _env_path("GLAUX_WSI_SEG_PYTHON", venv_python(WSI_SEG_ROOT / ".venv-wsi"))
 WSI_SEG_DRIVER = _env_path("GLAUX_WSI_SEG_DRIVER", WSI_SEG_ROOT / "run_headless.py")
 WSI_SEG_WEIGHTS = _env_path("GLAUX_WSI_SEG_WEIGHTS", WSI_SEG_ROOT / "weights")
 WSI_SEG_CACHE = _env_path("GLAUX_WSI_SEG_CACHE", MODELS_ROOT / "wsi_seg_out")
@@ -201,3 +201,13 @@ def wsi_data_available() -> bool:
 def wsi_live_available() -> bool:
     """核分割隔离环境是否可现算（缓存未命中时才需要）。"""
     return WSI_SEG_PYTHON.is_file() and WSI_SEG_DRIVER.is_file() and WSI_SEG_WEIGHTS.is_dir()
+
+# --- 可选模型组件（SDD 25）：pack 清单、安装目标与下载通道 ---------------------
+# 清单随仓库分发，是 pack 的唯一定义来源；测试与内网可覆盖。
+PACKS_CATALOG = _env_path("GLAUX_PACKS_CATALOG", REPO_ROOT / "backend/app/packs/catalog.json")
+# 安装产物落在 MODELS_ROOT/packs（与 legacy 模型的 MODELS_ROOT/<name> 同级不同域）。
+PACKS_ROOT = _env_path("GLAUX_PACKS_ROOT", MODELS_ROOT / "packs")
+# 下载代理与镜像前缀。本机 fake-ip 代理环境下 DNS 返回保留段地址，缺代理配置即无法完成下载
+# （SDD 25 §7.5 D-15）；镜像前缀供内网部署替换 HF 源。
+PACK_PROXY = os.environ.get("GLAUX_PACK_PROXY", "").strip()
+PACK_MIRROR = os.environ.get("GLAUX_PACK_MIRROR", "").strip()
