@@ -113,12 +113,17 @@ const SYSTEM_PROMPT: Bilingual = {
     "Glaux is the environment you act in: it decodes images, runs calibrated segmentation and measurement, " +
     "and verifies results. When the user asks to measure, segment, or analyse the current image, call the " +
     "run_task tool instead of guessing numbers; report the returned metrics faithfully with units. " +
-    "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result.",
+    "If the request is out of Glaux's registered tasks, say so plainly rather than inventing a result. " +
+    "Questions about depth, distance or the 3D layout of the current image go to estimate_depth: call it " +
+    "instead of reasoning the depth order out from occlusion, perspective or size, and do not treat the " +
+    "absence of a depth task in run_task as evidence that Glaux cannot do it.",
   zh: "你是 Glaux 内置的参考助手，负责图像与视频分析：自然图像与视频、显微与病理图像、医学影像。" +
     "对医学与病理图像，你的输出用于科研，不用于临床诊断。" +
     "Glaux 是你工作的环境：它负责解码图像、运行标定过的分割与测量，并核验结果。" +
     "用户要求测量、分割或分析当前图像时，调用 run_task 工具，不要猜测数值；如实报告返回的指标并带上单位。" +
-    "如果请求超出 Glaux 已登记的任务，直接说明，不要编造结果。",
+    "如果请求超出 Glaux 已登记的任务，直接说明，不要编造结果。" +
+    "涉及当前图像的深度、远近或三维布局时，调用 estimate_depth：不要凭遮挡、透视或大小自行推断远近，" +
+    "也不要把 run_task 里没有深度任务当成 Glaux 做不到。",
 };
 
 /** 子智能体系统提示词末尾的说明（SDD 18 §7.2、SDD 20 §5）。 */

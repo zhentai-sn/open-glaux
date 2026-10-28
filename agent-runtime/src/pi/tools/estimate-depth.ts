@@ -56,10 +56,12 @@ export function createEstimateDepthTool(
     name: ESTIMATE_DEPTH_TOOL_NAME,
     label: "Estimate depth of the current image",
     description:
-      "Estimate a monocular relative depth map for the image currently open in the viewer. " +
-      "Use it when the question depends on how far or how close things are in the picture, or when you need " +
-      "a coarse 3D arrangement of the scene. Values are relative (no real-world scale); the returned image " +
-      "shows near as bright and far as dark. It requires the 'depth-dav2s' model pack to be installed.",
+      "Estimate a depth map with a real model instead of inferring distance from appearance. " +
+      "Always call this before answering any question about depth, distance, near/far ordering, or the 3D " +
+      "layout of the current image — do NOT deduce depth order from occlusion, perspective, relative size or " +
+      "texture; those are guesses and must not be presented as measurement. Returns relative depth statistics " +
+      "(near/mid/far pixel ratios, no metric scale) plus a depth image, and saves that image into the current " +
+      "project so the user can open it.",
     parameters: EstimateDepthParams,
     async execute(_toolCallId, _params, signal) {
       const focus = viewer?.focus;
